@@ -43,9 +43,9 @@ export default function OrganizationLayout({ children }: { children: React.React
 
       <nav
         aria-label="Organization sections"
-        className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+        className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
       >
-        <div className="flex w-max gap-1 border-b">
+        <div className="flex w-max gap-1 rounded-xl bg-muted p-1">
           {TABS.map((tab) => {
             const active = pathname === tab.href;
             return (
@@ -54,10 +54,10 @@ export default function OrganizationLayout({ children }: { children: React.React
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  '-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors',
+                  'whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm transition-all duration-150',
                   active
-                    ? 'border-primary font-medium text-foreground'
-                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                    ? 'bg-card font-medium text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 {tab.label}

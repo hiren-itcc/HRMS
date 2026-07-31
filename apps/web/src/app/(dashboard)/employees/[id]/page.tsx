@@ -248,7 +248,7 @@ function EmployeeDetailView() {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className="bg-destructive text-destructive-foreground [background-image:none] hover:bg-destructive/90"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate()}
                   >

@@ -57,16 +57,22 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-2xl border bg-card shadow-xs">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableRow className="border-b bg-muted/40 hover:bg-muted/40">
               {columns.map((col) => (
-                <TableHead key={col.key} className={col.className}>
+                <TableHead
+                  key={col.key}
+                  className={cn(
+                    'h-11 font-medium text-muted-foreground text-xs uppercase tracking-wider',
+                    col.className,
+                  )}
+                >
                   {col.sortable && onSortChange ? (
                     <button
                       type="button"
-                      className="-ml-1 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 font-medium hover:text-foreground focus-visible:outline-2"
+                      className="-ml-1 inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 font-medium uppercase tracking-wider hover:text-foreground focus-visible:outline-2"
                       onClick={() => onSortChange(col.key)}
                       aria-label={`Sort by ${col.header}`}
                     >
@@ -115,9 +121,12 @@ export function DataTable<T>({
             )}
             {!loading &&
               rows?.map((row) => (
-                <TableRow key={rowKey(row)}>
+                <TableRow
+                  key={rowKey(row)}
+                  className="transition-colors last:border-0 hover:bg-accent/40"
+                >
                   {columns.map((col) => (
-                    <TableCell key={col.key} className={col.className}>
+                    <TableCell key={col.key} className={cn('py-3', col.className)}>
                       {col.render(row)}
                     </TableCell>
                   ))}

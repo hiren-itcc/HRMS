@@ -42,7 +42,7 @@ export function AppHeader() {
               className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
             >
               <SheetHeader className="px-5 pt-5 pb-2">
-                <SheetTitle className="flex items-center gap-2.5 text-white">
+                <SheetTitle className="flex items-center gap-2.5 text-sidebar-accent-foreground">
                   <span className="gradient-primary flex size-8 items-center justify-center rounded-lg text-white">
                     <ShieldCheck className="size-4.5" aria-hidden />
                   </span>
