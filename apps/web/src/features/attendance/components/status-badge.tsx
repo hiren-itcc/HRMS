@@ -1,0 +1,69 @@
+import { Badge } from '@hrms/ui/components/badge';
+import { cn } from '@hrms/ui/lib/utils';
+import type { DerivedStatus } from '../api';
+
+/** Colour is never the only signal — the label always accompanies it. */
+export const STATUS_STYLE: Record<DerivedStatus, { label: string; badge: string; dot: string }> = {
+  PRESENT: {
+    label: 'Present',
+    badge: 'bg-success/15 text-success border-transparent',
+    dot: 'bg-success',
+  },
+  WFH: {
+    label: 'Work from home',
+    badge: 'bg-info/15 text-info border-transparent',
+    dot: 'bg-info',
+  },
+  HALF_DAY: {
+    label: 'Half day',
+    badge: 'bg-warning/15 text-warning border-transparent',
+    dot: 'bg-warning',
+  },
+  ABSENT: {
+    label: 'Absent',
+    badge: 'bg-destructive/15 text-destructive border-transparent',
+    dot: 'bg-destructive',
+  },
+  ON_LEAVE: {
+    label: 'On leave',
+    badge: 'bg-primary/15 text-primary border-transparent',
+    dot: 'bg-primary',
+  },
+  HOLIDAY: {
+    label: 'Holiday',
+    badge: 'bg-accent text-accent-foreground border-transparent',
+    dot: 'bg-accent-foreground/60',
+  },
+  WEEK_OFF: {
+    label: 'Week off',
+    badge: 'bg-muted text-muted-foreground border-transparent',
+    dot: 'bg-muted-foreground/40',
+  },
+  NOT_MARKED: {
+    label: 'Not marked',
+    badge: 'bg-transparent text-muted-foreground',
+    dot: 'bg-border',
+  },
+  NOT_EMPLOYED: {
+    label: 'Not employed',
+    badge: 'bg-transparent text-muted-foreground/70',
+    dot: 'bg-transparent',
+  },
+  FUTURE: { label: '—', badge: 'bg-transparent text-muted-foreground/60', dot: 'bg-transparent' },
+};
+
+export function AttendanceStatusBadge({
+  status,
+  isLate,
+}: {
+  status: DerivedStatus;
+  isLate?: boolean;
+}) {
+  const style = STATUS_STYLE[status];
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <Badge className={cn(style.badge)}>{style.label}</Badge>
+      {isLate && <Badge className="border-transparent bg-warning/15 text-warning">Late</Badge>}
+    </span>
+  );
+}

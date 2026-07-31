@@ -330,6 +330,7 @@ model AttendanceRecord {
   checkIn        DateTime?
   checkOut       DateTime?
   workMinutes    Int?
+  isLate         Boolean          @default(false)
   status         AttendanceStatus @default(PRESENT)
   source         AttendanceSource @default(WEB)
   note           String?

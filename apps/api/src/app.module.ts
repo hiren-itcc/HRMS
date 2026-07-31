@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
@@ -31,6 +32,7 @@ import { OrganizationModule } from './modules/organization/organization.module';
     OrganizationModule,
     EmployeesModule,
     DocumentsModule,
+    AttendanceModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -12,10 +12,13 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   Building2,
+  CalendarClock,
   CalendarDays,
+  Clock3,
   MapPin,
   Network,
   Palmtree,
+  UserCheck,
   UserPlus,
   UserRound,
   Users,
@@ -24,6 +27,8 @@ import Link from 'next/link';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
+import { attendanceApi } from '@/features/attendance/api';
+import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
 
@@ -63,6 +68,16 @@ export default function DashboardPage() {
 
   const canEmployees = can('employee.read');
   const canOrg = can('org.read');
+  const canTeamAttendance = can('attendance.read') || can('attendance.read.team');
+
+  // Manager/HR dashboards lead with today's attendance; employees see their
+  // own clock card instead (rendered above the grid).
+  const attendance = useQuery({
+    queryKey: ['attendance', 'stats'],
+    queryFn: attendanceApi.stats,
+    enabled: canTeamAttendance,
+    staleTime: 30_000,
+  });
 
   const employees = useQuery({
     queryKey: ['employees', 'stat'],
@@ -96,6 +111,34 @@ export default function DashboardPage() {
   if (!user) return null;
 
   const stats = [
+    canTeamAttendance && {
+      key: 'present',
+      card: (
+        <StatCard
+          label="Present today"
+          value={
+            attendance.data ? `${attendance.data.present}/${attendance.data.headcount}` : undefined
+          }
+          hint={attendance.data ? `${attendance.data.stillIn} still clocked in` : undefined}
+          icon={UserCheck}
+          gradient="emerald"
+          loading={attendance.isLoading}
+        />
+      ),
+    },
+    canTeamAttendance && {
+      key: 'late',
+      card: (
+        <StatCard
+          label="Late today"
+          value={attendance.data?.late}
+          hint={attendance.data ? `${attendance.data.notMarked} not marked` : undefined}
+          icon={Clock3}
+          gradient="amber"
+          loading={attendance.isLoading}
+        />
+      ),
+    },
     canEmployees && {
       key: 'employees',
       card: (
@@ -122,19 +165,20 @@ export default function DashboardPage() {
         />
       ),
     },
-    canOrg && {
-      key: 'locations',
-      card: (
-        <StatCard
-          label="Locations"
-          value={locations.data?.meta.total}
-          hint="Offices & branches"
-          icon={MapPin}
-          gradient="emerald"
-          loading={locations.isLoading}
-        />
-      ),
-    },
+    canOrg &&
+      !canTeamAttendance && {
+        key: 'locations',
+        card: (
+          <StatCard
+            label="Locations"
+            value={locations.data?.meta.total}
+            hint="Offices & branches"
+            icon={MapPin}
+            gradient="rose"
+            loading={locations.isLoading}
+          />
+        ),
+      },
     canOrg && {
       key: 'holidays',
       card: (
@@ -151,6 +195,22 @@ export default function DashboardPage() {
   ].filter(Boolean) as { key: string; card: React.ReactNode }[];
 
   const actions: QuickAction[] = [
+    {
+      href: '/attendance',
+      label: 'My attendance',
+      hint: 'Calendar and corrections',
+      icon: CalendarClock,
+      show: true,
+    },
+    {
+      href: '/attendance/approvals',
+      label: 'Approvals',
+      hint: attendance.data?.pendingRequests
+        ? `${attendance.data.pendingRequests} awaiting you`
+        : 'Attendance corrections',
+      icon: Clock3,
+      show: can('attendance.approve') || can('attendance.approve.team'),
+    },
     {
       href: '/employees/new',
       label: 'Add employee',
@@ -203,6 +263,8 @@ export default function DashboardPage() {
           {todayFmt.format(new Date())}
         </Badge>
       </div>
+
+      <ClockCard />
 
       {stats.length > 0 && (
         <motion.div

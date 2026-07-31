@@ -30,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
     perms: ['employee.read', 'employee.read.team'],
   },
   { href: '/organization', label: 'Organization', icon: Network, perms: ['org.read'] },
-  { href: '#attendance', label: 'Attendance', icon: CalendarClock, soon: true },
+  { href: '/attendance', label: 'Attendance', icon: CalendarClock },
   { href: '#leave', label: 'Leave', icon: Palmtree, soon: true },
   { href: '#documents', label: 'Documents', icon: FileText, soon: true },
   { href: '#announcements', label: 'Announcements', icon: Megaphone, soon: true },
