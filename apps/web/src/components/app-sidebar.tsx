@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from '@hrms/ui/components/tooltip';
 import { cn } from '@hrms/ui/lib/utils';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,6 +25,7 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const { can } = useSession();
+  const reduceMotion = useReducedMotion();
 
   const items = NAV_ITEMS.filter((item) => !item.perms || item.perms.some((p) => can(p)));
 
@@ -67,13 +69,23 @@ export function SidebarNav({
               onClick={onNavigate}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2 font-medium text-sm transition-colors duration-150',
+                'relative isolate flex items-center gap-3 rounded-xl px-3 py-2 font-medium text-sm transition-colors duration-150',
                 collapsed && 'justify-center px-2',
                 active
-                  ? 'gradient-primary text-white shadow-indigo-500/25 shadow-lg'
+                  ? 'text-white'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
               )}
             >
+              {active && (
+                <motion.span
+                  layoutId="sidebar-active-pill"
+                  aria-hidden
+                  className="gradient-primary -z-10 absolute inset-0 rounded-xl shadow-indigo-500/25 shadow-lg"
+                  transition={
+                    reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 32 }
+                  }
+                />
+              )}
               <Icon className="size-4.5 shrink-0" aria-hidden />
               {!collapsed && <span>{item.label}</span>}
             </Link>

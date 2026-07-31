@@ -191,6 +191,29 @@
     border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   }
 
+  /* Slow ambient drift for decorative gradient blobs */
+  .animate-float {
+    animation: hrms-float 9s ease-in-out infinite;
+  }
+  .animate-float-delayed {
+    animation: hrms-float 11s ease-in-out 2s infinite reverse;
+  }
+  @keyframes hrms-float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(24px, -18px, 0) scale(1.06);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-float,
+    .animate-float-delayed {
+      animation: none;
+    }
+  }
+
   /* Card hover lift — subtle, GPU-friendly */
   .hover-lift {
     transition:

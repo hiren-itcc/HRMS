@@ -6,11 +6,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Ambient gradient blobs — decorative only */}
       <div
         aria-hidden
-        className="-top-40 -left-40 pointer-events-none absolute size-96 rounded-full bg-indigo-500/15 blur-3xl"
+        className="-top-40 -left-40 pointer-events-none absolute size-96 animate-float rounded-full bg-indigo-500/15 blur-3xl"
       />
       <div
         aria-hidden
-        className="-bottom-40 -right-40 pointer-events-none absolute size-96 rounded-full bg-cyan-500/10 blur-3xl"
+        className="-bottom-40 -right-40 pointer-events-none absolute size-96 animate-float-delayed rounded-full bg-cyan-500/10 blur-3xl"
       />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-10">

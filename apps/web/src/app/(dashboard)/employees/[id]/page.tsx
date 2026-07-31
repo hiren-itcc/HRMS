@@ -32,6 +32,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
+import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { Field } from '@/features/auth/components/field';
 import { employeesApi } from '@/features/employees/api';
@@ -261,87 +262,95 @@ function EmployeeDetailView() {
         </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Contact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="divide-y">
-              <Row
-                label="Work email"
-                value={
-                  <a href={`mailto:${e.workEmail}`} className="hover:underline">
-                    {e.workEmail}
-                  </a>
-                }
-              />
-              <Row label="Personal email" value={e.personalEmail} />
-              <Row label="Phone" value={e.phone} />
-              <Row
-                label="Address"
-                value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
-              />
-            </dl>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Job</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="divide-y">
-              <Row label="Department" value={e.department?.name} />
-              <Row label="Location" value={e.location?.name} />
-              <Row label="Employment type" value={e.employmentType?.name} />
-              <Row label="Shift" value={e.shift?.name} />
-              <Row
-                label="Reporting manager"
-                value={
-                  e.manager ? (
-                    <Link href={`/employees/${e.manager.id}`} className="hover:underline">
-                      {fullName(e.manager)}
-                    </Link>
-                  ) : null
-                }
-              />
-              <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
-              <Row
-                label="Login"
-                value={e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'}
-              />
-            </dl>
-          </CardContent>
-        </Card>
-
-        <BankCard employee={e} />
-
-        {e.reports.length > 0 && (
+      <Stagger className="grid items-start gap-6 lg:grid-cols-2">
+        <FadeInItem>
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
-                {e.reports.length})
-              </CardTitle>
+              <CardTitle className="text-base">Contact</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1">
-              {e.reports.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/employees/${r.id}`}
-                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                >
-                  <span className="font-medium">{fullName(r)}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {r.designation?.title ?? r.employeeCode}
-                  </span>
-                </Link>
-              ))}
+            <CardContent>
+              <dl className="divide-y">
+                <Row
+                  label="Work email"
+                  value={
+                    <a href={`mailto:${e.workEmail}`} className="hover:underline">
+                      {e.workEmail}
+                    </a>
+                  }
+                />
+                <Row label="Personal email" value={e.personalEmail} />
+                <Row label="Phone" value={e.phone} />
+                <Row
+                  label="Address"
+                  value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
+                />
+              </dl>
             </CardContent>
           </Card>
+        </FadeInItem>
+
+        <FadeInItem>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Job</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="divide-y">
+                <Row label="Department" value={e.department?.name} />
+                <Row label="Location" value={e.location?.name} />
+                <Row label="Employment type" value={e.employmentType?.name} />
+                <Row label="Shift" value={e.shift?.name} />
+                <Row
+                  label="Reporting manager"
+                  value={
+                    e.manager ? (
+                      <Link href={`/employees/${e.manager.id}`} className="hover:underline">
+                        {fullName(e.manager)}
+                      </Link>
+                    ) : null
+                  }
+                />
+                <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
+                <Row
+                  label="Login"
+                  value={e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'}
+                />
+              </dl>
+            </CardContent>
+          </Card>
+        </FadeInItem>
+
+        <FadeInItem>
+          <BankCard employee={e} />
+        </FadeInItem>
+
+        {e.reports.length > 0 && (
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
+                  {e.reports.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {e.reports.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/employees/${r.id}`}
+                    className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                  >
+                    <span className="font-medium">{fullName(r)}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {r.designation?.title ?? r.employeeCode}
+                    </span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          </FadeInItem>
         )}
-      </div>
+      </Stagger>
     </div>
   );
 }

@@ -77,7 +77,7 @@ export function MyHrProfile() {
   const e = profile.data;
 
   return (
-    <Card className="lg:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <BriefcaseBusiness className="size-4 text-muted-foreground" aria-hidden /> Employment
