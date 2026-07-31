@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
+import { LeaveModule } from './modules/leave/leave.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { OrganizationModule } from './modules/organization/organization.module';
     EmployeesModule,
     DocumentsModule,
     AttendanceModule,
+    LeaveModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -1,11 +1,12 @@
+import { isWeekend } from '../../common/utils/calendar';
+
+export { daysInMonth, WEEKEND_DAYS, weekdayOf } from '../../common/utils/calendar';
+
 /**
  * Pure attendance rules — no Prisma, no I/O, fully unit-testable.
  * All wall-clock reasoning happens in the employee's timezone
  * (location override → org default, per ADR A7); instants stay UTC.
  */
-
-/** Non-working days when no record exists. Sunday = 0. */
-export const WEEKEND_DAYS = [0, 6];
 
 /** Fallback when an employee has no shift assigned. */
 const DEFAULT_SHIFT_MINUTES = 9 * 60;
@@ -108,11 +109,6 @@ export function workedMinutesBetween(checkIn: Date, checkOut: Date): number {
   return Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000));
 }
 
-/** Day-of-week for a YYYY-MM-DD key, timezone-independent. */
-export function weekdayOf(dateKey: string): number {
-  return new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
-}
-
 /**
  * Single source of truth for "what happened on this day" — used by the
  * calendar, the day view and every dashboard so they can never disagree.
@@ -123,16 +119,21 @@ export function deriveDayStatus(input: {
   todayKey: string;
   record: { status: string } | null;
   isHoliday: boolean;
+  /** Approved leave covering this day (weekends/holidays still win). */
+  isOnLeave?: boolean;
   /** Omit to skip the employment check (callers that already scope by date). */
   employment?: EmploymentWindow;
 }): DerivedStatus {
   // A real record always wins — never hide data that exists.
   if (input.record) return input.record.status as DerivedStatus;
-  if (input.dateKey > input.todayKey) return 'FUTURE';
   // Before joining or after leaving there is nothing to attend.
   if (input.employment && !isEmployedOn(input.dateKey, input.employment)) return 'NOT_EMPLOYED';
+  // Calendar facts hold whether the day is past or still to come, so
+  // approved leave is visible on the calendar before it starts.
   if (input.isHoliday) return 'HOLIDAY';
-  if (WEEKEND_DAYS.includes(weekdayOf(input.dateKey))) return 'WEEK_OFF';
+  if (isWeekend(input.dateKey)) return 'WEEK_OFF';
+  if (input.isOnLeave) return 'ON_LEAVE';
+  if (input.dateKey > input.todayKey) return 'FUTURE';
   if (input.dateKey === input.todayKey) return 'NOT_MARKED';
   return 'ABSENT';
 }
@@ -140,13 +141,4 @@ export function deriveDayStatus(input: {
 export function isEmployedOn(dateKey: string, window: EmploymentWindow): boolean {
   if (dateKey < window.joinDate) return false;
   return !window.exitDate || dateKey <= window.exitDate;
-}
-
-/** Every YYYY-MM-DD in a month, given "YYYY-MM". */
-export function daysInMonth(month: string): string[] {
-  const [y = '1970', m = '01'] = month.split('-');
-  const year = Number(y);
-  const monthIndex = Number(m) - 1;
-  const count = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-  return Array.from({ length: count }, (_, i) => `${y}-${m}-${String(i + 1).padStart(2, '0')}`);
 }

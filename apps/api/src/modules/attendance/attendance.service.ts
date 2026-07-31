@@ -2,6 +2,7 @@ import type { AttendanceDayQuery, AttendanceSummaryQuery } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
+import { dateKeyOf, eachDayKey, toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -169,11 +170,12 @@ export class AttendanceService {
     const to = toDate(days[days.length - 1] as string);
     const todayKey = dateKeyInTz(new Date(), ctx.timeZone);
 
-    const [records, holidays] = await Promise.all([
+    const [records, holidays, leave] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
         where: { employeeId: ctx.employeeId, date: { gte: from, lte: to } },
       }),
       this.holidayKeys(ctx.organizationId, from, to),
+      this.leaveKeys([ctx.employeeId], from, to),
     ]);
     const byDate = new Map(records.map((r) => [dateKeyOf(r.date), r]));
 
@@ -184,6 +186,7 @@ export class AttendanceService {
         todayKey,
         holidays.has(dateKey),
         ctx.employment,
+        leave.has(`${ctx.employeeId}|${dateKey}`),
       ),
     );
     return { month, timeZone: ctx.timeZone, days: entries, summary: summarize(entries) };
@@ -385,6 +388,26 @@ export class AttendanceService {
     return count > 0;
   }
 
+  /** Days covered by approved leave — makes ON_LEAVE derivable (no writes). */
+  private async leaveKeys(employeeIds: string[], from: Date, to: Date): Promise<Set<string>> {
+    const requests = await this.prisma.leaveRequest.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        status: 'APPROVED',
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      select: { employeeId: true, startDate: true, endDate: true },
+    });
+    const keys = new Set<string>();
+    for (const r of requests) {
+      for (const dateKey of eachDayKey(dateKeyOf(r.startDate), dateKeyOf(r.endDate))) {
+        keys.add(`${r.employeeId}|${dateKey}`);
+      }
+    }
+    return keys;
+  }
+
   private async holidayKeys(orgId: string, from: Date, to: Date): Promise<Set<string>> {
     const holidays = await this.prisma.holiday.findMany({
       where: { organizationId: orgId, date: { gte: from, lte: to } },
@@ -406,10 +429,11 @@ export class AttendanceService {
     todayKey: string,
     isHoliday = false,
     employment?: EmploymentWindow,
+    isOnLeave = false,
   ): DayEntry {
     return {
       date: dateKey,
-      status: deriveDayStatus({ dateKey, todayKey, record, isHoliday, employment }),
+      status: deriveDayStatus({ dateKey, todayKey, record, isHoliday, employment, isOnLeave }),
       checkIn: record?.checkIn?.toISOString() ?? null,
       checkOut: record?.checkOut?.toISOString() ?? null,
       workMinutes: record?.workMinutes ?? null,
@@ -417,15 +441,6 @@ export class AttendanceService {
       note: record?.note ?? null,
     };
   }
-}
-
-/** DB `@db.Date` columns are stored at UTC midnight — always build them that way. */
-export function toDate(dateKey: string): Date {
-  return new Date(`${dateKey}T00:00:00.000Z`);
-}
-
-export function dateKeyOf(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export function summarize(entries: DayEntry[]) {

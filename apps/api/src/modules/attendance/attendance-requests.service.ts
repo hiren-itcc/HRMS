@@ -11,10 +11,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
+import { toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import { AttendanceService, toDate } from './attendance.service';
+import { AttendanceService } from './attendance.service';
 import {
   instantFromLocal,
   isLateArrival,

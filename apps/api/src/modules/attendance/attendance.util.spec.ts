@@ -138,6 +138,48 @@ describe('deriveDayStatus', () => {
     ).toBe('HOLIDAY');
   });
 
+  it('shows approved leave, including leave still in the future', () => {
+    expect(
+      deriveDayStatus({
+        dateKey: '2026-08-20',
+        todayKey,
+        record: null,
+        isHoliday: false,
+        isOnLeave: true,
+      }),
+    ).toBe('ON_LEAVE');
+    expect(
+      deriveDayStatus({
+        dateKey: '2026-08-03',
+        todayKey,
+        record: null,
+        isHoliday: false,
+        isOnLeave: true,
+      }),
+    ).toBe('ON_LEAVE');
+  });
+
+  it('keeps holidays and weekends ahead of leave inside a leave range', () => {
+    expect(
+      deriveDayStatus({
+        dateKey: '2026-08-08', // Saturday
+        todayKey,
+        record: null,
+        isHoliday: false,
+        isOnLeave: true,
+      }),
+    ).toBe('WEEK_OFF');
+    expect(
+      deriveDayStatus({
+        dateKey: '2026-08-06',
+        todayKey,
+        record: null,
+        isHoliday: true,
+        isOnLeave: true,
+      }),
+    ).toBe('HOLIDAY');
+  });
+
   it('never marks days before joining as absent', () => {
     expect(
       deriveDayStatus({
