@@ -26,18 +26,18 @@
 
 ## 16 — Git strategy
 
-**Trunk-based**: `main` is always deployable; short-lived branches; no `develop` branch (a 1–3 person greenfield team gets zero value from GitFlow's ceremony).
+**Trunk-based**: `master` is always deployable; short-lived branches; no `develop` branch (a 1–3 person greenfield team gets zero value from GitFlow's ceremony).
 
 - Branches: `feat/<scope>-<desc>` · `fix/...` · `chore/...` · `docs/...` — target lifetime ≤ 3 days.
 - **Conventional Commits** enforced by commitlint (Husky `commit-msg`): `feat(leave): add half-day support`. Scopes = module names. Enables changelog + semver later.
 - PRs: required CI green + 1 review (self-merge allowed for `docs/` and `chore/` while team < 3); **squash-merge only** → linear history; PR title becomes the commit.
 - Hooks (Husky): `pre-commit` biome check on staged + affected typecheck · `commit-msg` commitlint.
-- Releases: tags `v0.x.y` cut from `main`; deploy is tag-triggered (below). Rollback = redeploy previous tag.
-- Never rewrite `main`; `--force-with-lease` only on own feature branches.
+- Releases: tags `v0.x.y` cut from `master`; deploy is tag-triggered (below). Rollback = redeploy previous tag.
+- Never rewrite `master`; `--force-with-lease` only on own feature branches.
 
 ## 17 — CI/CD (GitHub Actions)
 
-### `ci.yml` — every PR and push to `main`
+### `ci.yml` — every PR and push to `master`
 
 ```
 setup (pnpm cache + turbo remote cache)
@@ -45,11 +45,11 @@ setup (pnpm cache + turbo remote cache)
 ├─ typecheck   turbo run typecheck
 ├─ test        turbo run test      (unit + integration; Postgres service container)
 ├─ build       turbo run build     (web + api + packages)
-└─ e2e         Playwright golden flows — main only, or PR label "e2e"
+└─ e2e         Playwright golden flows — master only, or PR label "e2e"
     prisma migrate diff --exit-code   → blocks drift between schema and migrations
 ```
 
-Turborepo's affected-graph keeps PR CI < 5 min; `main` runs the full matrix.
+Turborepo's affected-graph keeps PR CI < 5 min; `master` runs the full matrix.
 
 ### `deploy.yml` — on tag `v*` (staging auto; production behind GitHub Environment approval)
 
