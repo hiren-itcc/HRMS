@@ -16,15 +16,15 @@ import {
 import { Suspense, useId, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
+import { CrudShell } from '@/components/crud/crud-shell';
+import { FormDialog } from '@/components/crud/form-dialog';
+import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
 import { Field } from '@/features/auth/components/field';
 import { holidaysApi, locationsApi } from '@/features/organization/api';
-import { CrudShell } from '@/features/organization/components/crud-shell';
-import { FormDialog } from '@/features/organization/components/form-dialog';
-import { RowActions } from '@/features/organization/components/row-actions';
-import { useCrudList, useCrudMutations, useOptions } from '@/features/organization/hooks';
 import type { Holiday } from '@/features/organization/types';
-import { useListParams } from '@/features/organization/use-list-params';
+import { useCrudList, useCrudMutations, useOptions } from '@/hooks/use-crud';
+import { useListParams } from '@/hooks/use-list-params';
 
 const KEY = 'org-holidays';
 const ALL = 'all';

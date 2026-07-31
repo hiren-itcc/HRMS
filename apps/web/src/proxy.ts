@@ -33,6 +33,7 @@ export const config = {
     '/dashboard/:path*',
     '/profile/:path*',
     '/organization/:path*',
+    '/employees/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',

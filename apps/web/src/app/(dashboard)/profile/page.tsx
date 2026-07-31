@@ -13,6 +13,7 @@ import { Separator } from '@hrms/ui/components/separator';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
+import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -90,6 +91,8 @@ export default function ProfilePage() {
             <ChangePasswordForm />
           </CardContent>
         </Card>
+
+        <MyHrProfile />
       </div>
     </div>
   );

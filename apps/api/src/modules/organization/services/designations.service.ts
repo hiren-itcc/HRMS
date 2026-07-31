@@ -24,6 +24,15 @@ export class DesignationsService {
     return toPaginated(data, total, query);
   }
 
+  /** Flat list for pickers. */
+  options(orgId: string) {
+    return this.prisma.designation.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, title: true },
+      orderBy: { title: 'asc' },
+    });
+  }
+
   async create(ctx: OrgCtx, input: DesignationCreateInput) {
     const row = await this.prisma.designation.create({
       data: { ...input, organizationId: ctx.orgId },

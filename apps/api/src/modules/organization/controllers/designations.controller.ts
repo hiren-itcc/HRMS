@@ -31,6 +31,13 @@ export class DesignationsController {
     return this.designations.list(user.orgId, query);
   }
 
+  @Get('options')
+  @RequirePermissions('org.read')
+  @ApiOperation({ summary: 'Flat id/title list for pickers' })
+  options(@CurrentUser() user: AccessTokenClaims) {
+    return this.designations.options(user.orgId);
+  }
+
   @Post()
   @RequirePermissions('org.manage')
   @ApiOperation({ summary: 'Create designation' })

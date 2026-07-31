@@ -1,5 +1,6 @@
 'use client';
 
+import type { Permission } from '@hrms/shared';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
 import { ShieldCheck } from 'lucide-react';
@@ -10,9 +11,10 @@ import { useSession } from '@/components/session-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS: { href: string; label: string; perms?: Permission[] }[] = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/organization', label: 'Organization' },
+  { href: '/employees', label: 'Employees', perms: ['employee.read', 'employee.read.team'] },
+  { href: '/organization', label: 'Organization', perms: ['org.read'] },
 ];
 
 /**
@@ -21,9 +23,11 @@ const NAV_ITEMS = [
  * it also catches sessions that die while the tab is open.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
+  const { status, can } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter((item) => !item.perms || item.perms.some((p) => can(p)));
 
   useEffect(() => {
     if (status === 'unauthenticated') {

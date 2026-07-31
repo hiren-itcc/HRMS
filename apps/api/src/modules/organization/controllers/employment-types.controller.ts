@@ -35,6 +35,13 @@ export class EmploymentTypesController {
     return this.employmentTypes.list(user.orgId, query);
   }
 
+  @Get('options')
+  @RequirePermissions('org.read')
+  @ApiOperation({ summary: 'Flat id/name list for pickers' })
+  options(@CurrentUser() user: AccessTokenClaims) {
+    return this.employmentTypes.options(user.orgId);
+  }
+
   @Post()
   @RequirePermissions('org.manage')
   @ApiOperation({ summary: 'Create employment type' })

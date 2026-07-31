@@ -24,6 +24,15 @@ export class ShiftsService {
     return toPaginated(data, total, query);
   }
 
+  /** Flat list for pickers. */
+  options(orgId: string) {
+    return this.prisma.shift.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async create(ctx: OrgCtx, input: ShiftCreateInput) {
     const row = await this.prisma.shift.create({ data: { ...input, organizationId: ctx.orgId } });
     await auditOrgMutation(this.prisma, ctx, 'org.shift.create', 'Shift', row.id);

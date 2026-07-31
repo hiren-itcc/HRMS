@@ -31,6 +31,13 @@ export class ShiftsController {
     return this.shifts.list(user.orgId, query);
   }
 
+  @Get('options')
+  @RequirePermissions('org.read')
+  @ApiOperation({ summary: 'Flat id/name list for pickers' })
+  options(@CurrentUser() user: AccessTokenClaims) {
+    return this.shifts.options(user.orgId);
+  }
+
   @Post()
   @RequirePermissions('org.manage')
   @ApiOperation({ summary: 'Create shift' })

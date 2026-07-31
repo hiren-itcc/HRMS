@@ -2,8 +2,8 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import type { CrudApi, ListRequest } from '@/features/organization/api';
 import { ApiError } from '@/lib/api-client';
-import type { CrudApi, ListRequest } from './api';
 
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : 'Something went wrong. Try again.';

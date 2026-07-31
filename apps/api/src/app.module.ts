@@ -10,6 +10,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { OrganizationModule } from './modules/organization/organization.module';
 
@@ -27,6 +28,7 @@ import { OrganizationModule } from './modules/organization/organization.module';
     PrismaModule,
     AuthModule,
     OrganizationModule,
+    EmployeesModule,
   ],
   controllers: [HealthController],
   providers: [

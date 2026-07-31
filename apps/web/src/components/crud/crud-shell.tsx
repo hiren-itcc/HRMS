@@ -1,5 +1,6 @@
 'use client';
 
+import type { Permission } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
 import { Plus, Search } from 'lucide-react';
@@ -13,6 +14,8 @@ interface CrudShellProps {
   onSearchChange: (q: string) => void;
   onAdd?: () => void;
   addLabel?: string;
+  /** Permission required to see the add button */
+  managePerm?: Permission;
   /** Extra filter controls rendered next to search */
   filters?: React.ReactNode;
   children: React.ReactNode;
@@ -26,6 +29,7 @@ export function CrudShell({
   onSearchChange,
   onAdd,
   addLabel = 'Add',
+  managePerm = 'org.manage',
   filters,
   children,
 }: CrudShellProps) {
@@ -48,7 +52,7 @@ export function CrudShell({
           <h2 className="font-semibold text-lg">{title}</h2>
           <p className="text-muted-foreground text-sm">{description}</p>
         </div>
-        {onAdd && can('org.manage') && (
+        {onAdd && can(managePerm) && (
           <Button onClick={onAdd}>
             <Plus className="size-4" aria-hidden /> {addLabel}
           </Button>

@@ -254,6 +254,7 @@ model Employee {
   headOf         Department?     @relation("DeptHead")
 
   emergencyContacts  EmergencyContact[]
+  bankDetail         BankDetail?
   attendance         AttendanceRecord[]
   attendanceRequests AttendanceRequest[]
   leaveRequests      LeaveRequest[]
@@ -264,6 +265,19 @@ model Employee {
   @@index([organizationId, status])
   @@index([organizationId, departmentId])
   @@index([managerId])
+}
+
+model BankDetail {
+  id                String   @id @default(cuid())
+  employeeId        String   @unique
+  accountHolderName String
+  bankName          String
+  accountNumber     String
+  ifscCode          String?
+  branch            String?
+  updatedAt         DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model EmergencyContact {
