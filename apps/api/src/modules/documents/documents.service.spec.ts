@@ -1,0 +1,136 @@
+import type { AccessTokenClaims } from '@hrms/types';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { DocumentsService } from './documents.service';
+
+type Mock = jest.Mock;
+
+function makeService() {
+  const prisma = {
+    employee: { findFirst: jest.fn().mockResolvedValue({ managerId: 'e-mgr' }) },
+    document: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
+      create: jest.fn().mockResolvedValue({ id: 'd1' }),
+      update: jest.fn(),
+    },
+    auditLog: { create: jest.fn() },
+  };
+  const storage = { put: jest.fn().mockResolvedValue('org1/key.pdf'), stream: jest.fn() };
+  const config = { get: jest.fn().mockReturnValue(10) };
+  return {
+    // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
+    service: new DocumentsService(prisma as any, storage as any, config as any),
+    prisma,
+    storage,
+  };
+}
+
+const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({
+  sub: 'u1',
+  orgId: 'org1',
+  roleCode: 'EMPLOYEE',
+  perms: [],
+  ...over,
+});
+
+const pdf = {
+  originalname: 'offer.pdf',
+  mimetype: 'application/pdf',
+  size: 1024,
+  buffer: Buffer.from('x'),
+};
+
+describe('DocumentsService access matrix', () => {
+  it('lets HR (document.read) list anyone', async () => {
+    const { service } = makeService();
+    await expect(
+      service.listForEmployee(claims({ perms: ['document.read'] }), 'e2'),
+    ).resolves.toEqual([]);
+  });
+
+  it("lets a manager (read.team) list a direct report's documents", async () => {
+    const { service } = makeService();
+    await expect(
+      service.listForEmployee(claims({ perms: ['document.read.team'], employeeId: 'e-mgr' }), 'e2'),
+    ).resolves.toEqual([]);
+  });
+
+  it('blocks a manager from a non-report', async () => {
+    const { service, prisma } = makeService();
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ managerId: 'other' });
+    await expect(
+      service.listForEmployee(claims({ perms: ['document.read.team'], employeeId: 'e-mgr' }), 'e2'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lets an employee (read.own) list only their own', async () => {
+    const { service } = makeService();
+    await expect(
+      service.listForEmployee(claims({ perms: ['document.read.own'], employeeId: 'e2' }), 'e2'),
+    ).resolves.toEqual([]);
+    await expect(
+      service.listForEmployee(claims({ perms: ['document.read.own'], employeeId: 'e3' }), 'e2'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('DocumentsService.upload validation', () => {
+  it('rejects disallowed mime types', async () => {
+    const { service } = makeService();
+    await expect(
+      service.upload(claims({ perms: ['document.upload'] }), 'e2', {
+        ...pdf,
+        mimetype: 'application/zip',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects files over the size limit', async () => {
+    const { service } = makeService();
+    await expect(
+      service.upload(claims({ perms: ['document.upload'] }), 'e2', {
+        ...pdf,
+        size: 11 * 1024 * 1024,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('stores and audits a valid upload', async () => {
+    const { service, prisma, storage } = makeService();
+    await service.upload(claims({ perms: ['document.upload'] }), 'e2', pdf);
+    expect(storage.put).toHaveBeenCalled();
+    expect(prisma.document.create).toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'document.upload' }) }),
+    );
+  });
+});
+
+describe('DocumentsService.remove', () => {
+  const row = { id: 'd1', employeeId: 'e2', uploadedById: 'u1', fileKey: 'k' };
+
+  it('allows document.manage holders', async () => {
+    const { service, prisma } = makeService();
+    (prisma.document.findFirst as Mock).mockResolvedValue(row);
+    await service.remove(claims({ perms: ['document.manage'] }), 'd1');
+    expect(prisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { deletedAt: expect.any(Date) } }),
+    );
+  });
+
+  it('allows the self-uploader on their own record', async () => {
+    const { service, prisma } = makeService();
+    (prisma.document.findFirst as Mock).mockResolvedValue(row);
+    await expect(
+      service.remove(claims({ perms: [], employeeId: 'e2', sub: 'u1' }), 'd1'),
+    ).resolves.toBeUndefined();
+  });
+
+  it("blocks others' deletes without document.manage", async () => {
+    const { service, prisma } = makeService();
+    (prisma.document.findFirst as Mock).mockResolvedValue({ ...row, uploadedById: 'someone' });
+    await expect(
+      service.remove(claims({ perms: [], employeeId: 'e2' }), 'd1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});

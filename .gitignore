@@ -28,3 +28,6 @@ docker/volumes/
 
 # prisma generated client (recreated via pnpm db:generate)
 apps/api/src/generated/
+
+# uploaded files (local disk storage adapter)
+apps/api/uploads/

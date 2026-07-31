@@ -32,6 +32,10 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/profile/:path*',
+    '/organization/:path*',
+    '/employees/:path*',
+    '/attendance/:path*',
+    '/leave/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',

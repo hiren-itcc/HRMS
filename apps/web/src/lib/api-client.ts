@@ -74,3 +74,58 @@ export async function api<T>(path: string, init: RequestInit = {}, isRetry = fal
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/** Multipart upload via XHR — the only way to get real progress events. */
+export function uploadFile<T>(
+  path: string,
+  formData: FormData,
+  onProgress: (percent: number) => void,
+  isRetry = false,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE_URL}${path}`);
+    xhr.withCredentials = true;
+    if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onerror = () =>
+      reject(new ApiError({ statusCode: 0, error: 'Network', message: 'Upload failed' }));
+    xhr.onload = async () => {
+      if (xhr.status === 401 && !isRetry && (await tryRefresh())) {
+        resolve(await uploadFile<T>(path, formData, onProgress, true));
+        return;
+      }
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as T);
+      else
+        reject(
+          new ApiError(
+            (body as ApiErrorBody) ?? {
+              statusCode: xhr.status,
+              error: 'UploadError',
+              message: 'Upload failed',
+            },
+          ),
+        );
+    };
+    xhr.send(formData);
+  });
+}
+
+/** Authenticated binary fetch (preview/download blobs). */
+export async function fetchBlob(path: string, isRetry = false): Promise<Blob> {
+  const headers = new Headers();
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  const res = await fetch(`${BASE_URL}${path}`, { headers, credentials: 'include' });
+  if (res.status === 401 && !isRetry && (await tryRefresh())) return fetchBlob(path, true);
+  if (!res.ok) {
+    throw new ApiError({ statusCode: res.status, error: res.statusText, message: 'Fetch failed' });
+  }
+  return res.blob();
+}

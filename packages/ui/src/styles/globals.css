@@ -4,13 +4,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * HRMS design tokens — "Trust & Authority" direction (docs/06-design-system.md).
+ * HRMS design tokens — premium indigo direction (UI/UX redesign brief).
  * Semantic tokens only; components never use raw hex.
  * shadcn/ui variable contract + HRMS status extensions (success/warning/info).
  */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -18,86 +18,86 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #0f172a;
+  --primary: #6366f1;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --destructive: #dc2626;
+  --accent: #eef2ff;
+  --accent-foreground: #4338ca;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
   --input: #e2e8f0;
-  --ring: #2563eb;
+  --ring: #6366f1;
 
   /* HRMS status colors — always paired with a label or icon, never color alone */
-  --success: #16a34a;
+  --success: #10b981;
   --success-foreground: #ffffff;
-  --warning: #d97706;
+  --warning: #f59e0b;
   --warning-foreground: #ffffff;
-  --info: #2563eb;
+  --info: #06b6d4;
   --info-foreground: #ffffff;
 
   --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #0f172a;
+  --sidebar-foreground: #475569;
+  --sidebar-primary: #6366f1;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f5f9;
-  --sidebar-accent-foreground: #0f172a;
+  --sidebar-accent: #eef2ff;
+  --sidebar-accent-foreground: #312e81;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-ring: #6366f1;
 
-  --chart-1: #2563eb;
-  --chart-2: #16a34a;
-  --chart-3: #d97706;
-  --chart-4: #7c3aed;
-  --chart-5: #0891b2;
+  --chart-1: #6366f1;
+  --chart-2: #06b6d4;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #ec4899;
 }
 
 .dark {
-  --background: #020617;
+  --background: #080f19;
   --foreground: #f8fafc;
-  --card: #0f172a;
+  --card: #111827;
   --card-foreground: #f8fafc;
-  --popover: #0f172a;
+  --popover: #111827;
   --popover-foreground: #f8fafc;
-  --primary: #f8fafc;
+  --primary: #818cf8;
   --primary-foreground: #0f172a;
-  --secondary: #1e293b;
+  --secondary: #1f2937;
   --secondary-foreground: #f8fafc;
-  --muted: #1a1e2f;
+  --muted: #1f2937;
   --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
+  --accent: rgba(99, 102, 241, 0.16);
+  --accent-foreground: #c7d2fe;
+  --destructive: #f87171;
+  --destructive-foreground: #0f172a;
   --border: #334155;
   --input: #334155;
-  --ring: #3b82f6;
+  --ring: #818cf8;
 
-  --success: #22c55e;
-  --success-foreground: #020617;
-  --warning: #f59e0b;
-  --warning-foreground: #020617;
-  --info: #3b82f6;
-  --info-foreground: #020617;
+  --success: #34d399;
+  --success-foreground: #080f19;
+  --warning: #fbbf24;
+  --warning-foreground: #080f19;
+  --info: #22d3ee;
+  --info-foreground: #080f19;
 
-  --sidebar: #0f172a;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #f8fafc;
+  --sidebar: #0b1120;
+  --sidebar-foreground: #94a3b8;
+  --sidebar-primary: #818cf8;
   --sidebar-primary-foreground: #0f172a;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
-  --sidebar-ring: #3b82f6;
+  --sidebar-accent: rgba(129, 140, 248, 0.16);
+  --sidebar-accent-foreground: #e0e7ff;
+  --sidebar-border: rgba(148, 163, 184, 0.14);
+  --sidebar-ring: #818cf8;
 
-  --chart-1: #3b82f6;
-  --chart-2: #22c55e;
-  --chart-3: #f59e0b;
-  --chart-4: #8b5cf6;
-  --chart-5: #06b6d4;
+  --chart-1: #818cf8;
+  --chart-2: #22d3ee;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
 }
 
 @theme inline {
@@ -149,6 +149,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
 }
 
 @layer base {
@@ -160,5 +161,74 @@
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+  }
+}
+
+@layer utilities {
+  /* Gradient set from the redesign brief — used by stat cards & hero CTAs */
+  .gradient-primary {
+    background-image: linear-gradient(135deg, #7c3aed 0%, #6366f1 55%, #4f46e5 100%);
+  }
+  /* 600-shades: keeps white text ≥ ~4:1 (ui-ux-pro-max accessibility note) */
+  .gradient-sky {
+    background-image: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
+  }
+  .gradient-emerald {
+    background-image: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  }
+  .gradient-amber {
+    background-image: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+  }
+  .gradient-rose {
+    background-image: linear-gradient(135deg, #e11d48 0%, #db2777 100%);
+  }
+
+  /* Glassmorphism (ui-ux-pro-max: blur 10–20px, 1px translucent border) */
+  .glass {
+    background-color: color-mix(in srgb, var(--card) 72%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+
+  /* Slow ambient drift for decorative gradient blobs */
+  .animate-float {
+    animation: hrms-float 9s ease-in-out infinite;
+  }
+  .animate-float-delayed {
+    animation: hrms-float 11s ease-in-out 2s infinite reverse;
+  }
+  @keyframes hrms-float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(24px, -18px, 0) scale(1.06);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-float,
+    .animate-float-delayed {
+      animation: none;
+    }
+  }
+
+  /* Card hover lift — subtle, GPU-friendly */
+  .hover-lift {
+    transition:
+      transform 200ms ease-out,
+      box-shadow 200ms ease-out;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--foreground) 18%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hover-lift,
+    .hover-lift:hover {
+      transition: none;
+      transform: none;
+    }
   }
 }
