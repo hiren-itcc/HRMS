@@ -57,7 +57,21 @@ async function main() {
     },
   });
 
-  // Sensible defaults: shift + leave types
+  // Sensible defaults: employment types + shift + leave types
+  const employmentTypes = [
+    { name: 'Full-time', code: 'FT' },
+    { name: 'Part-time', code: 'PT' },
+    { name: 'Contract', code: 'CT' },
+    { name: 'Intern', code: 'IN' },
+  ];
+  for (const et of employmentTypes) {
+    await prisma.employmentType.upsert({
+      where: { organizationId_name: { organizationId: org.id, name: et.name } },
+      update: {},
+      create: { organizationId: org.id, ...et },
+    });
+  }
+
   await prisma.shift.upsert({
     where: { organizationId_name: { organizationId: org.id, name: 'General' } },
     update: {},

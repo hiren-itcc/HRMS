@@ -1,6 +1,7 @@
 'use client';
 
 import { Skeleton } from '@hrms/ui/components/skeleton';
+import { cn } from '@hrms/ui/lib/utils';
 import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -8,6 +9,11 @@ import { useEffect } from 'react';
 import { useSession } from '@/components/session-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
+
+const NAV_ITEMS = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/organization', label: 'Organization' },
+];
 
 /**
  * Authenticated shell (topbar only for now — the sidebar arrives with the
@@ -29,12 +35,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4">
-          <Link href="/dashboard" className="flex items-center gap-2" aria-label="HRMS home">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <ShieldCheck className="size-4" aria-hidden />
-            </span>
-            <span className="font-bold tracking-tight">HRMS</span>
-          </Link>
+          <div className="flex min-w-0 items-center gap-5">
+            <Link href="/dashboard" className="flex items-center gap-2" aria-label="HRMS home">
+              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <ShieldCheck className="size-4" aria-hidden />
+              </span>
+              <span className="font-bold tracking-tight">HRMS</span>
+            </Link>
+            <nav aria-label="Main" className="flex items-center gap-1">
+              {NAV_ITEMS.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'rounded-md px-2.5 py-1.5 text-sm transition-colors',
+                      active
+                        ? 'bg-accent font-medium text-accent-foreground'
+                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
             <UserMenu />

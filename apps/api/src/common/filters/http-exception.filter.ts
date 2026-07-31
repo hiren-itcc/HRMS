@@ -7,6 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { Prisma } from '../../generated/prisma/client';
 
 /**
  * Normalizes every error to the RFC-7807-style body the frontend types
@@ -34,6 +35,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : ((payload.message as string) ?? exception.message),
         ...(details ? { details: details as ApiErrorBody['details'] } : {}),
       };
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      body = prismaErrorBody(exception);
     } else {
       body = {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -43,6 +46,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     response.status(body.statusCode).json(body);
+  }
+}
+
+/** Maps well-known Prisma errors to client-meaningful statuses. */
+function prismaErrorBody(err: Prisma.PrismaClientKnownRequestError): ApiErrorBody {
+  switch (err.code) {
+    case 'P2002':
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        message: 'A record with this value already exists',
+      };
+    case 'P2003':
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        message: 'This record is referenced by other data and cannot be changed',
+      };
+    case 'P2025':
+      return { statusCode: HttpStatus.NOT_FOUND, error: 'NotFound', message: 'Record not found' };
+    default:
+      return {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        error: 'InternalServerError',
+        message: 'Something went wrong',
+      };
   }
 }
 

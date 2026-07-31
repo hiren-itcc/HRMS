@@ -11,6 +11,7 @@ import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthController } from './modules/health/health.controller';
+import { OrganizationModule } from './modules/organization/organization.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { HealthController } from './modules/health/health.controller';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     AuthModule,
+    OrganizationModule,
   ],
   controllers: [HealthController],
   providers: [

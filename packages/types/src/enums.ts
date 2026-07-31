@@ -27,13 +27,13 @@ export const EmployeeStatus = {
 } as const;
 export type EmployeeStatus = (typeof EmployeeStatus)[keyof typeof EmployeeStatus];
 
-export const EmploymentType = {
-  FULL_TIME: 'FULL_TIME',
-  PART_TIME: 'PART_TIME',
-  CONTRACT: 'CONTRACT',
-  INTERN: 'INTERN',
+export const LocationType = {
+  HEAD_OFFICE: 'HEAD_OFFICE',
+  BRANCH: 'BRANCH',
+  REMOTE: 'REMOTE',
+  CLIENT_SITE: 'CLIENT_SITE',
 } as const;
-export type EmploymentType = (typeof EmploymentType)[keyof typeof EmploymentType];
+export type LocationType = (typeof LocationType)[keyof typeof LocationType];
 
 export const Gender = {
   MALE: 'MALE',

@@ -148,10 +148,18 @@ model Designation {
   @@unique([organizationId, title])
 }
 
+enum LocationType {
+  HEAD_OFFICE
+  BRANCH
+  REMOTE
+  CLIENT_SITE
+}
+
 model Location {
-  id             String  @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   name           String
+  type           LocationType @default(BRANCH)
   address        String?
   city           String?
   country        String?
@@ -160,6 +168,17 @@ model Location {
   organization Organization @relation(fields: [organizationId], references: [id])
   employees    Employee[]
   holidays     Holiday[]
+
+  @@unique([organizationId, name])
+}
+
+model EmploymentType {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  code           String?
+
+  employees Employee[]
 
   @@unique([organizationId, name])
 }
@@ -188,13 +207,6 @@ enum Gender {
   PREFER_NOT_TO_SAY
 }
 
-enum EmploymentType {
-  FULL_TIME
-  PART_TIME
-  CONTRACT
-  INTERN
-}
-
 enum EmployeeStatus {
   ACTIVE
   ON_NOTICE
@@ -220,10 +232,10 @@ model Employee {
   departmentId   String?
   designationId  String?
   locationId     String?
-  managerId      String?
-  shiftId        String?
-  employmentType EmploymentType @default(FULL_TIME)
-  status         EmployeeStatus @default(ACTIVE)
+  managerId        String?
+  shiftId          String?
+  employmentTypeId String?
+  status           EmployeeStatus @default(ACTIVE)
   joinDate       DateTime       @db.Date
   exitDate       DateTime?      @db.Date
   deletedAt      DateTime?
@@ -235,10 +247,11 @@ model Employee {
   department   Department?  @relation(fields: [departmentId], references: [id])
   designation  Designation? @relation(fields: [designationId], references: [id])
   location     Location?    @relation(fields: [locationId], references: [id])
-  manager      Employee?    @relation("ReportsTo", fields: [managerId], references: [id])
-  reports      Employee[]   @relation("ReportsTo")
-  shift        Shift?       @relation(fields: [shiftId], references: [id])
-  headOf       Department?  @relation("DeptHead")
+  manager        Employee?       @relation("ReportsTo", fields: [managerId], references: [id])
+  reports        Employee[]      @relation("ReportsTo")
+  shift          Shift?          @relation(fields: [shiftId], references: [id])
+  employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
+  headOf         Department?     @relation("DeptHead")
 
   emergencyContacts  EmergencyContact[]
   attendance         AttendanceRecord[]
