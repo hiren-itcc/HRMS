@@ -1,0 +1,16 @@
+{
+  "name": "@hrms/config",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "typescript",
+    "biome"
+  ],
+  "exports": {
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/nestjs": "./typescript/nestjs.json",
+    "./typescript/library": "./typescript/library.json",
+    "./biome": "./biome/biome.json"
+  }
+}

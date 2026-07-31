@@ -1,0 +1,28 @@
+{
+  "name": "hrms",
+  "private": true,
+  "packageManager": "pnpm@11.14.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "db:generate": "pnpm --filter @hrms/api db:generate",
+    "db:migrate": "pnpm --filter @hrms/api db:migrate",
+    "db:seed": "pnpm --filter @hrms/api db:seed",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "husky": "^9.1.7",
+    "turbo": "^2.5.8"
+  }
+}

@@ -1,0 +1,91 @@
+'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { changePasswordSchema } from '@hrms/shared';
+import { Button } from '@hrms/ui/components/button';
+import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
+import { authApi } from '@/features/auth/api';
+import { ApiError } from '@/lib/api-client';
+import { Field } from './field';
+import { PasswordInput } from './password-input';
+
+const formSchema = changePasswordSchema
+  .extend({ confirmPassword: z.string() })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Passwords do not match',
+  });
+type FormValues = z.infer<typeof formSchema>;
+
+export function ChangePasswordForm() {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
+  const { errors, isSubmitting } = form.formState;
+
+  const onSubmit = form.handleSubmit(async ({ currentPassword, newPassword }) => {
+    setServerError(null);
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+      form.reset();
+      toast.success('Password changed. Other signed-in devices were logged out.');
+    } catch (err) {
+      setServerError(
+        err instanceof ApiError && err.status === 400
+          ? 'Current password is incorrect.'
+          : 'Could not change the password. Try again.',
+      );
+    }
+  });
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <Field label="Current password" error={errors.currentPassword?.message}>
+        {(a11y) => (
+          <PasswordInput
+            {...a11y}
+            autoComplete="current-password"
+            {...form.register('currentPassword')}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="New password"
+        error={errors.newPassword?.message}
+        hint="At least 10 characters with an uppercase letter, a lowercase letter and a digit"
+      >
+        {(a11y) => (
+          <PasswordInput {...a11y} autoComplete="new-password" {...form.register('newPassword')} />
+        )}
+      </Field>
+
+      <Field label="Confirm new password" error={errors.confirmPassword?.message}>
+        {(a11y) => (
+          <PasswordInput
+            {...a11y}
+            autoComplete="new-password"
+            {...form.register('confirmPassword')}
+          />
+        )}
+      </Field>
+
+      {serverError && (
+        <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">
+          {serverError}
+        </p>
+      )}
+
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
+        {isSubmitting ? 'Saving…' : 'Change password'}
+      </Button>
+    </form>
+  );
+}

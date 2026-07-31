@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+dist/
+out/
+build/
+.turbo/
+
+# env — only examples are committed
+.env
+.env.*
+!.env.example
+
+# logs & misc
+*.log
+.DS_Store
+coverage/
+*.tsbuildinfo
+
+# prisma
+apps/api/prisma/*.db
+
+# local volumes
+docker/volumes/
+
+# prisma generated client (recreated via pnpm db:generate)
+apps/api/src/generated/

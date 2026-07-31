@@ -1,0 +1,4 @@
+@import "@hrms/ui/globals.css";
+
+/* Tailwind must also scan the shared UI package's source for class names. */
+@source "../../../../packages/ui/src";

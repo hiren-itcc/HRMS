@@ -1,0 +1,24 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  argon2: true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - "@biomejs/biome"
+  - "@nestjs/core"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@tailwindcss/oxide"
+  - argon2
+  - esbuild
+  - prisma
+  - sharp
+  - unrs-resolver
