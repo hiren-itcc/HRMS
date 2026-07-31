@@ -35,6 +35,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { Field } from '@/features/auth/components/field';
+import { DocumentsCard } from '@/features/documents/documents-card';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
@@ -322,6 +323,10 @@ function EmployeeDetailView() {
 
         <FadeInItem>
           <BankCard employee={e} />
+        </FadeInItem>
+
+        <FadeInItem>
+          <DocumentsCard employeeId={e.id} />
         </FadeInItem>
 
         {e.reports.length > 0 && (

@@ -14,6 +14,7 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
+import { DocumentsCard } from '@/features/documents/documents-card';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -100,6 +101,12 @@ export default function ProfilePage() {
         <FadeInItem className="lg:col-span-2">
           <MyHrProfile />
         </FadeInItem>
+
+        {user.employee && (
+          <FadeInItem className="lg:col-span-2">
+            <DocumentsCard employeeId={user.employee.id} />
+          </FadeInItem>
+        )}
       </Stagger>
     </div>
   );
