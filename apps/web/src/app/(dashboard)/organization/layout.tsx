@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@hrms/ui/lib/utils';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -19,6 +20,7 @@ const TABS = [
 export default function OrganizationLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { can, status } = useSession();
+  const reduceMotion = useReducedMotion();
 
   if (status === 'authenticated' && !can('org.read')) {
     return (
@@ -54,12 +56,24 @@ export default function OrganizationLayout({ children }: { children: React.React
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm transition-all duration-150',
+                  'relative isolate whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm transition-colors duration-150',
                   active
-                    ? 'bg-card font-medium text-foreground shadow-sm'
+                    ? 'font-medium text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
+                {active && (
+                  <motion.span
+                    layoutId="org-tab-pill"
+                    aria-hidden
+                    className="-z-10 absolute inset-0 rounded-lg bg-card shadow-sm"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : { type: 'spring', stiffness: 500, damping: 35 }
+                    }
+                  />
+                )}
                 {tab.label}
               </Link>
             );
