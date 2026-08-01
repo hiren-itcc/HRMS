@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { holidayCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Checkbox } from '@hrms/ui/components/checkbox';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
@@ -198,7 +199,14 @@ function HolidaysView() {
           )}
         </Field>
         <Field label="Date" error={form.formState.errors.date?.message}>
-          {(a11y) => <Input {...a11y} type="date" {...form.register('date')} />}
+          {(a11y) => (
+            <DatePicker
+              {...a11y}
+              value={form.watch('date')}
+              onValueChange={(value) => form.setValue('date', value, { shouldDirty: true })}
+              placeholder="Select the holiday date"
+            />
+          )}
         </Field>
         <div className="space-y-2">
           <Label htmlFor="applies-to">Applies to</Label>

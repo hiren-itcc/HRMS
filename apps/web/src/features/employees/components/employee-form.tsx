@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
@@ -185,7 +186,16 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             {(a11y) => <Input {...a11y} type="tel" {...form.register('phone')} />}
           </Field>
           <Field label="Date of birth" error={errors.dateOfBirth?.message}>
-            {(a11y) => <Input {...a11y} type="date" {...form.register('dateOfBirth')} />}
+            {(a11y) => (
+              <DatePicker
+                {...a11y}
+                value={form.watch('dateOfBirth')}
+                onValueChange={(value) =>
+                  form.setValue('dateOfBirth', value, { shouldDirty: true })
+                }
+                placeholder="Select date of birth"
+              />
+            )}
           </Field>
           <div className="space-y-2">
             <Label htmlFor="gender">Gender</Label>
@@ -238,7 +248,14 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             )}
           </Field>
           <Field label="Joining date" error={errors.joinDate?.message}>
-            {(a11y) => <Input {...a11y} type="date" {...form.register('joinDate')} />}
+            {(a11y) => (
+              <DatePicker
+                {...a11y}
+                value={form.watch('joinDate')}
+                onValueChange={(value) => form.setValue('joinDate', value, { shouldDirty: true })}
+                placeholder="Select joining date"
+              />
+            )}
           </Field>
           {selectField(
             'Department',

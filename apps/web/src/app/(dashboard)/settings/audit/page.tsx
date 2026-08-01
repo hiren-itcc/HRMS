@@ -3,7 +3,7 @@
 import type { AuditEntry } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
-import { Input } from '@hrms/ui/components/input';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import {
   Select,
   SelectContent,
@@ -131,23 +131,23 @@ function AuditView() {
         </Select>
 
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Input
-            type="date"
+          <DatePicker
             value={from ?? ''}
-            max={to ?? undefined}
-            onChange={(e) => params.setFilter('from', e.target.value || undefined)}
-            className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
+            max={to}
+            placeholder="From"
+            onValueChange={(value) => params.setFilter('from', value || undefined)}
+            className="w-full min-w-40 flex-1 sm:w-44 sm:flex-none"
             aria-label="From date"
           />
           <span className="text-muted-foreground text-sm" aria-hidden>
             →
           </span>
-          <Input
-            type="date"
+          <DatePicker
             value={to ?? ''}
-            min={from ?? undefined}
-            onChange={(e) => params.setFilter('to', e.target.value || undefined)}
-            className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
+            min={from}
+            placeholder="To"
+            onValueChange={(value) => params.setFilter('to', value || undefined)}
+            className="w-full min-w-40 flex-1 sm:w-44 sm:flex-none"
             aria-label="To date"
           />
         </div>
