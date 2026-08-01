@@ -142,14 +142,14 @@ function DepartmentsView() {
           {(a11y) => <Input {...a11y} {...form.register('code')} />}
         </Field>
         <div className="space-y-2">
-          <Label>Parent department</Label>
+          <Label htmlFor="parent-department">Parent department</Label>
           <Select
             value={parentId ?? NONE}
             onValueChange={(v) =>
               form.setValue('parentId', v === NONE ? null : v, { shouldDirty: true })
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="parent-department" className="w-full">
               <SelectValue placeholder="None" />
             </SelectTrigger>
             <SelectContent>

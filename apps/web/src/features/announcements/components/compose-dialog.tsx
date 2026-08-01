@@ -161,8 +161,9 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
       </Field>
 
       <div className="space-y-2">
-        <Label>Message</Label>
+        <Label htmlFor="ann-message">Message</Label>
         <RichTextEditor
+          id="ann-message"
           value={body}
           onChange={(v) => form.setValue('body', v, { shouldDirty: true, shouldValidate: true })}
           aria-invalid={Boolean(form.formState.errors.body)}
@@ -176,14 +177,14 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Category</Label>
+          <Label htmlFor="ann-category">Category</Label>
           <Select
             value={form.watch('category') ?? 'GENERAL'}
             onValueChange={(v) =>
               form.setValue('category', v as FormValues['category'], { shouldDirty: true })
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="ann-category" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -196,14 +197,14 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Priority</Label>
+          <Label htmlFor="ann-priority">Priority</Label>
           <Select
             value={form.watch('priority') ?? 'NORMAL'}
             onValueChange={(v) =>
               form.setValue('priority', v as FormValues['priority'], { shouldDirty: true })
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="ann-priority" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -218,14 +219,14 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
       </div>
 
       <div className="space-y-2">
-        <Label>Audience</Label>
+        <Label htmlFor="ann-audience">Audience</Label>
         <Select
           value={audience}
           onValueChange={(v) =>
             form.setValue('audience', v as FormValues['audience'], { shouldDirty: true })
           }
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="ann-audience" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -238,12 +239,13 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
 
       {audience === 'DEPARTMENT' && (
         <div className="space-y-2">
-          <Label>Department</Label>
+          <Label htmlFor="ann-department">Department</Label>
           <Select
             value={form.watch('departmentId') ?? undefined}
             onValueChange={(v) => form.setValue('departmentId', v, { shouldDirty: true })}
           >
             <SelectTrigger
+              id="ann-department"
               className="w-full"
               aria-invalid={Boolean(form.formState.errors.departmentId)}
             >
@@ -267,12 +269,13 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
 
       {audience === 'LOCATION' && (
         <div className="space-y-2">
-          <Label>Location</Label>
+          <Label htmlFor="ann-location">Location</Label>
           <Select
             value={form.watch('locationId') ?? undefined}
             onValueChange={(v) => form.setValue('locationId', v, { shouldDirty: true })}
           >
             <SelectTrigger
+              id="ann-location"
               className="w-full"
               aria-invalid={Boolean(form.formState.errors.locationId)}
             >

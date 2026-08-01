@@ -57,7 +57,7 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="Email" error={errors.email?.message}>
+          <Field label="Email" required error={errors.email?.message}>
             {(a11y) => (
               <Input
                 {...a11y}
@@ -70,7 +70,7 @@ export function LoginForm() {
             )}
           </Field>
 
-          <Field label="Password" error={errors.password?.message}>
+          <Field label="Password" required error={errors.password?.message}>
             {(a11y) => (
               <PasswordInput
                 {...a11y}

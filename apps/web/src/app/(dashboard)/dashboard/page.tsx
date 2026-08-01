@@ -270,7 +270,7 @@ export default function DashboardPage() {
 
       {stats.length > 0 && (
         <motion.div
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4"
           initial="hidden"
           animate="show"
           transition={{ staggerChildren: 0.06 }}

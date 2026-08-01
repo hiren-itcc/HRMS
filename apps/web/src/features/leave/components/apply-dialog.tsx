@@ -114,12 +114,13 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
       submitLabel="Submit request"
     >
       <div className="space-y-2">
-        <Label>Leave type</Label>
+        <Label htmlFor="leave-type">Leave type</Label>
         <Select
           value={leaveTypeId || undefined}
           onValueChange={(v) => form.setValue('leaveTypeId', v, { shouldDirty: true })}
         >
           <SelectTrigger
+            id="leave-type"
             className="w-full"
             aria-invalid={Boolean(form.formState.errors.leaveTypeId)}
           >
@@ -168,7 +169,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
 
       {singleDay && (
         <div className="space-y-2">
-          <Label>Duration</Label>
+          <Label htmlFor="duration">Duration</Label>
           <Select
             value={halfDaySide ?? FULL_DAY}
             onValueChange={(v) =>
@@ -179,7 +180,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
               )
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="duration" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -221,7 +222,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
         </div>
       )}
 
-      <Field label="Reason" error={form.formState.errors.reason?.message}>
+      <Field label="Reason" required error={form.formState.errors.reason?.message}>
         {(a11y) => (
           <Textarea
             {...a11y}

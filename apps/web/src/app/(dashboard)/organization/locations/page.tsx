@@ -175,12 +175,12 @@ function LocationsView() {
           {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
         </Field>
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label htmlFor="type">Type</Label>
           <Select
             value={type}
             onValueChange={(v) => form.setValue('type', v as LocationType, { shouldDirty: true })}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="type" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

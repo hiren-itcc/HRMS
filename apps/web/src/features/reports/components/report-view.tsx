@@ -174,7 +174,7 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
       ) : (
         <>
           <FadeInItem>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4">
               {query.isLoading
                 ? Array.from({ length: 5 }, (_, i) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length skeleton
