@@ -20,6 +20,12 @@ export interface SessionUser {
   id: string;
   email: string;
   status: UserStatus;
+  /**
+   * The account still has the password it was created with. Sign-in succeeds,
+   * but the app sends them to change it before anything else — a shared
+   * default is only safe while it cannot stay in use.
+   */
+  mustChangePassword: boolean;
   roleCode: RoleCode;
   permissions: string[];
   employee?: {

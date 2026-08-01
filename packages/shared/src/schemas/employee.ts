@@ -2,14 +2,35 @@ import { z } from 'zod';
 import { dateOnlySchema, paginationQuerySchema } from './common';
 
 const trimmed = (max: number) => z.string().trim().max(max);
+
+/*
+ * An HTML form sends "" for an untouched field, not `undefined`. These map
+ * that to absent.
+ *
+ * The empty-string branch has to come FIRST. Written the other way round —
+ * `trimmed(max).optional().or(z.literal('')...)` — the union never reaches
+ * the second branch, because `z.string().optional()` considers "" a perfectly
+ * good string and matches it. The transform was dead code, and an omitted
+ * employee code reached the database as "" instead of being auto-generated.
+ */
 const optionalStr = (max: number) =>
-  trimmed(max)
-    .optional()
-    .or(z.literal('').transform(() => undefined));
+  z
+    .literal('')
+    .transform(() => undefined)
+    .or(trimmed(max))
+    .optional();
+
+const optionalEmail = z
+  .literal('')
+  .transform(() => undefined)
+  .or(z.email('Enter a valid email').trim().toLowerCase())
+  .optional();
+
 const nullableId = z
-  .string()
-  .nullish()
-  .or(z.literal('').transform(() => null));
+  .literal('')
+  .transform(() => null)
+  .or(z.string())
+  .nullish();
 
 export const employeeStatusSchema = z.enum(['ACTIVE', 'ON_NOTICE', 'EXITED']);
 export const genderSchema = z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']);
@@ -19,14 +40,13 @@ export const employeeCreateSchema = z.object({
   firstName: trimmed(60).min(1, 'First name is required'),
   lastName: trimmed(60).min(1, 'Last name is required'),
   workEmail: z.email('Enter a valid email').trim().toLowerCase(),
-  personalEmail: z
-    .email('Enter a valid email')
-    .trim()
-    .toLowerCase()
-    .optional()
-    .or(z.literal('').transform(() => undefined)),
+  personalEmail: optionalEmail,
   phone: optionalStr(20),
-  dateOfBirth: dateOnlySchema.optional().or(z.literal('').transform(() => undefined)),
+  dateOfBirth: z
+    .literal('')
+    .transform(() => undefined)
+    .or(dateOnlySchema)
+    .optional(),
   gender: genderSchema.optional(),
   addressLine: optionalStr(200),
   city: optionalStr(80),
@@ -39,8 +59,27 @@ export const employeeCreateSchema = z.object({
   employmentTypeId: nullableId,
   status: employeeStatusSchema.default('ACTIVE'),
   joinDate: dateOnlySchema,
+
+  /**
+   * Create a sign-in for this person, using their work email.
+   *
+   * On by default: an employee record with no login is a row in a table, not
+   * somebody who can use the product, and forgetting the second step was the
+   * whole problem.
+   */
+  createLogin: z.boolean().default(true),
+  /** Role the new login gets. Anything beyond self-service is a decision. */
+  loginRole: z.enum(['EMPLOYEE', 'MANAGER', 'HR', 'FINANCE', 'ADMIN']).default('EMPLOYEE'),
 });
-export const employeeUpdateSchema = employeeCreateSchema.partial();
+/*
+ * Login fields are create-only. A sign-in is not an employee attribute you
+ * edit — changing a role or resetting a password are their own actions with
+ * their own permissions, and leaving these in would let an edit spread
+ * unknown columns into the employee update.
+ */
+export const employeeUpdateSchema = employeeCreateSchema
+  .omit({ createLogin: true, loginRole: true })
+  .partial();
 export type EmployeeCreateInput = z.infer<typeof employeeCreateSchema>;
 export type EmployeeUpdateInput = z.infer<typeof employeeUpdateSchema>;
 
@@ -68,12 +107,7 @@ export type BankDetailInput = z.infer<typeof bankDetailSchema>;
 /** Subset an employee may edit about themselves (docs/03 — /me/profile). */
 export const selfProfileUpdateSchema = z.object({
   phone: optionalStr(20),
-  personalEmail: z
-    .email('Enter a valid email')
-    .trim()
-    .toLowerCase()
-    .optional()
-    .or(z.literal('').transform(() => undefined)),
+  personalEmail: optionalEmail,
   addressLine: optionalStr(200),
   city: optionalStr(80),
   country: optionalStr(80),

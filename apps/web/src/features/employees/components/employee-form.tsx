@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { employeeCreateSchema } from '@hrms/shared';
 import type { EmployeeStatus, Gender } from '@hrms/types';
+import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
 import {
   Card,
@@ -11,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { Checkbox } from '@hrms/ui/components/checkbox';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
@@ -22,7 +24,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -97,6 +99,8 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       managerId: null,
       shiftId: null,
       employmentTypeId: null,
+      createLogin: true,
+      loginRole: 'EMPLOYEE',
       ...initial,
     },
   });
@@ -111,7 +115,11 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
         onSaved(employeeId);
       } else {
         const created = await employeesApi.create(input);
-        toast.success(`${fullName(created)} added (${created.employeeCode})`);
+        toast.success(`${fullName(created)} added (${created.employeeCode})`, {
+          description: created.loginCreated
+            ? `They can sign in as ${created.loginEmail} with the default password.`
+            : 'No sign-in was created — they cannot log in yet.',
+        });
         onSaved(created.id);
       }
     } catch (err) {
@@ -311,6 +319,73 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           </div>
         </CardContent>
       </Card>
+
+      {!isEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign-in</CardTitle>
+            <CardDescription>
+              Creates a login using the work email above. Without one, the record exists but the
+              person cannot use the product.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <Checkbox
+                id="create-login"
+                checked={form.watch('createLogin')}
+                onCheckedChange={(next) =>
+                  form.setValue('createLogin', next === true, { shouldDirty: true })
+                }
+              />
+              <label htmlFor="create-login" className="text-sm">
+                Create a sign-in for this employee
+              </label>
+            </div>
+
+            {form.watch('createLogin') && (
+              <>
+                <Field label="Role" hint="Anything beyond self-service is a decision">
+                  {(a11y) => (
+                    <Select
+                      value={form.watch('loginRole')}
+                      onValueChange={(value) =>
+                        form.setValue('loginRole', value as 'EMPLOYEE', { shouldDirty: true })
+                      }
+                    >
+                      <SelectTrigger id={a11y.id} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          ['EMPLOYEE', 'Employee — self service'],
+                          ['MANAGER', 'Manager — plus direct reports'],
+                          ['HR', 'HR — all people operations'],
+                          ['FINANCE', 'Finance — approves and pays payroll'],
+                          ['ADMIN', 'Admin — everything'],
+                        ].map(([value, label]) => (
+                          <SelectItem key={value} value={value as string}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Field>
+
+                <Alert variant="info" className="sm:col-span-2">
+                  <KeyRound aria-hidden />
+                  <AlertTitle>They start on the default password</AlertTitle>
+                  <AlertDescription>
+                    They sign in with their work email and the organization's default password, then
+                    have to set their own before they can do anything else.
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={isSubmitting}>

@@ -14,6 +14,15 @@ export const envSchema = z.object({
   WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   UPLOAD_DIR: z.string().default('./uploads'),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(10),
+  /**
+   * Password a newly created employee's login starts with.
+   *
+   * A shared starting password is only safe because the account is flagged
+   * `mustChangePassword` — the holder cannot do anything until they set their
+   * own. Change it per deployment anyway: it is the one credential that is
+   * predictable by design.
+   */
+  DEFAULT_USER_PASSWORD: z.string().min(8).default('Welcome@2026'),
 });
 
 export type Env = z.infer<typeof envSchema>;
