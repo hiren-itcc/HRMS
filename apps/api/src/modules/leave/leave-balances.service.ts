@@ -2,17 +2,39 @@ import type { LeaveBalanceAdjustInput, LeaveBalanceQuery } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
+import { dateKeyOf, leaveYearOf } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import { mapBalance } from './leave.mapper';
 
+/**
+ * Leave year for today under the default calendar-year policy. Kept for
+ * callers with no organization in hand; anything org-aware should use
+ * `LeaveBalancesService.currentYear(orgId)`, which honours the configured
+ * start month (April for an Indian financial year).
+ */
 export function currentLeaveYear(): number {
   return new Date().getUTCFullYear();
 }
 
 @Injectable()
 export class LeaveBalancesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  /** The leave year a date falls in under this organization's policy. */
+  async yearFor(orgId: string, dateKey: string): Promise<number> {
+    const settings = await this.settings.get(orgId);
+    return leaveYearOf(dateKey, settings.leave.yearStartMonth);
+  }
+
+  /** The leave year currently running for this organization. */
+  currentYear(orgId: string): Promise<number> {
+    return this.yearFor(orgId, dateKeyOf(new Date()));
+  }
 
   /**
    * Balances are provisioned lazily from each leave type's annual
@@ -53,7 +75,7 @@ export class LeaveBalancesService {
   /** HR/manager view — one row per employee+type for the year. */
   async list(claims: AccessTokenClaims, query: LeaveBalanceQuery) {
     const perms = new Set(claims.perms);
-    const year = query.year ?? currentLeaveYear();
+    const year = query.year ?? (await this.currentYear(claims.orgId));
     const employeeWhere = {
       organizationId: claims.orgId,
       deletedAt: null,

@@ -101,7 +101,7 @@ export default function MyAttendancePage() {
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-base">{monthLabel(month)}</CardTitle>
+                    <CardTitle>{monthLabel(month)}</CardTitle>
                     <CardDescription>
                       Tap a day for details or to raise a correction
                     </CardDescription>
@@ -202,7 +202,7 @@ export default function MyAttendancePage() {
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <CardTitle className="text-base">My correction requests</CardTitle>
+                    <CardTitle>My correction requests</CardTitle>
                     <CardDescription>Regularizations you have raised</CardDescription>
                   </div>
                   <Button

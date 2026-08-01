@@ -4,6 +4,7 @@ import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 
 export default function LeaveLayout({ children }: { children: React.ReactNode }) {
@@ -28,12 +29,7 @@ export default function LeaveLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl tracking-tight">Leave</h1>
-        <p className="text-muted-foreground text-sm">
-          Balances, requests and the company holiday calendar
-        </p>
-      </div>
+      <PageHeader title="Leave" description="Balances, requests and the company holiday calendar" />
 
       <nav aria-label="Leave sections" className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         <div className="flex w-max gap-1 rounded-xl bg-muted p-1">

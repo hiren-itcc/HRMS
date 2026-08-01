@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 /**
  * UI state only (docs/09-nextjs-architecture.md §state-model).
@@ -10,8 +11,14 @@ interface UiState {
   setSidebarCollapsed: (collapsed: boolean) => void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
-  sidebarCollapsed: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-}));
+/** Persisted: a collapse preference that resets on every reload is not a preference. */
+export const useUiStore = create<UiState>()(
+  persist(
+    (set) => ({
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+    }),
+    { name: 'hrms-ui' },
+  ),
+);

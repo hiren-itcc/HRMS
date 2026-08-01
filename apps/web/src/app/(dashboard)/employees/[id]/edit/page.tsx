@@ -30,7 +30,7 @@ export default function EditEmployeePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-bold text-2xl tracking-tight">Edit {fullName(e)}</h1>
+        <h1>Edit {fullName(e)}</h1>
         <p className="text-muted-foreground text-sm">{e.employeeCode}</p>
       </div>
       <EmployeeForm

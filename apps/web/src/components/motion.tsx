@@ -11,9 +11,11 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
+      // Reduced motion means *no* transition, not a shorter one: fading from
+      // transparent is still movement to a vestibular-sensitive user.
+      initial={reduce ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
+      transition={reduce ? { duration: 0 } : { duration: 0.25, ease: 'easeOut' }}
     >
       {children}
     </motion.div>
@@ -28,12 +30,15 @@ export function Stagger({
   children: React.ReactNode;
   className?: string;
 }) {
+  const reduce = useReducedMotion();
   return (
     <motion.div
       className={className}
       initial="hidden"
       animate="show"
-      transition={{ staggerChildren: 0.06 }}
+      // A stagger is a sequence of movements; with reduced motion the whole
+      // list should simply be present.
+      transition={{ staggerChildren: reduce ? 0 : 0.06 }}
     >
       {children}
     </motion.div>
@@ -52,10 +57,10 @@ export function FadeInItem({
     <motion.div
       className={className}
       variants={{
-        hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 },
-        show: reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 },
+        hidden: reduce ? { opacity: 1 } : { opacity: 0, y: 14, scale: 0.98 },
+        show: { opacity: 1, y: 0, scale: 1 },
       }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
+      transition={reduce ? { duration: 0 } : { duration: 0.3, ease: 'easeOut' }}
     >
       {children}
     </motion.div>

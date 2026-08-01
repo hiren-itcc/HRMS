@@ -4,6 +4,7 @@ import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 
 export default function AttendanceLayout({ children }: { children: React.ReactNode }) {
@@ -27,12 +28,10 @@ export default function AttendanceLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl tracking-tight">Attendance</h1>
-        <p className="text-muted-foreground text-sm">
-          Clock in and out, review your history and handle corrections
-        </p>
-      </div>
+      <PageHeader
+        title="Attendance"
+        description="Clock in and out, review your history and handle corrections"
+      />
 
       {tabs.length > 1 && (
         <nav

@@ -16,6 +16,7 @@ import { dateKeyOf, toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { SettingsService } from '../settings/settings.service';
 import { mapRequest } from './leave.mapper';
 import {
   availableDays,
@@ -38,7 +39,14 @@ export class LeaveRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances: LeaveBalancesService,
+    private readonly settings: SettingsService,
   ) {}
+
+  /** Org policy: which weekdays never consume leave balance. */
+  private async weekOffDays(orgId: string): Promise<number[]> {
+    const settings = await this.settings.get(orgId);
+    return settings.workingWeek.weekOffDays;
+  }
 
   private requireEmployee(claims: AccessTokenClaims): string {
     if (!claims.employeeId) {
@@ -58,12 +66,16 @@ export class LeaveRequestsService {
 
   /** Live day-count for the apply form, before anything is submitted. */
   async preview(claims: AccessTokenClaims, query: LeavePreviewQuery) {
-    const holidays = await this.holidayKeys(claims.orgId, query.startDate, query.endDate);
+    const [holidays, weekOff] = await Promise.all([
+      this.holidayKeys(claims.orgId, query.startDate, query.endDate),
+      this.weekOffDays(claims.orgId),
+    ]);
     const breakdown = calculateLeaveDays(
       query.startDate,
       query.endDate,
       holidays,
       query.halfDaySide,
+      weekOff,
     );
     return {
       days: breakdown.days,
@@ -79,12 +91,16 @@ export class LeaveRequestsService {
     });
     if (!type) throw new NotFoundException('Leave type not found');
 
-    const holidays = await this.holidayKeys(claims.orgId, input.startDate, input.endDate);
+    const [holidays, weekOff] = await Promise.all([
+      this.holidayKeys(claims.orgId, input.startDate, input.endDate),
+      this.weekOffDays(claims.orgId),
+    ]);
     const { days } = calculateLeaveDays(
       input.startDate,
       input.endDate,
       holidays,
       input.halfDaySide,
+      weekOff,
     );
     if (days <= 0) {
       throw new BadRequestException(
@@ -108,7 +124,7 @@ export class LeaveRequestsService {
       );
     }
 
-    const year = Number(input.startDate.slice(0, 4));
+    const year = await this.balances.yearFor(claims.orgId, input.startDate);
     await this.balances.ensureForEmployee(claims.orgId, employeeId, year);
     const balance = await this.prisma.leaveBalance.findUnique({
       where: {
@@ -122,7 +138,10 @@ export class LeaveRequestsService {
           used: Number(balance.used),
         })
       : 0;
-    if (days > available) {
+    // Organizations that let people go into deficit (advance leave against
+    // future accrual) turn this check off in Settings.
+    const { leave: leavePolicy } = await this.settings.get(claims.orgId);
+    if (days > available && !leavePolicy.allowNegativeBalance) {
       throw new BadRequestException(
         `Only ${available} day(s) of ${type.name} remain — this request needs ${days}`,
       );
@@ -134,6 +153,7 @@ export class LeaveRequestsService {
         leaveTypeId: type.id,
         startDate: toDate(input.startDate),
         endDate: toDate(input.endDate),
+        leaveYear: year,
         halfDaySide: input.halfDaySide ?? null,
         days,
         reason: input.reason,
@@ -230,7 +250,8 @@ export class LeaveRequestsService {
       throw new ForbiddenException('You cannot approve your own leave');
     }
 
-    const year = request.startDate.getUTCFullYear();
+    // Stored, not re-derived: the leave-year policy may have changed since.
+    const year = request.leaveYear;
     const days = Number(request.days);
 
     if (decision === 'APPROVED') {
@@ -331,7 +352,8 @@ export class LeaveRequestsService {
 
     // Approved days were booked — give them back
     if (request.status === 'APPROVED') {
-      const year = request.startDate.getUTCFullYear();
+      // Stored, not re-derived: the leave-year policy may have changed since.
+      const year = request.leaveYear;
       const balance = await this.prisma.leaveBalance.findUnique({
         where: {
           employeeId_leaveTypeId_year: {

@@ -160,6 +160,8 @@ function HolidaysView() {
         rows={list.data?.data}
         rowKey={(h) => h.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}
@@ -199,14 +201,14 @@ function HolidaysView() {
           {(a11y) => <Input {...a11y} type="date" {...form.register('date')} />}
         </Field>
         <div className="space-y-2">
-          <Label>Applies to</Label>
+          <Label htmlFor="applies-to">Applies to</Label>
           <Select
             value={locationId ?? ORG_WIDE}
             onValueChange={(v) =>
               form.setValue('locationId', v === ORG_WIDE ? null : v, { shouldDirty: true })
             }
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="applies-to" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

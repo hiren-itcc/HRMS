@@ -16,10 +16,11 @@ function makeService() {
     auditLog: { create: jest.fn() },
   };
   const storage = { put: jest.fn().mockResolvedValue('org1/key.pdf'), stream: jest.fn() };
+  const categories = { assertBelongs: jest.fn() };
   const config = { get: jest.fn().mockReturnValue(10) };
   return {
     // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
-    service: new DocumentsService(prisma as any, storage as any, config as any),
+    service: new DocumentsService(prisma as any, storage as any, categories as any, config as any),
     prisma,
     storage,
   };

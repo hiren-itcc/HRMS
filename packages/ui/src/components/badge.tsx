@@ -15,7 +15,21 @@ const badgeVariants = cva(
         outline:
           'border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
         ghost: '[a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 [a&]:hover:underline',
+        link: 'text-primary-text underline-offset-4 [a&]:hover:underline',
+
+        /*
+         * Status tints. These exist because every module was hand-rolling
+         * `bg-success/15 text-success`, which reads at 2.2:1 — the fill colour
+         * is far too light to sit on a 15% tint of itself. `-text` tokens are
+         * the darkened step that clears 4.5:1 on exactly that background.
+         * Colour is never the only signal: a label always accompanies these.
+         */
+        success: 'bg-success/15 text-success-text',
+        warning: 'bg-warning/15 text-warning-text',
+        info: 'bg-info/15 text-info-text',
+        danger: 'bg-destructive/15 text-destructive-text',
+        accent: 'bg-primary/15 text-primary-text',
+        muted: 'bg-muted text-muted-foreground',
       },
     },
     defaultVariants: {

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
+import { DEFAULT_DOCUMENT_CATEGORIES, ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -24,10 +24,18 @@ async function main() {
     const meta = SYSTEM_ROLES.find((r) => r.code === roleCode);
     if (!meta) continue;
     const role = await prisma.role.upsert({
-      where: { code: roleCode },
+      where: { organizationId_code: { organizationId: org.id, code: roleCode } },
       update: { name: meta.name, description: meta.description },
-      create: { code: roleCode, name: meta.name, description: meta.description, isSystem: true },
+      create: {
+        organizationId: org.id,
+        code: roleCode,
+        name: meta.name,
+        description: meta.description,
+        isSystem: true,
+      },
     });
+    // Additive only: a grant revoked from the Settings UI must not come back
+    // on the next seed run.
     for (const code of perms) {
       const [resource = code, ...rest] = code.split('.');
       const permission = await prisma.permission.upsert({
@@ -44,7 +52,9 @@ async function main() {
   }
 
   // Bootstrap admin user
-  const adminRole = await prisma.role.findUniqueOrThrow({ where: { code: 'ADMIN' } });
+  const adminRole = await prisma.role.findUniqueOrThrow({
+    where: { organizationId_code: { organizationId: org.id, code: 'ADMIN' } },
+  });
   await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
     update: {},
@@ -87,6 +97,15 @@ async function main() {
       where: { organizationId_code: { organizationId: org.id, code: lt.code } },
       update: {},
       create: { organizationId: org.id, ...lt },
+    });
+  }
+
+  // Document folders (Resume, PAN, Aadhaar…)
+  for (const name of DEFAULT_DOCUMENT_CATEGORIES) {
+    await prisma.documentCategory.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {},
+      create: { organizationId: org.id, name },
     });
   }
 

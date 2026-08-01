@@ -9,7 +9,16 @@ A modern, production-grade HRMS built as a Turborepo monorepo: **Next.js 16** we
 | Authentication | ✅ | Login, refresh-token rotation with reuse detection, forgot/reset/change password, profile, session revocation |
 | Organization | ✅ | Company profile, departments (nested, cycle-safe), designations, employment types, locations/branches, shifts, holiday calendar |
 | Employees | ✅ | Full CRUD, scope-aware lists (HR sees all, managers see reports), bank details, soft delete, auto employee codes, self-service profile |
-| Attendance · Leave · Documents · Announcements · Reports | 🔜 | Per the roadmap in [`docs/11-roadmap.md`](docs/11-roadmap.md) |
+| Attendance | ✅ | Clock in/out, month calendar, team day view, monthly summaries, late/half-day rules, correction requests with manager approval |
+| Leave | ✅ | Leave types and balances, apply/cancel, manager + HR approval (balance booked in one transaction), holiday-aware day maths, calendar |
+| Documents | ✅ | Folders and categories, drag-and-drop upload with progress, in-browser preview for PDF/images/DOCX, download, delete |
+| Announcements | ✅ | Rich-text authoring, categories, priority, pinning, attachments, dashboard widget, search and filters |
+| Reports | ✅ | Employee, attendance, leave and department analytics over any date range — charts, CSV/Excel/PDF export, dashboard trend |
+| Settings | ✅ | Console linking to every organization screen, plus system preferences, per-org roles & permissions, email templates and the audit log |
+
+The **working week** and **leave year** are organization settings, not constants: a six-day week or an Apr–Mar financial year changes attendance, leave day-counting and reports together, from one place.
+
+Statuses that read "absent" are **derived on read** — holidays, week-offs, approved leave and the employment window are computed when a day is queried, never written by a nightly job. That keeps the attendance and leave modules from ever disagreeing.
 
 Every list endpoint supports search, filters, whitelisted sorting, and pagination. All mutations are audit-logged and tenant-scoped.
 

@@ -7,6 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { ZodError } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
 
 /**
@@ -34,6 +35,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? payload.message.join('; ')
           : ((payload.message as string) ?? exception.message),
         ...(details ? { details: details as ApiErrorBody['details'] } : {}),
+      };
+    } else if (exception instanceof ZodError) {
+      // A schema parsed outside the validation pipe still owes the client
+      // field-level errors, not an opaque 500.
+      body = {
+        statusCode: HttpStatus.BAD_REQUEST,
+        error: 'ValidationError',
+        message: 'Validation failed',
+        details: zodIssuesToDetails(exception.issues) ?? {},
       };
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       body = prismaErrorBody(exception);

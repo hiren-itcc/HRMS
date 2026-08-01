@@ -14,7 +14,7 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
-import { DocumentsCard } from '@/features/documents/documents-card';
+import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -33,7 +33,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-bold text-2xl tracking-tight">My profile</h1>
+        <h1>My profile</h1>
         <p className="text-muted-foreground text-sm">Your account and security settings</p>
       </div>
 
@@ -58,7 +58,7 @@ export default function ProfilePage() {
                 <Row
                   label="Status"
                   value={
-                    <Badge className="border-transparent bg-success/15 text-success">
+                    <Badge className="border-transparent bg-success/15 text-success-text">
                       {user.status}
                     </Badge>
                   }
@@ -104,7 +104,15 @@ export default function ProfilePage() {
 
         {user.employee && (
           <FadeInItem className="lg:col-span-2">
-            <DocumentsCard employeeId={user.employee.id} />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Documents</CardTitle>
+                <CardDescription>Your files, organised into folders</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsBrowser employeeId={user.employee.id} compact />
+              </CardContent>
+            </Card>
           </FadeInItem>
         )}
       </Stagger>

@@ -40,7 +40,10 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2 px-2" aria-label="Account menu">
+        {/* No aria-label: it would override the visible name and break
+              voice control ("click Asha Verma"). The sr-only span names the
+              button when the visible name is hidden below sm. */}
+        <Button variant="ghost" className="gap-2 px-2">
           <Avatar className="size-7">
             {user.employee?.avatarUrl && <AvatarImage src={user.employee.avatarUrl} alt="" />}
             <AvatarFallback className="text-xs">{userInitials(user)}</AvatarFallback>

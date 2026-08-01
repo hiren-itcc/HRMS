@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
+import { FormField } from '@/components/form-field';
 import { Field } from '@/features/auth/components/field';
 import { employeesApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
@@ -130,26 +131,34 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     items: { id: string; label: string }[] | undefined,
   ) => {
     const value = form.watch(field);
+    const pending = items === undefined;
     return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-        <Select
-          value={value ?? NONE}
-          onValueChange={(v) => form.setValue(field, v === NONE ? null : v, { shouldDirty: true })}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>None</SelectItem>
-            {items?.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FormField label={label} hint={pending ? 'Loading options…' : undefined}>
+        {(a11y) => (
+          <Select
+            value={value ?? NONE}
+            onValueChange={(v) =>
+              form.setValue(field, v === NONE ? null : v, { shouldDirty: true })
+            }
+          >
+            <SelectTrigger
+              id={a11y.id}
+              aria-describedby={a11y['aria-describedby']}
+              aria-busy={pending || undefined}
+            >
+              <SelectValue placeholder={pending ? 'Loading…' : 'None'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>None</SelectItem>
+              {items?.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </FormField>
     );
   };
 
@@ -157,17 +166,17 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     <form onSubmit={submit} className="space-y-6" noValidate>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Personal details</CardTitle>
+          <CardTitle>Personal details</CardTitle>
           <CardDescription>Identity and contact information</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="First name" error={errors.firstName?.message}>
+          <Field label="First name" required error={errors.firstName?.message}>
             {(a11y) => <Input {...a11y} autoFocus {...form.register('firstName')} />}
           </Field>
-          <Field label="Last name" error={errors.lastName?.message}>
+          <Field label="Last name" required error={errors.lastName?.message}>
             {(a11y) => <Input {...a11y} {...form.register('lastName')} />}
           </Field>
-          <Field label="Work email" error={errors.workEmail?.message}>
+          <Field label="Work email" required error={errors.workEmail?.message}>
             {(a11y) => <Input {...a11y} type="email" {...form.register('workEmail')} />}
           </Field>
           <Field label="Personal email" error={errors.personalEmail?.message}>
@@ -180,7 +189,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             {(a11y) => <Input {...a11y} type="date" {...form.register('dateOfBirth')} />}
           </Field>
           <div className="space-y-2">
-            <Label>Gender</Label>
+            <Label htmlFor="gender">Gender</Label>
             <Select
               value={form.watch('gender') ?? NONE}
               onValueChange={(v) =>
@@ -189,7 +198,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
                 })
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="gender" className="w-full">
                 <SelectValue placeholder="Not specified" />
               </SelectTrigger>
               <SelectContent>
@@ -216,7 +225,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Job details</CardTitle>
+          <CardTitle>Job details</CardTitle>
           <CardDescription>Placement in the organization</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -265,14 +274,14 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             employmentTypes.data?.map((t) => ({ id: t.id, label: t.name })),
           )}
           <div className="space-y-2">
-            <Label>Employment status</Label>
+            <Label htmlFor="employment-status">Employment status</Label>
             <Select
               value={form.watch('status') ?? 'ACTIVE'}
               onValueChange={(v) =>
                 form.setValue('status', v as EmployeeStatus, { shouldDirty: true })
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="employment-status" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

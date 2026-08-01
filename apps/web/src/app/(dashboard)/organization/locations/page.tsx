@@ -144,6 +144,8 @@ function LocationsView() {
         rows={list.data?.data}
         rowKey={(l) => l.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}
@@ -173,12 +175,12 @@ function LocationsView() {
           {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
         </Field>
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label htmlFor="type">Type</Label>
           <Select
             value={type}
             onValueChange={(v) => form.setValue('type', v as LocationType, { shouldDirty: true })}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger id="type" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -193,7 +195,7 @@ function LocationsView() {
         <Field label="Address" error={form.formState.errors.address?.message}>
           {(a11y) => <Input {...a11y} {...form.register('address')} />}
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="City" error={form.formState.errors.city?.message}>
             {(a11y) => <Input {...a11y} {...form.register('city')} />}
           </Field>

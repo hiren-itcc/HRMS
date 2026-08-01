@@ -28,7 +28,11 @@ type AdjustValues = z.input<typeof leaveBalanceAdjustSchema>;
 function LeaveSettingsView() {
   const queryClient = useQueryClient();
   const params = useListParams('name');
-  const year = Number(params.get('year') ?? new Date().getUTCFullYear());
+  // Left undefined so the API applies the organization's leave-year policy.
+  // Sending the calendar year here made merely opening the page provision a
+  // whole extra year of balances for everyone in scope.
+  const yearParam = params.get('year');
+  const year = yearParam ? Number(yearParam) : undefined;
   const [editing, setEditing] = useState<LeaveType | 'new' | null>(null);
   const [adjusting, setAdjusting] = useState<LeaveBalance | null>(null);
   const carryId = useId();
@@ -172,6 +176,8 @@ function LeaveSettingsView() {
           rows={types.data?.data}
           rowKey={(t) => t.id}
           loading={types.isLoading}
+          error={types.isError}
+          onRetry={() => types.refetch()}
           sort={params.sort}
           order={params.order}
           onSortChange={params.toggleSort}
@@ -242,6 +248,8 @@ function LeaveSettingsView() {
           rows={balances.data?.data}
           rowKey={(b) => b.id}
           loading={balances.isLoading}
+          error={balances.isError}
+          onRetry={() => balances.refetch()}
           meta={balances.data?.meta}
           onPageChange={params.setPage}
           emptyTitle="No balances for this year"
@@ -266,7 +274,7 @@ function LeaveSettingsView() {
         submitting={saveType.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name" error={typeForm.formState.errors.name?.message}>
             {(a11y) => <Input {...a11y} autoFocus {...typeForm.register('name')} />}
           </Field>
@@ -351,7 +359,7 @@ function LeaveSettingsView() {
         submitting={adjust.isPending}
         submitLabel="Save balance"
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Allocated" error={adjustForm.formState.errors.allocated?.message}>
             {(a11y) => (
               <Input

@@ -1,5 +1,6 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException } from '@nestjs/common';
+import { settingsDouble } from '../settings/settings.test-double';
 import { AttendanceService } from './attendance.service';
 
 type Mock = jest.Mock;
@@ -28,7 +29,7 @@ function makeService() {
     auditLog: { create: jest.fn() },
   };
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new AttendanceService(prisma as any), prisma };
+  return { service: new AttendanceService(prisma as any, settingsDouble()), prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims> = {}): AccessTokenClaims => ({
@@ -151,5 +152,60 @@ describe('AttendanceService.checkOut', () => {
     const entry = await service.checkOut(claims());
     expect(entry.checkOut).toBe(out.toISOString());
     expect(prisma.attendanceRecord.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttendanceService leave visibility (regression)', () => {
+  // Approved leave was previously only wired into the employee's own month
+  // view, so managers saw ABSENT and summaries counted leave as absence.
+  function makeScoped() {
+    const employee = {
+      id: 'e1',
+      firstName: 'Dev',
+      lastName: 'Tester',
+      employeeCode: 'EMP-0100',
+      avatarUrl: null,
+      joinDate: new Date('2026-01-01T00:00:00.000Z'),
+      exitDate: null,
+      department: { name: 'Engineering' },
+      attendance: [],
+    };
+    const prisma = {
+      employee: {
+        findMany: jest.fn().mockResolvedValue([employee]),
+        count: jest.fn().mockResolvedValue(1),
+      },
+      organization: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'UTC' }),
+      },
+      holiday: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      leaveRequest: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            employeeId: 'e1',
+            startDate: new Date('2026-08-03T00:00:00.000Z'),
+            endDate: new Date('2026-08-05T00:00:00.000Z'),
+          },
+        ]),
+      },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    return { service: new AttendanceService(prisma as any, settingsDouble()), prisma };
+  }
+
+  const hrClaims = claims({ perms: ['attendance.read'], employeeId: 'mgr' });
+  const query = { page: 1, limit: 10, order: 'asc' as const, sort: undefined, search: undefined };
+
+  it('day view shows ON_LEAVE, not ABSENT, for approved leave', async () => {
+    const { service } = makeScoped();
+    const result = await service.dayView(hrClaims, { ...query, date: '2026-08-04' });
+    expect(result.data[0]?.status).toBe('ON_LEAVE');
+  });
+
+  it('monthly summary counts leave under onLeave, not absent', async () => {
+    const { service } = makeScoped();
+    const result = await service.monthlySummary(hrClaims, { ...query, month: '2026-08' });
+    // 3rd–5th Aug 2026: Mon, Tue, Wed — three working days of leave
+    expect(result.data[0]?.onLeave).toBe(3);
   });
 });

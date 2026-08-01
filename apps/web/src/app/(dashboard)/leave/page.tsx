@@ -68,9 +68,7 @@ export default function MyLeavePage() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-base">
-                  My balances {balances.data ? `· ${balances.data.year}` : ''}
-                </CardTitle>
+                <CardTitle>My balances {balances.data ? `· ${balances.data.year}` : ''}</CardTitle>
                 <CardDescription>
                   Weekends and holidays are never deducted from your balance
                 </CardDescription>
@@ -112,7 +110,7 @@ export default function MyLeavePage() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-base">My requests</CardTitle>
+                <CardTitle>My requests</CardTitle>
                 <CardDescription>Your leave history and pending applications</CardDescription>
               </div>
               <Select value={status} onValueChange={setStatus}>

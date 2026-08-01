@@ -35,7 +35,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { Field } from '@/features/auth/components/field';
-import { DocumentsCard } from '@/features/documents/documents-card';
+import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
@@ -83,7 +83,7 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <Landmark className="size-4 text-muted-foreground" aria-hidden /> Bank details
             </CardTitle>
             <CardDescription>Visible to HR, Admin and the employee</CardDescription>
@@ -142,7 +142,7 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
         <Field label="Account number" error={form.formState.errors.accountNumber?.message}>
           {(a11y) => <Input {...a11y} inputMode="numeric" {...form.register('accountNumber')} />}
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="IFSC code" error={form.formState.errors.ifscCode?.message}>
             {(a11y) => <Input {...a11y} {...form.register('ifscCode')} />}
           </Field>
@@ -214,7 +214,7 @@ function EmployeeDetailView() {
             <AvatarFallback className="text-lg">{initials(e)}</AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="flex flex-wrap items-center gap-2 font-bold text-2xl tracking-tight">
+            <h1 className="flex flex-wrap items-center gap-2">
               {fullName(e)} <EmployeeStatusBadge status={e.status} />
             </h1>
             <p className="text-muted-foreground text-sm">
@@ -267,7 +267,7 @@ function EmployeeDetailView() {
         <FadeInItem>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Contact</CardTitle>
+              <CardTitle>Contact</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="divide-y">
@@ -293,7 +293,7 @@ function EmployeeDetailView() {
         <FadeInItem>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Job</CardTitle>
+              <CardTitle>Job</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="divide-y">
@@ -326,14 +326,22 @@ function EmployeeDetailView() {
         </FadeInItem>
 
         <FadeInItem>
-          <DocumentsCard employeeId={e.id} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents</CardTitle>
+              <CardDescription>Contracts, ID proofs and certificates on file</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DocumentsBrowser employeeId={e.id} compact />
+            </CardContent>
+          </Card>
         </FadeInItem>
 
         {e.reports.length > 0 && (
           <FadeInItem>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
+                <CardTitle className="flex items-center gap-2">
                   <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
                   {e.reports.length})
                 </CardTitle>

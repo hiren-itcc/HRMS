@@ -93,7 +93,9 @@ export class AuthService {
       },
     });
     await this.audit(user.organizationId, user.id, 'auth.password_reset_requested', meta);
-    await this.mail.sendPasswordReset(user.email, `${this.webOrigin}/reset-password?token=${raw}`);
+    await this.mail.sendPasswordReset(user.email, `${this.webOrigin}/reset-password?token=${raw}`, {
+      orgId: user.organizationId,
+    });
   }
 
   async resetPassword(rawToken: string, newPassword: string, meta: RequestMeta): Promise<void> {

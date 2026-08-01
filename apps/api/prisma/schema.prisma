@@ -23,12 +23,14 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   users        User[]
+  roles        Role[]
   employees    Employee[]
   departments  Department[]
   designations Designation[]
   locations    Location[]
   holidays     Holiday[]
-  settings     Setting[]
+  settings       Setting[]
+  emailTemplates EmailTemplate[]
 }
 
 enum UserStatus {
@@ -55,6 +57,7 @@ model User {
   resetTokens  PasswordResetToken[]
 
   @@index([organizationId])
+  @@index([roleId])
 }
 
 model PasswordResetToken {
@@ -71,14 +74,19 @@ model PasswordResetToken {
 }
 
 model Role {
-  id          String  @id @default(cuid())
-  code        String  @unique
-  name        String
-  description String?
-  isSystem    Boolean @default(false)
+  id             String  @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  description    String?
+  isSystem       Boolean @default(false)
 
-  users       User[]
-  permissions RolePermission[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  users        User[]
+  permissions  RolePermission[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
 }
 
 model Permission {
@@ -413,6 +421,10 @@ model LeaveRequest {
   leaveTypeId  String
   startDate    DateTime       @db.Date
   endDate      DateTime       @db.Date
+  /// Leave year this request books against, fixed when it is raised. Derived
+  /// from the org's leave-year start month, which an admin can change — so it
+  /// must be stored, or approve and cancel could hit different balance rows.
+  leaveYear    Int
   halfDaySide  HalfDaySide?
   days         Decimal        @db.Decimal(5, 1)
   reason       String
@@ -474,23 +486,54 @@ enum Audience {
   LOCATION
 }
 
+enum AnnouncementCategory {
+  GENERAL
+  HOLIDAY
+  BIRTHDAY
+  POLICY
+}
+
+enum AnnouncementPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
 model Announcement {
-  id             String    @id @default(cuid())
+  id             String               @id @default(cuid())
   organizationId String
   title          String
   body           String
-  audience       Audience  @default(ALL)
+  category       AnnouncementCategory @default(GENERAL)
+  priority       AnnouncementPriority @default(NORMAL)
+  audience       Audience             @default(ALL)
   departmentId   String?
   locationId     String?
-  isPinned       Boolean   @default(false)
-  publishAt      DateTime  @default(now())
+  isPinned       Boolean              @default(false)
+  publishAt      DateTime             @default(now())
   expiresAt      DateTime?
   authorId       String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
-  reads AnnouncementRead[]
+  reads       AnnouncementRead[]
+  attachments AnnouncementAttachment[]
 
   @@index([organizationId, publishAt])
+}
+
+model AnnouncementAttachment {
+  id             String   @id @default(cuid())
+  announcementId String
+  name           String
+  fileKey        String
+  mimeType       String
+  sizeBytes      Int
+  createdAt      DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
 }
 
 model AnnouncementRead {
@@ -528,6 +571,22 @@ model Setting {
   @@id([organizationId, key])
 }
 
+/// Subject/body for system emails, editable from Settings. Keyed by a stable
+/// template key; a missing or inactive row falls back to the built-in default
+/// so a bad edit can never stop password reset from sending.
+model EmailTemplate {
+  organizationId String
+  key            String
+  subject        String
+  bodyHtml       String
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, key])
+}
+
 model AuditLog {
   id             String   @id @default(cuid())
   organizationId String
@@ -541,4 +600,6 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([entity, entityId])
+  @@index([organizationId, action])
+  @@index([organizationId, actorId])
 }
