@@ -23,8 +23,13 @@
   --card-foreground: var(--color-neutral-800);
   --popover: var(--color-white);
   --popover-foreground: var(--color-neutral-800);
-  --primary: var(--color-neutral-800);
-  --primary-foreground: var(--color-neutral-50);
+  /* coss ships a near-black --primary. The brand is indigo, and it already
+     owns the logo, the sidebar pill and the stat tiles; leaving buttons and
+     focus rings neutral made those read as decoration that had drifted
+     rather than as the product's colour. Everything else here stays coss
+     neutral, so the accent is the only saturated thing on the page. */
+  --primary: var(--color-indigo-600);
+  --primary-foreground: var(--color-white);
   --secondary: --alpha(var(--color-black) / 4%);
   --secondary-foreground: var(--color-neutral-800);
   --muted: --alpha(var(--color-black) / 4%);
@@ -33,15 +38,18 @@
   --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
   --accent: --alpha(var(--color-black) / 4%);
   --accent-foreground: var(--color-neutral-800);
-  --destructive: var(--color-red-500);
+  /* red-600, not coss's red-500: the destructive button and badge both
+     hardcode `text-white`, and white on red-500 reads 3.81:1. */
+  --destructive: var(--color-red-600);
   --destructive-foreground: var(--color-red-700);
   --border: --alpha(var(--color-black) / 8%);
   /* Raised off --border: a control's boundary must be identifiable at 3:1
      (WCAG 1.4.11). COSS ships 10%, which reads 1.25:1. Card edges and
      dividers stay on the softer --border. */
   --input: --alpha(var(--color-black) / 45%);
-  /* neutral-400 reads 2.58:1 on white; a focus ring must clear 3:1. */
-  --ring: var(--color-neutral-500);
+  /* The ring carries the brand too, and indigo-600 clears 3:1 on white with
+     room to spare (coss's neutral-400 read 2.58:1). */
+  --ring: var(--color-indigo-600);
   /* Placeholder fill. --accent read 1.12:1 on card — effectively invisible. */
   --skeleton: #cbd5e1;
 
@@ -59,17 +67,17 @@
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-700);
   --info-text: #2366cd; /* 4.56:1 on info/15 (COSS info is blue-500) */
-  --destructive-text: #c8232b; /* 4.52:1 on destructive/15 (COSS red-500) */
-  --primary-text: var(--color-neutral-800); /* 11.25:1 on primary/15 — primary is neutral now */
+  --destructive-text: #be2129; /* 4.66:1 on destructive/15 (computed, not eyeballed) */
+  --primary-text: var(--color-indigo-700); /* on a 15% primary tint */
 
   --sidebar: var(--color-neutral-50);
   --sidebar-foreground: color-mix(in srgb, var(--color-neutral-800) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-neutral-800);
+  --sidebar-primary: var(--color-indigo-600);
   --sidebar-primary-foreground: var(--color-neutral-50);
   --sidebar-accent: --alpha(var(--color-black) / 4%);
   --sidebar-accent-foreground: var(--color-neutral-800);
   --sidebar-border: --alpha(var(--color-black) / 6%);
-  --sidebar-ring: var(--color-neutral-400);
+  --sidebar-ring: var(--color-indigo-600);
 
   /* Categorical series colours — fixed order, never cycled.
      Validated (dataviz): lightness band, chroma, CVD + normal-vision
@@ -91,8 +99,10 @@
   --card-foreground: var(--color-neutral-100);
   --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
   --popover-foreground: var(--color-neutral-100);
-  --primary: var(--color-neutral-100);
-  --primary-foreground: var(--color-neutral-800);
+  /* Lighter step than light mode: indigo-600 on a near-black surface is
+     too dim for a primary button face. */
+  --primary: var(--color-indigo-500);
+  --primary-foreground: var(--color-white);
   --secondary: --alpha(var(--color-white) / 4%);
   --secondary-foreground: var(--color-neutral-100);
   --muted: --alpha(var(--color-white) / 4%);
@@ -100,12 +110,14 @@
   --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 82%, var(--color-white));
   --accent: --alpha(var(--color-white) / 4%);
   --accent-foreground: var(--color-neutral-100);
-  --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
+  /* coss lightens red-500 toward white here, which drops the white label to
+     3.52:1. Darkening the fill instead keeps the label legible. */
+  --destructive: var(--color-red-600);
   --destructive-foreground: var(--color-red-400);
   --border: --alpha(var(--color-white) / 6%);
   /* COSS ships 8%, which reads 1.25:1 — a field with no perceivable edge. */
   --input: --alpha(var(--color-white) / 35%);
-  --ring: var(--color-neutral-500);
+  --ring: var(--color-indigo-400);
   --skeleton: #334155;
 
   /* The dark palette already uses lighter 400-shades, which clear 4.5:1 on
@@ -121,16 +133,16 @@
   --info-foreground: var(--color-blue-400);
   --info-text: #22d3ee;
   --destructive-text: #f87171;
-  --primary-text: var(--color-neutral-100); /* 10.12:1 on primary/15 — primary is neutral */
+  --primary-text: var(--color-indigo-300); /* on a 15% primary tint */
 
   --sidebar: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
   --sidebar-foreground: color-mix(in srgb, var(--color-neutral-100) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-neutral-100);
-  --sidebar-primary-foreground: var(--color-neutral-800);
+  --sidebar-primary: var(--color-indigo-500);
+  --sidebar-primary-foreground: var(--color-white);
   --sidebar-accent: --alpha(var(--color-white) / 4%);
   --sidebar-accent-foreground: var(--color-neutral-100);
   --sidebar-border: --alpha(var(--color-white) / 5%);
-  --sidebar-ring: var(--color-neutral-400);
+  --sidebar-ring: var(--color-indigo-400);
 
   /* Dark is selected, not flipped: darker steps to sit inside the dark
      lightness band while keeping 3:1 against the card surface. */
