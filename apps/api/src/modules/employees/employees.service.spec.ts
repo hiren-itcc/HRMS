@@ -20,8 +20,11 @@ function makeService() {
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   };
+  const config = {
+    get: (key: string) => (key === 'DEFAULT_USER_PASSWORD' ? 'Welcome@2026' : undefined),
+  };
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new EmployeesService(prisma as any), prisma };
+  return { service: new EmployeesService(prisma as any, config as any), prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({

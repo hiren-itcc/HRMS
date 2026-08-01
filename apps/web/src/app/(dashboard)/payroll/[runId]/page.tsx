@@ -27,6 +27,7 @@ import { useSession } from '@/components/session-provider';
 import { formatMoney, formatMonth, payrollApi, payrollKeys } from '@/features/payroll/api';
 import { PaymentStatusBadge, RunStatusBadge } from '@/features/payroll/components/status-badge';
 import type { PayslipRow, RunStatus } from '@/features/payroll/types';
+import { useListParams } from '@/hooks/use-list-params';
 
 /**
  * Which actions are offered in which state. Mirrors the API state machine —
@@ -87,12 +88,26 @@ export default function PayrollRunPage() {
   const { runId } = useParams<{ runId: string }>();
   const queryClient = useQueryClient();
   const { can } = useSession();
+  const params = useListParams('employeeName');
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const run = useQuery({ queryKey: payrollKeys.run(runId), queryFn: () => payrollApi.run(runId) });
+
+  /*
+   * 100 is the cap every list endpoint enforces, not a number picked to fit.
+   * This page previously asked for 200 to avoid wiring pagination, which the
+   * API rejected outright — the table showed an error rather than payslips.
+   */
+  const listQuery = {
+    runId,
+    page: params.page,
+    limit: 100,
+    sort: params.sort,
+    order: params.order,
+  };
   const payslips = useQuery({
-    queryKey: [...payrollKeys.payslips(), runId],
-    queryFn: () => payrollApi.payslips({ runId, limit: 200 }),
+    queryKey: [...payrollKeys.payslips(), listQuery],
+    queryFn: () => payrollApi.payslips(listQuery),
   });
   const preflight = useQuery({
     queryKey: [...payrollKeys.run(runId), 'preflight'],
@@ -164,6 +179,7 @@ export default function PayrollRunPage() {
     {
       key: 'employeeName',
       header: 'Employee',
+      sortable: true,
       alwaysVisible: true,
       render: (row) => (
         <Link href={`/payroll/payslips/${row.id}`} className="font-medium hover:underline">
@@ -204,6 +220,7 @@ export default function PayrollRunPage() {
     {
       key: 'netPay',
       header: 'Net pay',
+      sortable: true,
       className: 'tabular-nums',
       render: (row) => (
         <span className="font-medium">
@@ -370,7 +387,12 @@ export default function PayrollRunPage() {
               setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))
             }
           />
-          <label htmlFor="select-all-payslips">Select all {rows.length}</label>
+          <label htmlFor="select-all-payslips">
+            Select all {rows.length} on this page
+            {payslips.data && payslips.data.meta.total > rows.length && (
+              <span className="text-muted-foreground"> of {payslips.data.meta.total}</span>
+            )}
+          </label>
         </div>
       )}
 
@@ -381,6 +403,11 @@ export default function PayrollRunPage() {
         loading={payslips.isLoading}
         error={payslips.isError}
         onRetry={() => payslips.refetch()}
+        meta={payslips.data?.meta}
+        onPageChange={params.setPage}
+        sort={params.sort}
+        order={params.order}
+        onSortChange={params.toggleSort}
         emptyTitle="No payslips yet"
         emptyHint={
           current.status === 'DRAFT'

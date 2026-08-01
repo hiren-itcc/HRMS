@@ -115,7 +115,11 @@ export class AuthService {
       }),
       this.prisma.user.update({
         where: { id: reset.userId },
-        data: { passwordHash: await argon2.hash(newPassword, { type: argon2.argon2id }) },
+        data: {
+          passwordHash: await argon2.hash(newPassword, { type: argon2.argon2id }),
+          // Whatever the route in, setting a password of their own clears it.
+          mustChangePassword: false,
+        },
       }),
     ]);
     // New password ⇒ every existing session is stale
@@ -136,7 +140,11 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await argon2.hash(newPassword, { type: argon2.argon2id }) },
+      data: {
+        passwordHash: await argon2.hash(newPassword, { type: argon2.argon2id }),
+        // Whatever the route in, setting a password of their own clears it.
+        mustChangePassword: false,
+      },
     });
 
     // Revoke every other session; the caller's session stays valid.
@@ -177,6 +185,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       status: user.status as UserStatus,
+      mustChangePassword: user.mustChangePassword,
       roleCode: user.role.code as RoleCode,
       permissions: user.role.permissions.map((rp) => rp.permission.code),
       employee: user.employee

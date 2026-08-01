@@ -29,8 +29,7 @@ import {
  * `${date}T00:00:00.000Z` from it — so serialise it the same way leave does
  * (leave.mapper.ts) rather than leaking the timestamp.
  */
-// biome-ignore lint/suspicious/noExplicitAny: Prisma row shapes vary by include
-function mapRequest(row: any) {
+function mapRequest<T extends { date: Date }>(row: T) {
   return { ...row, date: dateKeyOf(row.date) };
 }
 

@@ -47,12 +47,18 @@ export default function EditEmployeePage() {
           addressLine: e.addressLine ?? '',
           city: e.city ?? '',
           country: e.country ?? '',
-          departmentId: e.departmentId,
-          designationId: e.designationId,
-          locationId: e.locationId,
+          /*
+           * Job details are required now, but records created before that may
+           * hold nulls. Seeding them as empty means the field shows unanswered
+           * and has to be filled before the edit can be saved, rather than the
+           * gap silently surviving another round trip.
+           */
+          departmentId: e.departmentId ?? '',
+          designationId: e.designationId ?? '',
+          locationId: e.locationId ?? '',
+          shiftId: e.shiftId ?? '',
+          employmentTypeId: e.employmentTypeId ?? '',
           managerId: e.managerId,
-          shiftId: e.shiftId,
-          employmentTypeId: e.employmentTypeId,
           status: e.status,
           joinDate: e.joinDate.slice(0, 10),
         }}

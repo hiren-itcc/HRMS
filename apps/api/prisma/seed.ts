@@ -985,122 +985,153 @@ async function main() {
   }
 
   const now = new Date();
-  const lastMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
   const thisMonth = dateKey(now).slice(0, 7);
-
-  const settledRun = await prisma.payrollRun.create({
-    data: {
-      organizationId: org.id,
-      month: lastMonth,
-      status: 'PUBLISHED',
-      payDate: toDate(`${thisMonth}-01`),
-      calculatedAt: shift(-6),
-      calculatedById: usr('hr@hrms.local'),
-      approvedAt: shift(-5),
-      approvedById: usr('finance@hrms.local'),
-      lockedAt: shift(-5),
-      lockedById: usr('finance@hrms.local'),
-      publishedAt: shift(-4),
-      publishedById: usr('hr@hrms.local'),
-    },
-  });
+  const monthKey = (back: number) =>
+    new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)).toISOString().slice(0, 7);
 
   const payrollConfig = defaultSettings().payroll;
-  let runTotals = { earnings: 0, deductions: 0, employer: 0, net: 0 };
+  const round2 = (n: number) => Math.round(n * 100) / 100;
 
-  for (const plan of salaryPlan) {
-    const employee = await prisma.employee.findUniqueOrThrow({
-      where: { id: emp(plan.email) },
-      include: {
-        department: true,
-        designation: true,
-        bankDetail: true,
-        salaries: {
-          where: { effectiveFrom: { lte: toDate(`${lastMonth}-28`) } },
-          orderBy: { effectiveFrom: 'desc' },
-          take: 1,
-          include: { structure: { include: { lines: { include: { component: true } } } } },
-        },
-      },
-    });
-    const salary = employee.salaries[0];
-    if (!salary) continue;
+  /*
+   * Three settled months, so the runs list, the reports month picker and the
+   * salary register all have shape. Payslips are produced by the real engine
+   * rather than written by hand — the seed cannot drift away from the code
+   * that computes payroll for real.
+   */
+  for (const back of [3, 2, 1]) {
+    const month = monthKey(back);
+    const isMostRecent = back === 1;
+    const ageDays = back * 30;
 
-    const calc = calculatePayslip({
-      month: lastMonth,
-      monthlyCtc: Number(salary.monthlyCtc),
-      monthlyTds: Number(salary.monthlyTds),
-      lines: salary.structure.lines.map((line) => ({
-        code: line.component.code,
-        name: line.component.name,
-        kind: line.component.kind,
-        calcType: line.calcType,
-        value: Number(line.value),
-        order: line.order,
-      })),
-      // One person had two unpaid days, so a payslip with LOP is visible.
-      lopDays: plan.email === 'rohan@hrms.local' ? 2 : 0,
-      config: payrollConfig,
-    });
-
-    await prisma.payslip.create({
+    const run = await prisma.payrollRun.create({
       data: {
         organizationId: org.id,
-        runId: settledRun.id,
-        employeeId: employee.id,
-        employeeCode: employee.employeeCode,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        departmentName: employee.department?.name ?? null,
-        designationName: employee.designation?.title ?? null,
-        structureName: salary.structure.name,
-        bankName: employee.bankDetail?.bankName ?? null,
-        accountNumberMasked: employee.bankDetail
-          ? `••••${employee.bankDetail.accountNumber.slice(-4)}`
-          : null,
-        ifsc: employee.bankDetail?.ifscCode ?? null,
-        workingDays: calc.workingDays,
-        lopDays: calc.lopDays,
-        payableDays: calc.payableDays,
-        grossEarnings: calc.grossEarnings,
-        totalDeductions: calc.totalDeductions,
-        employerContribution: calc.employerContribution,
-        netPay: calc.netPay,
-        carriedShortfall: calc.carriedShortfall,
-        paymentStatus: 'PAID',
-        paidAt: shift(-3),
-        paymentRef: `NEFT-${lastMonth.replace('-', '')}-${employee.employeeCode}`,
-        lines: {
-          create: calc.lines.map((line) => ({
-            componentCode: line.code,
-            componentName: line.name,
-            kind: line.kind,
-            amount: line.amount,
-            order: line.order,
-          })),
-        },
+        month,
+        status: 'PUBLISHED',
+        payDate: toDate(`${monthKey(back - 1)}-01`),
+        calculatedAt: shift(-ageDays - 6),
+        calculatedById: usr('hr@hrms.local'),
+        approvedAt: shift(-ageDays - 5),
+        approvedById: usr('finance@hrms.local'),
+        lockedAt: shift(-ageDays - 5),
+        lockedById: usr('finance@hrms.local'),
+        publishedAt: shift(-ageDays - 4),
+        publishedById: usr('hr@hrms.local'),
       },
     });
 
-    runTotals = {
-      earnings: runTotals.earnings + calc.grossEarnings,
-      deductions: runTotals.deductions + calc.totalDeductions,
-      employer: runTotals.employer + calc.employerContribution,
-      net: runTotals.net + calc.netPay,
-    };
-  }
+    const totals = { earnings: 0, deductions: 0, employer: 0, net: 0 };
 
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  await prisma.payrollRun.update({
-    where: { id: settledRun.id },
-    data: {
-      employeeCount: salaryPlan.length,
-      totalEarnings: round2(runTotals.earnings),
-      totalDeductions: round2(runTotals.deductions),
-      totalEmployerCost: round2(runTotals.employer),
-      netPayable: round2(runTotals.net),
-    },
-  });
+    for (const [index, plan] of salaryPlan.entries()) {
+      const employee = await prisma.employee.findUniqueOrThrow({
+        where: { id: emp(plan.email) },
+        include: {
+          department: true,
+          designation: true,
+          bankDetail: true,
+          salaries: {
+            where: { effectiveFrom: { lte: toDate(`${month}-28`) } },
+            orderBy: { effectiveFrom: 'desc' },
+            take: 1,
+            include: { structure: { include: { lines: { include: { component: true } } } } },
+          },
+        },
+      });
+      const salary = employee.salaries[0];
+      if (!salary) continue;
+
+      // A little unpaid leave, spread around, so no two months look alike and
+      // the register is not seven identical rows.
+      const lopDays = (index + back) % 4 === 0 ? 2 : 0;
+
+      const calc = calculatePayslip({
+        month,
+        monthlyCtc: Number(salary.monthlyCtc),
+        monthlyTds: Number(salary.monthlyTds),
+        lines: salary.structure.lines.map((line) => ({
+          code: line.component.code,
+          name: line.component.name,
+          kind: line.component.kind,
+          calcType: line.calcType,
+          value: Number(line.value),
+          order: line.order,
+        })),
+        lopDays,
+        config: payrollConfig,
+      });
+
+      /*
+       * Older months are fully paid. The most recent one carries a failure and
+       * something still pending, so the payment badges, the failure reason and
+       * the bulk action bar all have something real to show.
+       */
+      const payment = !isMostRecent
+        ? { status: 'PAID' as const, failureReason: null }
+        : index === 2
+          ? { status: 'FAILED' as const, failureReason: 'Bank rejected: account name mismatch' }
+          : index === 5
+            ? { status: 'PENDING' as const, failureReason: null }
+            : { status: 'PAID' as const, failureReason: null };
+
+      await prisma.payslip.create({
+        data: {
+          organizationId: org.id,
+          runId: run.id,
+          employeeId: employee.id,
+          employeeCode: employee.employeeCode,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          departmentName: employee.department?.name ?? null,
+          designationName: employee.designation?.title ?? null,
+          structureName: salary.structure.name,
+          bankName: employee.bankDetail?.bankName ?? null,
+          accountNumberMasked: employee.bankDetail
+            ? `••••${employee.bankDetail.accountNumber.slice(-4)}`
+            : null,
+          ifsc: employee.bankDetail?.ifscCode ?? null,
+          workingDays: calc.workingDays,
+          lopDays: calc.lopDays,
+          payableDays: calc.payableDays,
+          grossEarnings: calc.grossEarnings,
+          totalDeductions: calc.totalDeductions,
+          employerContribution: calc.employerContribution,
+          netPay: calc.netPay,
+          carriedShortfall: calc.carriedShortfall,
+          paymentStatus: payment.status,
+          failureReason: payment.failureReason,
+          paidAt: payment.status === 'PAID' ? shift(-ageDays - 3) : null,
+          paymentRef:
+            payment.status === 'PAID'
+              ? `NEFT-${month.replace('-', '')}-${employee.employeeCode}`
+              : null,
+          lines: {
+            create: calc.lines.map((line) => ({
+              componentCode: line.code,
+              componentName: line.name,
+              kind: line.kind,
+              amount: line.amount,
+              order: line.order,
+            })),
+          },
+        },
+      });
+
+      totals.earnings += calc.grossEarnings;
+      totals.deductions += calc.totalDeductions;
+      totals.employer += calc.employerContribution;
+      totals.net += calc.netPay;
+    }
+
+    await prisma.payrollRun.update({
+      where: { id: run.id },
+      data: {
+        employeeCount: salaryPlan.length,
+        totalEarnings: round2(totals.earnings),
+        totalDeductions: round2(totals.deductions),
+        totalEmployerCost: round2(totals.employer),
+        netPayable: round2(totals.net),
+      },
+    });
+  }
 
   // The current month sits open, so the workflow has somewhere to start.
   await prisma.payrollRun.create({

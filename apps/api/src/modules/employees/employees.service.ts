@@ -12,6 +12,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as argon2 from 'argon2';
 import { auditMutation } from '../../common/utils/audit';
 import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
@@ -56,7 +58,10 @@ function ctxOf(claims: AccessTokenClaims): Ctx {
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Scope resolution (docs/04-rbac.md): `employee.read` → whole org;
@@ -124,27 +129,86 @@ export class EmployeesService {
     const ctx = ctxOf(claims);
     await this.validateRefs(ctx.orgId, input);
 
-    const { joinDate, dateOfBirth, employeeCode, ...rest } = input;
+    const { joinDate, dateOfBirth, employeeCode, createLogin, loginRole, ...rest } = input;
+
+    if (createLogin) {
+      const taken = await this.prisma.user.findUnique({
+        where: { email: rest.workEmail },
+        select: { id: true },
+      });
+      if (taken) {
+        throw new BadRequestException(
+          `${rest.workEmail} already has a sign-in — use a different work email, or create the employee without a login`,
+        );
+      }
+      if (!new Set(claims.perms).has('employee.invite')) {
+        throw new ForbiddenException('You need employee.invite to create a sign-in');
+      }
+    }
+
     for (let attempt = 0; ; attempt++) {
       const code = employeeCode ?? (await this.nextCode(ctx.orgId, attempt));
       try {
-        const employee = await this.prisma.employee.create({
-          data: {
-            ...rest,
-            employeeCode: code,
-            joinDate: new Date(joinDate),
-            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-            organizationId: ctx.orgId,
-          },
-          include: LIST_INCLUDE,
+        /*
+         * Employee and login are created together. Half of this succeeding is
+         * the bug being fixed: an employee row nobody can sign in as.
+         */
+        const employee = await this.prisma.$transaction(async (tx) => {
+          const created = await tx.employee.create({
+            data: {
+              ...rest,
+              employeeCode: code,
+              joinDate: new Date(joinDate),
+              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+              organizationId: ctx.orgId,
+            },
+            include: LIST_INCLUDE,
+          });
+
+          if (createLogin) {
+            const role = await tx.role.findUnique({
+              where: { organizationId_code: { organizationId: ctx.orgId, code: loginRole } },
+              select: { id: true },
+            });
+            if (!role) throw new BadRequestException(`Role ${loginRole} does not exist`);
+
+            const user = await tx.user.create({
+              data: {
+                organizationId: ctx.orgId,
+                email: created.workEmail,
+                passwordHash: await argon2.hash(this.defaultPassword(), {
+                  type: argon2.argon2id,
+                }),
+                status: 'ACTIVE',
+                // The default password is shared and therefore guessable. The
+                // flag is what keeps that from mattering: they can sign in and
+                // do nothing else until they set their own.
+                mustChangePassword: true,
+                roleId: role.id,
+              },
+            });
+            await tx.employee.update({ where: { id: created.id }, data: { userId: user.id } });
+          }
+          return created;
         });
-        await auditMutation(this.prisma, ctx, 'employee.create', 'Employee', employee.id);
-        return employee;
+
+        await auditMutation(this.prisma, ctx, 'employee.create', 'Employee', employee.id, {
+          after: { employeeCode: employee.employeeCode, createdLogin: createLogin, loginRole },
+        });
+        return {
+          ...employee,
+          loginCreated: createLogin,
+          loginEmail: createLogin ? employee.workEmail : null,
+        };
       } catch (err) {
         // Unique collision on an auto-generated code → try the next one
         if (employeeCode || attempt >= 4 || !this.isUniqueViolation(err)) throw err;
       }
     }
+  }
+
+  private defaultPassword(): string {
+    return this.config.get<string>('DEFAULT_USER_PASSWORD') ?? 'Welcome@2026';
   }
 
   async update(claims: AccessTokenClaims, id: string, input: EmployeeUpdateInput) {
@@ -328,9 +392,23 @@ export class EmployeesService {
     }
   }
 
+  /**
+   * Next free `EMP-####`.
+   *
+   * Derived from the highest code in use, not from a row count: once anyone
+   * has been deleted or given a manual code, a count collides on every
+   * subsequent create and only the retry loop saves it.
+   */
   private async nextCode(orgId: string, offset: number): Promise<string> {
-    const count = await this.prisma.employee.count({ where: { organizationId: orgId } });
-    return `EMP-${String(count + 1 + offset).padStart(4, '0')}`;
+    const rows = await this.prisma.employee.findMany({
+      where: { organizationId: orgId, employeeCode: { startsWith: 'EMP-' } },
+      select: { employeeCode: true },
+    });
+    const highest = rows.reduce((max, row) => {
+      const n = Number.parseInt(row.employeeCode.slice(4), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    return `EMP-${String(highest + 1 + offset).padStart(4, '0')}`;
   }
 
   private isUniqueViolation(err: unknown): boolean {

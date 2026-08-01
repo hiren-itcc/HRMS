@@ -13,15 +13,25 @@ import { useSession } from '@/components/session-provider';
  * sessions that die while the tab is open.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
+  const { status, user } = useSession();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
     }
-  }, [status, router, pathname]);
+    /*
+     * An account still on the password it was created with goes straight to
+     * changing it. The default is shared and therefore guessable; this is what
+     * stops that mattering. The profile page itself is exempt, or the redirect
+     * would loop on the page that fixes it.
+     */
+    if (user?.mustChangePassword && !pathname.startsWith('/profile')) {
+      router.replace('/profile?changePassword=1');
+    }
+  }, [status, user, router, pathname]);
 
   return (
     <div className="flex min-h-dvh">
