@@ -23,6 +23,17 @@
 - No secrets in code or logs; pino redaction list covers tokens/cookies/password fields.
 - All user-visible strings sentence-case; dates rendered in org/location timezone via one shared formatter.
 - DB writes that must succeed together are in one `$transaction` — reviewers check this on every approval/balance path.
+- **Money is `Decimal`, never `Float`,** and is converted to a number once at
+  the API edge. A rounding artefact in payroll is somebody's salary.
+- **Business rules that can be pure, are.** Day maths, payroll arithmetic,
+  statutory thresholds and state machines live in files with no Prisma, no
+  clock and no settings lookup — everything passed in. That is what makes them
+  testable at the boundaries where they actually break, and reviewers should
+  push back on a rule buried in a service that could have been extracted.
+- **A guard answers *who*; some rules also need *when*.** Where an action's
+  legality depends on state as well as permission, the state machine is a
+  single pure module that owns both — not a condition repeated in the
+  controller and the service.
 
 ## 16 — Git strategy
 

@@ -24,6 +24,10 @@ This is deliberate simplicity: mixing RSC-fetch + Query-fetch for the same resou
 
 Rule: if data comes from the API it is *only* in Query's cache. Zustand never stores server data.
 
+The URL row is the one people get wrong. Filters, sort and page belong there —
+`useListParams` is the only way a list view should hold them — because a table
+someone cannot link to is a table they will screenshot instead.
+
 ## TanStack Query conventions
 
 - **Key factory per feature:** `employeeKeys.list(filters)`, `employeeKeys.detail(id)` — no ad-hoc string keys.

@@ -4,65 +4,145 @@ Generated with the **ui-ux-pro-max** design intelligence (query: *"HRMS SaaS ent
 
 ## Foundations
 
-### Color tokens (Tailwind v4 `@theme` — semantic, never raw hex in components)
+Built on **coss UI** (Base UI 1.6) since the design-system migration. coss
+supplies a neutral, monochrome chrome; the brand accent is indigo, laid over
+it. Everything below is a CSS custom property in
+`packages/ui/src/styles/globals.css` — components never carry raw hex.
+
+### Colour tokens
+
+Values are Tailwind v4 ramp references rather than literals, so a ramp change
+moves every consumer at once.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--background` | `#F8FAFC` | `#020617` | App canvas |
-| `--surface` | `#FFFFFF` | `#0F172A` | Cards, panels, table rows |
-| `--surface-muted` | `#F1F5F9` | `#1A1E2F` | Table headers, wells, hover |
-| `--border` | `#E2E8F0` | `#334155` | Hairlines, inputs |
-| `--foreground` | `#0F172A` | `#F8FAFC` | Primary text |
-| `--muted-foreground` | `#64748B` | `#94A3B8` | Secondary text (AA on its surface) |
-| `--primary` | `#0F172A` | `#F8FAFC` | Primary buttons, active nav |
-| `--primary-foreground` | `#FFFFFF` | `#0F172A` | Text on primary |
-| `--accent` | `#16A34A` | `#22C55E` | Success/positive: present, approved, check-in |
-| `--warning` | `#D97706` | `#F59E0B` | Late, pending, expiring |
-| `--destructive` | `#DC2626` | `#EF4444` | Absent, rejected, destructive actions |
-| `--info` | `#2563EB` | `#3B82F6` | WFH, informational, links |
-| `--ring` | `#2563EB` | `#3B82F6` | Focus rings (always visible) |
+| `--background` | white | `neutral-950` mixed 95% toward white | App canvas |
+| `--card` / `--popover` | white | background +2% white | Cards, panels, menus |
+| `--foreground` | `neutral-800` | `neutral-100` | Primary text |
+| `--muted-foreground` | `neutral-500` → black 10% | `neutral-500` → white 18% | Secondary text |
+| `--primary` | `indigo-600` | `indigo-500` | Primary buttons, active nav, links |
+| `--ring` | `indigo-600` | `indigo-400` | Focus rings |
+| `--border` | black 8% | white 6% | Card edges, dividers |
+| `--input` | black 45% | white 35% | Control boundaries — raised off `--border` to clear 3:1 |
+| `--destructive` | `red-600` | `red-600` | Destructive actions, errors |
+| `--success` / `--warning` / `--info` | `emerald-500` / `amber-500` / `blue-500` | same | Status fills |
+| `--*-text` | darker step | lighter step | Text sitting **on** a tint of its own status |
 
-Status colors are **never the only signal** — always paired with a label or icon (dataviz/accessibility rule).
+Two things here are deliberate and were arrived at by measurement, not taste:
+
+- **`--input` is not `--border`.** A control boundary must clear 3:1 (WCAG
+  1.4.11); coss ships 10% black, which reads 1.25:1. Card edges keep the softer
+  `--border`, which is decorative and exempt.
+- **The `-text` tokens exist because a status fill is not readable as text.**
+  `--success` on a 15% tint of itself fails AA; `--success-text` is the step
+  that passes. Status colour is also never the only signal — always paired with
+  a label or an icon.
+
+`--primary` stayed indigo when coss's own is near-black: the logo, the sidebar
+pill and the stat tiles were already indigo, and leaving buttons neutral made
+those read as leftovers rather than as the brand.
+
+### The contrast gate
+
+`packages/ui/scripts/contrast-gate.mjs` measures every text and boundary pair
+in both themes and exits non-zero on a failure. Run it against the **compiled**
+stylesheet, not the source — the source is `var()` chains, `--alpha()` and
+`color-mix()` that only Tailwind resolves:
+
+```bash
+pnpm --filter @hrms/ui contrast <path-to-built.css>
+```
+
+56 pairs currently pass. It is a gate rather than a report: a token change that
+breaks contrast should fail, not be noticed later.
 
 ### Typography
 
-**Plus Jakarta Sans** (Google Fonts, variable) for headings *and* body — one family keeps the enterprise tone coherent; weights do the hierarchy work. `tabular-nums` for all tables and stat tiles.
+**Inter** (variable) for headings and body, **Geist Mono** for figures that
+need to align. Both arrive as webfonts via `@fontsource-variable`, imported in
+`globals.css` — not `next/font`, because coss's own stylesheet declares the
+families and loading them twice ships a family nothing references.
+`tabular-nums` on every table and stat tile.
 
 | Token | Size/line | Weight | Use |
 |---|---|---|---|
-| `display` | 30/36 | 800 | Dashboard greeting, empty states |
-| `h1` | 24/32 | 700 | Page titles |
-| `h2` | 18/28 | 700 | Section/card titles |
-| `h3` | 16/24 | 600 | Sub-sections, table groups |
+| `h1` | 30/36 | 700 | Page titles, dashboard greeting |
+| `h2` | 24/32 | 700 | Section titles |
+| `h3` | 18/28 | 600 | Card titles, sub-sections |
 | `body` | 14/20 | 400 | Default app text (dashboards run denser than marketing 16px) |
 | `small` | 13/18 | 400 | Meta, helper text |
 | `caption` | 12/16 | 500 | Badges, table headers (uppercase, +2% tracking) |
 
-### Spacing, radius, elevation (density 7/10)
+### Spacing, radius, elevation
 
-- **Spacing scale:** 4 / 8 / 12 / 16 / 24 / 32 / 48. Card padding 16–24; table row height 44 (touch minimum); page gutter 24.
-- **Radius:** `sm` 6 (inputs, badges) · `md` 10 (cards, dialogs) · `full` (avatars, pills).
-- **Elevation:** borders over shadows. `shadow-sm` on cards; one dialog/popover shadow tier. Never stacked heavy shadows.
-- **Layout:** sidebar 264px (collapsible to 64px icon rail); content max-width 1440 centered; 12-col grid, 24px gutters.
+- **Spacing scale:** 4 / 8 / 12 / 16 / 24 / 32 / 48. Card padding 16–24; table
+  row height 44 (touch minimum); page gutter 24.
+- **Radius:** `--radius` 0.625rem; `lg` for inputs and buttons, `xl`–`2xl` for
+  cards and dialogs, `full` for avatars and pills.
+- **Elevation:** borders over shadows. One dialog/popover shadow tier. Never
+  stacked heavy shadows.
+- **Layout:** sidebar 240px (collapsible to a 64px icon rail); content
+  max-width 1152 centred; page gutter 24.
+- **Touch targets:** coss controls carry `pointer-coarse:after:min-h-11`, so a
+  44px target appears on touch without inflating the pointer layout.
 
-### Motion (3/10 — subtle)
+### Motion (subtle)
 
-- Durations 150–250 ms, `ease-out`; page-level reveals ≤ 350 ms, y-offset ≤ 12px (reads as fade, not slide).
-- Motion only where it carries meaning: state changes, drawer/dialog enter (Framer Motion `AnimatePresence`), check-in success pulse, count-up on stat tiles (once, on load).
-- Exits faster than entrances. `prefers-reduced-motion` collapses everything to opacity.
+- Durations 150–250 ms, `ease-out`; page-level reveals ≤ 350 ms, y-offset
+  ≤ 16px (reads as a fade, not a slide).
+- Motion only where it carries meaning: state changes, dialog enter, the
+  sidebar and tab active pills (Framer Motion `layoutId`), stat-tile stagger on
+  load.
+- Exits faster than entrances. A global `prefers-reduced-motion` block collapses
+  every animation to nothing — CSS and Base UI included, not just the Framer
+  Motion consumers that branch on `useReducedMotion`. Spinners are exempt: a
+  frozen spinner says the app has hung.
 - No decorative scroll choreography anywhere in the app shell.
 
 ### Iconography
 
-**Lucide** exclusively (shadcn default) — outline style, 20px in nav/buttons, 16px inline, `stroke-width` 2. Icon-only buttons require `aria-label` + tooltip.
+**Lucide** exclusively — outline, 20px in nav and buttons, 16px inline,
+`stroke-width` 2. Icon-only buttons require `aria-label`; decorative glyphs get
+`aria-hidden`. coss's registry pulls `@remixicon/react` as a transitive
+dependency; we do not use it — one icon family or none.
 
 ## Component library (`packages/ui`)
 
-Built **on shadcn/ui primitives** (Radix-based, accessible by default), re-exported from `packages/ui` so both current web and future apps consume one source. Two layers:
+Built **on coss UI** (Base UI, accessible by default), installed into
+`packages/ui` so both the current web app and future consumers read one source.
+Two layers:
 
-### Layer 1 — shadcn primitives (installed into `packages/ui`, themed by tokens)
+### Layer 1 — coss primitives (56 files in `packages/ui/src/components`, themed by tokens)
 
-`Button` `Input` `Select` `Combobox` `DatePicker` `Calendar` `Checkbox` `RadioGroup` `Switch` `Textarea` `Form` (RHF+Zod wired) `Dialog` `Drawer/Sheet` `DropdownMenu` `Popover` `Tooltip` `Tabs` `Table` `Badge` `Avatar` `Card` `Skeleton` `Toast (sonner)` `Command (⌘K)` `Breadcrumb` `Pagination` `Alert` `Separator` `ScrollArea`
+`Button` `Input` `InputGroup` `Select` `Combobox` `Autocomplete` `Calendar`
+`Checkbox` `RadioGroup` `Switch` `Textarea` `Field` `Fieldset` `Form` `Dialog`
+`AlertDialog` `Drawer` `Sheet` `Menu` `ContextMenu` `Popover` `Tooltip` `Tabs`
+`Table` `Badge` `Avatar` `Card` `Frame` `Skeleton` `Spinner` `Progress` `Meter`
+`Toast` `Command (⌘K)` `Breadcrumb` `Pagination` `Alert` `Empty` `Separator`
+`ScrollArea` `Toolbar` `Toggle` `ToggleGroup` `Sidebar` `Kbd` `Accordion`
+`Collapsible` `Slider` `NumberField` `OtpField` `PreviewCard` `Label` `Group`
+
+Two files in that directory are ours rather than coss's, and say why in their
+own comments:
+
+- **`date-picker.tsx`** — coss ships `Calendar` but no date *field*, so this is
+  the documented Popover + Calendar composition packaged as one control. It
+  speaks ISO `yyyy-mm-dd` strings rather than `Date`, because every form, zod
+  schema and API payload already does; and it never touches
+  `new Date(string)` or `toISOString()`, both of which are UTC and would render
+  a picked date as the day before anywhere west of Greenwich.
+- **`dropdown-menu.tsx`** — an alias layer over coss `Menu`, so ~15 screens did
+  not need renaming. `DropdownMenuLabel` is a real component rather than an
+  alias: Base UI's `GroupLabel` throws outside a `Menu.Group`, and Radix's
+  label was standalone.
+
+**Migrating from Radix idioms:** `asChild` → `render`, `DialogContent` →
+`DialogPopup`, `onSelect` → `onClick`, `delayDuration` → `delay`. Two
+differences are invisible to TypeScript and cost us runtime errors before they
+were understood — `Select` decides controlled-ness from `value !== undefined`
+on the *first* render (so "nothing selected" is `null`, not `undefined`), and
+`SelectValue` renders the raw value unless the root is given an `items` map.
+Both are now handled inside the `Select` wrapper.
 
 ### Layer 2 — HRMS composites (the product's vocabulary)
 
@@ -70,7 +150,7 @@ Built **on shadcn/ui primitives** (Radix-based, accessible by default), re-expor
 |---|---|---|
 | `AppShell` | Sidebar + Topbar + Breadcrumb slot | every authed page |
 | `PageHeader` | title, description, actions slot | every page |
-| `DataTable` | Table + TanStack Table: server pagination/sort/filter, column visibility, row selection, virtualization, URL-synced state | employees, requests, audit… |
+| `DataTable` | Table + sticky header, density toggle, column visibility, numbered pagination, URL-synced sort/page | employees, requests, audit, payroll… |
 | `StatTile` | Card + count-up + delta indicator | dashboards, reports |
 | `StatusBadge` | Badge + status→token map (single source for all status colors) | everywhere |
 | `EmployeeCell` | Avatar + name + designation | tables, lists |
@@ -86,6 +166,10 @@ Built **on shadcn/ui primitives** (Radix-based, accessible by default), re-expor
 | `ConfirmDialog` | typed-confirmation variant for destructive actions | offboard, delete |
 | `MultiStepForm` | stepper + per-step Zod validation + state preservation | add employee |
 | `ReportChart` | Recharts wrapped with dataviz rules (legends, tooltips, a11y palette) | reports |
+| `SectionTabs` | `<nav>` of links with a spring active pill — deliberately **not** coss `Tabs`, which emits `role="tab"` and would promise a panel swap where these navigate | every module with sub-routes |
+| `CommandPalette` | coss `Command` over the same `NAV_ITEMS` and permission checks the sidebar uses, so it cannot offer a route you would be bounced out of | ⌘K anywhere |
+| `TimezoneField` | coss `Combobox` over 418 IANA zones with their current offsets | organization, locations |
+| `StatusBadge` (payroll) | run status and payment status share a component but never a scale — two axes, so colouring them alike would imply a progression that does not exist | payroll |
 
 **Rules:** composites accept data via props — no fetching inside `packages/ui` (fetch hooks live in `apps/web/features`). Every component ships light+dark and disabled/loading/error states. Storybook (or Ladle) added in Sprint 2 as the visual contract.
 

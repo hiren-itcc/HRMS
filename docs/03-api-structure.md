@@ -110,6 +110,55 @@ endpoint — it is the same query surface.
 | `/reports/departments` | Per-department headcount, movement, attendance rate, leave days |
 | `/reports/summary` | Six-month headcount trend for the dashboard widget (no range params) |
 
+### Payroll (`/payroll`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/components` — pay component catalogue | `payroll.structure.manage` \| `payroll.read` |
+| GET / POST | `/payroll/structures` · GET/PATCH/DELETE `/payroll/structures/:id` | `payroll.read` / `payroll.structure.manage` |
+| GET | `/payroll/structures/options` — active structures for the assignment form | `payroll.salary.manage` \| `payroll.read` |
+| POST | `/payroll/structures/:id/clone` — copy, starts inactive | `payroll.structure.manage` |
+| GET | `/payroll/salaries` — roster with current salary | `payroll.read` \| `payroll.salary.manage` |
+| GET | `/payroll/salaries/me` · `/payroll/salaries/:employeeId` — revision timeline | `payroll.read.own` (+ scope) |
+| POST | `/payroll/salaries` — assign or revise | `payroll.salary.manage` |
+| DELETE | `/payroll/salaries/:id` — only if no settled payroll depends on it | `payroll.salary.manage` |
+| GET / POST | `/payroll/runs` · GET `/payroll/runs/:id` | `payroll.read` / `payroll.process` |
+| GET | `/payroll/runs/:id/preflight` — what would block calculation | `payroll.process` |
+| POST | `/payroll/runs/:id/actions` — every state transition | per action (below) |
+| GET | `/payroll/payslips` · `/payroll/payslips/me` · `/payroll/payslips/:id` | `payroll.read.own` (+ scope) |
+| PATCH | `/payroll/payslips/payment` — bulk payment status | `payroll.pay` |
+| GET | `/payroll/reports/:kind?month=&format=` | `payroll.read` (+ `report.export` for CSV/Excel) |
+
+**One endpoint for six transitions.** `POST /runs/:id/actions` takes
+`{ action: calculate \| approve \| reopen \| lock \| publish \| cancel }`. The
+state machine already knows which are legal from which status and which
+permission each demands, so splitting it into six verbs would duplicate that
+decision in the routing table. An illegal transition returns 400 with the
+reason; a missing permission returns 403.
+
+```
+DRAFT ──calculate──> IN_REVIEW ──approve──> APPROVED ──lock──> LOCKED ──publish──> PUBLISHED
+  ^                      │                      │
+  └────── recalculate ───┘        reopen ───────┘        (APPROVED only)
+```
+
+`LOCKED` and `PUBLISHED` accept no transition at all — a payslip an employee
+has already seen must not change underneath them, so a mistake there is
+corrected by an adjustment in the next run. Payment status moves on its own
+axis (`PENDING → PROCESSING → PAID`, with `FAILED` retryable) and only once the
+run is published; `PENDING → PAID` is refused so a bank file can be exported in
+between.
+
+Calculation is **destructive by design**: it drops and rebuilds every payslip
+for the run. Payroll is recalculated repeatedly during review, and merging
+would leave a payslip behind for someone since excluded.
+
+Reports (`register`, `bank-transfer`, `pf`, `esi`, `tax`, `department`) are
+built from the payslips of a run rather than recalculated, so a report and the
+payslip it summarises can never disagree. The bank-transfer report excludes
+payslips with no account rather than emitting blank rows, and reports how many
+it dropped.
+
 ### Settings & Admin (`/settings`, `/roles`, `/audit`)
 | Method | Path | Permission |
 |---|---|---|
@@ -125,8 +174,13 @@ endpoint — it is the same query surface.
 `GET /settings` is deliberately ungated: every user needs `workingWeek` to
 render the attendance calendar and `modules` to render navigation. The three
 groups are `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
-(`yearStartMonth`, `allowNegativeBalance`) and `modules`; each is stored as one
-`Setting` row so patching one never rewrites another.
+(`yearStartMonth`, `allowNegativeBalance`), `payroll` (currency, pay day, LOP
+basis, and the PF / ESI / professional-tax rules) and `modules`; each is stored
+as one `Setting` row so patching one never rewrites another.
+
+The patch schema strips defaults **recursively**, because the payroll group
+nests: without that, a PATCH of `payroll.pf.employeeRate` would materialise its
+siblings and reset the wage ceiling, since the whole group is one row.
 
 Every key has a consumer — a setting nothing reads is a lie the UI tells. Date
 and currency formats are deliberately absent until the ~15 formatter call

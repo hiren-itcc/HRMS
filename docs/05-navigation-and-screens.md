@@ -15,6 +15,8 @@ Navigation is **role-aware**: one shell, items filtered by permissions from `GET
 
 ### Sidebar by role
 
+Finance sees the Employee column plus Payroll (org-wide) and Reports.
+
 | Item | Route | EMPLOYEE | MANAGER | HR | ADMIN |
 |---|---|:-:|:-:|:-:|:-:|
 | Dashboard | `/dashboard` | ✅ | ✅ | ✅ | ✅ |
@@ -32,13 +34,14 @@ Navigation is **role-aware**: one shell, items filtered by permissions from `GET
 | Directory | `/directory` | ✅ | ✅ | ✅ | ✅ |
 | Announcements | `/announcements` | ✅ | ✅ | ✅ | ✅ |
 | Organization | `/organization` | — | — | ✅ | ✅ |
+| Payroll | `/payroll` | ✅ (own) | ✅ (team) | ✅ | ✅ |
 | Reports | `/reports` | — | ✅ (team) | ✅ | ✅ |
 | Settings | `/settings` | — | — | ⚠ partial | ✅ |
 
 Avatar menu: My profile · My sessions · Theme (light/dark/system) · Logout.
 Global search (⌘K): employees, announcements, quick actions ("Apply leave", "Check in").
 
-## UI screen list (Phase 1 — 38 screens)
+## UI screen list (47 screens)
 
 ### Auth (4)
 | # | Screen | Route | Notes |
@@ -95,10 +98,30 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 ### Reports (1 hub + 4 views)
 | 35 | Reports hub | `/reports` | Headcount · Attendance summary · Leave summary · Attrition; each: filters, chart + table, CSV export |
 
+### Payroll (9)
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 36 | Runs | `/payroll` | KPI tiles + one row per month; open a month from here |
+| 37 | Run detail | `/payroll/[runId]` | Progress rail, state actions (only those legal *and* permitted), preflight warnings, payslip table, bulk payment bar |
+| 38 | Salaries | `/payroll/salaries` | Roster with current CTC; assign or revise in a dialog |
+| 39 | Salary timeline | `/payroll/salaries/[employeeId]` | Every revision, each with its delta and percentage |
+| 40 | Structures | `/payroll/structures` | Reusable earning/deduction templates; clone; delete blocked while assigned |
+| 41 | Payroll reports | `/payroll/reports` | Register · bank transfer · PF · ESI · tax · department, with CSV/Excel export |
+| 42 | Payslip | `/payroll/payslips/[id]` | The document — earnings vs deductions, employer cost set apart, print to PDF |
+| 43 | My salary | `/payroll/me` | Employee self-service: current CTC, revision history, own published payslips |
+| 44 | Payroll preferences | `/settings/preferences` | Currency, pay day, LOP basis, PF/ESI/PT rules (part of the settings screen) |
+
+The run detail screen is the one worth describing precisely: it renders only
+the actions legal from the current state **and** permitted to the signed-in
+person. That mirrors the server state machine rather than replacing it — the
+API is still the authority, the UI simply does not offer a button that would be
+refused. Locked and published runs carry a banner saying so and pointing at the
+next run as the place to correct a mistake.
+
 ### Settings (3)
-| 36 | General settings | `/settings` | Org profile, timezone, attendance & leave policy values |
-| 37 | Roles & permissions | `/settings/roles` | Matrix editor; system-role guardrails |
-| 38 | Audit log | `/settings/audit` | Filterable trail |
+| 45 | General settings | `/settings` | Org profile, timezone, attendance, leave & payroll policy values |
+| 46 | Roles & permissions | `/settings/roles` | Matrix editor; system-role guardrails |
+| 47 | Audit log | `/settings/audit` | Filterable trail |
 
 ### System states (every screen)
 Loading = skeletons (no spinners on full pages) · Empty = illustration + primary action · Error = retry + support hint · Forbidden = 403 page with "request access" hint · Offline banner.

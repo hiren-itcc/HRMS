@@ -10,7 +10,7 @@ This document records where the requested stack was accepted, where it was chall
 
 ### 1.1 "Tailwind CSS v5" does not exist — use v4
 
-Tailwind's current major is **v4.x** (CSS-first config, `@theme`, no `tailwind.config.js` required). There is no v5. The design system (doc 10) is written against **Tailwind v4** with CSS custom-property tokens, which is also what current shadcn/ui targets. When v5 ships, migration will be a token-layer change only.
+Tailwind's current major is **v4.x** (CSS-first config, `@theme`, no `tailwind.config.js` required). There is no v5. The design system (doc 10) is written against **Tailwind v4** with CSS custom-property tokens, which is also what coss UI targets. When v5 ships, migration will be a token-layer change only.
 
 ### 1.2 Separate NestJS API — accepted, with the trade-off stated
 

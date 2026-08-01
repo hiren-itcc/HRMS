@@ -1,98 +1,92 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# @hrms/api
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS 11 API for the HRMS. PostgreSQL via Prisma 7 (driver adapter), JWT auth
+with rotating refresh tokens, database-driven RBAC, Zod validation end to end.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Run it from the repo root (`pnpm dev` starts this and the web app together) —
+these notes cover working on the API specifically.
 
-## Description
+## Layout
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```
+src/
+  main.ts              Bootstrap: pino, helmet, CORS, Swagger, global pipes
+  app.module.ts        Module registry
+  common/              Guards, decorators, interceptors, filters, utils
+  config/              Typed config (env validated with Zod)
+  database/            PrismaService
+  generated/prisma/    Generated client — never edited by hand
+  modules/             One folder per domain module
+prisma/
+  schema.prisma        Source of truth for the schema
+  migrations/          Hand-reviewed SQL, applied with `migrate deploy`
+  seed.ts              Destructive demo workspace
 ```
 
-## Compile and run the project
+Every module follows the same shape: `*.controller.ts` declares routes and
+permissions, `*.service.ts` holds the work, `dto/` wraps shared Zod schemas
+with `createZodDto`, and anything that is genuinely a business rule lives in a
+**pure** file beside them (`leave.util.ts`, `payroll.calc.ts`,
+`payroll.statutory.ts`, `payroll.workflow.ts`) so it can be tested without a
+database.
+
+## Database workflow
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm db:generate      # regenerate the Prisma client after a schema edit
+pnpm db:migrate       # create + apply a migration (dev)
+pnpm db:deploy        # apply pending migrations (CI/production)
+pnpm db:seed          # reset the demo organization
 ```
 
-## Run tests
+**Migrations are written, not generated blindly.** `prisma migrate diff` is a
+good first draft, but anything that touches existing rows — backfills, new
+system roles, permission grants — is added by hand and read before it runs. Two
+rules that have already earned their keep:
+
+1. A migration that adds capabilities must grant them to **every existing
+   organization**, or a tenant that upgrades ends up with less than a fresh
+   install. See `20260802090000_payroll_module`.
+2. Prove a data migration on a scratch schema first. `20260801050000_role_per_organization`
+   and the payroll migration were both replayed against a two-tenant fixture
+   before touching a real database; the role migration had a unique-constraint
+   bug that only showed up that way.
+
+## Testing
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm test             # jest
+pnpm test:watch
+pnpm test:cov
 ```
 
-## Deployment
+The suite is deliberately weighted toward pure functions — leave day maths,
+payroll arithmetic, statutory thresholds, state machines — because those are
+where a mistake is expensive and a test is cheap. Services are tested with a
+mocked Prisma where the logic warrants it; controllers are covered through the
+permission guard rather than individually.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Conventions worth knowing before editing
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- **Every list endpoint** goes through `buildListArgs` / `searchWhere` /
+  `toPaginated` (`common/utils/list-query.ts`). Sort keys are whitelisted per
+  module — a client-supplied sort never reaches Prisma unchecked.
+- **Scope is never taken from request params.** `.own` routes derive the
+  employee from the JWT; `.team` routes filter on `managerId`.
+- **Every mutation writes an audit row** via `auditMutation`, with `before` /
+  `after` where the values matter.
+- **Prisma `Decimal` serialises as a string.** Convert at the edge (see
+  `payroll.mapper.ts`, `leave.mapper.ts`) — never let one reach the browser.
+- **Dates in transport are ISO-8601 UTC**, date-only fields `YYYY-MM-DD`, month
+  keys `YYYY-MM`. `common/utils/calendar.ts` has the helpers; nothing should be
+  doing its own date arithmetic.
+- **Permission plus state.** A guard answers *who*; some modules also need
+  *when*. Payroll's `payroll.workflow.ts` owns which transitions are legal from
+  which status, and which permission each demands, so that decision is written
+  once.
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+## API docs
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Swagger UI at **http://localhost:4000/api/docs** — DTOs are annotated and every
+route is tagged by module, so the page is the contract a future mobile client
+would build against.
