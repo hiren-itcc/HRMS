@@ -15,6 +15,12 @@ export default function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const hasSession = request.cookies.has(SESSION_MARKER_COOKIE);
 
+  // The root is a signpost, never a page: signed in goes to the dashboard,
+  // signed out goes to sign-in.
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL(hasSession ? '/dashboard' : '/login', request.url));
+  }
+
   if (!isPublic && !hasSession) {
     const url = new URL('/login', request.url);
     url.searchParams.set('next', pathname);
@@ -27,9 +33,9 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets and Next internals. The root page is
-  // public until the (dashboard) shell lands in Sprint 2.
+  // Everything except static assets and Next internals.
   matcher: [
+    '/',
     '/dashboard/:path*',
     '/profile/:path*',
     '/organization/:path*',
