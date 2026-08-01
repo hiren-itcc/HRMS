@@ -272,7 +272,9 @@
      !important can reach them. Anything caught mid-animation would otherwise
      print as a blank rectangle — a silent failure on paper. */
   body * {
+    /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
     opacity: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
     transform: none !important;
   }
 
