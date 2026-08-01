@@ -14,11 +14,12 @@ import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
+import { TimezoneField } from '@/components/timezone-field';
 import { companyApi } from '@/features/organization/api';
 
 export default function CompanyPage() {
@@ -27,7 +28,6 @@ export default function CompanyPage() {
   const queryClient = useQueryClient();
 
   const company = useQuery({ queryKey: ['org-company'], queryFn: companyApi.get });
-  const timezones = useMemo(() => Intl.supportedValuesOf('timeZone'), []);
 
   const form = useForm<CompanyUpdateInput>({
     resolver: zodResolver(companyUpdateSchema),
@@ -87,19 +87,12 @@ export default function CompanyPage() {
             hint="Used wherever an office or employee has no specific timezone"
           >
             {(a11y) => (
-              <>
-                <Input
-                  {...a11y}
-                  list="tz-options"
-                  disabled={!canManage}
-                  {...form.register('timezone')}
-                />
-                <datalist id="tz-options">
-                  {timezones.map((tz) => (
-                    <option key={tz} value={tz} />
-                  ))}
-                </datalist>
-              </>
+              <TimezoneField
+                {...a11y}
+                value={form.watch('timezone')}
+                onValueChange={(value) => form.setValue('timezone', value, { shouldDirty: true })}
+                disabled={!canManage}
+              />
             )}
           </Field>
 
