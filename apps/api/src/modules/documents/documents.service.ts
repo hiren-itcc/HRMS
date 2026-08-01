@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { auditMutation } from '../../common/utils/audit';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../database/prisma.service';
+import { DocumentCategoriesService } from './document-categories.service';
 import { StorageService } from './storage.service';
 
 /** Whitelist per the module spec: PDF, DOCX, images. */
@@ -27,6 +28,8 @@ const LIST_SELECT = {
   sizeBytes: true,
   uploadedById: true,
   createdAt: true,
+  categoryId: true,
+  category: { select: { id: true, name: true } },
 } as const;
 
 @Injectable()
@@ -36,15 +39,26 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly categories: DocumentCategoriesService,
     config: ConfigService<Env, true>,
   ) {
     this.maxBytes = config.get('MAX_UPLOAD_MB', { infer: true }) * 1024 * 1024;
   }
 
-  async listForEmployee(claims: AccessTokenClaims, employeeId: string) {
+  async listForEmployee(
+    claims: AccessTokenClaims,
+    employeeId: string,
+    query: { categoryId?: string; search?: string } = {},
+  ) {
     await this.ensureEmployeeAccess(claims, employeeId, 'read');
     return this.prisma.document.findMany({
-      where: { employeeId, organizationId: claims.orgId, deletedAt: null },
+      where: {
+        employeeId,
+        organizationId: claims.orgId,
+        deletedAt: null,
+        ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+        ...(query.search ? { name: { contains: query.search, mode: 'insensitive' as const } } : {}),
+      },
       select: LIST_SELECT,
       orderBy: { createdAt: 'desc' },
     });
@@ -54,8 +68,10 @@ export class DocumentsService {
     claims: AccessTokenClaims,
     employeeId: string,
     file: { originalname: string; mimetype: string; size: number; buffer: Buffer },
+    categoryId?: string,
   ) {
     await this.ensureEmployeeAccess(claims, employeeId, 'upload');
+    if (categoryId) await this.categories.assertBelongs(claims.orgId, categoryId);
 
     if (!ALLOWED_MIME[file.mimetype]) {
       throw new BadRequestException('Only PDF, DOCX and PNG/JPEG/WebP images are allowed');
@@ -76,6 +92,7 @@ export class DocumentsService {
         mimeType: file.mimetype,
         sizeBytes: file.size,
         uploadedById: claims.sub,
+        categoryId: categoryId ?? null,
       },
       select: LIST_SELECT,
     });
@@ -99,6 +116,30 @@ export class DocumentsService {
     return { doc, stream: this.storage.stream(doc.fileKey) };
   }
 
+  /** Refiles a document into another folder (or out of all folders). */
+  async move(claims: AccessTokenClaims, id: string, categoryId: string | null) {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, organizationId: claims.orgId, deletedAt: null },
+    });
+    if (!doc?.employeeId) throw new NotFoundException('Document not found');
+    await this.ensureEmployeeAccess(claims, doc.employeeId, 'upload');
+    if (categoryId) await this.categories.assertBelongs(claims.orgId, categoryId);
+
+    const updated = await this.prisma.document.update({
+      where: { id },
+      data: { categoryId },
+      select: LIST_SELECT,
+    });
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      'document.move',
+      'Document',
+      id,
+    );
+    return updated;
+  }
+
   /** Soft delete; file bytes stay for the audit trail (schema principle 3). */
   async remove(claims: AccessTokenClaims, id: string) {
     const doc = await this.prisma.document.findFirst({
@@ -120,6 +161,11 @@ export class DocumentsService {
       'Document',
       id,
     );
+  }
+
+  /** Public wrapper so sibling endpoints (folders) enforce the same rule. */
+  async assertCanReadEmployeeDocuments(claims: AccessTokenClaims, employeeId: string) {
+    await this.ensureEmployeeAccess(claims, employeeId, 'read');
   }
 
   /**

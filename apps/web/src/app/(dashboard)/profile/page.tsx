@@ -14,7 +14,7 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
-import { DocumentsCard } from '@/features/documents/documents-card';
+import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -104,7 +104,15 @@ export default function ProfilePage() {
 
         {user.employee && (
           <FadeInItem className="lg:col-span-2">
-            <DocumentsCard employeeId={user.employee.id} />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Documents</CardTitle>
+                <CardDescription>Your files, organised into folders</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsBrowser employeeId={user.employee.id} compact />
+              </CardContent>
+            </Card>
           </FadeInItem>
         )}
       </Stagger>

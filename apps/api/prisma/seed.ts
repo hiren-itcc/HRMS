@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
+import { DEFAULT_DOCUMENT_CATEGORIES, ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -87,6 +87,15 @@ async function main() {
       where: { organizationId_code: { organizationId: org.id, code: lt.code } },
       update: {},
       create: { organizationId: org.id, ...lt },
+    });
+  }
+
+  // Document folders (Resume, PAN, Aadhaar…)
+  for (const name of DEFAULT_DOCUMENT_CATEGORIES) {
+    await prisma.documentCategory.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {},
+      create: { organizationId: org.id, name },
     });
   }
 
