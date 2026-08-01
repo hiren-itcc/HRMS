@@ -13,6 +13,7 @@ import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { SidebarNav } from '@/components/app-sidebar';
+import { CommandPalette } from '@/components/command-palette';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
 import { useUiStore } from '@/stores/ui-store';
@@ -86,6 +87,7 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-1">
+          <CommandPalette />
           <ThemeToggle />
           <UserMenu />
         </div>
