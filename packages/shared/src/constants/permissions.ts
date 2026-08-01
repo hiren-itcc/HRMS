@@ -127,6 +127,11 @@ const HR_PERMS: Permission[] = [
 
 /** Approves and pays; deliberately holds no salary or structure write. */
 const FINANCE_PERMS: Permission[] = [
+  // Finance is a person before it is a function: they book leave and read
+  // announcements like anyone else. Omitting this left them unable to use the
+  // product they work in.
+  ...EMPLOYEE_PERMS,
+  // Needs to see who a payslip belongs to.
   'employee.read',
   'payroll.read',
   'payroll.approve',

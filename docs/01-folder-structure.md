@@ -52,12 +52,13 @@ hrms/
 │       │       ├── announcements/
 │       │       ├── notifications/
 │       │       ├── reports/
+│       │       ├── payroll/          # + payroll.calc/statutory/workflow (pure, tested)
 │       │       ├── settings/
 │       │       └── audit/            # AuditLog writer (interceptor-driven)
 │       └── package.json
 │
 ├── packages/
-│   ├── ui/                           # shadcn/ui-based component library (doc 06)
+│   ├── ui/                           # coss UI (Base UI) component library (doc 06)
 │   │   └── src/{components,hooks,lib,styles}/
 │   ├── shared/                       # Zod schemas + constants shared web↔api (single source of truth)
 │   │   └── src/{schemas,constants,utils}/
@@ -85,4 +86,18 @@ hrms/
 1. **Dependency direction:** `apps/* → packages/*` only. `packages/ui → packages/{types,config}`. No package imports an app; apps never import each other.
 2. **Feature-first frontend:** a route file in `app/` may only compose from `features/<x>` and `components/`. If a component is used by one feature, it lives in that feature — promotion to `packages/ui` requires a second consumer.
 3. **Module-first backend:** every NestJS module owns its controllers/services/DTOs. Cross-module access goes through the exported service, never another module's repository/Prisma calls.
-4. **Adding a future module** (Payroll, Recruitment…) = one folder under `apps/api/src/modules/`, one under `apps/web/src/features/`, one route segment, plus seed rows for its permissions. No existing file should need more than an import line.
+4. **Adding a future module** (Recruitment, Performance…) = one folder under `apps/api/src/modules/`, one under `apps/web/src/features/`, one route segment, plus seed rows for its permissions. No existing file should need more than an import line.
+
+   Payroll is the worked example: it added seven tables, a system role and nine
+   screens without editing another module's internals. The one exception is
+   worth naming — `auditMutation` gained an optional `meta` argument, because
+   "salary revised" without the figures it moved between is not an audit trail.
+   That is an additive change to a shared utility, which the rule allows; a
+   change to another module's *behaviour* would have needed an ADR first.
+
+5. **Business rules that can be pure, are.** Payroll's arithmetic and state
+   machine live in `payroll.calc.ts`, `payroll.statutory.ts` and
+   `payroll.workflow.ts` — no Prisma, no clock, no settings lookup, everything
+   passed in. That is what makes 72 tests possible without a database, and it
+   is the pattern any future module with real rules should follow (`leave.util.ts`
+   was the first).

@@ -282,6 +282,20 @@ JOIN (VALUES
   ('FINANCE', 'employee.read'),
   ('FINANCE', 'report.view'),
   ('FINANCE', 'report.export'),
+  -- Finance is a person before it is a function: self-service too, or they
+  -- cannot book their own leave in the product they approve payroll in.
+  ('FINANCE', 'employee.read.own'),
+  ('FINANCE', 'employee.update.own'),
+  ('FINANCE', 'attendance.read.own'),
+  ('FINANCE', 'attendance.mark.own'),
+  ('FINANCE', 'attendance.request.own'),
+  ('FINANCE', 'leave.read.own'),
+  ('FINANCE', 'leave.request.own'),
+  ('FINANCE', 'document.read.own'),
+  ('FINANCE', 'document.upload.own'),
+  ('FINANCE', 'announcement.read'),
+  ('FINANCE', 'org.read'),
+  ('FINANCE', 'payroll.read.own'),
   ('MANAGER', 'payroll.read.own'),
   ('MANAGER', 'payroll.read.team'),
   ('EMPLOYEE','payroll.read.own')
