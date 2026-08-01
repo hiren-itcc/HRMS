@@ -7,7 +7,19 @@ M0  Foundation ready        (end S1)  repo, CI, DB, auth skeleton runs in Docker
 M1  People core             (end S3)  auth + org + employees usable end-to-end
 M2  Time & leave            (end S5)  attendance + leave with approvals
 M3  Phase-1 complete        (end S6)  docs, announcements, reports, settings, hardening → v1.0.0
+M4  Design system + payroll (post-1.0) coss UI migration; payroll core
 ```
+
+**Shipped after v1.0.0**, in order:
+
+- **coss UI migration** — the Radix primitive layer replaced with coss (Base
+  UI). 17 hand-maintained primitives became 56, `radix-ui` dropped, and the
+  chrome went neutral with indigo as the accent. Brought a command palette, a
+  real date picker, searchable comboboxes and a contrast gate with it.
+- **Payroll core** — salary structures, effective-dated salary revisions, the
+  Draft→Published run workflow with locking, payslips, payment recording and
+  six statutory reports. A new `FINANCE` system role makes separation of duties
+  the default rather than an option.
 
 Ordering rationale: every module depends on Employees; Attendance/Leave carry the most business-rule risk, so they get the middle sprints with slack; Reports come last because they read everything else.
 
@@ -44,7 +56,7 @@ The architecture reserves an explicit seam for each planned module — adding on
 
 | Module | Lands as | Touches existing schema | New infra |
 |---|---|---|---|
-| **Payroll** | `modules/payroll` + `features/payroll`; consumes Attendance/Leave via exported services | none — new tables (SalaryStructure, PayrollRun, Payslip) FK to Employee | **BullMQ + Redis** (replaces EventEmitter seam, doc 08); payslip PDFs into existing Document storage |
+| ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
 | **Recruitment** | own module; Candidate is *not* Employee — a hire *converts* into the existing create-employee flow | none | public careers endpoints (unauthenticated segment already exists in web) |
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
 | **Assets** | own module (Asset, AssetAssignment FK Employee); joins offboarding checklist via `employee.offboarded` event | none | none |
@@ -55,3 +67,25 @@ The architecture reserves an explicit seam for each planned module — adding on
 **Platform upgrades, triggered not scheduled:** SSE/WebSocket notifications when polling chafes · RS256 + JWKS when a second service consumes JWTs · read replicas when reports strain OLTP · Redis cache when p95 > 300 ms on hot lists.
 
 **Rule for every future module:** new folder + new tables + permission seeds + nav entry. If a design requires editing an existing module's internals, the design is wrong — write an ADR first.
+
+Payroll proved the rule holds: seven tables, a system role, 24 endpoints and
+nine screens, with no existing module's behaviour touched. The one shared file
+it changed — `auditMutation`, which gained an optional `meta` argument — was an
+additive signature change every other module benefits from.
+
+## Payroll — what is deliberately not built yet
+
+The specification was delivered in two phases. Phase 1 is above; Phase 2 is
+scoped and unblocked, since the calculation engine already accepts an
+`adjustments[]` input and the payslip already renders arbitrary lines:
+
+| Deferred | Why it can wait |
+|---|---|
+| Loans & advances (EMI schedules, outstanding balance) | Plugs in as a deduction adjustment; the negative-net guard already handles the month an EMI exceeds pay |
+| Bonuses & incentives (fixed or percentage) | Plugs in as an earning adjustment, already deliberately not prorated |
+| Reimbursements (requested → approved → paid) | An earning adjustment with its own approval flow; the component exists and is marked non-taxable |
+| **Arrears** from a back-dated revision after a locked month | Genuinely hard: needs a recalculation diff against a settled run. Today a revision into a locked month is refused rather than silently wrong |
+| **Full-and-final settlement** on exit | Leave encashment + notice recovery + gratuity; a module-sized problem of its own |
+| TDS projection (regimes, declarations, Form 16) | A tax engine, not a payroll feature. Monthly TDS is entered per employee until then |
+
+Each is additive. None of them requires changing what is already there.

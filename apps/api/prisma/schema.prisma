@@ -31,6 +31,10 @@ model Organization {
   holidays     Holiday[]
   settings       Setting[]
   emailTemplates EmailTemplate[]
+
+  payComponents     PayComponent[]
+  salaryStructures  SalaryStructure[]
+  payrollRuns       PayrollRun[]
 }
 
 enum UserStatus {
@@ -263,6 +267,8 @@ model Employee {
 
   emergencyContacts  EmergencyContact[]
   bankDetail         BankDetail?
+  salaries           EmployeeSalary[]
+  payslips           Payslip[]
   attendance         AttendanceRecord[]
   attendanceRequests AttendanceRequest[]
   leaveRequests      LeaveRequest[]
@@ -602,4 +608,242 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([organizationId, action])
   @@index([organizationId, actorId])
+}
+
+// ─── Payroll ──────────────────────────────────────────────────────────
+//
+// Money is Decimal(14,2) everywhere — never Float. A payslip, once
+// calculated, is a snapshot: nothing on it is a live join, so it still
+// reads true after the employee is promoted, transferred, or the salary
+// structure behind it is edited.
+
+enum PayComponentKind {
+  EARNING
+  DEDUCTION
+  EMPLOYER_CONTRIBUTION
+}
+
+/// Org-scoped catalogue of everything that can appear on a payslip line.
+model PayComponent {
+  id             String           @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  kind           PayComponentKind
+  /// Counts toward taxable income. Reimbursements and employer
+  /// contributions do not.
+  taxable        Boolean          @default(true)
+  /// Computed by the statutory engine rather than the structure (PF/ESI/PT).
+  isStatutory    Boolean          @default(false)
+  /// Seeded and undeletable — the calculation engine references these codes.
+  isSystem       Boolean          @default(false)
+  order          Int              @default(0)
+  active         Boolean          @default(true)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  structureLines StructureLine[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, kind])
+}
+
+enum SalaryCalcType {
+  /// A fixed rupee amount.
+  FLAT
+  /// `value`% of the Basic component.
+  PERCENT_OF_BASIC
+  /// `value`% of monthly CTC.
+  PERCENT_OF_CTC
+  /// Left to the statutory engine (PF, ESI, PT).
+  STATUTORY
+  /// Whatever remains so the earnings sum to CTC. At most one per structure.
+  BALANCE
+}
+
+model SalaryStructure {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  code           String
+  description    String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  lines        StructureLine[]
+  assignments  EmployeeSalary[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, isActive])
+}
+
+model StructureLine {
+  id          String         @id @default(cuid())
+  structureId String
+  componentId String
+  calcType    SalaryCalcType
+  /// Percentage or rupee amount depending on calcType; ignored for
+  /// STATUTORY and BALANCE.
+  value       Decimal        @default(0) @db.Decimal(14, 2)
+  order       Int            @default(0)
+
+  structure SalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  component PayComponent    @relation(fields: [componentId], references: [id])
+
+  @@unique([structureId, componentId])
+}
+
+enum SalaryRevisionType {
+  JOINING
+  INCREMENT
+  PROMOTION
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+}
+
+/// Effective-dated salary. This table *is* the revision history: the row
+/// with the greatest effectiveFrom on or before a date is the salary as at
+/// that date, and the row before it is the previous salary. A separate
+/// history table would be free to disagree with the live value.
+model EmployeeSalary {
+  id            String             @id @default(cuid())
+  employeeId    String
+  structureId   String
+  effectiveFrom DateTime           @db.Date
+  monthlyCtc    Decimal            @db.Decimal(14, 2)
+  /// Monthly TDS is entered rather than projected — real TDS needs annual
+  /// projection, regime choice and investment proofs.
+  monthlyTds    Decimal            @default(0) @db.Decimal(14, 2)
+  revisionType  SalaryRevisionType @default(JOINING)
+  reason        String?
+  paymentMethod PaymentMethod      @default(BANK_TRANSFER)
+  approvedById  String?
+  createdAt     DateTime           @default(now())
+
+  employee  Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  structure SalaryStructure @relation(fields: [structureId], references: [id])
+
+  @@unique([employeeId, effectiveFrom])
+  @@index([employeeId, effectiveFrom])
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  LOCKED
+  PUBLISHED
+  CANCELLED
+}
+
+model PayrollRun {
+  id             String           @id @default(cuid())
+  organizationId String
+  /// "YYYY-MM", matching the month keys used across attendance.
+  month          String
+  status         PayrollRunStatus @default(DRAFT)
+  payDate        DateTime?        @db.Date
+  notes          String?
+
+  calculatedAt   DateTime?
+  calculatedById String?
+  approvedAt     DateTime?
+  approvedById   String?
+  lockedAt       DateTime?
+  lockedById     String?
+  publishedAt    DateTime?
+  publishedById  String?
+
+  /// Denormalised so the runs list does not aggregate every payslip.
+  /// Rewritten on every calculation; asserted against the payslips in tests.
+  employeeCount      Int     @default(0)
+  totalEarnings      Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions    Decimal @default(0) @db.Decimal(14, 2)
+  totalEmployerCost  Decimal @default(0) @db.Decimal(14, 2)
+  netPayable         Decimal @default(0) @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  payslips     Payslip[]
+
+  @@unique([organizationId, month])
+  @@index([organizationId, status])
+}
+
+enum PayslipPaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+model Payslip {
+  id             String @id @default(cuid())
+  organizationId String
+  runId          String
+  employeeId     String
+
+  /// Snapshot — deliberately duplicated rather than joined, so a payslip
+  /// still reads correctly after the person is renamed, moved or promoted.
+  employeeCode        String
+  employeeName        String
+  departmentName      String?
+  designationName     String?
+  structureName       String
+  bankName            String?
+  accountNumberMasked String?
+  ifsc                String?
+
+  workingDays Decimal @db.Decimal(5, 2)
+  lopDays     Decimal @default(0) @db.Decimal(5, 2)
+  payableDays Decimal @db.Decimal(5, 2)
+
+  grossEarnings        Decimal @db.Decimal(14, 2)
+  totalDeductions      Decimal @db.Decimal(14, 2)
+  employerContribution Decimal @default(0) @db.Decimal(14, 2)
+  netPay               Decimal @db.Decimal(14, 2)
+  /// Set when deductions exceeded gross and were clamped; the remainder is
+  /// carried rather than paying a negative salary.
+  carriedShortfall     Decimal @default(0) @db.Decimal(14, 2)
+
+  paymentStatus PayslipPaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod        @default(BANK_TRANSFER)
+  paidAt        DateTime?
+  paymentRef    String?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  run      PayrollRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee Employee      @relation(fields: [employeeId], references: [id])
+  lines    PayslipLine[]
+
+  @@unique([runId, employeeId])
+  @@index([employeeId, createdAt])
+  @@index([organizationId, paymentStatus])
+}
+
+model PayslipLine {
+  id            String           @id @default(cuid())
+  payslipId     String
+  componentCode String
+  componentName String
+  kind          PayComponentKind
+  amount        Decimal          @db.Decimal(14, 2)
+  order         Int              @default(0)
+
+  payslip Payslip @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+
+  @@index([payslipId])
 }

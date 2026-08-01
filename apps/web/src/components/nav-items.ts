@@ -10,6 +10,7 @@ import {
   Palmtree,
   Settings,
   Users,
+  Wallet,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -35,6 +36,14 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/attendance', label: 'Attendance', icon: CalendarClock, module: 'attendance' },
   { href: '/leave', label: 'Leave', icon: Palmtree, module: 'leave' },
   { href: '/documents', label: 'Documents', icon: FileText, module: 'documents' },
+  {
+    href: '/payroll',
+    label: 'Payroll',
+    icon: Wallet,
+    // read.own is enough to reach the module: every employee has a salary page.
+    perms: ['payroll.read', 'payroll.read.team', 'payroll.read.own'],
+    module: 'payroll',
+  },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {
     href: '/reports',

@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# @hrms/web
 
-## Getting Started
+Next.js 16 (App Router) front end for the HRMS. A **pure API consumer** — it
+holds no database connection and no business rules; everything comes from
+`/api/v1`.
 
-First, run the development server:
+Run it from the repo root (`pnpm dev` starts this and the API together) — these
+notes cover working on the web app specifically.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Layout
+
+```
+src/
+  app/
+    (auth)/            Sign-in, forgot/reset password — its own shell
+    (dashboard)/       Everything authenticated; one folder per module
+  components/          App-wide: DataTable, CrudShell, Field, PageHeader,
+                       SectionTabs, CommandPalette, EmptyState, ErrorState…
+  features/            One folder per module: api.ts, types.ts, components/
+  hooks/               useListParams (URL state), useCrud
+  lib/                 api-client (token refresh, blob download)
+  stores/              Zustand — UI state only, never server data
+  proxy.ts             Edge auth redirect (Next 16's middleware)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The split that matters: **`features/` fetches, `components/` and `packages/ui`
+do not.** A component in `packages/ui` never knows about an endpoint; a feature
+never re-implements a table.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## State, and where it lives
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Kind | Home |
+|---|---|
+| Server data | TanStack Query — the cache *is* the state |
+| List filters, sort, page | The **URL**, via `useListParams`. Every table view is deep-linkable and browser back works |
+| Session identity + `can()` | `SessionProvider` |
+| UI preferences (sidebar collapsed, table density) | Zustand, persisted |
 
-## Learn More
+Nothing else holds server data. If a component needs it, it queries for it.
 
-To learn more about Next.js, take a look at the following resources:
+## Permissions in the UI
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`can('payroll.approve')` mirrors the API — it decides what to *show*, never
+what is *allowed*. The API is the boundary; hiding a button is a courtesy so
+people are not offered actions that would be refused. Payroll's run screen is
+the clearest example: it renders only the transitions legal from the current
+state and permitted to the signed-in person, mirroring the server state machine
+rather than duplicating it.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Design system
 
-## Deploy on Vercel
+Components come from `@hrms/ui` (coss UI on Base UI) — see
+[`docs/06-design-system.md`](../../docs/06-design-system.md). Points that bite
+if you have Radix habits:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `asChild` → `render`, `DialogContent` → `DialogPopup`, `onSelect` → `onClick`,
+  `delayDuration` → `delay`.
+- A `Select` with nothing chosen takes `value={null}`, not `undefined` — Base UI
+  decides controlled-ness on the first render.
+- Dialog bodies belong in `DialogPanel`, which carries the padding and the
+  scroll area. `DialogHeader` stays outside the `<form>`, which is `contents`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**None of these are type errors.** They only show up in the browser, which is
+also the argument for opening a screen after changing it.
+
+## Conventions
+
+- **Every form** uses `Field` (label, hint, error, required marker, and the
+  aria wiring) + React Hook Form + a Zod schema from `@hrms/shared`. The same
+  schema validates on the server.
+- **Every table** uses `DataTable` — sticky header, density toggle, column
+  visibility, numbered pagination, and skeleton/empty/error states built in.
+- **Every list page** uses `CrudShell` for the header, debounced search and
+  filter row.
+- **Money and dates are formatted at the edge**, never inside a shared
+  component. Dates render as `1 Aug 2026` rather than a locale format, because
+  `01/08/2026` means two different days depending on where you are — and a
+  locale-dependent format causes hydration mismatches.
+
+## Scripts
+
+```bash
+pnpm dev              # localhost:3000
+pnpm build
+pnpm typecheck
+pnpm lint
+```
