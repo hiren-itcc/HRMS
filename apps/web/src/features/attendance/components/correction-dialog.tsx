@@ -58,7 +58,7 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
       <Field label="Date" error={form.formState.errors.date?.message}>
         {(a11y) => <Input {...a11y} type="date" {...form.register('date')} />}
       </Field>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Clock in" error={form.formState.errors.requestedIn?.message}>
           {(a11y) => <Input {...a11y} type="time" {...form.register('requestedIn')} />}
         </Field>

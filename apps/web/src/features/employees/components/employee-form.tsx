@@ -157,7 +157,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     <form onSubmit={submit} className="space-y-6" noValidate>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Personal details</CardTitle>
+          <CardTitle>Personal details</CardTitle>
           <CardDescription>Identity and contact information</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -216,7 +216,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Job details</CardTitle>
+          <CardTitle>Job details</CardTitle>
           <CardDescription>Placement in the organization</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">

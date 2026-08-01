@@ -130,13 +130,13 @@ function AuditView() {
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Input
             type="date"
             value={from ?? ''}
             max={to ?? undefined}
             onChange={(e) => params.setFilter('from', e.target.value || undefined)}
-            className="w-40"
+            className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
             aria-label="From date"
           />
           <span className="text-muted-foreground text-sm" aria-hidden>
@@ -147,7 +147,7 @@ function AuditView() {
             value={to ?? ''}
             min={from ?? undefined}
             onChange={(e) => params.setFilter('to', e.target.value || undefined)}
-            className="w-40"
+            className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
             aria-label="To date"
           />
         </div>
@@ -235,6 +235,8 @@ function AuditView() {
           rows={list.data?.data}
           rowKey={(row) => row.id}
           loading={list.isLoading}
+          error={list.isError}
+          onRetry={() => list.refetch()}
           meta={list.data?.meta}
           onPageChange={params.setPage}
           emptyTitle="Nothing recorded yet"

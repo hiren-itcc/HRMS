@@ -33,7 +33,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-bold text-2xl tracking-tight">My profile</h1>
+        <h1>My profile</h1>
         <p className="text-muted-foreground text-sm">Your account and security settings</p>
       </div>
 
@@ -58,7 +58,7 @@ export default function ProfilePage() {
                 <Row
                   label="Status"
                   value={
-                    <Badge className="border-transparent bg-success/15 text-success">
+                    <Badge className="border-transparent bg-success/15 text-success-text">
                       {user.status}
                     </Badge>
                   }

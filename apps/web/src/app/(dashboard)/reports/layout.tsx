@@ -4,6 +4,7 @@ import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 
 const TABS = [
   { href: '/reports', label: 'Employees' },
@@ -18,12 +19,11 @@ export default function ReportsLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="space-y-6">
-      <div className="print:hidden">
-        <h1 className="font-bold text-2xl tracking-tight">Reports</h1>
-        <p className="text-muted-foreground text-sm">
-          Headcount, attendance, leave and department analytics
-        </p>
-      </div>
+      <PageHeader
+        title="Reports"
+        description="Headcount, attendance, leave and department analytics"
+        className="print:hidden"
+      />
 
       <nav
         aria-label="Report sections"

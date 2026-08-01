@@ -16,7 +16,7 @@ export default function NewEmployeePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-bold text-2xl tracking-tight">Add employee</h1>
+        <h1>Add employee</h1>
         <p className="text-muted-foreground text-sm">
           Create the HR record — a login invite can be sent later
         </p>

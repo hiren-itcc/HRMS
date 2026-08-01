@@ -167,7 +167,7 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
 
       {query.isError ? (
         <FadeInItem>
-          <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-destructive text-sm">
+          <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-destructive-text text-sm">
             This report could not be generated. Try a shorter date range.
           </p>
         </FadeInItem>
@@ -218,6 +218,8 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
               rows={visible}
               rowKey={(row) => row.__key}
               loading={query.isLoading}
+              error={query.isError}
+              onRetry={() => query.refetch()}
               meta={printAll ? undefined : { page, limit: PAGE_SIZE, total: rows.length }}
               onPageChange={params.setPage}
               emptyTitle={emptyTitle}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
+import { Button } from '@hrms/ui/components/button';
 import {
   Select,
   SelectContent,
@@ -9,6 +10,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
@@ -66,6 +68,7 @@ function EmployeesView() {
   return (
     <div className="space-y-6">
       <CrudShell
+        headingLevel="h1"
         title="Employees"
         description="Directory of everyone in the organization"
         search={params.search}
@@ -186,7 +189,18 @@ function EmployeesView() {
           meta={list.data?.meta}
           onPageChange={params.setPage}
           emptyTitle="No employees found"
-          emptyHint="Adjust the filters or add the first employee"
+          emptyHint="Adjust the filters, or add the first employee."
+          emptyAction={
+            can('employee.create') ? (
+              <Button asChild size="sm">
+                <Link href="/employees/new">
+                  <Plus className="size-4" aria-hidden /> Add employee
+                </Link>
+              </Button>
+            ) : undefined
+          }
+          error={list.isError}
+          onRetry={() => list.refetch()}
         />
       </CrudShell>
     </div>

@@ -104,6 +104,8 @@ function DepartmentsView() {
         rows={list.data?.data}
         rowKey={(d) => d.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}

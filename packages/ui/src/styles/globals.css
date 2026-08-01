@@ -18,27 +18,43 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #6366f1;
+  --primary: #6365f0;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  /* Nudged darker so it clears 4.5:1 on --muted, not just on --card: the
+     inactive tab label in every pill nav sits on the muted surface, where
+     #64748b read 4.34:1. */
+  --muted-foreground: #627188;
   --accent: #eef2ff;
   --accent-foreground: #4338ca;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #6366f1;
+  /* Raised off --border: a control's boundary must be identifiable at 3:1
+     (WCAG 1.4.11). Card edges and dividers stay on the softer --border. */
+  --input: #7d8a9c;
+  --ring: #6365f0;
+  /* Placeholder fill. --accent read 1.12:1 on card — effectively invisible. */
+  --skeleton: #cbd5e1;
 
-  /* HRMS status colors — always paired with a label or icon, never color alone */
+  /* HRMS status colors — always paired with a label or icon, never color alone.
+     Two roles per status: the saturated value fills solid chips and dots, the
+     `-text` value is what may sit ON a 15% tint of itself. The tint is nearly
+     white, so the fill colour fails AA as text — every one of these was
+     computed against its own tint, not eyeballed. */
   --success: #10b981;
   --success-foreground: #ffffff;
+  --success-text: #0b7c56; /* 4.54:1 on success/15 */
   --warning: #f59e0b;
   --warning-foreground: #ffffff;
+  --warning-text: #986207; /* 4.58:1 on warning/15 */
   --info: #06b6d4;
   --info-foreground: #ffffff;
+  --info-text: #04768a; /* 4.61:1 on info/15 */
+  --destructive-text: #bf3636; /* 4.55:1 on destructive/15 */
+  --primary-text: #575ad4; /* 4.55:1 on primary/15 */
 
   --sidebar: #ffffff;
   --sidebar-foreground: #475569;
@@ -77,15 +93,24 @@
   --destructive: #f87171;
   --destructive-foreground: #0f172a;
   --border: #334155;
-  --input: #334155;
+  --input: #64748b; /* 3.73:1 on card — identifiable control boundary */
   --ring: #818cf8;
+  --skeleton: #334155;
 
+  /* The dark palette already uses lighter 400-shades, which clear 4.5:1 on
+     their own tints (4.78–7.79:1), so `-text` is the base value here. Light
+     mode needs darker steps; dark does not. */
   --success: #34d399;
   --success-foreground: #080f19;
+  --success-text: #34d399;
   --warning: #fbbf24;
   --warning-foreground: #080f19;
+  --warning-text: #fbbf24;
   --info: #22d3ee;
   --info-foreground: #080f19;
+  --info-text: #22d3ee;
+  --destructive-text: #f87171;
+  --primary-text: #818cf8;
 
   --sidebar: #0b1120;
   --sidebar-foreground: #94a3b8;
@@ -130,10 +155,16 @@
 
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-info-text: var(--info-text);
+  --color-destructive-text: var(--destructive-text);
+  --color-primary-text: var(--primary-text);
+  --color-skeleton: var(--skeleton);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -155,6 +186,12 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+
+  /* Elevation. Replaces four raw shadow-indigo-500/NN values that broke this
+     file's own "no raw hex in components" rule. */
+  --shadow-card: 0 1px 2px 0 color-mix(in srgb, var(--foreground) 5%, transparent);
+  --shadow-raised: 0 4px 12px -2px color-mix(in srgb, var(--foreground) 10%, transparent);
+  --shadow-overlay: 0 16px 40px -12px color-mix(in srgb, var(--foreground) 24%, transparent);
 }
 
 @layer base {
@@ -166,6 +203,39 @@
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
+  }
+
+  /*
+   * Type scale. There was none: every heading was a hand-typed string, so
+   * "card title" meant four different sizes depending on the file. Headings
+   * now carry their rank by default and a class is only needed to depart
+   * from it deliberately.
+   *
+   *   h1  page title      24px bold      (30px from sm:)
+   *   h2  section         18px semibold
+   *   h3  sub-section     16px semibold
+   *   h4  label-ish       14px semibold
+   */
+  h1 {
+    @apply font-bold text-2xl tracking-tight;
+  }
+  h2 {
+    @apply font-semibold text-lg tracking-tight;
+  }
+  h3 {
+    @apply font-semibold text-base;
+  }
+  h4 {
+    @apply font-semibold text-sm;
+  }
+
+  /* Figures in tables, timers and money must not reflow as digits change. */
+  th,
+  td,
+  time,
+  output,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -219,6 +289,38 @@
     }
   }
 
+  /*
+   * Reduced motion, applied globally rather than per-component. Framer Motion
+   * consumers already branch on useReducedMotion, but CSS/Radix animations
+   * did not — the mobile nav sheet slid 288px over 500ms regardless. Spinners
+   * are deliberately exempt: they communicate that work is in progress, and
+   * stopping one would leave a frozen glyph.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *:not(.animate-spin),
+    *:not(.animate-spin)::before,
+    *:not(.animate-spin)::after {
+      /* biome-ignore lint/complexity/noImportantStyles: must beat every component's own animation */
+      animation-duration: 0.01ms !important;
+      /* biome-ignore lint/complexity/noImportantStyles: must beat every component's own animation */
+      animation-iteration-count: 1 !important;
+      /* biome-ignore lint/complexity/noImportantStyles: must beat every component's own transition */
+      transition-duration: 0.01ms !important;
+      /* biome-ignore lint/complexity/noImportantStyles: must beat scroll-behavior set elsewhere */
+      scroll-behavior: auto !important;
+    }
+    .animate-spin {
+      /* biome-ignore lint/complexity/noImportantStyles: re-exempts spinners from the reset above */
+      animation-duration: 1.2s !important;
+      /* biome-ignore lint/complexity/noImportantStyles: re-exempts spinners from the reset above */
+      animation-iteration-count: infinite !important;
+    }
+    .animate-pulse {
+      /* biome-ignore lint/complexity/noImportantStyles: skeleton shimmer is decorative */
+      animation: none !important;
+    }
+  }
+
   /* Card hover lift — subtle, GPU-friendly */
   .hover-lift {
     transition:
@@ -243,15 +345,49 @@
    stand on its own: no app chrome, light tokens regardless of the on-screen
    theme, and charts that actually render ink. */
 @media print {
+  /* Every colour token, not just the surfaces: a dark-mode page used to print
+     its light-indigo --primary and translucent --accent onto white paper. */
   :root,
   .dark {
     --background: #ffffff;
     --foreground: #0f172a;
     --card: #ffffff;
     --card-foreground: #0f172a;
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    --primary: #4338ca;
+    --primary-foreground: #ffffff;
+    --primary-text: #4338ca;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0f172a;
     --muted: #f1f5f9;
     --muted-foreground: #475569;
+    --accent: #eef2ff;
+    --accent-foreground: #312e81;
+    --destructive: #b91c1c;
+    --destructive-foreground: #ffffff;
+    --destructive-text: #b91c1c;
     --border: #cbd5e1;
+    --input: #64748b;
+    --ring: #4338ca;
+    --skeleton: #e2e8f0;
+    --success: #047857;
+    --success-foreground: #ffffff;
+    --success-text: #047857;
+    --warning: #b45309;
+    --warning-foreground: #ffffff;
+    --warning-text: #b45309;
+    --info: #0e7490;
+    --info-foreground: #ffffff;
+    --info-text: #0e7490;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #475569;
+    --sidebar-primary: #4338ca;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #eef2ff;
+    --sidebar-accent-foreground: #312e81;
+    --sidebar-border: #cbd5e1;
+    --sidebar-ring: #4338ca;
     --chart-1: #6366f1;
     --chart-2: #10b981;
     --chart-3: #f59e0b;

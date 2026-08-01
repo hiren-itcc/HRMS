@@ -151,7 +151,7 @@ export default function PreferencesPage() {
       <FadeInItem>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Working week</CardTitle>
+            <CardTitle>Working week</CardTitle>
             <CardDescription>
               Which days are non-working. This drives week-offs in attendance and the days a leave
               request skips — one setting so the two can never disagree.
@@ -221,7 +221,7 @@ export default function PreferencesPage() {
       <FadeInItem>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Leave policy</CardTitle>
+            <CardTitle>Leave policy</CardTitle>
             <CardDescription>How the leave year runs and how balances behave</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -274,7 +274,7 @@ export default function PreferencesPage() {
       <FadeInItem>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Modules</CardTitle>
+            <CardTitle>Modules</CardTitle>
             <CardDescription>
               Hide sections this workspace doesn't use. This controls navigation only — it is not a
               security control, so permissions still decide who can reach what.

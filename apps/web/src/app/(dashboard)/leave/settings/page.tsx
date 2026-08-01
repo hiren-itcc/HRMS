@@ -176,6 +176,8 @@ function LeaveSettingsView() {
           rows={types.data?.data}
           rowKey={(t) => t.id}
           loading={types.isLoading}
+          error={types.isError}
+          onRetry={() => types.refetch()}
           sort={params.sort}
           order={params.order}
           onSortChange={params.toggleSort}
@@ -246,6 +248,8 @@ function LeaveSettingsView() {
           rows={balances.data?.data}
           rowKey={(b) => b.id}
           loading={balances.isLoading}
+          error={balances.isError}
+          onRetry={() => balances.refetch()}
           meta={balances.data?.meta}
           onPageChange={params.setPage}
           emptyTitle="No balances for this year"
@@ -270,7 +274,7 @@ function LeaveSettingsView() {
         submitting={saveType.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name" error={typeForm.formState.errors.name?.message}>
             {(a11y) => <Input {...a11y} autoFocus {...typeForm.register('name')} />}
           </Field>
@@ -355,7 +359,7 @@ function LeaveSettingsView() {
         submitting={adjust.isPending}
         submitLabel="Save balance"
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Allocated" error={adjustForm.formState.errors.allocated?.message}>
             {(a11y) => (
               <Input

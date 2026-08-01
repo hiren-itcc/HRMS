@@ -25,7 +25,7 @@ export function Field({ label, error, hint, children }: FieldProps) {
       <Label htmlFor={id}>{label}</Label>
       {children({ id, 'aria-invalid': Boolean(error), 'aria-describedby': describedBy })}
       {error ? (
-        <p id={`${id}-error`} role="alert" className="text-destructive text-sm">
+        <p id={`${id}-error`} role="alert" className="text-destructive-text text-sm">
           {error}
         </p>
       ) : hint ? (

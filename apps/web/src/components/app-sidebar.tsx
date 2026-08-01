@@ -56,16 +56,14 @@ export function SidebarNav({
                 )}
               >
                 <Icon className="size-4.5 shrink-0" aria-hidden />
+                <span className={cn('flex-1', collapsed && 'sr-only')}>{item.label}</span>
                 {!collapsed && (
-                  <>
-                    <span className="flex-1">{item.label}</span>
-                    <Badge
-                      variant="outline"
-                      className="border-sidebar-border px-1.5 py-0 text-[10px] text-sidebar-foreground/55"
-                    >
-                      Soon
-                    </Badge>
-                  </>
+                  <Badge
+                    variant="outline"
+                    className="border-sidebar-border px-1.5 py-0 text-[10px] text-sidebar-foreground/55"
+                  >
+                    Soon
+                  </Badge>
                 )}
               </span>
             );
@@ -96,7 +94,10 @@ export function SidebarNav({
                 />
               )}
               <Icon className="size-4.5 shrink-0" aria-hidden />
-              {!collapsed && <span>{item.label}</span>}
+              {/* Always rendered: when collapsed it is visually hidden rather
+                  than removed, so the link keeps its accessible name. The
+                  tooltip supplies a description, never the name. */}
+              <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
             </Link>
           );
 

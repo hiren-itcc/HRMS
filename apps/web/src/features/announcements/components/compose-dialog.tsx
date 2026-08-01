@@ -168,13 +168,13 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
           aria-invalid={Boolean(form.formState.errors.body)}
         />
         {form.formState.errors.body && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-text text-sm">
             {form.formState.errors.body.message}
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Category</Label>
           <Select
@@ -258,7 +258,7 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
             </SelectContent>
           </Select>
           {form.formState.errors.departmentId && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-text text-sm">
               {form.formState.errors.departmentId.message}
             </p>
           )}
@@ -287,14 +287,14 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
             </SelectContent>
           </Select>
           {form.formState.errors.locationId && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-text text-sm">
               {form.formState.errors.locationId.message}
             </p>
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field
           label="Publish at"
           error={form.formState.errors.publishAt?.message}

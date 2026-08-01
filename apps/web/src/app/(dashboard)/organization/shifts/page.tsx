@@ -101,6 +101,8 @@ function ShiftsView() {
         rows={list.data?.data}
         rowKey={(s) => s.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}
@@ -129,7 +131,7 @@ function ShiftsView() {
         <Field label="Name" error={form.formState.errors.name?.message}>
           {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Start time" error={form.formState.errors.startTime?.message}>
             {(a11y) => <Input {...a11y} type="time" {...form.register('startTime')} />}
           </Field>

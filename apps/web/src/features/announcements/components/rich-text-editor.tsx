@@ -133,7 +133,7 @@ export function RichTextEditor({ value, onChange, id, ...a11y }: EditorProps) {
           onChange={(e) => onChange(e.target.value)}
           rows={10}
           placeholder={'Share the news…\n\n**Bold**, _italic_, - lists and [links](https://) work.'}
-          className="min-h-52 resize-y rounded-none border-0 focus-visible:ring-0"
+          className="min-h-52 resize-y rounded-none border-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
         />
       ) : (
         <div className="min-h-52 p-3">

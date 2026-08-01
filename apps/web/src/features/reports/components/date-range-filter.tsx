@@ -20,13 +20,13 @@ export function DateRangeFilter({ from, to, onChange }: DateRangeFilterProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <Input
           type="date"
           value={from}
           max={to}
           onChange={(e) => e.target.value && onChange({ from: e.target.value, to })}
-          className="w-40"
+          className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
           aria-label="Report start date"
         />
         <span className="text-muted-foreground text-sm" aria-hidden>
@@ -37,7 +37,7 @@ export function DateRangeFilter({ from, to, onChange }: DateRangeFilterProps) {
           value={to}
           min={from}
           onChange={(e) => e.target.value && onChange({ from, to: e.target.value })}
-          className="w-40"
+          className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
           aria-label="Report end date"
         />
       </div>

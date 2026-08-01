@@ -19,9 +19,10 @@ import {
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Check, Inbox, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { toast } from 'sonner';
+import { EmptyState } from '@/components/empty-state';
 import { attendanceApi, timeIn } from '@/features/attendance/api';
 import { RequestStatusChip } from '@/features/attendance/components/request-status-chip';
 import { useListParams } from '@/hooks/use-list-params';
@@ -68,7 +69,7 @@ function ApprovalsView() {
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Correction approvals</CardTitle>
+            <CardTitle>Correction approvals</CardTitle>
             <CardDescription>
               Approving writes the corrected times straight onto the timesheet
             </CardDescription>
@@ -90,13 +91,10 @@ function ApprovalsView() {
         {requests.isLoading && <Skeleton className="h-28 w-full rounded-xl" />}
 
         {!requests.isLoading && rows.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
-            <Inbox className="size-8 text-muted-foreground/50" aria-hidden />
-            <p className="font-medium text-sm">Nothing to review</p>
-            <p className="text-muted-foreground text-xs">
-              {status === 'PENDING' ? 'All caught up.' : 'No requests with this status.'}
-            </p>
-          </div>
+          <EmptyState
+            title="Nothing to review"
+            hint={status === 'PENDING' ? 'All caught up.' : 'No requests with this status.'}
+          />
         )}
 
         <AnimatePresence initial={false}>

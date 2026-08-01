@@ -138,13 +138,13 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
           </SelectContent>
         </Select>
         {form.formState.errors.leaveTypeId && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-text text-sm">
             {form.formState.errors.leaveTypeId.message}
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="From" error={form.formState.errors.startDate?.message}>
           {(a11y) => (
             <Input

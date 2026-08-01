@@ -4,6 +4,7 @@ import { Button } from '@hrms/ui/components/button';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -48,6 +49,8 @@ export function AppHeader() {
                   </span>
                   HRMS
                 </SheetTitle>
+                {/* Radix warns without this on every open. */}
+                <SheetDescription className="sr-only">Main navigation</SheetDescription>
               </SheetHeader>
               <div className="py-2">
                 <SidebarNav onNavigate={() => setMobileOpen(false)} />

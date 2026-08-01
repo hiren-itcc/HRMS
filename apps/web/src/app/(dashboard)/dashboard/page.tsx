@@ -253,7 +253,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-bold text-2xl tracking-tight sm:text-3xl">
+          <h1 className="sm:text-3xl">
             {greeting()}, {displayName(user)} 👋
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
@@ -286,7 +286,7 @@ export default function DashboardPage() {
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card className="hover-lift">
           <CardHeader>
-            <CardTitle className="text-base">Quick actions</CardTitle>
+            <CardTitle>Quick actions</CardTitle>
             <CardDescription>Jump straight to common tasks</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -315,7 +315,7 @@ export default function DashboardPage() {
         {canOrg && (
           <Card className="hover-lift">
             <CardHeader>
-              <CardTitle className="text-base">Upcoming holidays</CardTitle>
+              <CardTitle>Upcoming holidays</CardTitle>
               <CardDescription>From the company holiday calendar</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">

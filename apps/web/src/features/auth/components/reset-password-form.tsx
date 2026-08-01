@@ -108,7 +108,7 @@ export function ResetPasswordForm() {
           {serverError && (
             <p
               role="alert"
-              className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-destructive-text text-sm"
             >
               {serverError}{' '}
               <Link href="/forgot-password" className="font-medium underline underline-offset-4">

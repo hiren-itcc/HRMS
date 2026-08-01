@@ -69,8 +69,8 @@ export default function DocumentsPage() {
       <FadeInItem>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-bold text-2xl tracking-tight">Documents</h1>
-            <p className="text-muted-foreground text-sm">
+            <h1>Documents</h1>
+            <p className="mt-1 text-muted-foreground text-sm">
               Your resume, offer letter, ID proofs and certificates
             </p>
           </div>
@@ -105,7 +105,7 @@ export default function DocumentsPage() {
         <FadeInItem>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Folders</CardTitle>
+              <CardTitle>Folders</CardTitle>
               <CardDescription>
                 Shared across every employee — a folder must be empty to delete
               </CardDescription>

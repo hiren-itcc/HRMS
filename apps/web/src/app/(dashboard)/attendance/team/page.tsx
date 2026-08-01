@@ -279,6 +279,8 @@ function TeamAttendanceView() {
             rows={daily.data?.data}
             rowKey={(row) => row.employee.id}
             loading={daily.isLoading}
+            error={daily.isError}
+            onRetry={() => daily.refetch()}
             meta={daily.data?.meta}
             onPageChange={params.setPage}
             emptyTitle="Nobody to show"
@@ -335,6 +337,8 @@ function TeamAttendanceView() {
             rows={monthly.data?.data}
             rowKey={(row) => row.employee.id}
             loading={monthly.isLoading}
+            error={monthly.isError}
+            onRetry={() => monthly.refetch()}
             meta={monthly.data?.meta}
             onPageChange={params.setPage}
             emptyTitle="No data for this month"

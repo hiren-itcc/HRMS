@@ -160,6 +160,8 @@ function HolidaysView() {
         rows={list.data?.data}
         rowKey={(h) => h.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}

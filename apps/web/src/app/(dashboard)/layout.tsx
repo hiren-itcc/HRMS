@@ -25,10 +25,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
+      {/* Without this, reaching page content by keyboard means tabbing the
+          whole sidebar on every navigation. */}
+      <a
+        href="#main"
+        className="-translate-y-full sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:translate-y-0 focus:rounded-lg focus:bg-card focus:px-4 focus:py-2 focus:font-medium focus:text-sm focus:shadow-overlay focus:ring-[3px] focus:ring-ring/50"
+      >
+        Skip to content
+      </a>
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader />
-        <main className="mx-auto w-full max-w-6xl flex-1 animate-in fade-in px-4 py-8 duration-300 sm:px-6 print:max-w-none print:p-0">
+        <main
+          id="main"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-6xl flex-1 animate-in fade-in px-4 py-8 duration-300 focus:outline-none sm:px-6 print:max-w-none print:p-0"
+        >
           {status === 'authenticated' ? (
             children
           ) : (

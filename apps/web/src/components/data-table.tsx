@@ -11,7 +11,9 @@ import {
   TableRow,
 } from '@hrms/ui/components/table';
 import { cn } from '@hrms/ui/lib/utils';
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorState } from '@/components/error-state';
 
 export interface Column<T> {
   key: string;
@@ -34,6 +36,14 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
   emptyTitle: string;
   emptyHint?: string;
+  /** Rendered when the empty state should offer a way forward. */
+  emptyAction?: React.ReactNode;
+  /**
+   * Without this a failed query rendered headers over an empty body, which
+   * reads as "no results" rather than "this did not load".
+   */
+  error?: boolean;
+  onRetry?: () => void;
   /** Right-aligned actions cell (edit/delete) — omitted for read-only viewers */
   actions?: (row: T) => React.ReactNode;
 }
@@ -50,6 +60,9 @@ export function DataTable<T>({
   onPageChange,
   emptyTitle,
   emptyHint,
+  emptyAction,
+  error,
+  onRetry,
   actions,
 }: DataTableProps<T>) {
   const colCount = columns.length + (actions ? 1 : 0);
@@ -64,10 +77,14 @@ export function DataTable<T>({
               {columns.map((col) => (
                 <TableHead
                   key={col.key}
-                  className={cn(
-                    'h-11 font-medium text-muted-foreground text-xs uppercase tracking-wider',
-                    col.className,
-                  )}
+                  aria-sort={
+                    col.sortable && sort === col.key
+                      ? order === 'desc'
+                        ? 'descending'
+                        : 'ascending'
+                      : undefined
+                  }
+                  className={cn('h-11', col.className)}
                 >
                   {col.sortable && onSortChange ? (
                     <button
@@ -100,26 +117,37 @@ export function DataTable<T>({
               Array.from({ length: 5 }, (_, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders never reorder
                 <TableRow key={i}>
-                  {Array.from({ length: colCount }, (_, j) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders never reorder
-                    <TableCell key={j} className={columns[j]?.className}>
-                      <Skeleton className="h-4 w-full max-w-32" />
+                  {columns.map((col) => (
+                    <TableCell key={col.key} className={cn('py-3', col.className)}>
+                      {/* Two bars: real rows carry a name over a secondary line,
+                          so a single bar made every row jump ~20px on load. */}
+                      <Skeleton className="h-3.5 w-28" />
+                      <Skeleton className="mt-1.5 h-2.5 w-16 opacity-60" />
                     </TableCell>
                   ))}
+                  {actions && (
+                    <TableCell className="text-right">
+                      <Skeleton className="ml-auto h-8 w-16" />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
-            {!loading && rows?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={colCount} className="h-40">
-                  <div className="flex flex-col items-center justify-center gap-1 text-center">
-                    <Inbox className="size-8 text-muted-foreground/50" aria-hidden />
-                    <p className="font-medium text-sm">{emptyTitle}</p>
-                    {emptyHint && <p className="text-muted-foreground text-xs">{emptyHint}</p>}
-                  </div>
+            {!loading && error && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount}>
+                  <ErrorState onRetry={onRetry} />
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && !error && rows?.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount}>
+                  <EmptyState title={emptyTitle} hint={emptyHint} action={emptyAction} />
                 </TableCell>
               </TableRow>
             )}
             {!loading &&
+              !error &&
               rows?.map((row) => (
                 <TableRow
                   key={rowKey(row)}
@@ -141,11 +169,12 @@ export function DataTable<T>({
         </Table>
       </div>
 
-      {meta && meta.total > 0 && (
+      {meta && (meta.total > 0 || meta.page > 1) && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-muted-foreground text-sm tabular-nums">
-            {(meta.page - 1) * meta.limit + 1}–{Math.min(meta.page * meta.limit, meta.total)} of{' '}
-            {meta.total}
+          <p aria-live="polite" className="text-muted-foreground text-sm tabular-nums">
+            {meta.total === 0
+              ? 'No results'
+              : `${(meta.page - 1) * meta.limit + 1}–${Math.min(meta.page * meta.limit, meta.total)} of ${meta.total}`}
           </p>
           <div className="flex items-center gap-2">
             <Button

@@ -79,13 +79,13 @@ export const announcementsApi = {
 
 export const CATEGORY_STYLE: Record<AnnouncementCategory, { label: string; className: string }> = {
   GENERAL: { label: 'General', className: 'bg-muted text-muted-foreground' },
-  HOLIDAY: { label: 'Holiday', className: 'bg-success/15 text-success' },
+  HOLIDAY: { label: 'Holiday', className: 'bg-success/15 text-success-text' },
   BIRTHDAY: { label: 'Birthday', className: 'bg-chart-5/15 text-chart-5' },
-  POLICY: { label: 'Policy', className: 'bg-info/15 text-info' },
+  POLICY: { label: 'Policy', className: 'bg-info/15 text-info-text' },
 };
 
 export const PRIORITY_STYLE: Record<AnnouncementPriority, { label: string; className: string }> = {
   NORMAL: { label: 'Normal', className: '' },
-  HIGH: { label: 'High', className: 'bg-warning/15 text-warning' },
-  URGENT: { label: 'Urgent', className: 'bg-destructive/15 text-destructive' },
+  HIGH: { label: 'High', className: 'bg-warning/15 text-warning-text' },
+  URGENT: { label: 'Urgent', className: 'bg-destructive/15 text-destructive-text' },
 };

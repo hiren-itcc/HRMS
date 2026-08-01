@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -38,12 +39,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm">
-          Workspace configuration, access control and the audit trail
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Workspace configuration, access control and the audit trail"
+      />
 
       <nav
         aria-label="Settings sections"

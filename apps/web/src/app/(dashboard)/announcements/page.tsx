@@ -138,7 +138,7 @@ function AnnouncementsView() {
       <FadeInItem>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-bold text-2xl tracking-tight">Announcements</h1>
+            <h1>Announcements</h1>
             <p className="text-muted-foreground text-sm">Company news, policies and celebrations</p>
           </div>
           <div className="flex gap-2">

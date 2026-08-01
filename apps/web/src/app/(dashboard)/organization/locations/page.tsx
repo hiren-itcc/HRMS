@@ -144,6 +144,8 @@ function LocationsView() {
         rows={list.data?.data}
         rowKey={(l) => l.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}
@@ -193,7 +195,7 @@ function LocationsView() {
         <Field label="Address" error={form.formState.errors.address?.message}>
           {(a11y) => <Input {...a11y} {...form.register('address')} />}
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="City" error={form.formState.errors.city?.message}>
             {(a11y) => <Input {...a11y} {...form.register('city')} />}
           </Field>
