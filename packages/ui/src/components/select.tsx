@@ -6,15 +6,41 @@ import { useRender } from '@base-ui/react/use-render';
 import { cn } from '@hrms/ui/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from 'lucide-react';
-import type * as React from 'react';
+import * as React from 'react';
 
 export const SelectRoot: typeof SelectPrimitive.Root = SelectPrimitive.Root;
 
 type SelectRootProps = React.ComponentProps<typeof SelectPrimitive.Root>;
 
 /**
- * Reconciles the two places Base UI's Select disagrees with the Radix one the
- * app was written against.
+ * Walks the JSX tree for `SelectItem` elements and records value -> label.
+ *
+ * These are element descriptors, not mounted components, so this works before
+ * the popup has ever opened — which is the whole point: the trigger has to
+ * show a label on first paint, and the popup is portalled and unmounted until
+ * the user opens it.
+ */
+function collectItemLabels(
+  node: React.ReactNode,
+  out: Record<string, React.ReactNode>,
+): Record<string, React.ReactNode> {
+  React.Children.forEach(node, (child) => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as { value?: unknown; children?: React.ReactNode };
+    if (child.type === SelectItem) {
+      if (typeof props.value === 'string') out[props.value] = props.children;
+      return;
+    }
+    if (props.children && typeof props.children !== 'function') {
+      collectItemLabels(props.children, out);
+    }
+  });
+  return out;
+}
+
+/**
+ * Reconciles the three places Base UI's Select disagrees with the Radix one
+ * the app was written against.
  *
  * 1. `onValueChange` hands back `string | null` — null meaning cleared.
  *    Nothing here is clearable (every filter carries an explicit "All"
@@ -26,27 +52,40 @@ type SelectRootProps = React.ComponentProps<typeof SelectPrimitive.Root>;
  *    with a placeholder, which under Base UI starts the select uncontrolled
  *    and then flips it to controlled the moment a choice is made. `null` is
  *    Base UI's spelling of "controlled, nothing selected", so an explicit
- *    undefined is normalised to it here.
+ *    undefined is normalised to it here. Only an explicitly passed `value` is
+ *    touched — omitting the prop still gives a genuinely uncontrolled select.
  *
- * Only an explicitly passed `value` is normalised — omitting the prop still
- * gives a genuinely uncontrolled select. Use `SelectRoot` for the unwrapped
- * primitive.
+ * 3. `SelectValue` renders the raw value unless the root is given an `items`
+ *    map, so triggers showed cuids and SCREAMING_ENUM constants instead of
+ *    the option the user picked. The map is derived from the items already
+ *    declared as children, so no call site has to repeat its option list.
+ *
+ * Use `SelectRoot` for the unwrapped primitive.
  */
 export function Select({
   onValueChange,
+  children,
   ...props
 }: Omit<SelectRootProps, 'onValueChange'> & {
   onValueChange?: (value: string) => void;
 }): React.ReactElement {
   const value = 'value' in props ? (props.value ?? null) : undefined;
+  const derived = collectItemLabels(children, {});
+  // An explicit `items` wins; an empty derived map is dropped rather than
+  // passed, since telling Base UI there are no items would blank the trigger
+  // for any select whose options this cannot see.
+  const items = props.items ?? (Object.keys(derived).length > 0 ? derived : undefined);
   return (
     <SelectPrimitive.Root
       {...props}
       {...('value' in props ? { value } : {})}
+      {...(items ? { items } : {})}
       onValueChange={
         onValueChange ? (value) => onValueChange((value as string | null) ?? '') : undefined
       }
-    />
+    >
+      {children}
+    </SelectPrimitive.Root>
   );
 }
 

@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogPanel,
   DialogTitle,
 } from '@hrms/ui/components/dialog';
 import { Input } from '@hrms/ui/components/input';
@@ -312,7 +313,7 @@ function AnnouncementsView() {
             <DialogTitle className="truncate pr-8">Read receipts</DialogTitle>
             <DialogDescription className="truncate">{receiptsFor?.title}</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60dvh] space-y-1 overflow-y-auto">
+          <DialogPanel className="space-y-1">
             {receipts.isLoading && <Skeleton className="h-24 w-full rounded-xl" />}
             {receipts.data?.length === 0 && (
               <p className="py-6 text-center text-muted-foreground text-sm">
@@ -333,7 +334,7 @@ function AnnouncementsView() {
                 </span>
               </div>
             ))}
-          </div>
+          </DialogPanel>
         </DialogContent>
       </Dialog>
     </Stagger>
