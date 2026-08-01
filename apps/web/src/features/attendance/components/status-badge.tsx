@@ -6,27 +6,27 @@ import type { DerivedStatus } from '../api';
 export const STATUS_STYLE: Record<DerivedStatus, { label: string; badge: string; dot: string }> = {
   PRESENT: {
     label: 'Present',
-    badge: 'bg-success/15 text-success border-transparent',
+    badge: 'bg-success/15 text-success-text border-transparent',
     dot: 'bg-success',
   },
   WFH: {
     label: 'Work from home',
-    badge: 'bg-info/15 text-info border-transparent',
+    badge: 'bg-info/15 text-info-text border-transparent',
     dot: 'bg-info',
   },
   HALF_DAY: {
     label: 'Half day',
-    badge: 'bg-warning/15 text-warning border-transparent',
+    badge: 'bg-warning/15 text-warning-text border-transparent',
     dot: 'bg-warning',
   },
   ABSENT: {
     label: 'Absent',
-    badge: 'bg-destructive/15 text-destructive border-transparent',
+    badge: 'bg-destructive/15 text-destructive-text border-transparent',
     dot: 'bg-destructive',
   },
   ON_LEAVE: {
     label: 'On leave',
-    badge: 'bg-primary/15 text-primary border-transparent',
+    badge: 'bg-primary/15 text-primary-text border-transparent',
     dot: 'bg-primary',
   },
   HOLIDAY: {
@@ -63,7 +63,7 @@ export function AttendanceStatusBadge({
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <Badge className={cn(style.badge)}>{style.label}</Badge>
-      {isLate && <Badge className="border-transparent bg-warning/15 text-warning">Late</Badge>}
+      {isLate && <Badge className="border-transparent bg-warning/15 text-warning-text">Late</Badge>}
     </span>
   );
 }

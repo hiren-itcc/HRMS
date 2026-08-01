@@ -4,6 +4,7 @@ import { Button } from '@hrms/ui/components/button';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -22,7 +23,7 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="glass sticky top-0 z-40">
+    <header className="glass sticky top-0 z-40 print:hidden">
       <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex items-center gap-2">
           {/* Mobile: slide-over navigation */}
@@ -48,6 +49,8 @@ export function AppHeader() {
                   </span>
                   HRMS
                 </SheetTitle>
+                {/* Radix warns without this on every open. */}
+                <SheetDescription className="sr-only">Main navigation</SheetDescription>
               </SheetHeader>
               <div className="py-2">
                 <SidebarNav onNavigate={() => setMobileOpen(false)} />

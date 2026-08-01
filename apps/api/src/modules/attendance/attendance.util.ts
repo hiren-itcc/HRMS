@@ -123,6 +123,8 @@ export function deriveDayStatus(input: {
   isOnLeave?: boolean;
   /** Omit to skip the employment check (callers that already scope by date). */
   employment?: EmploymentWindow;
+  /** Org working week; omit for the default Sat+Sun weekend. */
+  weekOffDays?: number[];
 }): DerivedStatus {
   // A real record always wins — never hide data that exists.
   if (input.record) return input.record.status as DerivedStatus;
@@ -131,7 +133,7 @@ export function deriveDayStatus(input: {
   // Calendar facts hold whether the day is past or still to come, so
   // approved leave is visible on the calendar before it starts.
   if (input.isHoliday) return 'HOLIDAY';
-  if (isWeekend(input.dateKey)) return 'WEEK_OFF';
+  if (isWeekend(input.dateKey, input.weekOffDays)) return 'WEEK_OFF';
   if (input.isOnLeave) return 'ON_LEAVE';
   if (input.dateKey > input.todayKey) return 'FUTURE';
   if (input.dateKey === input.todayKey) return 'NOT_MARKED';

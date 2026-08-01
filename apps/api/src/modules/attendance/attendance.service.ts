@@ -6,6 +6,7 @@ import { dateKeyOf, eachDayKey, toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { SettingsService } from '../settings/settings.service';
 import {
   type DerivedStatus,
   dateKeyInTz,
@@ -45,7 +46,16 @@ export interface DayEntry {
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  /** Org working week — drives which days derive as WEEK_OFF. */
+  private async weekOffDays(orgId: string): Promise<number[]> {
+    const settings = await this.settings.get(orgId);
+    return settings.workingWeek.weekOffDays;
+  }
 
   /** Resolves timezone (location → org) and shift for the rules to use. */
   async contextFor(employeeId: string): Promise<AttendanceContext> {
@@ -141,9 +151,12 @@ export class AttendanceService {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const dateKey = dateKeyInTz(new Date(), ctx.timeZone);
     const record = await this.findRecord(ctx.employeeId, dateKey);
-    const isHoliday = await this.isHoliday(ctx.organizationId, dateKey);
+    const [isHoliday, weekOff] = await Promise.all([
+      this.isHoliday(ctx.organizationId, dateKey),
+      this.weekOffDays(ctx.organizationId),
+    ]);
     return {
-      ...this.toDayEntry(dateKey, record, dateKey, isHoliday),
+      ...this.toDayEntry(dateKey, record, dateKey, isHoliday, undefined, false, weekOff),
       timeZone: ctx.timeZone,
       shift: ctx.shift,
       serverTime: new Date().toISOString(),
@@ -170,12 +183,13 @@ export class AttendanceService {
     const to = toDate(days[days.length - 1] as string);
     const todayKey = dateKeyInTz(new Date(), ctx.timeZone);
 
-    const [records, holidays, leave] = await Promise.all([
+    const [records, holidays, leave, weekOff] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
         where: { employeeId: ctx.employeeId, date: { gte: from, lte: to } },
       }),
       this.holidayKeys(ctx.organizationId, from, to),
       this.leaveKeys([ctx.employeeId], from, to),
+      this.weekOffDays(ctx.organizationId),
     ]);
     const byDate = new Map(records.map((r) => [dateKeyOf(r.date), r]));
 
@@ -187,6 +201,7 @@ export class AttendanceService {
         holidays.has(dateKey),
         ctx.employment,
         leave.has(`${ctx.employeeId}|${dateKey}`),
+        weekOff,
       ),
     );
     return { month, timeZone: ctx.timeZone, days: entries, summary: summarize(entries) };
@@ -244,6 +259,17 @@ export class AttendanceService {
       this.isHoliday(claims.orgId, dateKey),
     ]);
 
+    // Approved leave must win over "absent" here too — without this an
+    // employee on sanctioned leave reads as ABSENT to their manager.
+    const [leave, weekOff] = await Promise.all([
+      this.leaveKeys(
+        employees.map((e) => e.id),
+        toDate(dateKey),
+        toDate(dateKey),
+      ),
+      this.weekOffDays(claims.orgId),
+    ]);
+
     const data = employees.map((e) => ({
       employee: {
         id: e.id,
@@ -253,10 +279,18 @@ export class AttendanceService {
         avatarUrl: e.avatarUrl,
         department: e.department?.name ?? null,
       },
-      ...this.toDayEntry(dateKey, e.attendance[0] ?? null, todayKey, isHoliday, {
-        joinDate: dateKeyOf(e.joinDate),
-        exitDate: e.exitDate ? dateKeyOf(e.exitDate) : null,
-      }),
+      ...this.toDayEntry(
+        dateKey,
+        e.attendance[0] ?? null,
+        todayKey,
+        isHoliday,
+        {
+          joinDate: dateKeyOf(e.joinDate),
+          exitDate: e.exitDate ? dateKeyOf(e.exitDate) : null,
+        },
+        leave.has(`${e.id}|${dateKey}`),
+        weekOff,
+      ),
     }));
     return { date: dateKey, ...toPaginated(data, total, query) };
   }
@@ -299,6 +333,17 @@ export class AttendanceService {
       this.holidayKeys(claims.orgId, from, to),
     ]);
 
+    // Leave days counted as absences would understate attendance and
+    // penalise people on sanctioned leave in every report built on this.
+    const [leave, weekOff] = await Promise.all([
+      this.leaveKeys(
+        employees.map((e) => e.id),
+        from,
+        to,
+      ),
+      this.weekOffDays(claims.orgId),
+    ]);
+
     const data = employees.map((e) => {
       const byDate = new Map(e.attendance.map((r) => [dateKeyOf(r.date), r]));
       const employment = {
@@ -312,6 +357,8 @@ export class AttendanceService {
           todayKey,
           holidays.has(dateKey),
           employment,
+          leave.has(`${e.id}|${dateKey}`),
+          weekOff,
         ),
       );
       return {
@@ -430,10 +477,19 @@ export class AttendanceService {
     isHoliday = false,
     employment?: EmploymentWindow,
     isOnLeave = false,
+    weekOffDays?: number[],
   ): DayEntry {
     return {
       date: dateKey,
-      status: deriveDayStatus({ dateKey, todayKey, record, isHoliday, employment, isOnLeave }),
+      status: deriveDayStatus({
+        dateKey,
+        todayKey,
+        record,
+        isHoliday,
+        employment,
+        isOnLeave,
+        weekOffDays,
+      }),
       checkIn: record?.checkIn?.toISOString() ?? null,
       checkOut: record?.checkOut?.toISOString() ?? null,
       workMinutes: record?.workMinutes ?? null,

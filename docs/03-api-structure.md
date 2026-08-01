@@ -90,21 +90,54 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 ### Notifications (`/notifications`)
 | GET `/notifications?unread=` · POST `/notifications/read-all` · POST `/notifications/:id/read` |
 
-### Reports (`/reports`) — read-only aggregates; all accept `?format=json|csv`
+### Reports (`/reports`) — read-only aggregates
+All four take `?from=&to=` (an arbitrary range, capped at 366 days) plus an
+optional `?departmentId=`, and all accept `?format=json|csv|excel`. Each
+returns the same envelope — `meta`, `kpis`, `charts`, `columns`, `rows` — so
+one export layer serves every report and the web renders them with one
+component. Viewing needs `report.view` (org-wide) or `report.view.team`
+(direct reports); a non-JSON `format` additionally needs `report.export` and
+is written to the audit log.
+
+Attrition folded into the employee report rather than becoming a fifth
+endpoint — it is the same query surface.
+
 | Path | Content |
 |---|---|
-| `/reports/headcount` | By department/location/type; joiners & leavers per month |
-| `/reports/attendance-summary?month=` | Present/absent/late/WFH per employee |
-| `/reports/leave-summary?year=` | Taken vs balance by type & department |
-| `/reports/attrition?year=` | Exits, attrition %, tenure distribution |
+| `/reports/employees` | Headcount, joiners & leavers per month, attrition %, tenure distribution |
+| `/reports/attendance` | Present/absent/half-day/late/hours per employee; daily org trend |
+| `/reports/leave` | Days taken by type, month and department; allocated vs used |
+| `/reports/departments` | Per-department headcount, movement, attendance rate, leave days |
+| `/reports/summary` | Six-month headcount trend for the dashboard widget (no range params) |
 
 ### Settings & Admin (`/settings`, `/roles`, `/audit`)
-| Method | Path |
-|---|---|
-| GET / PATCH | `/settings` — namespaced key-values |
-| GET | `/roles` · GET `/permissions` — matrix data |
-| PATCH | `/roles/:id/permissions` — edit grants (Admin; system-role guardrails) |
-| GET | `/audit?entity=&actorId=&from=&to=` — audit trail (Admin) |
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/settings` — typed groups, defaults filled in | any signed-in user |
+| PATCH | `/settings` — one or more groups | `settings.manage` |
+| GET | `/settings/email-templates` | `settings.manage` |
+| PUT / DELETE | `/settings/email-templates/:key` — edit / reset to default | `settings.manage` |
+| GET | `/roles` · GET `/permissions` — matrix data | `role.manage` |
+| PUT | `/roles/:id/permissions` — replace grants (guardrails applied) | `role.manage` |
+| GET | `/audit?resource=&entity=&actorId=&action=&from=&to=` | `audit.read` |
+| GET | `/audit/facets` — distinct actions and entities for the filters | `audit.read` |
+
+`GET /settings` is deliberately ungated: every user needs `workingWeek` to
+render the attendance calendar and `modules` to render navigation. The three
+groups are `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
+(`yearStartMonth`, `allowNegativeBalance`) and `modules`; each is stored as one
+`Setting` row so patching one never rewrites another.
+
+Every key has a consumer — a setting nothing reads is a lie the UI tells. Date
+and currency formats are deliberately absent until the ~15 formatter call
+sites on the web read from here.
+
+**Grants replace, not merge** — `PUT` carries the complete list for the role,
+so two admins editing different rows cannot merge into a state neither chose.
+Permissions the guardrails protect (the Admin floor: `settings.manage`,
+`role.manage`) are added back and returned in `blocked` rather than silently
+dropped. Changes reach signed-in users on their next token refresh, within 15
+minutes.
 
 ## Cross-cutting behavior
 

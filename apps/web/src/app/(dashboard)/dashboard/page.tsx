@@ -27,10 +27,12 @@ import Link from 'next/link';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
+import { AnnouncementsWidget } from '@/features/announcements/components/announcements-widget';
 import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
+import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
 
 const ONE_PAGE = { page: 1, limit: 1 };
 
@@ -251,7 +253,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-bold text-2xl tracking-tight sm:text-3xl">
+          <h1 className="sm:text-3xl">
             {greeting()}, {displayName(user)} 👋
           </h1>
           <p className="mt-1 text-muted-foreground text-sm">
@@ -268,7 +270,7 @@ export default function DashboardPage() {
 
       {stats.length > 0 && (
         <motion.div
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4"
           initial="hidden"
           animate="show"
           transition={{ staggerChildren: 0.06 }}
@@ -284,7 +286,7 @@ export default function DashboardPage() {
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card className="hover-lift">
           <CardHeader>
-            <CardTitle className="text-base">Quick actions</CardTitle>
+            <CardTitle>Quick actions</CardTitle>
             <CardDescription>Jump straight to common tasks</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -306,10 +308,14 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        <AnnouncementsWidget />
+
+        <HeadcountWidget />
+
         {canOrg && (
           <Card className="hover-lift">
             <CardHeader>
-              <CardTitle className="text-base">Upcoming holidays</CardTitle>
+              <CardTitle>Upcoming holidays</CardTitle>
               <CardDescription>From the company holiday calendar</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">

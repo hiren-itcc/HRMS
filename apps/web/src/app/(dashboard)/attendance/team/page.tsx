@@ -85,7 +85,7 @@ function TeamAttendanceView() {
   return (
     <Stagger className="space-y-6">
       <FadeInItem>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4">
           <StatCard
             label="Present today"
             value={stats.data ? `${stats.data.present}/${stats.data.headcount}` : undefined}
@@ -279,6 +279,8 @@ function TeamAttendanceView() {
             rows={daily.data?.data}
             rowKey={(row) => row.employee.id}
             loading={daily.isLoading}
+            error={daily.isError}
+            onRetry={() => daily.refetch()}
             meta={daily.data?.meta}
             onPageChange={params.setPage}
             emptyTitle="Nobody to show"
@@ -335,6 +337,8 @@ function TeamAttendanceView() {
             rows={monthly.data?.data}
             rowKey={(row) => row.employee.id}
             loading={monthly.isLoading}
+            error={monthly.isError}
+            onRetry={() => monthly.refetch()}
             meta={monthly.data?.meta}
             onPageChange={params.setPage}
             emptyTitle="No data for this month"

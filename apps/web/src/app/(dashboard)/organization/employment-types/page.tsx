@@ -78,6 +78,8 @@ function EmploymentTypesView() {
         rows={list.data?.data}
         rowKey={(t) => t.id}
         loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => list.refetch()}
         sort={params.sort}
         order={params.order}
         onSortChange={params.toggleSort}

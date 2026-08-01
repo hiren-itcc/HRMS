@@ -19,9 +19,10 @@ import {
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Check, Inbox, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { toast } from 'sonner';
+import { EmptyState } from '@/components/empty-state';
 import { leaveApi } from '@/features/leave/api';
 import { LeaveRequestRow } from '@/features/leave/components/request-row';
 import { useListParams } from '@/hooks/use-list-params';
@@ -60,7 +61,7 @@ function LeaveApprovalsView() {
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Leave approvals</CardTitle>
+            <CardTitle>Leave approvals</CardTitle>
             <CardDescription>
               Approving books the days against the employee's balance
             </CardDescription>
@@ -82,13 +83,10 @@ function LeaveApprovalsView() {
         {requests.isLoading && <Skeleton className="h-32 w-full rounded-xl" />}
 
         {!requests.isLoading && rows.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
-            <Inbox className="size-8 text-muted-foreground/50" aria-hidden />
-            <p className="font-medium text-sm">Nothing to review</p>
-            <p className="text-muted-foreground text-xs">
-              {status === 'PENDING' ? 'All caught up.' : 'No requests with this status.'}
-            </p>
-          </div>
+          <EmptyState
+            title="Nothing to review"
+            hint={status === 'PENDING' ? 'All caught up.' : 'No requests with this status.'}
+          />
         )}
 
         <AnimatePresence initial={false}>

@@ -85,7 +85,7 @@ export function ClockCard() {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Today</CardTitle>
+            <CardTitle>Today</CardTitle>
             <CardDescription>
               {state.shift
                 ? `Shift ${state.shift.startTime}–${state.shift.endTime} · ${state.timeZone}`

@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 
 const TABS = [
@@ -36,12 +37,10 @@ export default function OrganizationLayout({ children }: { children: React.React
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl tracking-tight">Organization</h1>
-        <p className="text-muted-foreground text-sm">
-          Company structure, work locations, shifts and holidays
-        </p>
-      </div>
+      <PageHeader
+        title="Organization"
+        description="Company structure, work locations, shifts and holidays"
+      />
 
       <nav
         aria-label="Organization sections"

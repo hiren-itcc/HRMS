@@ -4,7 +4,7 @@
  * what a working day is.
  */
 
-/** Non-working days of the week. Sunday = 0. */
+/** Non-working days of the week. Sunday = 0. The default when unconfigured. */
 export const WEEKEND_DAYS = [0, 6];
 
 /** Day-of-week for a YYYY-MM-DD key, timezone-independent. */
@@ -12,8 +12,24 @@ export function weekdayOf(dateKey: string): number {
   return new Date(`${dateKey}T00:00:00.000Z`).getUTCDay();
 }
 
-export function isWeekend(dateKey: string): boolean {
-  return WEEKEND_DAYS.includes(weekdayOf(dateKey));
+/**
+ * Is this a non-working day? `weekOffDays` comes from organization settings
+ * (six-day weeks are common); it defaults to Sat+Sun so any caller that has
+ * no settings in hand behaves exactly as before.
+ */
+export function isWeekend(dateKey: string, weekOffDays: number[] = WEEKEND_DAYS): boolean {
+  return weekOffDays.includes(weekdayOf(dateKey));
+}
+
+/**
+ * The leave year a date belongs to, identified by its starting calendar year.
+ * `startMonth` is 1-based: 1 = calendar year, 4 = the Apr–Mar financial year,
+ * where 2026-03-31 is still leave year 2025.
+ */
+export function leaveYearOf(dateKey: string, startMonth = 1): number {
+  const year = Number(dateKey.slice(0, 4));
+  const month = Number(dateKey.slice(5, 7));
+  return month >= startMonth ? year : year - 1;
 }
 
 /** DB `@db.Date` columns are stored at UTC midnight — always build them that way. */

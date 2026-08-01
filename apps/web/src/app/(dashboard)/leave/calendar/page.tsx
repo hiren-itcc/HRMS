@@ -57,7 +57,7 @@ export default function LeaveCalendarPage() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-base">Who's off · {monthLabel(month)}</CardTitle>
+                <CardTitle>Who's off · {monthLabel(month)}</CardTitle>
                 <CardDescription>Approved leave visible to you</CardDescription>
               </div>
               <div className="flex items-center gap-1">
@@ -113,7 +113,7 @@ export default function LeaveCalendarPage() {
         <FadeInItem>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Company holidays · {monthLabel(month)}</CardTitle>
+              <CardTitle>Company holidays · {monthLabel(month)}</CardTitle>
               <CardDescription>These days never consume leave balance</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">

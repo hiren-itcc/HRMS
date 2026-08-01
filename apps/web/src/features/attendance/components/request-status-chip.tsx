@@ -1,9 +1,9 @@
 import { cn } from '@hrms/ui/lib/utils';
 
 const STYLE: Record<string, string> = {
-  PENDING: 'bg-warning/15 text-warning',
-  APPROVED: 'bg-success/15 text-success',
-  REJECTED: 'bg-destructive/15 text-destructive',
+  PENDING: 'bg-warning/15 text-warning-text',
+  APPROVED: 'bg-success/15 text-success-text',
+  REJECTED: 'bg-destructive/15 text-destructive-text',
   CANCELLED: 'bg-muted text-muted-foreground',
 };
 

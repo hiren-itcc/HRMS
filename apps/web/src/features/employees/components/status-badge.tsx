@@ -3,8 +3,11 @@ import { Badge } from '@hrms/ui/components/badge';
 import { cn } from '@hrms/ui/lib/utils';
 
 const STYLE: Record<EmployeeStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-success/15 text-success border-transparent' },
-  ON_NOTICE: { label: 'On notice', className: 'bg-warning/15 text-warning border-transparent' },
+  ACTIVE: { label: 'Active', className: 'bg-success/15 text-success-text border-transparent' },
+  ON_NOTICE: {
+    label: 'On notice',
+    className: 'bg-warning/15 text-warning-text border-transparent',
+  },
   EXITED: { label: 'Exited', className: 'bg-muted text-muted-foreground border-transparent' },
 };
 

@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { useSession } from '@/components/session-provider';
+import { useOrgSettings } from '@/features/settings/api';
 import { useUiStore } from '@/stores/ui-store';
 
 export function SidebarNav({
@@ -25,9 +26,17 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const { can } = useSession();
+  const settings = useOrgSettings();
   const reduceMotion = useReducedMotion();
 
-  const items = NAV_ITEMS.filter((item) => !item.perms || item.perms.some((p) => can(p)));
+  // While settings are loading `modules` is undefined — treat that as "show
+  // everything" so the nav never flickers empty on first paint.
+  const modules = settings.data?.modules;
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      (!item.perms || item.perms.some((p) => can(p))) &&
+      (!item.module || modules === undefined || modules[item.module]),
+  );
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -47,16 +56,14 @@ export function SidebarNav({
                 )}
               >
                 <Icon className="size-4.5 shrink-0" aria-hidden />
+                <span className={cn('flex-1', collapsed && 'sr-only')}>{item.label}</span>
                 {!collapsed && (
-                  <>
-                    <span className="flex-1">{item.label}</span>
-                    <Badge
-                      variant="outline"
-                      className="border-sidebar-border px-1.5 py-0 text-[10px] text-sidebar-foreground/55"
-                    >
-                      Soon
-                    </Badge>
-                  </>
+                  <Badge
+                    variant="outline"
+                    className="border-sidebar-border px-1.5 py-0 text-[10px] text-sidebar-foreground/55"
+                  >
+                    Soon
+                  </Badge>
                 )}
               </span>
             );
@@ -87,7 +94,10 @@ export function SidebarNav({
                 />
               )}
               <Icon className="size-4.5 shrink-0" aria-hidden />
-              {!collapsed && <span>{item.label}</span>}
+              {/* Always rendered: when collapsed it is visually hidden rather
+                  than removed, so the link keeps its accessible name. The
+                  tooltip supplies a description, never the name. */}
+              <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
             </Link>
           );
 
@@ -113,7 +123,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'sticky top-0 hidden h-dvh shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out lg:flex',
+        'sticky top-0 hidden h-dvh shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out lg:flex print:hidden',
         collapsed ? 'w-16' : 'w-60',
       )}
     >

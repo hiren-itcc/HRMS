@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import type { Env } from '../../config/env';
+import { DocumentCategoriesService } from './document-categories.service';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { StorageService } from './storage.service';
@@ -19,6 +20,6 @@ import { StorageService } from './storage.service';
     }),
   ],
   controllers: [DocumentsController],
-  providers: [DocumentsService, StorageService],
+  providers: [DocumentsService, DocumentCategoriesService, StorageService],
 })
 export class DocumentsModule {}
