@@ -20,7 +20,7 @@ import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { locationsApi } from '@/features/organization/api';
 import type { Location } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';

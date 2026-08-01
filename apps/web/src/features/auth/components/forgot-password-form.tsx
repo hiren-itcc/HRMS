@@ -15,8 +15,8 @@ import { ArrowLeft, Loader2, MailCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Field } from '@/components/field';
 import { authApi } from '@/features/auth/api';
-import { Field } from './field';
 
 export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);

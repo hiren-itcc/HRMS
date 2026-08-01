@@ -17,9 +17,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { Field } from '@/components/field';
 import { authApi } from '@/features/auth/api';
 import { ApiError } from '@/lib/api-client';
-import { Field } from './field';
 import { PasswordInput } from './password-input';
 
 const formSchema = z

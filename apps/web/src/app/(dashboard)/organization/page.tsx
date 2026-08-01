@@ -17,8 +17,8 @@ import { Loader2 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
-import { Field } from '@/features/auth/components/field';
 import { companyApi } from '@/features/organization/api';
 
 export default function CompanyPage() {

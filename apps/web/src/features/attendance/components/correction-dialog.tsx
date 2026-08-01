@@ -10,7 +10,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { ApiError } from '@/lib/api-client';
 import { attendanceApi } from '../api';
 

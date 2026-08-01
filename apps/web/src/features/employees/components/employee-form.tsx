@@ -26,8 +26,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
-import { FormField } from '@/components/form-field';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
@@ -133,7 +132,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     const value = form.watch(field);
     const pending = items === undefined;
     return (
-      <FormField label={label} hint={pending ? 'Loading options…' : undefined}>
+      <Field label={label} hint={pending ? 'Loading options…' : undefined}>
         {(a11y) => (
           <Select
             value={value ?? NONE}
@@ -158,7 +157,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             </SelectContent>
           </Select>
         )}
-      </FormField>
+      </Field>
     );
   };
 

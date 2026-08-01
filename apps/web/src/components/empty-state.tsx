@@ -1,3 +1,11 @@
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@hrms/ui/components/empty';
 import { cn } from '@hrms/ui/lib/utils';
 import { Inbox, type LucideIcon } from 'lucide-react';
 
@@ -11,33 +19,31 @@ interface EmptyStateProps {
    * to click.
    */
   action?: React.ReactNode;
-  /** `bordered` for a standalone panel; plain when already inside a card or table. */
-  bordered?: boolean;
   className?: string;
 }
 
+/**
+ * Wraps coss `Empty`, whose "icon" media variant stacks two tilted cards
+ * behind the glyph — the emptiness reads as a considered state rather than
+ * a failed render.
+ */
 export function EmptyState({
   title,
   hint,
   icon: Icon = Inbox,
   action,
-  bordered,
   className,
 }: EmptyStateProps) {
   return (
-    <div
-      className={cn(
-        'flex flex-col items-center justify-center gap-2 px-6 py-12 text-center',
-        bordered && 'rounded-2xl border border-dashed',
-        className,
-      )}
-    >
-      <Icon className="size-8 text-muted-foreground/50" aria-hidden />
-      <div className="space-y-1">
-        <p className="font-medium text-sm">{title}</p>
-        {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
-      </div>
-      {action && <div className="mt-1">{action}</div>}
-    </div>
+    <Empty className={cn('py-12 md:py-14', className)}>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle className="text-base">{title}</EmptyTitle>
+        {hint && <EmptyDescription>{hint}</EmptyDescription>}
+      </EmptyHeader>
+      {action && <EmptyContent>{action}</EmptyContent>}
+    </Empty>
   );
 }
