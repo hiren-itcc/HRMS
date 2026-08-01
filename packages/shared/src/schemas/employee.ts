@@ -32,6 +32,20 @@ const nullableId = z
   .or(z.string())
   .nullish();
 
+/**
+ * A relation the employee must actually have.
+ *
+ * Same empty-string handling as `nullableId` — a form still posts "" for an
+ * unanswered select — but "" and null both fail instead of being stored. The
+ * message names the field, because a select that simply turns red says nothing
+ * about which of six it was.
+ */
+const requiredId = (label: string) =>
+  z
+    .string({ error: `${label} is required` })
+    .trim()
+    .min(1, `${label} is required`);
+
 export const employeeStatusSchema = z.enum(['ACTIVE', 'ON_NOTICE', 'EXITED']);
 export const genderSchema = z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']);
 
@@ -51,12 +65,20 @@ export const employeeCreateSchema = z.object({
   addressLine: optionalStr(200),
   city: optionalStr(80),
   country: optionalStr(80),
-  departmentId: nullableId,
-  designationId: nullableId,
-  locationId: nullableId,
+  // Job details: where this person sits in the organization. All required —
+  // an employee with no department or no shift cannot be scheduled, reported
+  // on, or paid correctly, and the gap is only ever noticed downstream.
+  departmentId: requiredId('Department'),
+  designationId: requiredId('Designation'),
+  locationId: requiredId('Location'),
+  shiftId: requiredId('Shift'),
+  employmentTypeId: requiredId('Employment type'),
+  /*
+   * The exception, deliberately. Somebody has to be at the top of the org
+   * chart, and in a new organization the first employee has nobody to point
+   * at — requiring this would make the first hire impossible to record.
+   */
   managerId: nullableId,
-  shiftId: nullableId,
-  employmentTypeId: nullableId,
   status: employeeStatusSchema.default('ACTIVE'),
   joinDate: dateOnlySchema,
 

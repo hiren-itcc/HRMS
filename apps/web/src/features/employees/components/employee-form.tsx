@@ -93,12 +93,14 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       country: '',
       status: 'ACTIVE',
       joinDate: new Date().toISOString().slice(0, 10),
-      departmentId: null,
-      designationId: null,
-      locationId: null,
+      // Empty rather than null: these are required, so they start unanswered
+      // and the select shows its "Select a department" placeholder.
+      departmentId: '',
+      designationId: '',
+      locationId: '',
+      shiftId: '',
+      employmentTypeId: '',
       managerId: null,
-      shiftId: null,
-      employmentTypeId: null,
       createLogin: true,
       loginRole: 'EMPLOYEE',
       ...initial,
@@ -137,27 +139,47 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       | 'shiftId'
       | 'employmentTypeId',
     items: { id: string; label: string }[] | undefined,
+    /*
+     * Manager is the only optional one: somebody has to be at the top of the
+     * org chart, and the first employee in a new organization has nobody to
+     * point at. Everything else must be answered.
+     */
+    options?: { optional?: true; emptyLabel?: string },
   ) => {
     const value = form.watch(field);
     const pending = items === undefined;
+    const optional = options?.optional === true;
     return (
-      <Field label={label} hint={pending ? 'Loading options…' : undefined}>
+      <Field
+        label={label}
+        required={!optional}
+        error={errors[field]?.message}
+        hint={pending ? 'Loading options…' : undefined}
+      >
         {(a11y) => (
           <Select
             value={value ?? NONE}
             onValueChange={(v) =>
-              form.setValue(field, v === NONE ? null : v, { shouldDirty: true })
+              form.setValue(field, v === NONE ? null : v, {
+                shouldDirty: true,
+                // Clears the error the moment it is answered, rather than
+                // leaving it red until the next submit.
+                shouldValidate: true,
+              })
             }
           >
             <SelectTrigger
               id={a11y.id}
               aria-describedby={a11y['aria-describedby']}
+              aria-invalid={a11y['aria-invalid']}
+              aria-required={a11y['aria-required']}
               aria-busy={pending || undefined}
             >
-              <SelectValue placeholder={pending ? 'Loading…' : 'None'} />
+              <SelectValue placeholder={pending ? 'Loading…' : `Select ${label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>None</SelectItem>
+              {/* A required select offers no way back to "nothing". */}
+              {optional && <SelectItem value={NONE}>{options?.emptyLabel ?? 'None'}</SelectItem>}
               {items?.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.label}
@@ -286,6 +308,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             managers.data
               ?.filter((m) => m.id !== employeeId)
               .map((m) => ({ id: m.id, label: `${fullName(m)} (${m.employeeCode})` })),
+            { optional: true, emptyLabel: 'None — top of the organisation' },
           )}
           {selectField(
             'Shift',
