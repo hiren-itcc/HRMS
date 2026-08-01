@@ -50,12 +50,12 @@ export function LoginForm() {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
-        <CardDescription>Use your work account to continue</CardDescription>
+    <Card className="border-0 bg-transparent shadow-none lg:border lg:bg-card lg:shadow-xs">
+      <CardHeader className="px-0 lg:px-6">
+        <CardTitle className="text-xl">Welcome back</CardTitle>
+        <CardDescription>Sign in with your work account to continue</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0 lg:px-6">
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <Field label="Email" required error={errors.email?.message}>
             {(a11y) => (

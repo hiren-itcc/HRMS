@@ -65,11 +65,22 @@ pnpm db:seed         # roles, permission matrix, admin user, defaults
 pnpm dev
 ```
 
-Open **http://localhost:3000** and sign in with the seeded admin:
+Open **http://localhost:3000** — it redirects to sign-in. The seed creates a
+full demo workspace (Acme Industries) with six accounts, all sharing the
+password `Passw0rd!2026`:
 
-```
-admin@hrms.local / ChangeMe-2026
-```
+| Account | Role | Person | Use it to see |
+|---|---|---|---|
+| `admin@hrms.local` | Admin | Aarav Shah | Everything, including settings, roles and audit |
+| `hr@hrms.local` | HR | Priya Nair | Org-wide people operations |
+| `manager@hrms.local` | Manager | Meera Iyer | Two direct reports and an approvals inbox |
+| `asha@hrms.local` | Employee | Asha Verma | Self service (left unmarked today so you can clock in) |
+| `rohan@hrms.local` | Employee | Rohan Desai | Self service on the Pune early shift |
+| `zara@hrms.local` | Employee | Zara Khan | Self service on a contract |
+
+`pnpm db:seed` is destructive — it resets the demo organization so repeated
+runs give an identical workspace. It refuses to run against
+`NODE_ENV=production` unless `SEED_ALLOW_RESET=true`.
 
 Swagger API docs: **http://localhost:4000/api/docs**
 
