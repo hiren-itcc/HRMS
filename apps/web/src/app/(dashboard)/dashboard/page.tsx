@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@hrms/ui/components/badge';
+import { Button } from '@hrms/ui/components/button';
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
@@ -24,6 +26,7 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
+import { EmptyState } from '@/components/empty-state';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
@@ -320,19 +323,23 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {holidays.isLoading &&
-                [1, 2, 3].map((i) => (
-                  <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
-                ))}
+                [1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
               {!holidays.isLoading && upcoming.length === 0 && (
-                <p className="py-6 text-center text-muted-foreground text-sm">
-                  No holidays left this year —{' '}
-                  <Link
-                    href="/organization/holidays"
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    manage the calendar
-                  </Link>
-                </p>
+                <EmptyState
+                  icon={Palmtree}
+                  title="No holidays left this year"
+                  hint="The rest of the calendar is clear."
+                  className="py-8 md:py-8"
+                  action={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      render={<Link href="/organization/holidays" />}
+                    >
+                      Manage the calendar
+                    </Button>
+                  }
+                />
               )}
               {upcoming.slice(0, 5).map((h) => (
                 <div

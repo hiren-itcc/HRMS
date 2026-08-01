@@ -52,7 +52,7 @@ export function AppHeader() {
                   </span>
                   HRMS
                 </SheetTitle>
-                {/* Radix warns without this on every open. */}
+                {/* Base UI warns without this on every open. */}
                 <SheetDescription className="sr-only">Main navigation</SheetDescription>
               </SheetHeader>
               <div className="py-2">

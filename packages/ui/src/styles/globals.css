@@ -417,7 +417,7 @@
 
   /*
    * Reduced motion, applied globally rather than per-component. Framer Motion
-   * consumers already branch on useReducedMotion, but CSS/Radix animations
+   * consumers already branch on useReducedMotion, but CSS/Base UI animations
    * did not — the mobile nav sheet slid 288px over 500ms regardless. Spinners
    * are deliberately exempt: they communicate that work is in progress, and
    * stopping one would leave a frozen glyph.
