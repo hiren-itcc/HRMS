@@ -49,6 +49,64 @@ export const leavePolicySchema = z.object({
   allowNegativeBalance: z.boolean().default(false),
 });
 
+// ── Payroll ───────────────────────────────────────────────────────────
+
+/**
+ * Statutory rules, configurable because the rates move and the ceilings move
+ * with them. Defaults are the current Indian ones, but every number here is
+ * an input rather than a constant so a rate change is a settings edit and
+ * not a release.
+ *
+ * TDS is deliberately absent: real TDS needs annual projection, a regime
+ * choice and investment proofs. It is entered per employee instead.
+ */
+export const payrollSchema = z.object({
+  /** ISO 4217. Display only — no conversion happens anywhere. */
+  currency: z.string().length(3).default('INR'),
+  /** Day of the following month salaries are paid on. */
+  payDay: z.number().int().min(1).max(31).default(1),
+  /**
+   * Denominator for prorating a partial month. Calendar days is the common
+   * Indian practice; working days suits organizations that pay by the shift.
+   */
+  lopBasis: z.enum(['CALENDAR_DAYS', 'WORKING_DAYS']).default('CALENDAR_DAYS'),
+  pf: z
+    .object({
+      enabled: z.boolean().default(true),
+      employeeRate: z.number().min(0).max(100).default(12),
+      employerRate: z.number().min(0).max(100).default(12),
+      /** PF is statutorily capped at this monthly wage. */
+      wageCeiling: z.number().min(0).default(15000),
+      /** Turn off to contribute on full basic rather than the capped wage. */
+      applyCeiling: z.boolean().default(true),
+    })
+    .prefault({}),
+  esi: z
+    .object({
+      enabled: z.boolean().default(true),
+      employeeRate: z.number().min(0).max(100).default(0.75),
+      employerRate: z.number().min(0).max(100).default(3.25),
+      /** ESI stops applying once gross exceeds this. */
+      wageThreshold: z.number().min(0).default(21000),
+    })
+    .prefault({}),
+  professionalTax: z
+    .object({
+      enabled: z.boolean().default(true),
+      /**
+       * Ascending slabs on monthly gross; the first slab whose `upTo` the
+       * gross does not exceed wins. PT is a state tax, so the amounts differ
+       * by state and belong in configuration rather than in code.
+       */
+      slabs: z.array(z.object({ upTo: z.number().min(0), amount: z.number().min(0) })).default([
+        { upTo: 15000, amount: 0 },
+        { upTo: 20000, amount: 150 },
+        { upTo: Number.MAX_SAFE_INTEGER, amount: 200 },
+      ]),
+    })
+    .prefault({}),
+});
+
 // ── Modules ───────────────────────────────────────────────────────────
 
 /**
@@ -62,6 +120,7 @@ export const modulesSchema = z.object({
   documents: z.boolean().default(true),
   announcements: z.boolean().default(true),
   reports: z.boolean().default(true),
+  payroll: z.boolean().default(true),
 });
 
 // ── Registry ──────────────────────────────────────────────────────────
@@ -69,11 +128,29 @@ export const modulesSchema = z.object({
 export const orgSettingsSchema = z.object({
   workingWeek: workingWeekSchema,
   leave: leavePolicySchema,
+  payroll: payrollSchema,
   modules: modulesSchema,
 });
 
 /**
- * Strips `.default()` off every field, then makes each optional.
+ * Peels `.default()` and `.prefault()` off a field.
+ *
+ * Two wrappers, because they are genuinely different: `default` supplies a
+ * fully-formed output when the key is absent, while `prefault` supplies an
+ * input that is then parsed — which is what lets a nested group fill in its
+ * own defaults. `removeDefault()` only knows about the first, so a prefaulted
+ * group survived into the patch schema and materialised every sibling.
+ */
+function unwrapDefaults(field: z.ZodTypeAny): z.ZodTypeAny {
+  const withRemove = field as { removeDefault?: () => z.ZodTypeAny };
+  if (withRemove.removeDefault) return unwrapDefaults(withRemove.removeDefault());
+  const def = (field as { _zod?: { def?: { type?: string; innerType?: z.ZodTypeAny } } })._zod?.def;
+  if (def?.type === 'prefault' && def.innerType) return unwrapDefaults(def.innerType);
+  return field;
+}
+
+/**
+ * Strips defaults off every field, then makes each optional.
  *
  * `.partial()` alone is not enough: it wraps a defaulted field in
  * `ZodOptional<ZodDefault<T>>`, and the inner default still fires on an
@@ -82,14 +159,20 @@ export const orgSettingsSchema = z.object({
  * `{leave:{yearStartMonth:4}}` would clear `allowNegativeBalance`.
  */
 // biome-ignore lint/suspicious/noExplicitAny: generic zod shape mapping
-function asPatch<T extends z.ZodObject<any>>(schema: T) {
-  const shape = Object.fromEntries(
+function asPatch<T extends z.ZodObject<any>>(schema: T): z.ZodObject<z.ZodRawShape> {
+  // Annotated because the function recurses; without it TypeScript cannot
+  // infer a type that refers to itself.
+  const shape: z.ZodRawShape = Object.fromEntries(
     Object.entries(schema.shape).map(([key, field]) => {
-      const inner = field as { removeDefault?: () => z.ZodTypeAny };
-      return [
-        key,
-        (inner.removeDefault ? inner.removeDefault() : (field as z.ZodTypeAny)).optional(),
-      ];
+      const bare = unwrapDefaults(field as z.ZodTypeAny);
+      /*
+       * Recurse into nested groups. The payroll group holds `pf`, `esi` and
+       * `professionalTax`, each with their own defaults — without this,
+       * patching `pf.employeeRate` would reset `pf.wageCeiling` for exactly
+       * the reason described above, one level down.
+       */
+      const patched = bare instanceof z.ZodObject ? asPatch(bare) : bare;
+      return [key, patched.optional()];
     }),
   );
   return z.object(shape);
@@ -100,6 +183,7 @@ export const orgSettingsPatchSchema = z
   .object({
     workingWeek: asPatch(workingWeekSchema).optional(),
     leave: asPatch(leavePolicySchema).optional(),
+    payroll: asPatch(payrollSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -110,13 +194,14 @@ export type OrgSettingsPatch = {
 };
 export type SettingsGroup = keyof OrgSettings;
 
-export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'modules'] as const;
+export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'payroll', 'modules'] as const;
 
 /** Fully-defaulted settings — the shape a fresh organization reads. */
 export function defaultSettings(): OrgSettings {
   return orgSettingsSchema.parse({
     workingWeek: {},
     leave: {},
+    payroll: {},
     modules: {},
   });
 }

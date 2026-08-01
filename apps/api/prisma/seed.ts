@@ -1,5 +1,10 @@
 import 'dotenv/config';
-import { DEFAULT_DOCUMENT_CATEGORIES, ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
+import {
+  DEFAULT_DOCUMENT_CATEGORIES,
+  DEFAULT_PAY_COMPONENTS,
+  ROLE_PERMISSIONS,
+  SYSTEM_ROLES,
+} from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -57,6 +62,15 @@ async function wipe(orgId: string) {
   ).map((u) => u.id);
 
   await prisma.$transaction([
+    // Payroll first: payslip lines hang off payslips, payslips off runs, and
+    // salary assignments off both employees and structures.
+    prisma.payslipLine.deleteMany({ where: { payslip: { organizationId: orgId } } }),
+    prisma.payslip.deleteMany({ where: { organizationId: orgId } }),
+    prisma.payrollRun.deleteMany({ where: { organizationId: orgId } }),
+    prisma.employeeSalary.deleteMany({ where: { employee: { organizationId: orgId } } }),
+    prisma.structureLine.deleteMany({ where: { structure: { organizationId: orgId } } }),
+    prisma.salaryStructure.deleteMany({ where: { organizationId: orgId } }),
+    prisma.payComponent.deleteMany({ where: { organizationId: orgId } }),
     prisma.announcementRead.deleteMany({ where: { announcement: { organizationId: orgId } } }),
     prisma.announcementAttachment.deleteMany({
       where: { announcement: { organizationId: orgId } },
@@ -270,6 +284,17 @@ async function main() {
   const categories = await Promise.all(
     DEFAULT_DOCUMENT_CATEGORIES.map((name) =>
       prisma.documentCategory.create({ data: { organizationId: org.id, name } }),
+    ),
+  );
+
+  // ── Payroll catalogue ──────────────────────────────────────────────────
+  // Seeded as isSystem: the calculation engine looks these codes up by name,
+  // so they must exist and must not be deletable.
+  await Promise.all(
+    DEFAULT_PAY_COMPONENTS.map((c, index) =>
+      prisma.payComponent.create({
+        data: { organizationId: org.id, ...c, isSystem: true, order: index },
+      }),
     ),
   );
 

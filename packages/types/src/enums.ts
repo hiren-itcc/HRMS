@@ -15,6 +15,11 @@ export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
 export const RoleCode = {
   ADMIN: 'ADMIN',
   HR: 'HR',
+  /**
+   * Approves and pays payroll but cannot alter salaries — the separation of
+   * duties the payroll module exists to enforce.
+   */
+  FINANCE: 'FINANCE',
   MANAGER: 'MANAGER',
   EMPLOYEE: 'EMPLOYEE',
 } as const;

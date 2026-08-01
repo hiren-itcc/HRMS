@@ -50,6 +50,20 @@ export const PERMISSIONS = [
   'report.view',
   'report.export',
 
+  /*
+   * Payroll splits along separation-of-duties lines: HR configures and
+   * processes, Finance approves and pays. Nobody holds both `payroll.process`
+   * and `payroll.approve` by default, and that is the point.
+   */
+  'payroll.read.own',
+  'payroll.read.team',
+  'payroll.read',
+  'payroll.structure.manage',
+  'payroll.salary.manage',
+  'payroll.process',
+  'payroll.approve',
+  'payroll.pay',
+
   'settings.manage',
   'role.manage',
   'audit.read',
@@ -69,6 +83,7 @@ const EMPLOYEE_PERMS: Permission[] = [
   'document.upload.own',
   'announcement.read',
   'org.read',
+  'payroll.read.own',
 ];
 
 const MANAGER_PERMS: Permission[] = [
@@ -80,6 +95,7 @@ const MANAGER_PERMS: Permission[] = [
   'leave.approve.team',
   'document.read.team',
   'report.view.team',
+  'payroll.read.team',
 ];
 
 const HR_PERMS: Permission[] = [
@@ -102,12 +118,28 @@ const HR_PERMS: Permission[] = [
   'org.manage',
   'report.view',
   'report.export',
+  // HR configures and runs payroll but cannot approve or pay it.
+  'payroll.read',
+  'payroll.structure.manage',
+  'payroll.salary.manage',
+  'payroll.process',
+];
+
+/** Approves and pays; deliberately holds no salary or structure write. */
+const FINANCE_PERMS: Permission[] = [
+  'employee.read',
+  'payroll.read',
+  'payroll.approve',
+  'payroll.pay',
+  'report.view',
+  'report.export',
 ];
 
 /** Default grants per system role (docs/04-rbac.md permission matrix). */
 export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
   [RoleCode.ADMIN]: PERMISSIONS,
   [RoleCode.HR]: [...new Set(HR_PERMS)],
+  [RoleCode.FINANCE]: [...new Set(FINANCE_PERMS)],
   [RoleCode.MANAGER]: [...new Set(MANAGER_PERMS)],
   [RoleCode.EMPLOYEE]: EMPLOYEE_PERMS,
 };
@@ -119,6 +151,11 @@ export const SYSTEM_ROLES: { code: RoleCode; name: string; description: string }
     description: 'Full access including settings, roles and audit',
   },
   { code: RoleCode.HR, name: 'HR', description: 'All people operations org-wide' },
+  {
+    code: RoleCode.FINANCE,
+    name: 'Finance',
+    description: 'Approves and pays payroll; cannot change salaries',
+  },
   {
     code: RoleCode.MANAGER,
     name: 'Manager',

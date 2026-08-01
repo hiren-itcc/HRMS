@@ -1,4 +1,4 @@
-import { defaultSettings } from '@hrms/shared';
+import { defaultSettings, orgSettingsPatchSchema } from '@hrms/shared';
 import { mergeSettings } from './settings.registry';
 
 describe('mergeSettings', () => {
@@ -42,5 +42,37 @@ describe('mergeSettings', () => {
   it('normalises a stored week-off list (dedupes and sorts)', () => {
     const merged = mergeSettings([{ key: 'workingWeek', value: { weekOffDays: [6, 0, 6] } }]);
     expect(merged.workingWeek.weekOffDays).toEqual([0, 6]);
+  });
+});
+
+/*
+ * The patch schema must never materialise a key the caller did not send:
+ * settings are stored per group, so a widened patch overwrites the whole row
+ * and silently resets its siblings.
+ */
+describe('orgSettingsPatchSchema', () => {
+  it('keeps a flat patch to the keys that were sent', () => {
+    expect(orgSettingsPatchSchema.parse({ leave: { yearStartMonth: 4 } })).toEqual({
+      leave: { yearStartMonth: 4 },
+    });
+  });
+
+  it('keeps a nested patch to the keys that were sent', () => {
+    // payroll.pf carries its own defaults one level down. Before asPatch
+    // recursed, this returned every PF key and a rate change reset the ceiling.
+    expect(orgSettingsPatchSchema.parse({ payroll: { pf: { employeeRate: 10 } } })).toEqual({
+      payroll: { pf: { employeeRate: 10 } },
+    });
+  });
+
+  it('still materialises full defaults when reading, not patching', () => {
+    const settings = defaultSettings();
+    expect(settings.payroll.pf.wageCeiling).toBe(15000);
+    expect(settings.payroll.esi.wageThreshold).toBe(21000);
+    expect(settings.payroll.professionalTax.slabs.length).toBeGreaterThan(0);
+  });
+
+  it('rejects an empty patch', () => {
+    expect(orgSettingsPatchSchema.safeParse({}).success).toBe(false);
   });
 });
