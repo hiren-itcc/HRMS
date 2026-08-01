@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/attendance', label: 'Attendance', icon: CalendarClock },
   { href: '/leave', label: 'Leave', icon: Palmtree },
   { href: '/documents', label: 'Documents', icon: FileText },
-  { href: '#announcements', label: 'Announcements', icon: Megaphone, soon: true },
+  { href: '/announcements', label: 'Announcements', icon: Megaphone },
   { href: '#reports', label: 'Reports', icon: Bell, soon: true },
   { href: '#settings', label: 'Settings', icon: Settings, soon: true },
 ];

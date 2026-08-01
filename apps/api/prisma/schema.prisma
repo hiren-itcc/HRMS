@@ -474,23 +474,54 @@ enum Audience {
   LOCATION
 }
 
+enum AnnouncementCategory {
+  GENERAL
+  HOLIDAY
+  BIRTHDAY
+  POLICY
+}
+
+enum AnnouncementPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
 model Announcement {
-  id             String    @id @default(cuid())
+  id             String               @id @default(cuid())
   organizationId String
   title          String
   body           String
-  audience       Audience  @default(ALL)
+  category       AnnouncementCategory @default(GENERAL)
+  priority       AnnouncementPriority @default(NORMAL)
+  audience       Audience             @default(ALL)
   departmentId   String?
   locationId     String?
-  isPinned       Boolean   @default(false)
-  publishAt      DateTime  @default(now())
+  isPinned       Boolean              @default(false)
+  publishAt      DateTime             @default(now())
   expiresAt      DateTime?
   authorId       String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
-  reads AnnouncementRead[]
+  reads       AnnouncementRead[]
+  attachments AnnouncementAttachment[]
 
   @@index([organizationId, publishAt])
+}
+
+model AnnouncementAttachment {
+  id             String   @id @default(cuid())
+  announcementId String
+  name           String
+  fileKey        String
+  mimeType       String
+  sizeBytes      Int
+  createdAt      DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
 }
 
 model AnnouncementRead {

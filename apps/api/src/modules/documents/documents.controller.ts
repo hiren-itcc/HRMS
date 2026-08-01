@@ -1,4 +1,3 @@
-import type { DocumentCategoryCreateInput } from '@hrms/shared';
 import { documentCategoryCreateSchema, documentMoveSchema } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import {
@@ -21,10 +20,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { createZodDto } from 'nestjs-zod';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { DocumentCategoriesService } from './document-categories.service';
 import { DocumentsService } from './documents.service';
+
+class DocumentCategoryDto extends createZodDto(documentCategoryCreateSchema) {}
+class DocumentMoveDto extends createZodDto(documentMoveSchema) {}
 
 @ApiTags('documents')
 @ApiBearerAuth()
@@ -51,11 +54,8 @@ export class DocumentsController {
   @Post('documents/categories')
   @RequirePermissions('document.manage')
   @ApiOperation({ summary: 'Create a document folder' })
-  createCategory(
-    @CurrentUser() user: AccessTokenClaims,
-    @Body() body: DocumentCategoryCreateInput,
-  ) {
-    return this.categories.create(user, documentCategoryCreateSchema.parse(body));
+  createCategory(@CurrentUser() user: AccessTokenClaims, @Body() dto: DocumentCategoryDto) {
+    return this.categories.create(user, dto);
   }
 
   @Patch('documents/categories/:id')
@@ -64,9 +64,9 @@ export class DocumentsController {
   updateCategory(
     @CurrentUser() user: AccessTokenClaims,
     @Param('id') id: string,
-    @Body() body: DocumentCategoryCreateInput,
+    @Body() dto: DocumentCategoryDto,
   ) {
-    return this.categories.update(user, id, documentCategoryCreateSchema.parse(body));
+    return this.categories.update(user, id, dto);
   }
 
   @Delete('documents/categories/:id')
@@ -106,9 +106,12 @@ export class DocumentsController {
 
   @Patch('documents/:id')
   @ApiOperation({ summary: 'Move a document to another folder' })
-  move(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string, @Body() body: unknown) {
-    const { categoryId } = documentMoveSchema.parse(body);
-    return this.documents.move(user, id, categoryId ?? null);
+  move(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: DocumentMoveDto,
+  ) {
+    return this.documents.move(user, id, dto.categoryId ?? null);
   }
 
   @Get('documents/:id/file')

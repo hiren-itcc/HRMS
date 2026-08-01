@@ -1,4 +1,5 @@
 export * from './constants/permissions';
+export * from './schemas/announcement';
 export * from './schemas/attendance';
 export * from './schemas/auth';
 export * from './schemas/common';

@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
+import { AnnouncementsWidget } from '@/features/announcements/components/announcements-widget';
 import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
@@ -305,6 +306,8 @@ export default function DashboardPage() {
             ))}
           </CardContent>
         </Card>
+
+        <AnnouncementsWidget />
 
         {canOrg && (
           <Card className="hover-lift">

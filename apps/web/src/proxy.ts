@@ -37,6 +37,7 @@ export const config = {
     '/attendance/:path*',
     '/leave/:path*',
     '/documents/:path*',
+    '/announcements/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',
