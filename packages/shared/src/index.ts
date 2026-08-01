@@ -10,5 +10,6 @@ export * from './schemas/document';
 export * from './schemas/employee';
 export * from './schemas/leave';
 export * from './schemas/organization';
+export * from './schemas/payroll';
 export * from './schemas/report';
 export * from './schemas/settings';

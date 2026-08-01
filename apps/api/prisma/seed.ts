@@ -2,12 +2,14 @@ import 'dotenv/config';
 import {
   DEFAULT_DOCUMENT_CATEGORIES,
   DEFAULT_PAY_COMPONENTS,
+  defaultSettings,
   ROLE_PERMISSIONS,
   SYSTEM_ROLES,
 } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { calculatePayslip } from '../src/modules/payroll/payroll.calc';
 
 /**
  * Demo seed — a workspace you can sign into and actually exercise.
@@ -110,7 +112,7 @@ async function wipe(orgId: string) {
 
 interface PersonSpec {
   email: string;
-  role: 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE';
+  role: 'ADMIN' | 'HR' | 'FINANCE' | 'MANAGER' | 'EMPLOYEE';
   code: string;
   firstName: string;
   lastName: string;
@@ -217,6 +219,7 @@ async function main() {
       { title: 'Senior Software Engineer', level: 5 },
       { title: 'Software Engineer', level: 4 },
       { title: 'Sales Executive', level: 4 },
+      { title: 'Finance Manager', level: 6 },
     ].map((d) => prisma.designation.create({ data: { organizationId: org.id, ...d } })),
   );
   const designationId = (title: string) => designations.find((d) => d.title === title)?.id;
@@ -290,13 +293,14 @@ async function main() {
   // ── Payroll catalogue ──────────────────────────────────────────────────
   // Seeded as isSystem: the calculation engine looks these codes up by name,
   // so they must exist and must not be deletable.
-  await Promise.all(
+  const payComponents = await Promise.all(
     DEFAULT_PAY_COMPONENTS.map((c, index) =>
       prisma.payComponent.create({
         data: { organizationId: org.id, ...c, isSystem: true, order: index },
       }),
     ),
   );
+  const componentId = (code: string) => payComponents.find((c) => c.code === code)?.id as string;
 
   // ── People ─────────────────────────────────────────────────────────────
   const passwordHash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
@@ -463,6 +467,32 @@ async function main() {
         branch: 'Kalyani Nagar',
       },
       kin: { name: 'Imran Khan', relation: 'Brother', phone: '+91 98250 66002' },
+    },
+    {
+      email: 'finance@hrms.local',
+      role: 'FINANCE',
+      code: 'EMP-0007',
+      firstName: 'Vikram',
+      lastName: 'Rao',
+      gender: 'MALE',
+      dob: '1986-02-19',
+      phone: '+91 98250 77001',
+      personalEmail: 'vikram.rao@example.com',
+      address: '9 Prahlad Nagar',
+      city: 'Ahmedabad',
+      joinDate: `${year - 3}-07-01`,
+      departmentId: peopleOps.id,
+      designation: 'Finance Manager',
+      locationId: hq.id,
+      shiftId: general.id,
+      employmentTypeId: fullTime,
+      bank: {
+        bankName: 'Axis Bank',
+        accountNumber: '918020045566778',
+        ifscCode: 'UTIB0000123',
+        branch: 'Prahlad Nagar',
+      },
+      kin: { name: 'Anita Rao', relation: 'Spouse', phone: '+91 98250 77002' },
     },
   ];
 
@@ -804,6 +834,285 @@ async function main() {
     })),
   });
 
+  // ── Payroll: structures, salaries, and a settled month ─────────────────
+  //
+  // The published run is calculated with the real engine rather than
+  // hand-written figures, so the seed cannot drift away from the code and a
+  // demo payslip always adds up.
+
+  const standard = await prisma.salaryStructure.create({
+    data: {
+      organizationId: org.id,
+      name: 'Standard Staff',
+      code: 'STD',
+      description: '40% basic, HRA at half of basic, the rest as special allowance',
+      lines: {
+        create: [
+          { componentId: componentId('BASIC'), calcType: 'PERCENT_OF_CTC', value: 40, order: 1 },
+          { componentId: componentId('HRA'), calcType: 'PERCENT_OF_BASIC', value: 50, order: 2 },
+          { componentId: componentId('CONVEYANCE'), calcType: 'FLAT', value: 1600, order: 3 },
+          { componentId: componentId('MEDICAL'), calcType: 'FLAT', value: 1250, order: 4 },
+          { componentId: componentId('SPECIAL'), calcType: 'BALANCE', value: 0, order: 5 },
+        ],
+      },
+    },
+    include: { lines: { include: { component: true } } },
+  });
+
+  const leadership = await prisma.salaryStructure.create({
+    data: {
+      organizationId: org.id,
+      name: 'Leadership',
+      code: 'LEAD',
+      description: 'Higher basic, and a performance bonus line',
+      lines: {
+        create: [
+          { componentId: componentId('BASIC'), calcType: 'PERCENT_OF_CTC', value: 50, order: 1 },
+          { componentId: componentId('HRA'), calcType: 'PERCENT_OF_BASIC', value: 40, order: 2 },
+          { componentId: componentId('CONVEYANCE'), calcType: 'FLAT', value: 3200, order: 3 },
+          { componentId: componentId('SPECIAL'), calcType: 'BALANCE', value: 0, order: 4 },
+        ],
+      },
+    },
+    include: { lines: { include: { component: true } } },
+  });
+
+  const contractStructure = await prisma.salaryStructure.create({
+    data: {
+      organizationId: org.id,
+      name: 'Contract',
+      code: 'CONTRACT',
+      description: 'Consolidated pay with no allowance split',
+      lines: {
+        create: [
+          { componentId: componentId('BASIC'), calcType: 'PERCENT_OF_CTC', value: 100, order: 1 },
+        ],
+      },
+    },
+    include: { lines: { include: { component: true } } },
+  });
+
+  const salaryPlan: {
+    email: string;
+    structure: typeof standard;
+    ctc: number;
+    tds: number;
+    joined: string;
+  }[] = [
+    {
+      email: 'admin@hrms.local',
+      structure: leadership,
+      ctc: 350_000,
+      tds: 62_000,
+      joined: `${year - 6}-01-15`,
+    },
+    {
+      email: 'hr@hrms.local',
+      structure: leadership,
+      ctc: 145_000,
+      tds: 14_500,
+      joined: `${year - 4}-03-01`,
+    },
+    {
+      email: 'finance@hrms.local',
+      structure: leadership,
+      ctc: 155_000,
+      tds: 16_800,
+      joined: `${year - 3}-07-01`,
+    },
+    {
+      email: 'manager@hrms.local',
+      structure: standard,
+      ctc: 175_000,
+      tds: 21_000,
+      joined: `${year - 5}-06-10`,
+    },
+    {
+      email: 'asha@hrms.local',
+      structure: standard,
+      ctc: 78_000,
+      tds: 3200,
+      joined: `${year - 2}-09-05`,
+    },
+    {
+      email: 'rohan@hrms.local',
+      structure: standard,
+      ctc: 62_000,
+      tds: 1400,
+      joined: `${year - 1}-02-17`,
+    },
+    {
+      email: 'zara@hrms.local',
+      structure: contractStructure,
+      ctc: 34_000,
+      tds: 0,
+      joined: `${year}-01-08`,
+    },
+  ];
+
+  for (const plan of salaryPlan) {
+    await prisma.employeeSalary.create({
+      data: {
+        employeeId: emp(plan.email),
+        structureId: plan.structure.id,
+        effectiveFrom: toDate(plan.joined),
+        monthlyCtc: plan.ctc,
+        monthlyTds: plan.tds,
+        revisionType: 'JOINING',
+        reason: 'Salary on joining',
+        approvedById: usr('hr@hrms.local'),
+      },
+    });
+  }
+
+  // A raise for two people, so the revision timeline has something to show.
+  for (const [email, ctc, type, reason] of [
+    ['asha@hrms.local', 92_000, 'PROMOTION', 'Promoted to Senior Software Engineer'],
+    ['rohan@hrms.local', 68_000, 'INCREMENT', 'Annual increment'],
+  ] as const) {
+    await prisma.employeeSalary.create({
+      data: {
+        employeeId: emp(email),
+        structureId: standard.id,
+        effectiveFrom: toDate(`${year}-04-01`),
+        monthlyCtc: ctc,
+        monthlyTds: email === 'asha@hrms.local' ? 5100 : 1900,
+        revisionType: type,
+        reason,
+        approvedById: usr('hr@hrms.local'),
+      },
+    });
+  }
+
+  const now = new Date();
+  const lastMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+  const thisMonth = dateKey(now).slice(0, 7);
+
+  const settledRun = await prisma.payrollRun.create({
+    data: {
+      organizationId: org.id,
+      month: lastMonth,
+      status: 'PUBLISHED',
+      payDate: toDate(`${thisMonth}-01`),
+      calculatedAt: shift(-6),
+      calculatedById: usr('hr@hrms.local'),
+      approvedAt: shift(-5),
+      approvedById: usr('finance@hrms.local'),
+      lockedAt: shift(-5),
+      lockedById: usr('finance@hrms.local'),
+      publishedAt: shift(-4),
+      publishedById: usr('hr@hrms.local'),
+    },
+  });
+
+  const payrollConfig = defaultSettings().payroll;
+  let runTotals = { earnings: 0, deductions: 0, employer: 0, net: 0 };
+
+  for (const plan of salaryPlan) {
+    const employee = await prisma.employee.findUniqueOrThrow({
+      where: { id: emp(plan.email) },
+      include: {
+        department: true,
+        designation: true,
+        bankDetail: true,
+        salaries: {
+          where: { effectiveFrom: { lte: toDate(`${lastMonth}-28`) } },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+          include: { structure: { include: { lines: { include: { component: true } } } } },
+        },
+      },
+    });
+    const salary = employee.salaries[0];
+    if (!salary) continue;
+
+    const calc = calculatePayslip({
+      month: lastMonth,
+      monthlyCtc: Number(salary.monthlyCtc),
+      monthlyTds: Number(salary.monthlyTds),
+      lines: salary.structure.lines.map((line) => ({
+        code: line.component.code,
+        name: line.component.name,
+        kind: line.component.kind,
+        calcType: line.calcType,
+        value: Number(line.value),
+        order: line.order,
+      })),
+      // One person had two unpaid days, so a payslip with LOP is visible.
+      lopDays: plan.email === 'rohan@hrms.local' ? 2 : 0,
+      config: payrollConfig,
+    });
+
+    await prisma.payslip.create({
+      data: {
+        organizationId: org.id,
+        runId: settledRun.id,
+        employeeId: employee.id,
+        employeeCode: employee.employeeCode,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        departmentName: employee.department?.name ?? null,
+        designationName: employee.designation?.title ?? null,
+        structureName: salary.structure.name,
+        bankName: employee.bankDetail?.bankName ?? null,
+        accountNumberMasked: employee.bankDetail
+          ? `••••${employee.bankDetail.accountNumber.slice(-4)}`
+          : null,
+        ifsc: employee.bankDetail?.ifscCode ?? null,
+        workingDays: calc.workingDays,
+        lopDays: calc.lopDays,
+        payableDays: calc.payableDays,
+        grossEarnings: calc.grossEarnings,
+        totalDeductions: calc.totalDeductions,
+        employerContribution: calc.employerContribution,
+        netPay: calc.netPay,
+        carriedShortfall: calc.carriedShortfall,
+        paymentStatus: 'PAID',
+        paidAt: shift(-3),
+        paymentRef: `NEFT-${lastMonth.replace('-', '')}-${employee.employeeCode}`,
+        lines: {
+          create: calc.lines.map((line) => ({
+            componentCode: line.code,
+            componentName: line.name,
+            kind: line.kind,
+            amount: line.amount,
+            order: line.order,
+          })),
+        },
+      },
+    });
+
+    runTotals = {
+      earnings: runTotals.earnings + calc.grossEarnings,
+      deductions: runTotals.deductions + calc.totalDeductions,
+      employer: runTotals.employer + calc.employerContribution,
+      net: runTotals.net + calc.netPay,
+    };
+  }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  await prisma.payrollRun.update({
+    where: { id: settledRun.id },
+    data: {
+      employeeCount: salaryPlan.length,
+      totalEarnings: round2(runTotals.earnings),
+      totalDeductions: round2(runTotals.deductions),
+      totalEmployerCost: round2(runTotals.employer),
+      netPayable: round2(runTotals.net),
+    },
+  });
+
+  // The current month sits open, so the workflow has somewhere to start.
+  await prisma.payrollRun.create({
+    data: {
+      organizationId: org.id,
+      month: thisMonth,
+      status: 'DRAFT',
+      payDate: null,
+      notes: 'Awaiting month end',
+    },
+  });
+
   // ── Settings + audit trail ─────────────────────────────────────────────
   await prisma.setting.create({
     data: {
@@ -845,6 +1154,7 @@ Seed complete — ${org.name}
 
     admin@hrms.local     Admin     Aarav Shah     CEO — sees everything
     hr@hrms.local        HR        Priya Nair     People ops, org-wide
+    finance@hrms.local   Finance   Vikram Rao     Approves and pays payroll
     manager@hrms.local   Manager   Meera Iyer     2 direct reports, approvals
     asha@hrms.local      Employee  Asha Verma     Self service
     rohan@hrms.local     Employee  Rohan Desai    Self service, Pune / early shift

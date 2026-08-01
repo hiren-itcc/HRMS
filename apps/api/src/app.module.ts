@@ -18,6 +18,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -42,6 +43,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     LeaveModule,
     AnnouncementsModule,
     ReportsModule,
+    PayrollModule,
     SettingsModule,
     AuditModule,
     RbacModule,
