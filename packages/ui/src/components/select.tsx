@@ -13,13 +13,24 @@ export const SelectRoot: typeof SelectPrimitive.Root = SelectPrimitive.Root;
 type SelectRootProps = React.ComponentProps<typeof SelectPrimitive.Root>;
 
 /**
- * Base UI reports `null` when a select is cleared, so its `onValueChange`
- * hands back `string | null`. Nothing in this app is clearable — every filter
- * carries an explicit "All" sentinel option instead — so the handler is
- * narrowed to a plain string here rather than making 17 call sites coalesce a
- * value that can never arrive.
+ * Reconciles the two places Base UI's Select disagrees with the Radix one the
+ * app was written against.
  *
- * Use `SelectRoot` directly if a clearable select is ever needed.
+ * 1. `onValueChange` hands back `string | null` — null meaning cleared.
+ *    Nothing here is clearable (every filter carries an explicit "All"
+ *    sentinel option), so the handler is narrowed to a plain string rather
+ *    than making 17 call sites coalesce a value that cannot arrive.
+ *
+ * 2. Base UI decides controlled-ness from `value !== undefined` on the FIRST
+ *    render. Radix's idiom for "nothing picked yet" was `value={undefined}`
+ *    with a placeholder, which under Base UI starts the select uncontrolled
+ *    and then flips it to controlled the moment a choice is made. `null` is
+ *    Base UI's spelling of "controlled, nothing selected", so an explicit
+ *    undefined is normalised to it here.
+ *
+ * Only an explicitly passed `value` is normalised — omitting the prop still
+ * gives a genuinely uncontrolled select. Use `SelectRoot` for the unwrapped
+ * primitive.
  */
 export function Select({
   onValueChange,
@@ -27,9 +38,11 @@ export function Select({
 }: Omit<SelectRootProps, 'onValueChange'> & {
   onValueChange?: (value: string) => void;
 }): React.ReactElement {
+  const value = 'value' in props ? (props.value ?? null) : undefined;
   return (
     <SelectPrimitive.Root
       {...props}
+      {...('value' in props ? { value } : {})}
       onValueChange={
         onValueChange ? (value) => onValueChange((value as string | null) ?? '') : undefined
       }

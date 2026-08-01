@@ -116,7 +116,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
       <div className="space-y-2">
         <Label htmlFor="leave-type">Leave type</Label>
         <Select
-          value={leaveTypeId || undefined}
+          value={leaveTypeId || null}
           onValueChange={(v) => form.setValue('leaveTypeId', v, { shouldDirty: true })}
         >
           <SelectTrigger
