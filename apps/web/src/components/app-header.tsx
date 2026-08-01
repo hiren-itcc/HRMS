@@ -13,6 +13,7 @@ import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { SidebarNav } from '@/components/app-sidebar';
+import { CommandPalette } from '@/components/command-palette';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
 import { useUiStore } from '@/stores/ui-store';
@@ -28,15 +29,17 @@ export function AppHeader() {
         <div className="flex items-center gap-2">
           {/* Mobile: slide-over navigation */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                aria-label="Open navigation"
-              >
-                <Menu className="size-5" aria-hidden />
-              </Button>
+            <SheetTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="Open navigation"
+                />
+              }
+            >
+              <Menu className="size-5" aria-hidden />
             </SheetTrigger>
             <SheetContent
               side="left"
@@ -49,7 +52,7 @@ export function AppHeader() {
                   </span>
                   HRMS
                 </SheetTitle>
-                {/* Radix warns without this on every open. */}
+                {/* Base UI warns without this on every open. */}
                 <SheetDescription className="sr-only">Main navigation</SheetDescription>
               </SheetHeader>
               <div className="py-2">
@@ -84,6 +87,7 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-1">
+          <CommandPalette />
           <ThemeToggle />
           <UserMenu />
         </div>

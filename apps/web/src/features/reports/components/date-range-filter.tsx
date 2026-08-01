@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@hrms/ui/components/button';
-import { Input } from '@hrms/ui/components/input';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { cn } from '@hrms/ui/lib/utils';
 import { rangePresets } from '../api';
 
@@ -21,23 +21,21 @@ export function DateRangeFilter({ from, to, onChange }: DateRangeFilterProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <Input
-          type="date"
+        <DatePicker
           value={from}
           max={to}
-          onChange={(e) => e.target.value && onChange({ from: e.target.value, to })}
-          className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
+          onValueChange={(value) => onChange({ from: value, to })}
+          className="w-full min-w-40 flex-1 sm:w-44 sm:flex-none"
           aria-label="Report start date"
         />
         <span className="text-muted-foreground text-sm" aria-hidden>
           →
         </span>
-        <Input
-          type="date"
+        <DatePicker
           value={to}
           min={from}
-          onChange={(e) => e.target.value && onChange({ from, to: e.target.value })}
-          className="w-full min-w-36 flex-1 sm:w-40 sm:flex-none"
+          onValueChange={(value) => onChange({ from, to: value })}
+          className="w-full min-w-40 flex-1 sm:w-44 sm:flex-none"
           aria-label="Report end date"
         />
       </div>

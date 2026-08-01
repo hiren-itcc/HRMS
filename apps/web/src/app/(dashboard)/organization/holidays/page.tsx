@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { holidayCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Checkbox } from '@hrms/ui/components/checkbox';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
@@ -20,7 +21,7 @@ import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { holidaysApi, locationsApi } from '@/features/organization/api';
 import type { Holiday } from '@/features/organization/types';
 import { useCrudList, useCrudMutations, useOptions } from '@/hooks/use-crud';
@@ -198,7 +199,14 @@ function HolidaysView() {
           )}
         </Field>
         <Field label="Date" error={form.formState.errors.date?.message}>
-          {(a11y) => <Input {...a11y} type="date" {...form.register('date')} />}
+          {(a11y) => (
+            <DatePicker
+              {...a11y}
+              value={form.watch('date')}
+              onValueChange={(value) => form.setValue('date', value, { shouldDirty: true })}
+              placeholder="Select the holiday date"
+            />
+          )}
         </Field>
         <div className="space-y-2">
           <Label htmlFor="applies-to">Applies to</Label>

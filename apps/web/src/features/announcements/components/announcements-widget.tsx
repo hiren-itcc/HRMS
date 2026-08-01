@@ -50,10 +50,8 @@ export function AnnouncementsWidget() {
             </CardTitle>
             <CardDescription>Latest company news</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/announcements">
-              View all <ArrowRight className="size-4" aria-hidden />
-            </Link>
+          <Button variant="ghost" size="sm" render={<Link href="/announcements" />}>
+            View all <ArrowRight className="size-4" aria-hidden />
           </Button>
         </div>
       </CardHeader>

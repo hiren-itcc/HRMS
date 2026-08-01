@@ -13,9 +13,12 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@hrms/ui/components",
-    "ui": "@hrms/ui/components",
     "utils": "@hrms/ui/lib/utils",
+    "ui": "@hrms/ui/components",
     "lib": "@hrms/ui/lib",
     "hooks": "@hrms/ui/hooks"
+  },
+  "registries": {
+    "@coss": "https://coss.com/ui/r/{name}.json"
   }
 }

@@ -16,9 +16,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
 import { ApiError } from '@/lib/api-client';
-import { Field } from './field';
 import { PasswordInput } from './password-input';
 
 export function LoginForm() {

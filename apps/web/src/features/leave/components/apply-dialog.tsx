@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { leaveApplySchema } from '@hrms/shared';
-import { Input } from '@hrms/ui/components/input';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Label } from '@hrms/ui/components/label';
 import {
   Select,
@@ -19,7 +19,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { ApiError } from '@/lib/api-client';
 import { formatDays, type LeaveBalance, leaveApi } from '../api';
 
@@ -116,7 +116,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
       <div className="space-y-2">
         <Label htmlFor="leave-type">Leave type</Label>
         <Select
-          value={leaveTypeId || undefined}
+          value={leaveTypeId || null}
           onValueChange={(v) => form.setValue('leaveTypeId', v, { shouldDirty: true })}
         >
           <SelectTrigger
@@ -148,22 +148,28 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="From" error={form.formState.errors.startDate?.message}>
           {(a11y) => (
-            <Input
+            <DatePicker
               {...a11y}
-              type="date"
-              {...form.register('startDate', {
-                onChange: (e) => {
-                  // Keep the range valid as the start moves forward
-                  if (form.getValues('endDate') < e.target.value) {
-                    form.setValue('endDate', e.target.value);
-                  }
-                },
-              })}
+              value={startDate}
+              onValueChange={(value) => {
+                form.setValue('startDate', value, { shouldDirty: true });
+                // Keep the range valid as the start moves forward
+                if (form.getValues('endDate') < value) {
+                  form.setValue('endDate', value, { shouldDirty: true });
+                }
+              }}
             />
           )}
         </Field>
         <Field label="To" error={form.formState.errors.endDate?.message}>
-          {(a11y) => <Input {...a11y} type="date" min={startDate} {...form.register('endDate')} />}
+          {(a11y) => (
+            <DatePicker
+              {...a11y}
+              value={form.watch('endDate')}
+              min={startDate}
+              onValueChange={(value) => form.setValue('endDate', value, { shouldDirty: true })}
+            />
+          )}
         </Field>
       </div>
 

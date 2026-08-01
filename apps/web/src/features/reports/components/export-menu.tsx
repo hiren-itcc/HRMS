@@ -38,29 +38,31 @@ export function ExportMenu({ report, range, onPrint }: ExportMenuProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={busy} className="gap-2 print:hidden">
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-          ) : (
-            <Download className="size-4" aria-hidden />
-          )}
-          Export
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="outline" size="sm" disabled={busy} className="gap-2 print:hidden" />
+        }
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+        ) : (
+          <Download className="size-4" aria-hidden />
+        )}
+        Export
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         {/* Viewing and extracting are separate privileges: a manager may read
             their team's numbers without being able to walk out with the file.
             Shown-but-disabled so the restriction is visible, not mysterious. */}
-        <DropdownMenuItem disabled={!canExport} onSelect={() => download('csv')}>
+        <DropdownMenuItem disabled={!canExport} onClick={() => download('csv')}>
           <FileText className="size-4" aria-hidden />
           CSV
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={!canExport} onSelect={() => download('excel')}>
+        <DropdownMenuItem disabled={!canExport} onClick={() => download('excel')}>
           <FileSpreadsheet className="size-4" aria-hidden />
           Excel
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setTimeout(onPrint, 0)}>
+        <DropdownMenuItem onClick={() => setTimeout(onPrint, 0)}>
           <Printer className="size-4" aria-hidden />
           PDF / Print
         </DropdownMenuItem>

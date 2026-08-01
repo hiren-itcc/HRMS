@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogPanel,
   DialogTitle,
 } from '@hrms/ui/components/dialog';
 import { cn } from '@hrms/ui/lib/utils';
@@ -130,90 +131,94 @@ export function DocumentPreview({ documents, index, onIndexChange }: PreviewProp
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative flex min-h-[50dvh] items-center justify-center overflow-auto rounded-xl border bg-muted/30">
-          {loading && <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />}
+        <DialogPanel className="space-y-3">
+          <div className="relative flex min-h-[50dvh] items-center justify-center overflow-auto rounded-xl border bg-muted/30">
+            {loading && (
+              <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
+            )}
 
-          {!loading && doc && url && isImage(doc.mimeType) && (
-            // biome-ignore lint/performance/noImgElement: blob: object URLs cannot go through next/image
-            <motion.img
-              key={doc.id}
-              src={url}
-              alt={doc.name}
-              initial={reduce ? false : { opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setZoomed((z) => !z)}
-              className={cn(
-                'rounded-lg',
-                zoomed
-                  ? 'max-w-none cursor-zoom-out'
-                  : 'max-h-[70dvh] w-auto max-w-full cursor-zoom-in object-contain',
-              )}
-            />
-          )}
+            {!loading && doc && url && isImage(doc.mimeType) && (
+              // biome-ignore lint/performance/noImgElement: blob: object URLs cannot go through next/image
+              <motion.img
+                key={doc.id}
+                src={url}
+                alt={doc.name}
+                initial={reduce ? false : { opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setZoomed((z) => !z)}
+                className={cn(
+                  'rounded-lg',
+                  zoomed
+                    ? 'max-w-none cursor-zoom-out'
+                    : 'max-h-[70dvh] w-auto max-w-full cursor-zoom-in object-contain',
+                )}
+              />
+            )}
 
-          {!loading && doc && url && isPdf(doc.mimeType) && (
-            <iframe src={url} title={doc.name} className="h-[70dvh] w-full rounded-lg" />
-          )}
+            {!loading && doc && url && isPdf(doc.mimeType) && (
+              <iframe src={url} title={doc.name} className="h-[70dvh] w-full rounded-lg" />
+            )}
 
-          {!loading && doc && !isImage(doc.mimeType) && !isPdf(doc.mimeType) && (
-            <div className="flex flex-col items-center gap-3 p-10 text-center">
-              <span className="gradient-primary flex size-14 items-center justify-center rounded-2xl text-white">
-                <FileType2 className="size-7" aria-hidden />
+            {!loading && doc && !isImage(doc.mimeType) && !isPdf(doc.mimeType) && (
+              <div className="flex flex-col items-center gap-3 p-10 text-center">
+                <span className="gradient-primary flex size-14 items-center justify-center rounded-2xl text-white">
+                  <FileType2 className="size-7" aria-hidden />
+                </span>
+                <p className="font-medium text-sm">
+                  {fileKindLabel(doc.mimeType)} files can't be previewed in the browser
+                </p>
+                <Button onClick={download}>
+                  <Download className="size-4" aria-hidden /> Download to view
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Previous document"
+                disabled={index === null || index === 0}
+                onClick={() => step(-1)}
+              >
+                <ChevronLeft className="size-4" aria-hidden />
+              </Button>
+              <span className="px-1 text-muted-foreground text-sm tabular-nums">
+                {index !== null ? index + 1 : 0} / {documents.length}
               </span>
-              <p className="font-medium text-sm">
-                {fileKindLabel(doc.mimeType)} files can't be previewed in the browser
-              </p>
-              <Button onClick={download}>
-                <Download className="size-4" aria-hidden /> Download to view
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Next document"
+                disabled={index === null || index >= documents.length - 1}
+                onClick={() => step(1)}
+              >
+                <ChevronRight className="size-4" aria-hidden />
               </Button>
             </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Previous document"
-              disabled={index === null || index === 0}
-              onClick={() => step(-1)}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </Button>
-            <span className="px-1 text-muted-foreground text-sm tabular-nums">
-              {index !== null ? index + 1 : 0} / {documents.length}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Next document"
-              disabled={index === null || index >= documents.length - 1}
-              onClick={() => step(1)}
-            >
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
-          </div>
-          <div className="flex gap-2">
-            {doc && isImage(doc.mimeType) && (
-              <Button variant="outline" onClick={() => setZoomed((z) => !z)}>
-                {zoomed ? (
-                  <>
-                    <Minimize2 className="size-4" aria-hidden /> Fit
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="size-4" aria-hidden /> Actual size
-                  </>
-                )}
+            <div className="flex gap-2">
+              {doc && isImage(doc.mimeType) && (
+                <Button variant="outline" onClick={() => setZoomed((z) => !z)}>
+                  {zoomed ? (
+                    <>
+                      <Minimize2 className="size-4" aria-hidden /> Fit
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="size-4" aria-hidden /> Actual size
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button onClick={download}>
+                <Download className="size-4" aria-hidden /> Download
               </Button>
-            )}
-            <Button onClick={download}>
-              <Download className="size-4" aria-hidden /> Download
-            </Button>
+            </div>
           </div>
-        </div>
+        </DialogPanel>
       </DialogContent>
     </Dialog>
   );

@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceRequestCreateSchema } from '@hrms/shared';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Textarea } from '@hrms/ui/components/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +11,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { ApiError } from '@/lib/api-client';
 import { attendanceApi } from '../api';
 
@@ -56,7 +57,13 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
       submitLabel="Send request"
     >
       <Field label="Date" error={form.formState.errors.date?.message}>
-        {(a11y) => <Input {...a11y} type="date" {...form.register('date')} />}
+        {(a11y) => (
+          <DatePicker
+            {...a11y}
+            value={form.watch('date')}
+            onValueChange={(value) => form.setValue('date', value, { shouldDirty: true })}
+          />
+        )}
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Clock in" error={form.formState.errors.requestedIn?.message}>
