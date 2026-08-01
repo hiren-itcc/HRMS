@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
 import { ApiError } from '@/lib/api-client';
 import { type Announcement, announcementsApi } from '../api';
@@ -241,7 +241,7 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
         <div className="space-y-2">
           <Label htmlFor="ann-department">Department</Label>
           <Select
-            value={form.watch('departmentId') ?? undefined}
+            value={form.watch('departmentId') ?? null}
             onValueChange={(v) => form.setValue('departmentId', v, { shouldDirty: true })}
           >
             <SelectTrigger
@@ -271,7 +271,7 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
         <div className="space-y-2">
           <Label htmlFor="ann-location">Location</Label>
           <Select
-            value={form.watch('locationId') ?? undefined}
+            value={form.watch('locationId') ?? null}
             onValueChange={(v) => form.setValue('locationId', v, { shouldDirty: true })}
           >
             <SelectTrigger

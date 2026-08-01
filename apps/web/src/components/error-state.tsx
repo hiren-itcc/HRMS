@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
 import { cn } from '@hrms/ui/lib/utils';
 import { RotateCw, TriangleAlert } from 'lucide-react';
@@ -9,7 +10,6 @@ interface ErrorStateProps {
   hint?: string;
   onRetry?: () => void;
   retrying?: boolean;
-  bordered?: boolean;
   className?: string;
 }
 
@@ -18,35 +18,31 @@ interface ErrorStateProps {
  * table showed its headers over an empty body, which reads as "no data"
  * rather than "this did not load". An error must be distinguishable from an
  * empty result, and it must offer a way forward.
+ *
+ * Built on coss `Alert` rather than the centred block `EmptyState` uses, so
+ * the two are told apart at a glance: a tinted banner is a problem, quiet
+ * centred text is simply nothing here.
  */
 export function ErrorState({
   title = 'Could not load this',
   hint = 'Something went wrong on our side. Try again in a moment.',
   onRetry,
   retrying,
-  bordered,
   className,
 }: ErrorStateProps) {
   return (
-    <div
-      role="alert"
-      className={cn(
-        'flex flex-col items-center justify-center gap-2 px-6 py-12 text-center',
-        bordered && 'rounded-2xl border border-destructive/30 bg-destructive/5',
-        className,
-      )}
-    >
-      <TriangleAlert className="size-8 text-destructive-text" aria-hidden />
-      <div className="space-y-1">
-        <p className="font-medium text-sm">{title}</p>
-        <p className="text-muted-foreground text-xs">{hint}</p>
-      </div>
+    <Alert variant="error" className={cn('my-4', className)}>
+      <TriangleAlert aria-hidden />
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>{hint}</AlertDescription>
       {onRetry && (
-        <Button variant="outline" size="sm" className="mt-1" onClick={onRetry} disabled={retrying}>
-          <RotateCw className={cn('size-4', retrying && 'animate-spin')} aria-hidden />
-          Try again
-        </Button>
+        <AlertAction>
+          <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
+            <RotateCw className={cn('size-4', retrying && 'animate-spin')} aria-hidden />
+            Try again
+          </Button>
+        </AlertAction>
       )}
-    </div>
+    </Alert>
   );
 }

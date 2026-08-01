@@ -15,8 +15,8 @@ import { ArrowLeft, Loader2, MailCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Field } from '@/components/field';
 import { authApi } from '@/features/auth/api';
-import { Field } from './field';
 
 export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
@@ -44,10 +44,8 @@ export function ForgotPasswordForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" className="w-full" asChild>
-            <Link href="/login">
-              <ArrowLeft className="size-4" aria-hidden /> Back to sign in
-            </Link>
+          <Button variant="outline" className="w-full" render={<Link href="/login" />}>
+            <ArrowLeft className="size-4" aria-hidden /> Back to sign in
           </Button>
         </CardContent>
       </Card>

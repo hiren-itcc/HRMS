@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogPanel,
   DialogTitle,
 } from '@hrms/ui/components/dialog';
 import { Loader2 } from 'lucide-react';
@@ -35,13 +36,21 @@ export function FormDialog({
 }: FormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          {children}
+        {/*
+         * Per the coss dialog contract: the header stays outside the form, and
+         * the form is `contents` so the popup's flex column still sees header,
+         * panel and footer as its own direct sections. DialogPanel is what
+         * carries the body padding and the scroll area — Radix's DialogContent
+         * padded everything itself, so without it the fields sat flush against
+         * the dialog edge.
+         */}
+        <form onSubmit={onSubmit} className="contents" noValidate>
+          <DialogPanel className="space-y-4">{children}</DialogPanel>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

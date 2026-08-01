@@ -20,7 +20,8 @@ import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
+import { TimezoneField } from '@/components/timezone-field';
 import { locationsApi } from '@/features/organization/api';
 import type { Location } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
@@ -209,14 +210,12 @@ function LocationsView() {
           hint="Optional — overrides the company default"
         >
           {(a11y) => (
-            <>
-              <Input {...a11y} list="loc-tz" {...form.register('timezone')} />
-              <datalist id="loc-tz">
-                {Intl.supportedValuesOf('timeZone').map((tz) => (
-                  <option key={tz} value={tz} />
-                ))}
-              </datalist>
-            </>
+            <TimezoneField
+              {...a11y}
+              value={form.watch('timezone')}
+              onValueChange={(value) => form.setValue('timezone', value, { shouldDirty: true })}
+              placeholder="Same as company default"
+            />
           )}
         </Field>
       </FormDialog>

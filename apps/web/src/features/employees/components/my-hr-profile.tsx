@@ -17,7 +17,7 @@ import { BriefcaseBusiness, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 

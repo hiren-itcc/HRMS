@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
@@ -26,8 +27,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
-import { FormField } from '@/components/form-field';
-import { Field } from '@/features/auth/components/field';
+import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
@@ -133,7 +133,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     const value = form.watch(field);
     const pending = items === undefined;
     return (
-      <FormField label={label} hint={pending ? 'Loading options…' : undefined}>
+      <Field label={label} hint={pending ? 'Loading options…' : undefined}>
         {(a11y) => (
           <Select
             value={value ?? NONE}
@@ -158,7 +158,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             </SelectContent>
           </Select>
         )}
-      </FormField>
+      </Field>
     );
   };
 
@@ -186,7 +186,16 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             {(a11y) => <Input {...a11y} type="tel" {...form.register('phone')} />}
           </Field>
           <Field label="Date of birth" error={errors.dateOfBirth?.message}>
-            {(a11y) => <Input {...a11y} type="date" {...form.register('dateOfBirth')} />}
+            {(a11y) => (
+              <DatePicker
+                {...a11y}
+                value={form.watch('dateOfBirth')}
+                onValueChange={(value) =>
+                  form.setValue('dateOfBirth', value, { shouldDirty: true })
+                }
+                placeholder="Select date of birth"
+              />
+            )}
           </Field>
           <div className="space-y-2">
             <Label htmlFor="gender">Gender</Label>
@@ -239,7 +248,14 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             )}
           </Field>
           <Field label="Joining date" error={errors.joinDate?.message}>
-            {(a11y) => <Input {...a11y} type="date" {...form.register('joinDate')} />}
+            {(a11y) => (
+              <DatePicker
+                {...a11y}
+                value={form.watch('joinDate')}
+                onValueChange={(value) => form.setValue('joinDate', value, { shouldDirty: true })}
+                placeholder="Select joining date"
+              />
+            )}
           </Field>
           {selectField(
             'Department',

@@ -192,10 +192,8 @@ function EmployeesView() {
           emptyHint="Adjust the filters, or add the first employee."
           emptyAction={
             can('employee.create') ? (
-              <Button asChild size="sm">
-                <Link href="/employees/new">
-                  <Plus className="size-4" aria-hidden /> Add employee
-                </Link>
+              <Button size="sm" render={<Link href="/employees/new" />}>
+                <Plus className="size-4" aria-hidden /> Add employee
               </Button>
             ) : undefined
           }

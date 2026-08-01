@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
   Select,
@@ -11,15 +12,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Timer,
-  UserCheck,
-  UserX,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, Timer, UserCheck, UserX } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { DataTable } from '@/components/data-table';
@@ -150,20 +143,13 @@ function TeamAttendanceView() {
               >
                 <ChevronLeft className="size-4" aria-hidden />
               </Button>
-              <div className="relative">
-                <CalendarDays
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground"
-                  aria-hidden
-                />
-                <Input
-                  type="date"
-                  value={date}
-                  max={today}
-                  onChange={(e) => params.setFilter('date', e.target.value || undefined)}
-                  className="w-44 pl-9"
-                  aria-label="Attendance date"
-                />
-              </div>
+              <DatePicker
+                value={date}
+                max={today}
+                onValueChange={(value) => params.setFilter('date', value || undefined)}
+                className="w-44"
+                aria-label="Attendance date"
+              />
               <Button
                 variant="outline"
                 size="icon"

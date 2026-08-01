@@ -2,8 +2,8 @@
 
 import type { Permission } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
-import { Input } from '@hrms/ui/components/input';
-import { Plus, Search } from 'lucide-react';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@hrms/ui/components/input-group';
+import { Plus, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSession } from '@/components/session-provider';
 
@@ -66,19 +66,32 @@ export function CrudShell({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 [&>*]:min-w-0 [&>[data-slot=select-trigger]]:w-full [&>[data-slot=select-trigger]]:flex-1 sm:[&>[data-slot=select-trigger]]:w-auto sm:[&>[data-slot=select-trigger]]:flex-none">
-        <div className="relative w-full max-w-xs">
-          <Search
-            className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
+        {/* InputGroup instead of an absolutely-positioned icon over a padded
+            input: the addons are real layout, so the clear button can sit
+            inside the field without colliding with long queries. */}
+        <InputGroup className="w-full max-w-xs">
+          <InputGroupAddon>
+            <Search className="size-4" aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Search…"
-            className="pl-9"
             aria-label={`Search ${title.toLowerCase()}`}
           />
-        </div>
+          {value && (
+            <InputGroupAddon align="inline-end">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setValue('')}
+                aria-label="Clear search"
+              >
+                <X className="size-4" aria-hidden />
+              </Button>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
         {filters}
       </div>
 

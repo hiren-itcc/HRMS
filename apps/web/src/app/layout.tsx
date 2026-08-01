@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: '--font-jakarta',
-  subsets: ['latin'],
-});
+/*
+ * Fonts come from the coss theme, not next/font: it @imports
+ * @fontsource-variable/inter and geist and sets --font-sans / --font-mono /
+ * --font-heading itself. Loading Plus Jakarta here as well shipped a family
+ * nothing referenced.
+ */
 
 export const metadata: Metadata = {
   title: {
@@ -22,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${jakarta.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="flex min-h-full flex-col font-sans">
         <Providers>{children}</Providers>
       </body>
