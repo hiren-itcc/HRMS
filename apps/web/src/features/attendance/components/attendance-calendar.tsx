@@ -2,14 +2,20 @@
 
 import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
+import { useOrgSettings } from '@/features/settings/api';
 import type { DayEntry } from '../api';
 import { STATUS_STYLE } from './status-badge';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** Monday-first column index for a YYYY-MM-DD key. */
-function mondayIndex(dateKey: string): number {
-  return (new Date(`${dateKey}T00:00:00.000Z`).getUTCDay() + 6) % 7;
+/** Column headers rotated so the organization's chosen day comes first. */
+function weekdayHeaders(weekStartsOn: number): string[] {
+  return Array.from({ length: 7 }, (_, i) => DAY_NAMES[(weekStartsOn + i) % 7] as string);
+}
+
+/** Column index for a YYYY-MM-DD key, relative to the configured week start. */
+function columnIndex(dateKey: string, weekStartsOn: number): number {
+  return (new Date(`${dateKey}T00:00:00.000Z`).getUTCDay() - weekStartsOn + 7) % 7;
 }
 
 const LEGEND: (keyof typeof STATUS_STYLE)[] = [
@@ -28,12 +34,15 @@ interface CalendarProps {
 
 export function AttendanceCalendar({ days, selected, onSelect }: CalendarProps) {
   const reduceMotion = useReducedMotion();
-  const lead = days.length ? mondayIndex(days[0]?.date ?? '') : 0;
+  const settings = useOrgSettings();
+  // Default to Monday while settings load, matching the previous behaviour.
+  const weekStartsOn = settings.data?.workingWeek.weekStartsOn ?? 1;
+  const lead = days.length ? columnIndex(days[0]?.date ?? '', weekStartsOn) : 0;
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-7 gap-1.5 text-center">
-        {WEEKDAYS.map((d) => (
+        {weekdayHeaders(weekStartsOn).map((d) => (
           <div key={d} className="pb-1 text-muted-foreground text-xs uppercase tracking-wider">
             {d.slice(0, 1)}
             <span className="hidden sm:inline">{d.slice(1)}</span>

@@ -1,6 +1,7 @@
 'use client';
 
-import { DATE_FORMATS, type OrgSettings, type OrgSettingsPatch, WEEKDAYS } from '@hrms/shared';
+import type { OrgSettings, OrgSettingsPatch } from '@hrms/shared';
+import { WEEKDAYS } from '@hrms/shared';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +21,6 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Checkbox } from '@hrms/ui/components/checkbox';
-import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
   Select,
@@ -186,6 +186,30 @@ export default function PreferencesPage() {
                 Selected days are non-working. A six-day week means selecting Sunday only.
               </p>
             </fieldset>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="week-start">Calendars start on</Label>
+              <Select
+                value={String(draft.workingWeek.weekStartsOn)}
+                disabled={!canManage}
+                onValueChange={(v) => set('workingWeek', { weekStartsOn: Number(v) })}
+              >
+                <SelectTrigger id="week-start" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEEKDAYS.map((d) => (
+                    <SelectItem key={d.value} value={String(d.value)}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                Which day is the first column of the attendance calendar.
+              </p>
+            </div>
+
             <SaveBar group="workingWeek" label="Save working week" />
           </CardContent>
         </Card>
@@ -239,117 +263,7 @@ export default function PreferencesPage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="carry-cap">Carry-forward cap (days)</Label>
-              <Input
-                id="carry-cap"
-                type="number"
-                min={0}
-                max={365}
-                step="0.5"
-                className="w-40"
-                disabled={!canManage}
-                value={draft.leave.carryForwardCap ?? ''}
-                placeholder="No cap"
-                onChange={(e) =>
-                  set('leave', {
-                    carryForwardCap: e.target.value === '' ? null : Number(e.target.value),
-                  })
-                }
-              />
-              <p className="text-muted-foreground text-xs">
-                Leave empty for no cap. Applied when a leave year rolls over.
-              </p>
-            </div>
-
             <SaveBar group="leave" label="Save leave policy" />
-          </CardContent>
-        </Card>
-      </FadeInItem>
-
-      {/* ── Localization ─────────────────────────────────────────────── */}
-      <FadeInItem>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Localization</CardTitle>
-            <CardDescription>How dates, times and amounts are displayed</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="date-format">Date format</Label>
-                <Select
-                  value={draft.localization.dateFormat}
-                  disabled={!canManage}
-                  onValueChange={(v) =>
-                    set('localization', {
-                      dateFormat: v as OrgSettings['localization']['dateFormat'],
-                    })
-                  }
-                >
-                  <SelectTrigger id="date-format">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DATE_FORMATS.map((f) => (
-                      <SelectItem key={f} value={f}>
-                        {f}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="time-format">Time format</Label>
-                <Select
-                  value={draft.localization.timeFormat}
-                  disabled={!canManage}
-                  onValueChange={(v) => set('localization', { timeFormat: v as '12h' | '24h' })}
-                >
-                  <SelectTrigger id="time-format">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="12h">12-hour (5:30 PM)</SelectItem>
-                    <SelectItem value="24h">24-hour (17:30)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="week-start">Calendars start on</Label>
-                <Select
-                  value={String(draft.localization.weekStartsOn)}
-                  disabled={!canManage}
-                  onValueChange={(v) => set('localization', { weekStartsOn: Number(v) })}
-                >
-                  <SelectTrigger id="week-start">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEEKDAYS.map((d) => (
-                      <SelectItem key={d.value} value={String(d.value)}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="currency">Currency</Label>
-                <Input
-                  id="currency"
-                  className="uppercase"
-                  maxLength={3}
-                  disabled={!canManage}
-                  value={draft.localization.currency}
-                  onChange={(e) => set('localization', { currency: e.target.value.toUpperCase() })}
-                />
-              </div>
-            </div>
-            <SaveBar group="localization" label="Save localization" />
           </CardContent>
         </Card>
       </FadeInItem>

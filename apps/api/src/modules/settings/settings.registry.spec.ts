@@ -18,6 +18,12 @@ describe('mergeSettings', () => {
     expect(merged.workingWeek).toEqual(defaultSettings().workingWeek);
   });
 
+  it('keeps weekStartsOn at its default when only weekOffDays is stored', () => {
+    const merged = mergeSettings([{ key: 'workingWeek', value: { weekOffDays: [5, 6] } }]);
+    expect(merged.workingWeek.weekOffDays).toEqual([5, 6]);
+    expect(merged.workingWeek.weekStartsOn).toBe(1);
+  });
+
   it('fills missing keys within a stored group from the defaults', () => {
     const merged = mergeSettings([{ key: 'modules', value: { reports: false } }]);
     expect(merged.modules.reports).toBe(false);

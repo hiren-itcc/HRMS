@@ -138,7 +138,10 @@ export class LeaveRequestsService {
           used: Number(balance.used),
         })
       : 0;
-    if (days > available) {
+    // Organizations that let people go into deficit (advance leave against
+    // future accrual) turn this check off in Settings.
+    const { leave: leavePolicy } = await this.settings.get(claims.orgId);
+    if (days > available && !leavePolicy.allowNegativeBalance) {
       throw new BadRequestException(
         `Only ${available} day(s) of ${type.name} remain — this request needs ${days}`,
       );

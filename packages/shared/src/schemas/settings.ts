@@ -32,6 +32,8 @@ export const workingWeekSchema = z.object({
     .max(6, 'At least one day must be a working day')
     .transform((days) => [...new Set(days)].sort((a, b) => a - b))
     .default([0, 6]),
+  /** First column of month calendars. Independent of `weekOffDays`. */
+  weekStartsOn: z.number().int().min(0).max(6).default(1),
 });
 
 // ── Leave policy ──────────────────────────────────────────────────────
@@ -43,21 +45,8 @@ export const leavePolicySchema = z.object({
    * year its start date falls in.
    */
   yearStartMonth: z.number().int().min(1).max(12).default(1),
+  /** Let an employee book leave they have not accrued yet. */
   allowNegativeBalance: z.boolean().default(false),
-  /** Maximum days carried into the next leave year; null = no cap. */
-  carryForwardCap: z.number().min(0).max(365).nullable().default(null),
-});
-
-// ── Localization ──────────────────────────────────────────────────────
-
-export const DATE_FORMATS = ['dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd', 'd MMM yyyy'] as const;
-
-export const localizationSchema = z.object({
-  dateFormat: z.enum(DATE_FORMATS).default('d MMM yyyy'),
-  timeFormat: z.enum(['12h', '24h']).default('12h'),
-  /** First column of month calendars. Independent of `weekOffDays`. */
-  weekStartsOn: z.number().int().min(0).max(6).default(1),
-  currency: z.string().trim().length(3).toUpperCase().default('INR'),
 });
 
 // ── Modules ───────────────────────────────────────────────────────────
@@ -80,7 +69,6 @@ export const modulesSchema = z.object({
 export const orgSettingsSchema = z.object({
   workingWeek: workingWeekSchema,
   leave: leavePolicySchema,
-  localization: localizationSchema,
   modules: modulesSchema,
 });
 
@@ -89,7 +77,6 @@ export const orgSettingsPatchSchema = z
   .object({
     workingWeek: workingWeekSchema.optional(),
     leave: leavePolicySchema.optional(),
-    localization: localizationSchema.optional(),
     modules: modulesSchema.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -98,14 +85,13 @@ export type OrgSettings = z.infer<typeof orgSettingsSchema>;
 export type OrgSettingsPatch = z.infer<typeof orgSettingsPatchSchema>;
 export type SettingsGroup = keyof OrgSettings;
 
-export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'localization', 'modules'] as const;
+export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'modules'] as const;
 
 /** Fully-defaulted settings — the shape a fresh organization reads. */
 export function defaultSettings(): OrgSettings {
   return orgSettingsSchema.parse({
     workingWeek: {},
     leave: {},
-    localization: {},
     modules: {},
   });
 }

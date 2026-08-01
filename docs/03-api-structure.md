@@ -122,10 +122,15 @@ endpoint — it is the same query surface.
 | GET | `/audit?resource=&entity=&actorId=&action=&from=&to=` | `audit.read` |
 | GET | `/audit/facets` — distinct actions and entities for the filters | `audit.read` |
 
-`GET /settings` is deliberately ungated: every user needs `localization` to
-format dates and `modules` to render navigation. The four groups are
-`workingWeek`, `leave`, `localization`, `modules`; each is stored as one
+`GET /settings` is deliberately ungated: every user needs `workingWeek` to
+render the attendance calendar and `modules` to render navigation. The three
+groups are `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
+(`yearStartMonth`, `allowNegativeBalance`) and `modules`; each is stored as one
 `Setting` row so patching one never rewrites another.
+
+Every key has a consumer — a setting nothing reads is a lie the UI tells. Date
+and currency formats are deliberately absent until the ~15 formatter call
+sites on the web read from here.
 
 **Grants replace, not merge** — `PUT` carries the complete list for the role,
 so two admins editing different rows cannot merge into a state neither chose.
