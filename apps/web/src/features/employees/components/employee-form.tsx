@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { employeeCreateSchema } from '@hrms/shared';
 import type { EmployeeStatus, Gender } from '@hrms/types';
+import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
 import {
   Card,
@@ -11,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { Checkbox } from '@hrms/ui/components/checkbox';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
@@ -22,7 +24,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -91,12 +93,16 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       country: '',
       status: 'ACTIVE',
       joinDate: new Date().toISOString().slice(0, 10),
-      departmentId: null,
-      designationId: null,
-      locationId: null,
+      // Empty rather than null: these are required, so they start unanswered
+      // and the select shows its "Select a department" placeholder.
+      departmentId: '',
+      designationId: '',
+      locationId: '',
+      shiftId: '',
+      employmentTypeId: '',
       managerId: null,
-      shiftId: null,
-      employmentTypeId: null,
+      createLogin: true,
+      loginRole: 'EMPLOYEE',
       ...initial,
     },
   });
@@ -111,7 +117,11 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
         onSaved(employeeId);
       } else {
         const created = await employeesApi.create(input);
-        toast.success(`${fullName(created)} added (${created.employeeCode})`);
+        toast.success(`${fullName(created)} added (${created.employeeCode})`, {
+          description: created.loginCreated
+            ? `They can sign in as ${created.loginEmail} with the default password.`
+            : 'No sign-in was created — they cannot log in yet.',
+        });
         onSaved(created.id);
       }
     } catch (err) {
@@ -129,27 +139,47 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       | 'shiftId'
       | 'employmentTypeId',
     items: { id: string; label: string }[] | undefined,
+    /*
+     * Manager is the only optional one: somebody has to be at the top of the
+     * org chart, and the first employee in a new organization has nobody to
+     * point at. Everything else must be answered.
+     */
+    options?: { optional?: true; emptyLabel?: string },
   ) => {
     const value = form.watch(field);
     const pending = items === undefined;
+    const optional = options?.optional === true;
     return (
-      <Field label={label} hint={pending ? 'Loading options…' : undefined}>
+      <Field
+        label={label}
+        required={!optional}
+        error={errors[field]?.message}
+        hint={pending ? 'Loading options…' : undefined}
+      >
         {(a11y) => (
           <Select
             value={value ?? NONE}
             onValueChange={(v) =>
-              form.setValue(field, v === NONE ? null : v, { shouldDirty: true })
+              form.setValue(field, v === NONE ? null : v, {
+                shouldDirty: true,
+                // Clears the error the moment it is answered, rather than
+                // leaving it red until the next submit.
+                shouldValidate: true,
+              })
             }
           >
             <SelectTrigger
               id={a11y.id}
               aria-describedby={a11y['aria-describedby']}
+              aria-invalid={a11y['aria-invalid']}
+              aria-required={a11y['aria-required']}
               aria-busy={pending || undefined}
             >
-              <SelectValue placeholder={pending ? 'Loading…' : 'None'} />
+              <SelectValue placeholder={pending ? 'Loading…' : `Select ${label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>None</SelectItem>
+              {/* A required select offers no way back to "nothing". */}
+              {optional && <SelectItem value={NONE}>{options?.emptyLabel ?? 'None'}</SelectItem>}
               {items?.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.label}
@@ -278,6 +308,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             managers.data
               ?.filter((m) => m.id !== employeeId)
               .map((m) => ({ id: m.id, label: `${fullName(m)} (${m.employeeCode})` })),
+            { optional: true, emptyLabel: 'None — top of the organisation' },
           )}
           {selectField(
             'Shift',
@@ -311,6 +342,73 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           </div>
         </CardContent>
       </Card>
+
+      {!isEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign-in</CardTitle>
+            <CardDescription>
+              Creates a login using the work email above. Without one, the record exists but the
+              person cannot use the product.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <Checkbox
+                id="create-login"
+                checked={form.watch('createLogin')}
+                onCheckedChange={(next) =>
+                  form.setValue('createLogin', next === true, { shouldDirty: true })
+                }
+              />
+              <label htmlFor="create-login" className="text-sm">
+                Create a sign-in for this employee
+              </label>
+            </div>
+
+            {form.watch('createLogin') && (
+              <>
+                <Field label="Role" hint="Anything beyond self-service is a decision">
+                  {(a11y) => (
+                    <Select
+                      value={form.watch('loginRole')}
+                      onValueChange={(value) =>
+                        form.setValue('loginRole', value as 'EMPLOYEE', { shouldDirty: true })
+                      }
+                    >
+                      <SelectTrigger id={a11y.id} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          ['EMPLOYEE', 'Employee — self service'],
+                          ['MANAGER', 'Manager — plus direct reports'],
+                          ['HR', 'HR — all people operations'],
+                          ['FINANCE', 'Finance — approves and pays payroll'],
+                          ['ADMIN', 'Admin — everything'],
+                        ].map(([value, label]) => (
+                          <SelectItem key={value} value={value as string}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Field>
+
+                <Alert variant="info" className="sm:col-span-2">
+                  <KeyRound aria-hidden />
+                  <AlertTitle>They start on the default password</AlertTitle>
+                  <AlertDescription>
+                    They sign in with their work email and the organization's default password, then
+                    have to set their own before they can do anything else.
+                  </AlertDescription>
+                </Alert>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={isSubmitting}>

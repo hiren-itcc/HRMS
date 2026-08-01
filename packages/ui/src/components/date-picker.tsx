@@ -1,7 +1,16 @@
 'use client';
 
+import type { DropdownProps } from '@daypicker/react';
 import { Button } from '@hrms/ui/components/button';
 import { Calendar } from '@hrms/ui/components/calendar';
+import {
+  Combobox,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+} from '@hrms/ui/components/combobox';
 import { Popover, PopoverPopup, PopoverTrigger } from '@hrms/ui/components/popover';
 import { cn } from '@hrms/ui/lib/utils';
 import { CalendarIcon } from 'lucide-react';
@@ -60,6 +69,65 @@ export function formatDisplayDate(value?: string | null): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+interface DropdownItem {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+/**
+ * Month and year navigation as searchable comboboxes rather than a native
+ * `<select>` or a pair of arrows.
+ *
+ * Arrows are fine for "next month" and hopeless for a date of birth — reaching
+ * 1987 from today is 460 clicks. Typing "1987" is one. DayPicker's own
+ * `Dropdown` renders the entire dropdown root, so replacing it swaps the whole
+ * control rather than nesting one inside another.
+ */
+function CalendarDropdown({ options, value, onChange, 'aria-label': ariaLabel }: DropdownProps) {
+  const items: DropdownItem[] =
+    options?.map((option) => ({
+      value: option.value.toString(),
+      label: option.label,
+      disabled: option.disabled,
+    })) ?? [];
+  const selected = items.find((item) => item.value === value?.toString());
+
+  return (
+    <Combobox
+      aria-label={ariaLabel}
+      autoHighlight
+      items={items}
+      value={selected}
+      onValueChange={(next: DropdownItem | null) => {
+        if (!next) return;
+        // DayPicker expects a change event off a <select>, which is what it
+        // would have rendered. Nothing downstream reads any other field.
+        onChange?.({
+          target: { value: next.value },
+        } as React.ChangeEvent<HTMLSelectElement>);
+      }}
+    >
+      <ComboboxInput
+        className="**:[input]:w-0 **:[input]:flex-1"
+        // Select-on-focus so typing replaces the month rather than appending
+        // to it — the field is pre-filled with the current one.
+        onFocus={(event) => event.currentTarget.select()}
+      />
+      <ComboboxPopup aria-label={ariaLabel}>
+        <ComboboxEmpty>Nothing matches that.</ComboboxEmpty>
+        <ComboboxList>
+          {(item: DropdownItem) => (
+            <ComboboxItem key={item.value} value={item} disabled={item.disabled}>
+              {item.label}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxPopup>
+    </Combobox>
+  );
+}
+
 export interface DatePickerProps {
   /** ISO `yyyy-mm-dd`, or empty/null for no selection. */
   value?: string | null;
@@ -99,6 +167,17 @@ export function DatePicker({
     ...(maxDate ? [{ after: maxDate }] : []),
   ];
 
+  /*
+   * The year list the dropdown offers. Bounded by min/max where a field has
+   * them, and otherwise generous in both directions — the same control is used
+   * for a date of birth (decades back) and a payroll effective date (this
+   * year). A long list costs nothing here because the dropdown is searchable;
+   * a list that is too short makes a date unreachable, which is worse.
+   */
+  const today = new Date();
+  const startMonth = minDate ?? new Date(today.getFullYear() - 100, 0);
+  const endMonth = maxDate ?? new Date(today.getFullYear() + 10, 11);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -125,6 +204,10 @@ export function DatePicker({
         <Calendar
           mode="single"
           autoFocus
+          captionLayout="dropdown"
+          components={{ Dropdown: CalendarDropdown }}
+          startMonth={startMonth}
+          endMonth={endMonth}
           selected={selected}
           defaultMonth={selected ?? minDate}
           disabled={outOfRange.length ? outOfRange : undefined}

@@ -119,6 +119,14 @@ export const payrollRunActionSchema = z.object({
 export const payrollRunQuerySchema = paginationQuerySchema.extend({
   status: z.enum(RUN_STATUSES).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
+  /*
+   * Newest first, unlike every other list. A payroll list is a ledger: the
+   * month you want is almost always the most recent one. It also makes
+   * `data[0]` genuinely the latest run, which the dashboard tile and the
+   * reports month picker both assume — with the shared ascending default they
+   * were quietly showing the oldest.
+   */
+  order: z.enum(['asc', 'desc']).default('desc'),
 });
 
 // ── Payslips ──────────────────────────────────────────────────────────

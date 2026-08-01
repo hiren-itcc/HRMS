@@ -64,3 +64,21 @@ Same endpoints; refresh token returned in body when client sends `X-Client: mobi
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env
 - [ ] 2FA (TOTP) — future expansion (doc 11), `User` table extends cleanly
 - [ ] SSO (OIDC/SAML) — future; Passport strategy slot already isolated in `auth/strategies/`
+
+## Accounts created with an employee
+
+Creating an employee creates their sign-in in the same transaction, using
+their work email. Half of that succeeding is the failure mode it exists to
+prevent: an employee row nobody can log in as.
+
+The account starts on `DEFAULT_USER_PASSWORD` and carries
+`User.mustChangePassword`. That flag is what makes a shared default
+acceptable — sign-in succeeds, but the app sends them to change it before
+anything else, and any password change clears it. It is not a lockout: the
+guard is in the dashboard layout, so the API is unchanged and a client that
+ignores the flag simply keeps a guessable password, which is the user's
+own risk rather than a hole.
+
+Creating a sign-in needs `employee.invite`, separately from
+`employee.create` — issuing credentials is not the same act as recording a
+person.

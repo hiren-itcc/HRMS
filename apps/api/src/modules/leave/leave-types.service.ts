@@ -69,8 +69,12 @@ export class LeaveTypesService {
   }
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: Prisma Decimal rows vary by query shape
-export function mapType(row: any) {
+/*
+ * Generic rather than `any`: the caller's own fields keep their types through
+ * the spread, and the two Decimal columns this actually converts are checked.
+ * `any` meant renaming either column compiled clean and shipped undefined.
+ */
+export function mapType<T extends { daysPerYear: unknown; maxCarryForward: unknown }>(row: T) {
   return {
     ...row,
     daysPerYear: toNumber(row.daysPerYear),

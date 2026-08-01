@@ -23,6 +23,36 @@ const INCLUDE = {
   _count: { select: { reads: true } },
 } as const;
 
+/*
+ * What `toDto` reads, rather than one specific Prisma include — list and
+ * detail queries pass different shapes, which is what `any` was hiding. The
+ * optional members are the ones only some queries include.
+ */
+interface AnnouncementRow {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  priority: string;
+  audience: string;
+  departmentId: string | null;
+  locationId: string | null;
+  isPinned: boolean;
+  publishAt: Date;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  authorId: string;
+  attachments?: unknown[];
+  reads?: unknown[];
+  _count?: { reads: number };
+}
+
+interface AuthorRow {
+  email: string;
+  employee: { firstName: string; lastName: string; avatarUrl: string | null } | null;
+}
+
 @Injectable()
 export class AnnouncementsService {
   private readonly maxBytes: number;
@@ -399,8 +429,7 @@ export class AnnouncementsService {
     return new Map(users.map((u) => [u.id, u]));
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: Prisma row shapes vary by include
-  private toDto(row: any, authors: Map<string, any>, now: Date) {
+  private toDto(row: AnnouncementRow, authors: Map<string, AuthorRow>, now: Date) {
     const author = authors.get(row.authorId);
     return {
       id: row.id,

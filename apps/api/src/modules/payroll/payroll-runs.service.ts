@@ -262,43 +262,65 @@ export class PayrollRunsService {
       await tx.payslipLine.deleteMany({ where: { payslip: { runId: id } } });
       await tx.payslip.deleteMany({ where: { runId: id } });
 
-      for (const { employee, salary, calc } of payslips) {
-        await tx.payslip.create({
-          data: {
-            organizationId: claims.orgId,
-            runId: id,
-            employeeId: employee.id,
-            // Snapshot: a payslip must still read true after a rename,
-            // transfer, promotion or structure edit.
-            employeeCode: employee.employeeCode,
-            employeeName: `${employee.firstName} ${employee.lastName}`,
-            departmentName: employee.department?.name ?? null,
-            designationName: employee.designation?.title ?? null,
-            structureName: salary.structure.name,
-            bankName: employee.bankDetail?.bankName ?? null,
-            accountNumberMasked: maskAccount(employee.bankDetail?.accountNumber),
-            ifsc: employee.bankDetail?.ifscCode ?? null,
-            workingDays: calc.workingDays,
-            lopDays: calc.lopDays,
-            payableDays: calc.payableDays,
-            grossEarnings: calc.grossEarnings,
-            totalDeductions: calc.totalDeductions,
-            employerContribution: calc.employerContribution,
-            netPay: calc.netPay,
-            carriedShortfall: calc.carriedShortfall,
-            paymentMethod: salary.paymentMethod,
-            lines: {
-              create: calc.lines.map((line) => ({
-                componentCode: line.code,
-                componentName: line.name,
-                kind: line.kind,
-                amount: line.amount,
-                order: line.order,
-              })),
-            },
-          },
-        });
-      }
+      /*
+       * Two statements, whatever the headcount.
+       *
+       * This was a nested `create` per employee, which meant one round trip
+       * each, sequentially, inside this transaction — so the transaction's
+       * duration grew with the payroll and eventually exceeded Prisma's
+       * interactive-transaction timeout. A payroll that fails because the
+       * company hired people is not a payroll.
+       *
+       * `createManyAndReturn` gives back the generated ids, so the lines can
+       * be inserted in one further statement without pre-generating ids.
+       */
+      const created = await tx.payslip.createManyAndReturn({
+        data: payslips.map(({ employee, salary, calc }) => ({
+          organizationId: claims.orgId,
+          runId: id,
+          employeeId: employee.id,
+          // Snapshot: a payslip must still read true after a rename,
+          // transfer, promotion or structure edit.
+          employeeCode: employee.employeeCode,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          departmentName: employee.department?.name ?? null,
+          designationName: employee.designation?.title ?? null,
+          structureName: salary.structure.name,
+          bankName: employee.bankDetail?.bankName ?? null,
+          accountNumberMasked: maskAccount(employee.bankDetail?.accountNumber),
+          ifsc: employee.bankDetail?.ifscCode ?? null,
+          workingDays: calc.workingDays,
+          lopDays: calc.lopDays,
+          payableDays: calc.payableDays,
+          grossEarnings: calc.grossEarnings,
+          totalDeductions: calc.totalDeductions,
+          employerContribution: calc.employerContribution,
+          netPay: calc.netPay,
+          carriedShortfall: calc.carriedShortfall,
+          paymentMethod: salary.paymentMethod,
+        })),
+        select: { id: true, employeeId: true },
+      });
+
+      // Keyed by employee: `createManyAndReturn` preserves input order on
+      // PostgreSQL, but pairing on the id rather than the index means a change
+      // to that guarantee cannot silently attach lines to the wrong payslip.
+      const payslipIdByEmployee = new Map(created.map((row) => [row.employeeId, row.id]));
+
+      await tx.payslipLine.createMany({
+        data: payslips.flatMap(({ employee, calc }) => {
+          const payslipId = payslipIdByEmployee.get(employee.id);
+          if (!payslipId) return [];
+          return calc.lines.map((line) => ({
+            payslipId,
+            componentCode: line.code,
+            componentName: line.name,
+            kind: line.kind,
+            amount: line.amount,
+            order: line.order,
+          }));
+        }),
+      });
 
       const totals = payslips.reduce(
         (acc, { calc }) => ({

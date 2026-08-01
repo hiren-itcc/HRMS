@@ -49,6 +49,10 @@ model User {
   email          String     @unique
   passwordHash   String
   status         UserStatus @default(INVITED)
+  /// Set when an account is created with a shared default password. Login
+  /// succeeds but the app sends them straight to change it, so a predictable
+  /// credential is never a usable one for long.
+  mustChangePassword Boolean @default(false)
   roleId         String
   lastLoginAt    DateTime?
   createdAt      DateTime   @default(now())

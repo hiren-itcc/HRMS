@@ -23,7 +23,10 @@ export const employeesApi = {
   detail: (id: string) => api<EmployeeDetail>(`/employees/${id}`),
   options: () => api<EmployeeOption[]>('/employees/options'),
   create: (input: EmployeeCreateInput) =>
-    api<EmployeeListItem>('/employees', { method: 'POST', body: JSON.stringify(input) }),
+    api<EmployeeListItem & { loginCreated: boolean; loginEmail: string | null }>('/employees', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   update: (id: string, input: EmployeeUpdateInput) =>
     api<EmployeeListItem>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => api<void>(`/employees/${id}`, { method: 'DELETE' }),
