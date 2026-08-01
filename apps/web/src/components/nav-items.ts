@@ -1,6 +1,6 @@
 import type { Permission } from '@hrms/shared';
 import {
-  Bell,
+  BarChart3,
   CalendarClock,
   FileText,
   LayoutDashboard,
@@ -34,6 +34,11 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/leave', label: 'Leave', icon: Palmtree },
   { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '#reports', label: 'Reports', icon: Bell, soon: true },
+  {
+    href: '/reports',
+    label: 'Reports',
+    icon: BarChart3,
+    perms: ['report.view', 'report.view.team'],
+  },
   { href: '#settings', label: 'Settings', icon: Settings, soon: true },
 ];

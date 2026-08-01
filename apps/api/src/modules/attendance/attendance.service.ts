@@ -244,6 +244,14 @@ export class AttendanceService {
       this.isHoliday(claims.orgId, dateKey),
     ]);
 
+    // Approved leave must win over "absent" here too — without this an
+    // employee on sanctioned leave reads as ABSENT to their manager.
+    const leave = await this.leaveKeys(
+      employees.map((e) => e.id),
+      toDate(dateKey),
+      toDate(dateKey),
+    );
+
     const data = employees.map((e) => ({
       employee: {
         id: e.id,
@@ -253,10 +261,17 @@ export class AttendanceService {
         avatarUrl: e.avatarUrl,
         department: e.department?.name ?? null,
       },
-      ...this.toDayEntry(dateKey, e.attendance[0] ?? null, todayKey, isHoliday, {
-        joinDate: dateKeyOf(e.joinDate),
-        exitDate: e.exitDate ? dateKeyOf(e.exitDate) : null,
-      }),
+      ...this.toDayEntry(
+        dateKey,
+        e.attendance[0] ?? null,
+        todayKey,
+        isHoliday,
+        {
+          joinDate: dateKeyOf(e.joinDate),
+          exitDate: e.exitDate ? dateKeyOf(e.exitDate) : null,
+        },
+        leave.has(`${e.id}|${dateKey}`),
+      ),
     }));
     return { date: dateKey, ...toPaginated(data, total, query) };
   }
@@ -299,6 +314,14 @@ export class AttendanceService {
       this.holidayKeys(claims.orgId, from, to),
     ]);
 
+    // Leave days counted as absences would understate attendance and
+    // penalise people on sanctioned leave in every report built on this.
+    const leave = await this.leaveKeys(
+      employees.map((e) => e.id),
+      from,
+      to,
+    );
+
     const data = employees.map((e) => {
       const byDate = new Map(e.attendance.map((r) => [dateKeyOf(r.date), r]));
       const employment = {
@@ -312,6 +335,7 @@ export class AttendanceService {
           todayKey,
           holidays.has(dateKey),
           employment,
+          leave.has(`${e.id}|${dateKey}`),
         ),
       );
       return {

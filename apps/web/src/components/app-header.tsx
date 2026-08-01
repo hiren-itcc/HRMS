@@ -22,7 +22,7 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="glass sticky top-0 z-40">
+    <header className="glass sticky top-0 z-40 print:hidden">
       <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex items-center gap-2">
           {/* Mobile: slide-over navigation */}

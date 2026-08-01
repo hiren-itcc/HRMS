@@ -38,6 +38,7 @@ export const config = {
     '/leave/:path*',
     '/documents/:path*',
     '/announcements/:path*',
+    '/reports/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',

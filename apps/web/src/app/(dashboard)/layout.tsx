@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader />
-        <main className="mx-auto w-full max-w-6xl flex-1 animate-in fade-in px-4 py-8 duration-300 sm:px-6">
+        <main className="mx-auto w-full max-w-6xl flex-1 animate-in fade-in px-4 py-8 duration-300 sm:px-6 print:max-w-none print:p-0">
           {status === 'authenticated' ? (
             children
           ) : (

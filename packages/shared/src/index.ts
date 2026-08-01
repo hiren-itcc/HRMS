@@ -7,3 +7,4 @@ export * from './schemas/document';
 export * from './schemas/employee';
 export * from './schemas/leave';
 export * from './schemas/organization';
+export * from './schemas/report';

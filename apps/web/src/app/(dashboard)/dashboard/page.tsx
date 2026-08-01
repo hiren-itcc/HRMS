@@ -32,6 +32,7 @@ import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
+import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
 
 const ONE_PAGE = { page: 1, limit: 1 };
 
@@ -308,6 +309,8 @@ export default function DashboardPage() {
         </Card>
 
         <AnnouncementsWidget />
+
+        <HeadcountWidget />
 
         {canOrg && (
           <Card className="hover-lift">

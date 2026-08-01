@@ -113,7 +113,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'sticky top-0 hidden h-dvh shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out lg:flex',
+        'sticky top-0 hidden h-dvh shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out lg:flex print:hidden',
         collapsed ? 'w-16' : 'w-60',
       )}
     >

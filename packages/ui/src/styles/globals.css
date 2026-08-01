@@ -49,10 +49,13 @@
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #6366f1;
 
+  /* Categorical series colours — fixed order, never cycled.
+     Validated (dataviz): lightness band, chroma, CVD + normal-vision
+     separation all pass on the light surface. */
   --chart-1: #6366f1;
-  --chart-2: #06b6d4;
-  --chart-3: #10b981;
-  --chart-4: #f59e0b;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #06b6d4;
   --chart-5: #ec4899;
 }
 
@@ -93,11 +96,13 @@
   --sidebar-border: rgba(148, 163, 184, 0.14);
   --sidebar-ring: #818cf8;
 
-  --chart-1: #818cf8;
-  --chart-2: #22d3ee;
-  --chart-3: #34d399;
-  --chart-4: #fbbf24;
-  --chart-5: #f472b6;
+  /* Dark is selected, not flipped: darker steps to sit inside the dark
+     lightness band while keeping 3:1 against the card surface. */
+  --chart-1: #6366f1;
+  --chart-2: #059669;
+  --chart-3: #d97706;
+  --chart-4: #0891b2;
+  --chart-5: #ec4899;
 }
 
 @theme inline {
@@ -230,5 +235,61 @@
       transition: none;
       transform: none;
     }
+  }
+}
+
+/* ── Print ────────────────────────────────────────────────────────────────
+   "Export → PDF" is the browser's print-to-PDF, so the printed page has to
+   stand on its own: no app chrome, light tokens regardless of the on-screen
+   theme, and charts that actually render ink. */
+@media print {
+  :root,
+  .dark {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --muted: #f1f5f9;
+    --muted-foreground: #475569;
+    --border: #cbd5e1;
+    --chart-1: #6366f1;
+    --chart-2: #10b981;
+    --chart-3: #f59e0b;
+    --chart-4: #06b6d4;
+    --chart-5: #ec4899;
+  }
+
+  /* Without this, browsers drop background fills — every stat tile and bar
+     would print as an empty outline. */
+  *,
+  *::before,
+  *::after {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Framer Motion writes opacity/transform as *inline* styles, so only
+     !important can reach them. Anything caught mid-animation would otherwise
+     print as a blank rectangle — a silent failure on paper. */
+  body * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  [data-sonner-toaster] {
+    display: none;
+  }
+
+  .break-inside-avoid,
+  table {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  @page {
+    margin: 14mm;
   }
 }

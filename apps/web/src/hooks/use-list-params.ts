@@ -45,6 +45,13 @@ export function useListParams(defaultSort: string) {
           page: undefined,
         }),
       setFilter: (key: string, value: string | undefined) => set({ [key]: value, page: undefined }),
+      /**
+       * Writes several params at once. Required whenever a control owns more
+       * than one key (a date range writes `from` and `to`): chaining
+       * `setFilter` twice would build both URLs from the same stale
+       * searchParams, so the second write would drop the first.
+       */
+      setFilters: (patch: Record<string, string | undefined>) => set({ ...patch, page: undefined }),
     };
   }, [searchParams, defaultSort, set]);
 }
