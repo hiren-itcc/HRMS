@@ -90,12 +90,14 @@ export class ReportsController {
     name: string,
     build: () => Promise<ReportResult>,
   ): Promise<ReportResult | string> {
-    const result = await build();
-    if (query.format === 'json') return result;
-
-    if (!new Set(user.perms).has('report.export')) {
+    // Checked before the report is built: a rejected export should not first
+    // cost a full 366-day aggregation.
+    if (query.format !== 'json' && !new Set(user.perms).has('report.export')) {
       throw new ForbiddenException('You do not have permission to export reports');
     }
+
+    const result = await build();
+    if (query.format === 'json') return result;
 
     const { body, contentType, extension } = serializeReport(
       query.format,

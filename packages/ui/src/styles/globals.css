@@ -271,7 +271,10 @@
   /* Framer Motion writes opacity/transform as *inline* styles, so only
      !important can reach them. Anything caught mid-animation would otherwise
      print as a blank rectangle — a silent failure on paper. */
-  body * {
+  /* `:not(svg *)` matters: SVG `transform` is a presentation attribute mapped
+     to the CSS property, so an unscoped reset would re-centre every Recharts
+     legend swatch (they are positioned with translate()) on the icon origin. */
+  body *:not(svg *) {
     /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
     opacity: 1 !important;
     /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */

@@ -12,9 +12,20 @@ export type ReportRow = Record<string, string | number | null | undefined>;
 /** Excel only honours UTF-8 in CSV when the byte-order mark is present. */
 export const UTF8_BOM = '﻿';
 
+/**
+ * Spreadsheets evaluate any cell starting with one of these, so an employee
+ * who names themselves `=HYPERLINK(...)` would get their formula executed in
+ * HR's Excel. Prefixing with an apostrophe forces the cell to text and is
+ * stripped on display (CSV injection, CWE-1236).
+ */
+const FORMULA_TRIGGERS = /^[=+\-@\t\r]/;
+
 function csvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const text = String(value);
+  // Numbers are ours, not user input, and must stay numeric to be summable.
+  if (typeof value === 'number') return String(value);
+  const raw = String(value);
+  const text = FORMULA_TRIGGERS.test(raw) ? `'${raw}` : raw;
   // Quote when the field contains a delimiter, quote or newline; escape
   // embedded quotes by doubling them (RFC 4180).
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;

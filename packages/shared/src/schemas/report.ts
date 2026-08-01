@@ -65,6 +65,8 @@ export interface ReportResult {
     to: string;
     generatedAt: string;
     scope: 'org' | 'team';
+    /** True when the roster hit its cap — the figures cover only part of the org. */
+    truncated?: boolean;
   };
   kpis: ReportKpi[];
   charts: ReportChart[];

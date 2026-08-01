@@ -39,6 +39,22 @@ describe('toCsv', () => {
     expect(toCsv(columns, [{ name: 'Zoë Müller', days: 2 }])).toContain('Zoë Müller');
   });
 
+  it.each(['=1+1', '+1', '-1+1', '@SUM(A1)', '\tSUM(A1)', '\rSUM(A1)'])(
+    'neutralises the formula trigger in %j',
+    (name) => {
+      const cell = toCsv(columns, [{ name, days: 1 }]).split('\r\n')[1] ?? '';
+      expect(cell.startsWith("'") || cell.startsWith('"\'')).toBe(true);
+    },
+  );
+
+  it('leaves negative numbers numeric so they still sum in Excel', () => {
+    expect(toCsv(columns, [{ name: 'Asha', days: -3 }])).toContain('Asha,-3');
+  });
+
+  it('does not touch a name that merely contains an equals sign', () => {
+    expect(toCsv(columns, [{ name: 'A=B', days: 1 }])).toContain('A=B,1');
+  });
+
   it('separates rows with CRLF', () => {
     const csv = toCsv(columns, [
       { name: 'a', days: 1 },

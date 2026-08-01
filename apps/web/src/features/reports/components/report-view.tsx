@@ -156,6 +156,15 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
         </p>
       </div>
 
+      {data?.meta.truncated && (
+        <FadeInItem>
+          <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            This organisation is larger than one report can cover, so these figures include only the
+            first 5,000 employees. Narrow the range or filter by department for accurate numbers.
+          </p>
+        </FadeInItem>
+      )}
+
       {query.isError ? (
         <FadeInItem>
           <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-destructive text-sm">

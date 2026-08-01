@@ -4,8 +4,9 @@ import { Injectable } from '@nestjs/common';
 import { dateKeyOf, eachDayKey, isWeekend, toDate } from '../../common/utils/calendar';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
-import { deriveDayStatus } from '../attendance/attendance.util';
+import { dateKeyInTz, deriveDayStatus } from '../attendance/attendance.util';
 import { toNumber } from '../leave/leave.mapper';
+import { round1 } from '../leave/leave.util';
 import {
   attritionRate,
   monthKeyOf,
@@ -120,6 +121,19 @@ export class ReportsService {
     }));
   }
 
+  /**
+   * "Today" must be the organisation's today, not the server's. In UTC+X an
+   * evening request would roll the date forward and mark everyone who has not
+   * clocked in yet ABSENT instead of NOT_MARKED.
+   */
+  private async orgTodayKey(orgId: string): Promise<string> {
+    const org = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+      select: { timezone: true },
+    });
+    return dateKeyInTz(new Date(), org.timezone);
+  }
+
   private async holidayKeys(orgId: string, from: Date, to: Date): Promise<Set<string>> {
     const holidays = await this.prisma.holiday.findMany({
       where: { organizationId: orgId, date: { gte: from, lte: to } },
@@ -148,13 +162,15 @@ export class ReportsService {
     return keys;
   }
 
-  private meta(scope: ReportScope, title: string): ReportResult['meta'] {
+  private meta(scope: ReportScope, title: string, roster: RosterRow[]): ReportResult['meta'] {
     return {
       title,
       from: scope.from,
       to: scope.to,
       generatedAt: new Date().toISOString(),
       scope: scope.isOrgWide ? 'org' : 'team',
+      // Silence here would read as "this is everyone" when it is not.
+      ...(roster.length >= MAX_ROSTER ? { truncated: true } : {}),
     };
   }
 
@@ -162,30 +178,42 @@ export class ReportsService {
 
   async employees(claims: AccessTokenClaims, query: ReportRangeQuery): Promise<ReportResult> {
     const scope = this.resolveScope(claims, query);
-    const roster = await this.roster(scope);
-    const asOf = toDate(scope.to);
+    const [roster, todayKey] = await Promise.all([
+      this.roster(scope),
+      this.orgTodayKey(claims.orgId),
+    ]);
+    // Tenure is "so far", so a range ending in the future must not age people
+    // up — a default preset runs to the end of the current month.
+    const asOf = toDate(scope.to < todayKey ? scope.to : todayKey);
 
     const employedOn = (dateKey: string) =>
       roster.filter((e) => e.joinDate <= dateKey && (!e.exitDate || e.exitDate >= dateKey)).length;
+    const inRange = (dateKey: string) => dateKey >= scope.from && dateKey <= scope.to;
 
     const months = monthKeysBetween(scope.from, scope.to);
-    const trend = months.map((month) => {
+    const trend = months.map((month, i) => {
       // Compared as a string, never parsed — "-31" sorts after every real day
-      // of that month, so it means "as of month end" for February too.
-      const monthEnd = `${month}-31`;
+      // of that month, so it means "as of month end" for February too. The
+      // final bucket stops at `to` so the line's last point and the headcount
+      // KPI are the same number.
+      const monthEnd = i === months.length - 1 ? scope.to : `${month}-31`;
       return {
         month,
         headcount: employedOn(monthEnd),
-        joiners: roster.filter((e) => monthKeyOf(toDate(e.joinDate)) === month).length,
-        leavers: roster.filter((e) => e.exitDate && monthKeyOf(toDate(e.exitDate)) === month)
-          .length,
+        // Clamped to the range, not the calendar month: the roster covers
+        // anyone employed for *part* of the range, so an unclamped month
+        // bucket would count a join that happened before `from`.
+        joiners: roster.filter(
+          (e) => monthKeyOf(toDate(e.joinDate)) === month && inRange(e.joinDate),
+        ).length,
+        leavers: roster.filter(
+          (e) => e.exitDate && monthKeyOf(toDate(e.exitDate)) === month && inRange(e.exitDate),
+        ).length,
       };
     });
 
-    const exits = roster.filter(
-      (e) => e.exitDate && e.exitDate >= scope.from && e.exitDate <= scope.to,
-    ).length;
-    const active = roster.filter((e) => e.status === 'ACTIVE').length;
+    const exits = roster.filter((e) => e.exitDate && inRange(e.exitDate)).length;
+    const active = employedOn(scope.to);
 
     const byDepartment = countBy(roster, (e) => e.departmentName);
     const byType = countBy(roster, (e) => e.employmentTypeName);
@@ -248,9 +276,9 @@ export class ReportsService {
     ];
 
     return {
-      meta: this.meta(scope, 'Employee report'),
+      meta: this.meta(scope, 'Employee report', roster),
       kpis: [
-        { key: 'headcount', label: 'Active headcount', value: active },
+        { key: 'headcount', label: 'Headcount at period end', value: active },
         { key: 'joiners', label: 'Joined in range', value: countJoiners(roster, scope) },
         { key: 'leavers', label: 'Exited in range', value: exits },
         {
@@ -282,10 +310,12 @@ export class ReportsService {
 
   async attendance(claims: AccessTokenClaims, query: ReportRangeQuery): Promise<ReportResult> {
     const scope = this.resolveScope(claims, query);
-    const roster = await this.roster(scope);
+    const [roster, todayKey] = await Promise.all([
+      this.roster(scope),
+      this.orgTodayKey(claims.orgId),
+    ]);
     const ids = roster.map((e) => e.id);
     const days = eachDayKey(scope.from, scope.to);
-    const todayKey = dateKeyOf(new Date());
 
     const [records, holidays, leave] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
@@ -342,8 +372,11 @@ export class ReportsService {
           workingDays += 1;
           if (bucket) bucket.absent += 1;
         } else if (status === 'ON_LEAVE') {
+          // Sanctioned leave stays out of the denominator. Counting it would
+          // score someone on 20 days of approved leave in a 22-day month at
+          // ~9%, which is the very penalty the ON_LEAVE derivation exists to
+          // prevent. Leave utilisation is the leave report's job.
           totals.onLeave += 1;
-          workingDays += 1;
           if (bucket) bucket.onLeave += 1;
         }
         if (record?.isLate) {
@@ -373,14 +406,13 @@ export class ReportsService {
     const totalPresent = sum(rows.map((r) => r.row.present));
     const totalAbsent = sum(rows.map((r) => r.row.absent));
     const totalHalf = sum(rows.map((r) => r.row.halfDay));
-    const totalLeave = sum(rows.map((r) => r.row.onLeave));
 
     const byDept = groupNumeric(
       rows,
       (r) => r.departmentName,
       (r) => ({
         present: r.row.present + r.row.halfDay * 0.5,
-        working: r.row.present + r.row.halfDay + r.row.absent + r.row.onLeave,
+        working: r.row.present + r.row.halfDay + r.row.absent,
       }),
     );
 
@@ -424,15 +456,12 @@ export class ReportsService {
     ];
 
     return {
-      meta: this.meta(scope, 'Attendance report'),
+      meta: this.meta(scope, 'Attendance report', roster),
       kpis: [
         {
           key: 'rate',
           label: 'Attendance rate',
-          value: percentage(
-            totalPresent + totalHalf * 0.5,
-            totalPresent + totalHalf + totalAbsent + totalLeave,
-          ),
+          value: percentage(totalPresent + totalHalf * 0.5, totalPresent + totalHalf + totalAbsent),
           unit: 'percent',
         },
         { key: 'present', label: 'Present days', value: totalPresent },
@@ -441,7 +470,9 @@ export class ReportsService {
         {
           key: 'hours',
           label: 'Hours worked',
-          value: sum(rows.map((r) => r.row.hours)),
+          // Summing one-decimal floats drifts (8.1 + 8.2 = 16.299999999999997),
+          // and this value is rendered straight onto the card.
+          value: round1(sum(rows.map((r) => r.row.hours))),
           unit: 'hours',
         },
       ],
@@ -545,7 +576,7 @@ export class ReportsService {
         leaveType: typeName.get(b.leaveTypeId) ?? 'Unknown',
         allocated,
         used,
-        remaining: Math.round((allocated - used) * 10) / 10,
+        remaining: round1(allocated - used),
       };
     });
 
@@ -595,12 +626,12 @@ export class ReportsService {
     ];
 
     return {
-      meta: this.meta(scope, 'Leave report'),
+      meta: this.meta(scope, 'Leave report', roster),
       kpis: [
         {
           key: 'days',
           label: 'Days taken',
-          value: Math.round(sum([...perEmployee.values()]) * 10) / 10,
+          value: round1(sum([...perEmployee.values()])),
           unit: 'days',
         },
         { key: 'requests', label: 'Requests raised', value: requests.length },
@@ -631,7 +662,7 @@ export class ReportsService {
         employeeCode: e.employeeCode,
         name: `${e.firstName} ${e.lastName}`,
         department: e.departmentName,
-        daysTaken: Math.round((perEmployee.get(e.id) ?? 0) * 10) / 10,
+        daysTaken: round1(perEmployee.get(e.id) ?? 0),
       })),
     };
   }
@@ -659,11 +690,9 @@ export class ReportsService {
       const key = String(row.department ?? 'Unassigned');
       const acc = attendanceByDept.get(key) ?? { present: 0, working: 0, late: 0 };
       acc.present += Number(row.present ?? 0) + Number(row.halfDay ?? 0) * 0.5;
-      acc.working +=
-        Number(row.present ?? 0) +
-        Number(row.halfDay ?? 0) +
-        Number(row.absent ?? 0) +
-        Number(row.onLeave ?? 0);
+      // Approved leave is out of the denominator here too, matching the
+      // attendance report exactly.
+      acc.working += Number(row.present ?? 0) + Number(row.halfDay ?? 0) + Number(row.absent ?? 0);
       acc.late += Number(row.late ?? 0);
       attendanceByDept.set(key, acc);
     }
@@ -674,12 +703,15 @@ export class ReportsService {
       leaveByDept.set(key, (leaveByDept.get(key) ?? 0) + Number(row.daysTaken ?? 0));
     }
 
-    // Departments with nobody in scope still get a row — a bar chart with
-    // silently missing bars reads as "no such department", not "zero".
-    const names = new Set([
-      ...allDepartments.map((d) => d.name),
-      ...roster.map((e) => e.departmentName),
-    ]);
+    // Org-wide readers get a row per department, including empty ones — a bar
+    // chart with silently missing bars reads as "no such department", not
+    // "zero". A team-scoped manager gets only the departments their reports
+    // are in: the full org list (with each department's head) is data their
+    // permissions do not otherwise reach.
+    const inScopeNames = new Set(roster.map((e) => e.departmentName));
+    const names = scope.isOrgWide
+      ? new Set([...allDepartments.map((d) => d.name), ...inScopeNames])
+      : inScopeNames;
     const headByName = new Map(
       allDepartments.map((d) => [d.name, d.head ? `${d.head.firstName} ${d.head.lastName}` : '—']),
     );
@@ -695,24 +727,33 @@ export class ReportsService {
           (e) => e.joinDate >= scope.from && e.joinDate <= scope.to,
         ).length;
         const att = attendanceByDept.get(name);
-        const headcount = people.filter((e) => e.status === 'ACTIVE').length;
+        const employedOn = (dateKey: string) =>
+          people.filter((e) => e.joinDate <= dateKey && (!e.exitDate || e.exitDate >= dateKey))
+            .length;
         return {
           department: name,
           head: headByName.get(name) ?? '—',
-          headcount,
+          headcount: employedOn(scope.to),
           joiners,
           leavers: exits,
-          attrition: attritionRate(exits, headcount + exits, headcount),
+          // Same start/end headcounts the employee report uses; estimating the
+          // start as "current + exits" ignores joiners and disagrees with it.
+          attrition: attritionRate(exits, employedOn(scope.from), employedOn(scope.to)),
           attendanceRate: att ? percentage(att.present, att.working) : 0,
           lateMarks: att?.late ?? 0,
-          leaveDays: Math.round((leaveByDept.get(name) ?? 0) * 10) / 10,
+          leaveDays: round1(leaveByDept.get(name) ?? 0),
         };
       });
 
+    // Averaged over departments that actually have people — dividing by every
+    // department in the org drags the figure toward zero and contradicts the
+    // same number on the attendance tab.
+    const staffed = rows.filter((r) => r.headcount > 0);
+
     return {
-      meta: this.meta(scope, 'Department report'),
+      meta: this.meta(scope, 'Department report', roster),
       kpis: [
-        { key: 'departments', label: 'Departments', value: rows.length },
+        { key: 'departments', label: 'Departments with staff', value: staffed.length },
         { key: 'headcount', label: 'Total headcount', value: sum(rows.map((r) => r.headcount)) },
         {
           key: 'largest',
@@ -722,8 +763,8 @@ export class ReportsService {
         {
           key: 'rate',
           label: 'Average attendance',
-          value: rows.length
-            ? Math.round((sum(rows.map((r) => r.attendanceRate)) / rows.length) * 10) / 10
+          value: staffed.length
+            ? round1(sum(staffed.map((r) => r.attendanceRate)) / staffed.length)
             : 0,
           unit: 'percent',
         },

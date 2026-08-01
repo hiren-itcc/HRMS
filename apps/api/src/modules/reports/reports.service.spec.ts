@@ -32,6 +32,7 @@ function makePrisma() {
         return [];
       }),
     },
+    organization: { findUniqueOrThrow: jest.fn(async () => ({ timezone: 'Asia/Kolkata' })) },
     holiday: { findMany: jest.fn(async () => []) },
     leaveRequest: { findMany: jest.fn(async () => []) },
     leaveBalance: { groupBy: jest.fn(async () => []) },
