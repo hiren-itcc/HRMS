@@ -109,3 +109,12 @@ export function defaultSettings(): OrgSettings {
     modules: {},
   });
 }
+
+// ── Email templates ───────────────────────────────────────────────────
+
+export const emailTemplateUpdateSchema = z.object({
+  subject: z.string().trim().min(1, 'Subject is required').max(200),
+  bodyHtml: z.string().trim().min(1, 'Body is required').max(20_000),
+  isActive: z.boolean(),
+});
+export type EmailTemplateUpdateInput = z.infer<typeof emailTemplateUpdateSchema>;

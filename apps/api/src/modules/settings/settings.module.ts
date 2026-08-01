@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { EmailTemplatesService } from './email-templates.service';
 import { SettingsController } from './settings.controller';
 import { SettingsService } from './settings.service';
 
@@ -10,7 +11,7 @@ import { SettingsService } from './settings.service';
 @Global()
 @Module({
   controllers: [SettingsController],
-  providers: [SettingsService],
-  exports: [SettingsService],
+  providers: [SettingsService, EmailTemplatesService],
+  exports: [SettingsService, EmailTemplatesService],
 })
 export class SettingsModule {}

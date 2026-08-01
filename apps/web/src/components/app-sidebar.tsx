@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { useSession } from '@/components/session-provider';
+import { useOrgSettings } from '@/features/settings/api';
 import { useUiStore } from '@/stores/ui-store';
 
 export function SidebarNav({
@@ -25,9 +26,17 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const { can } = useSession();
+  const settings = useOrgSettings();
   const reduceMotion = useReducedMotion();
 
-  const items = NAV_ITEMS.filter((item) => !item.perms || item.perms.some((p) => can(p)));
+  // While settings are loading `modules` is undefined — treat that as "show
+  // everything" so the nav never flickers empty on first paint.
+  const modules = settings.data?.modules;
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      (!item.perms || item.perms.some((p) => can(p))) &&
+      (!item.module || modules === undefined || modules[item.module]),
+  );
 
   return (
     <TooltipProvider delayDuration={0}>

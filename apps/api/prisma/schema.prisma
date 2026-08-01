@@ -23,12 +23,14 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   users        User[]
+  roles        Role[]
   employees    Employee[]
   departments  Department[]
   designations Designation[]
   locations    Location[]
   holidays     Holiday[]
-  settings     Setting[]
+  settings       Setting[]
+  emailTemplates EmailTemplate[]
 }
 
 enum UserStatus {
@@ -55,6 +57,7 @@ model User {
   resetTokens  PasswordResetToken[]
 
   @@index([organizationId])
+  @@index([roleId])
 }
 
 model PasswordResetToken {
@@ -71,14 +74,19 @@ model PasswordResetToken {
 }
 
 model Role {
-  id          String  @id @default(cuid())
-  code        String  @unique
-  name        String
-  description String?
-  isSystem    Boolean @default(false)
+  id             String  @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  description    String?
+  isSystem       Boolean @default(false)
 
-  users       User[]
-  permissions RolePermission[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  users        User[]
+  permissions  RolePermission[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
 }
 
 model Permission {
@@ -559,6 +567,22 @@ model Setting {
   @@id([organizationId, key])
 }
 
+/// Subject/body for system emails, editable from Settings. Keyed by a stable
+/// template key; a missing or inactive row falls back to the built-in default
+/// so a bad edit can never stop password reset from sending.
+model EmailTemplate {
+  organizationId String
+  key            String
+  subject        String
+  bodyHtml       String
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, key])
+}
+
 model AuditLog {
   id             String   @id @default(cuid())
   organizationId String
@@ -572,4 +596,6 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([entity, entityId])
+  @@index([organizationId, action])
+  @@index([organizationId, actorId])
 }

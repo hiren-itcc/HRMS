@@ -39,6 +39,7 @@ export const config = {
     '/documents/:path*',
     '/announcements/:path*',
     '/reports/:path*',
+    '/settings/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',
