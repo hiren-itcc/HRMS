@@ -39,7 +39,7 @@ export function SidebarNav({
   );
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <nav aria-label="Main" className="flex flex-col gap-1 px-3">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -103,7 +103,7 @@ export function SidebarNav({
 
           return collapsed ? (
             <Tooltip key={item.href}>
-              <TooltipTrigger asChild>{link}</TooltipTrigger>
+              <TooltipTrigger render={link} />
               <TooltipContent side="right">{item.label}</TooltipContent>
             </Tooltip>
           ) : (

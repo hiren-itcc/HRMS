@@ -44,10 +44,8 @@ export function ForgotPasswordForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" className="w-full" asChild>
-            <Link href="/login">
-              <ArrowLeft className="size-4" aria-hidden /> Back to sign in
-            </Link>
+          <Button variant="outline" className="w-full" render={<Link href="/login" />}>
+            <ArrowLeft className="size-4" aria-hidden /> Back to sign in
           </Button>
         </CardContent>
       </Card>

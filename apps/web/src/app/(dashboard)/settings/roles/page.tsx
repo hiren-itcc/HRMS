@@ -74,7 +74,7 @@ export default function RolesPage() {
     });
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delay={200}>
       <Stagger className="space-y-4">
         <FadeInItem>
           <p className="flex items-start gap-2 rounded-2xl border bg-muted/40 p-4 text-muted-foreground text-xs">
@@ -148,14 +148,11 @@ export default function RolesPage() {
                               <span className="inline-flex items-center justify-center gap-1">
                                 {locked ? (
                                   <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex items-center gap-1">
-                                        {cell}
-                                        <Lock
-                                          className="size-3 text-muted-foreground"
-                                          aria-hidden
-                                        />
-                                      </span>
+                                    <TooltipTrigger
+                                      render={<span className="inline-flex items-center gap-1" />}
+                                    >
+                                      {cell}
+                                      <Lock className="size-3 text-muted-foreground" aria-hidden />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-56">
                                       Admin must keep this — removing it would lock everyone out of

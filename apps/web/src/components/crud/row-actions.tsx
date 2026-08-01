@@ -49,15 +49,17 @@ export function RowActions({
       )}
       {canDelete && (
         <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              aria-label={`Delete ${name}`}
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </Button>
+          <AlertDialogTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                aria-label={`Delete ${name}`}
+              />
+            }
+          >
+            <Trash2 className="size-4" aria-hidden />
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>

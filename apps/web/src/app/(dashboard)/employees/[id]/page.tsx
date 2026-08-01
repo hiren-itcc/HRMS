@@ -189,10 +189,8 @@ function EmployeeDetailView() {
     return (
       <div className="py-24 text-center">
         <p className="font-medium">Employee not found or not visible to you</p>
-        <Button variant="outline" className="mt-4" asChild>
-          <Link href="/employees">
-            <ArrowLeft className="size-4" aria-hidden /> Back to employees
-          </Link>
+        <Button variant="outline" className="mt-4" render={<Link href="/employees" />}>
+          <ArrowLeft className="size-4" aria-hidden /> Back to employees
         </Button>
       </div>
     );
@@ -201,10 +199,8 @@ function EmployeeDetailView() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" className="-ml-2" asChild>
-        <Link href="/employees">
-          <ArrowLeft className="size-4" aria-hidden /> Employees
-        </Link>
+      <Button variant="ghost" size="sm" className="-ml-2" render={<Link href="/employees" />}>
+        <ArrowLeft className="size-4" aria-hidden /> Employees
       </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -225,18 +221,18 @@ function EmployeeDetailView() {
         </div>
         <div className="flex gap-2">
           {can('employee.update') && (
-            <Button variant="outline" asChild>
-              <Link href={`/employees/${e.id}/edit`}>
-                <Pencil className="size-4" aria-hidden /> Edit
-              </Link>
+            <Button variant="outline" render={<Link href={`/employees/${e.id}/edit`} />}>
+              <Pencil className="size-4" aria-hidden /> Edit
             </Button>
           )}
           {can('employee.delete') && (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-destructive hover:text-destructive">
-                  <Trash2 className="size-4" aria-hidden /> Delete
-                </Button>
+              <AlertDialogTrigger
+                render={
+                  <Button variant="outline" className="text-destructive hover:text-destructive" />
+                }
+              >
+                <Trash2 className="size-4" aria-hidden /> Delete
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>

@@ -28,15 +28,17 @@ export function AppHeader() {
         <div className="flex items-center gap-2">
           {/* Mobile: slide-over navigation */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                aria-label="Open navigation"
-              >
-                <Menu className="size-5" aria-hidden />
-              </Button>
+            <SheetTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="Open navigation"
+                />
+              }
+            >
+              <Menu className="size-5" aria-hidden />
             </SheetTrigger>
             <SheetContent
               side="left"

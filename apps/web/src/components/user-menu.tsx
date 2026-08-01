@@ -39,17 +39,15 @@ export function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {/* No aria-label: it would override the visible name and break
-              voice control ("click Asha Verma"). The sr-only span names the
-              button when the visible name is hidden below sm. */}
-        <Button variant="ghost" className="gap-2 px-2">
-          <Avatar className="size-7">
-            {user.employee?.avatarUrl && <AvatarImage src={user.employee.avatarUrl} alt="" />}
-            <AvatarFallback className="text-xs">{userInitials(user)}</AvatarFallback>
-          </Avatar>
-          <span className="hidden max-w-40 truncate text-sm sm:inline">{displayName(user)}</span>
-        </Button>
+      {/* No aria-label: it would override the visible name and break
+          voice control ("click Asha Verma"). The sr-only span names the
+          button when the visible name is hidden below sm. */}
+      <DropdownMenuTrigger render={<Button variant="ghost" className="gap-2 px-2" />}>
+        <Avatar className="size-7">
+          {user.employee?.avatarUrl && <AvatarImage src={user.employee.avatarUrl} alt="" />}
+          <AvatarFallback className="text-xs">{userInitials(user)}</AvatarFallback>
+        </Avatar>
+        <span className="hidden max-w-40 truncate text-sm sm:inline">{displayName(user)}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
@@ -57,10 +55,8 @@ export function UserMenu() {
           <p className="truncate text-muted-foreground text-xs">{user.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/profile">
-            <UserRound aria-hidden /> My profile
-          </Link>
+        <DropdownMenuItem render={<Link href="/profile" />}>
+          <UserRound aria-hidden /> My profile
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

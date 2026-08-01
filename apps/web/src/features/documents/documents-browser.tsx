@@ -402,10 +402,12 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
                   </Button>
                   {canUpload && (folders.data?.length ?? 0) > 0 && (
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Move ${doc.name}`}>
-                          <FolderInput className="size-4" aria-hidden />
-                        </Button>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button variant="ghost" size="icon" aria-label={`Move ${doc.name}`} />
+                        }
+                      >
+                        <FolderInput className="size-4" aria-hidden />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
@@ -430,15 +432,17 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
                   )}
                   {canDelete && (
                     <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          aria-label={`Delete ${doc.name}`}
-                        >
-                          <Trash2 className="size-4" aria-hidden />
-                        </Button>
+                      <AlertDialogTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            aria-label={`Delete ${doc.name}`}
+                          />
+                        }
+                      >
+                        <Trash2 className="size-4" aria-hidden />
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>

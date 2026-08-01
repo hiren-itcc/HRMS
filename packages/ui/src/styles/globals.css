@@ -1,5 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/inter";
+/* coss ships `@import "geist"`, but that package is next/font-only and exports
+   no stylesheet, so PostCSS cannot resolve it. Fontsource serves the same
+   family as a plain webfont, which is what a CSS @import needs. */
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,32 +15,33 @@
  */
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #6365f0;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  /* Nudged darker so it clears 4.5:1 on --muted, not just on --card: the
-     inactive tab label in every pill nav sits on the muted surface, where
-     #64748b read 4.34:1. */
-  --muted-foreground: #627188;
-  --accent: #eef2ff;
-  --accent-foreground: #4338ca;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
+  --background: var(--color-white);
+  --foreground: var(--color-neutral-800);
+  --card: var(--color-white);
+  --card-foreground: var(--color-neutral-800);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-neutral-800);
+  --primary: var(--color-neutral-800);
+  --primary-foreground: var(--color-neutral-50);
+  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary-foreground: var(--color-neutral-800);
+  --muted: --alpha(var(--color-black) / 4%);
+  /* Verified 5.57:1 on --card and 5.11:1 on --muted — the inactive tab label
+     sits on the muted surface, so both have to clear 4.5:1. */
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
+  --accent: --alpha(var(--color-black) / 4%);
+  --accent-foreground: var(--color-neutral-800);
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--color-red-700);
+  --border: --alpha(var(--color-black) / 8%);
   /* Raised off --border: a control's boundary must be identifiable at 3:1
-     (WCAG 1.4.11). Card edges and dividers stay on the softer --border. */
-  --input: #7d8a9c;
-  --ring: #6365f0;
+     (WCAG 1.4.11). COSS ships 10%, which reads 1.25:1. Card edges and
+     dividers stay on the softer --border. */
+  --input: --alpha(var(--color-black) / 45%);
+  /* neutral-400 reads 2.58:1 on white; a focus ring must clear 3:1. */
+  --ring: var(--color-neutral-500);
   /* Placeholder fill. --accent read 1.12:1 on card — effectively invisible. */
   --skeleton: #cbd5e1;
 
@@ -44,26 +50,26 @@
      `-text` value is what may sit ON a 15% tint of itself. The tint is nearly
      white, so the fill colour fails AA as text — every one of these was
      computed against its own tint, not eyeballed. */
-  --success: #10b981;
-  --success-foreground: #ffffff;
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-700);
   --success-text: #0b7c56; /* 4.54:1 on success/15 */
-  --warning: #f59e0b;
-  --warning-foreground: #ffffff;
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-700);
   --warning-text: #986207; /* 4.58:1 on warning/15 */
-  --info: #06b6d4;
-  --info-foreground: #ffffff;
-  --info-text: #04768a; /* 4.61:1 on info/15 */
-  --destructive-text: #bf3636; /* 4.55:1 on destructive/15 */
-  --primary-text: #575ad4; /* 4.55:1 on primary/15 */
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-700);
+  --info-text: #2366cd; /* 4.56:1 on info/15 (COSS info is blue-500) */
+  --destructive-text: #c8232b; /* 4.52:1 on destructive/15 (COSS red-500) */
+  --primary-text: var(--color-neutral-800); /* 11.25:1 on primary/15 — primary is neutral now */
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #475569;
-  --sidebar-primary: #6366f1;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2ff;
-  --sidebar-accent-foreground: #312e81;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #6366f1;
+  --sidebar: var(--color-neutral-50);
+  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-800) 64%, var(--sidebar));
+  --sidebar-primary: var(--color-neutral-800);
+  --sidebar-primary-foreground: var(--color-neutral-50);
+  --sidebar-accent: --alpha(var(--color-black) / 4%);
+  --sidebar-accent-foreground: var(--color-neutral-800);
+  --sidebar-border: --alpha(var(--color-black) / 6%);
+  --sidebar-ring: var(--color-neutral-400);
 
   /* Categorical series colours — fixed order, never cycled.
      Validated (dataviz): lightness band, chroma, CVD + normal-vision
@@ -73,53 +79,58 @@
   --chart-3: #f59e0b;
   --chart-4: #06b6d4;
   --chart-5: #ec4899;
+  --code: var(--color-white);
+  --code-foreground: var(--foreground);
+  --code-highlight: --alpha(var(--color-black) / 4%);
 }
 
 .dark {
-  --background: #080f19;
-  --foreground: #f8fafc;
-  --card: #111827;
-  --card-foreground: #f8fafc;
-  --popover: #111827;
-  --popover-foreground: #f8fafc;
-  --primary: #818cf8;
-  --primary-foreground: #0f172a;
-  --secondary: #1f2937;
-  --secondary-foreground: #f8fafc;
-  --muted: #1f2937;
-  --muted-foreground: #94a3b8;
-  --accent: rgba(99, 102, 241, 0.16);
-  --accent-foreground: #c7d2fe;
-  --destructive: #f87171;
-  --destructive-foreground: #0f172a;
-  --border: #334155;
-  --input: #64748b; /* 3.73:1 on card — identifiable control boundary */
-  --ring: #818cf8;
+  --background: color-mix(in srgb, var(--color-neutral-950) 95%, var(--color-white));
+  --foreground: var(--color-neutral-100);
+  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --card-foreground: var(--color-neutral-100);
+  --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --popover-foreground: var(--color-neutral-100);
+  --primary: var(--color-neutral-100);
+  --primary-foreground: var(--color-neutral-800);
+  --secondary: --alpha(var(--color-white) / 4%);
+  --secondary-foreground: var(--color-neutral-100);
+  --muted: --alpha(var(--color-white) / 4%);
+  /* 82%, not 90%: at 90% this read 4.42:1 on --card and 3.98:1 on --muted. */
+  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 82%, var(--color-white));
+  --accent: --alpha(var(--color-white) / 4%);
+  --accent-foreground: var(--color-neutral-100);
+  --destructive: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
+  --destructive-foreground: var(--color-red-400);
+  --border: --alpha(var(--color-white) / 6%);
+  /* COSS ships 8%, which reads 1.25:1 — a field with no perceivable edge. */
+  --input: --alpha(var(--color-white) / 35%);
+  --ring: var(--color-neutral-500);
   --skeleton: #334155;
 
   /* The dark palette already uses lighter 400-shades, which clear 4.5:1 on
      their own tints (4.78–7.79:1), so `-text` is the base value here. Light
      mode needs darker steps; dark does not. */
-  --success: #34d399;
-  --success-foreground: #080f19;
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-400);
   --success-text: #34d399;
-  --warning: #fbbf24;
-  --warning-foreground: #080f19;
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-400);
   --warning-text: #fbbf24;
-  --info: #22d3ee;
-  --info-foreground: #080f19;
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-400);
   --info-text: #22d3ee;
   --destructive-text: #f87171;
-  --primary-text: #818cf8;
+  --primary-text: var(--color-neutral-100); /* 10.12:1 on primary/15 — primary is neutral */
 
-  --sidebar: #0b1120;
-  --sidebar-foreground: #94a3b8;
-  --sidebar-primary: #818cf8;
-  --sidebar-primary-foreground: #0f172a;
-  --sidebar-accent: rgba(129, 140, 248, 0.16);
-  --sidebar-accent-foreground: #e0e7ff;
-  --sidebar-border: rgba(148, 163, 184, 0.14);
-  --sidebar-ring: #818cf8;
+  --sidebar: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
+  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-100) 64%, var(--sidebar));
+  --sidebar-primary: var(--color-neutral-100);
+  --sidebar-primary-foreground: var(--color-neutral-800);
+  --sidebar-accent: --alpha(var(--color-white) / 4%);
+  --sidebar-accent-foreground: var(--color-neutral-100);
+  --sidebar-border: --alpha(var(--color-white) / 5%);
+  --sidebar-ring: var(--color-neutral-400);
 
   /* Dark is selected, not flipped: darker steps to sit inside the dark
      lightness band while keeping 3:1 against the card surface. */
@@ -128,10 +139,13 @@
   --chart-3: #d97706;
   --chart-4: #0891b2;
   --chart-5: #ec4899;
+  --code: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --code-foreground: var(--foreground);
+  --code-highlight: --alpha(var(--color-white) / 4%);
 }
 
 @theme inline {
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -192,6 +206,97 @@
   --shadow-card: 0 1px 2px 0 color-mix(in srgb, var(--foreground) 5%, transparent);
   --shadow-raised: 0 4px 12px -2px color-mix(in srgb, var(--foreground) 10%, transparent);
   --shadow-overlay: 0 16px 40px -12px color-mix(in srgb, var(--foreground) 24%, transparent);
+  --animate-skeleton: skeleton 2s -1s infinite linear;
+  --animate-caret-blink: 1s ease-out infinite caret-blink;
+  --animate-toast-success-odd: toast-success-odd 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-success-even: toast-success-even 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-odd: toast-error-odd 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-even: toast-error-even 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+  --font-heading: "Inter", sans-serif;
+  --font-mono: "Geist Mono", monospace;
+  --color-code-highlight: var(--code-highlight);
+  --code-foreground: var(--code-foreground);
+  --color-code: var(--code);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  @keyframes skeleton {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes caret-blink {
+    0%,
+    70%,
+    to {
+      opacity: 1;
+    }
+    20%,
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes toast-success-odd {
+    0% {
+      scale: 1;
+    }
+    30% {
+      scale: 1.025;
+    }
+    60% {
+      scale: 0.99;
+    }
+    100% {
+      scale: 1;
+    }
+  }
+  @keyframes toast-error-odd {
+    0% {
+      translate: 0 0;
+    }
+    25% {
+      translate: -3px 0;
+    }
+    50% {
+      translate: 3px 0;
+    }
+    75% {
+      translate: -3px 0;
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
+  @keyframes toast-success-even {
+    0% {
+      scale: 1;
+    }
+    30% {
+      scale: 1.025;
+    }
+    60% {
+      scale: 0.99;
+    }
+    100% {
+      scale: 1;
+    }
+  }
+  @keyframes toast-error-even {
+    0% {
+      translate: 0 0;
+    }
+    25% {
+      translate: -3px 0;
+    }
+    50% {
+      translate: 3px 0;
+    }
+    75% {
+      translate: -3px 0;
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
 }
 
 @layer base {
@@ -236,6 +341,15 @@
   output,
   [data-numeric] {
     font-variant-numeric: tabular-nums;
+  }
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+  html {
+    @apply font-sans font-mono;
   }
 }
 
