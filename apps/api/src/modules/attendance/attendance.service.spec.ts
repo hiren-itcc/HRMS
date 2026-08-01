@@ -1,5 +1,6 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException } from '@nestjs/common';
+import { settingsDouble } from '../settings/settings.test-double';
 import { AttendanceService } from './attendance.service';
 
 type Mock = jest.Mock;
@@ -28,7 +29,7 @@ function makeService() {
     auditLog: { create: jest.fn() },
   };
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new AttendanceService(prisma as any), prisma };
+  return { service: new AttendanceService(prisma as any, settingsDouble()), prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims> = {}): AccessTokenClaims => ({
@@ -189,7 +190,7 @@ describe('AttendanceService leave visibility (regression)', () => {
       },
     };
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
-    return { service: new AttendanceService(prisma as any), prisma };
+    return { service: new AttendanceService(prisma as any, settingsDouble()), prisma };
   }
 
   const hrClaims = claims({ perms: ['attendance.read'], employeeId: 'mgr' });

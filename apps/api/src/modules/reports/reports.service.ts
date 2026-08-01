@@ -7,6 +7,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { dateKeyInTz, deriveDayStatus } from '../attendance/attendance.util';
 import { toNumber } from '../leave/leave.mapper';
 import { round1 } from '../leave/leave.util';
+import { SettingsService } from '../settings/settings.service';
 import {
   attritionRate,
   monthKeyOf,
@@ -50,7 +51,16 @@ interface RosterRow {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  /** Org working week — the same policy attendance and leave derive from. */
+  private async weekOffDays(orgId: string): Promise<number[]> {
+    const settings = await this.settings.get(orgId);
+    return settings.workingWeek.weekOffDays;
+  }
 
   // ── shared substrate ──────────────────────────────────────────────────
 
@@ -310,9 +320,10 @@ export class ReportsService {
 
   async attendance(claims: AccessTokenClaims, query: ReportRangeQuery): Promise<ReportResult> {
     const scope = this.resolveScope(claims, query);
-    const [roster, todayKey] = await Promise.all([
+    const [roster, todayKey, weekOff] = await Promise.all([
       this.roster(scope),
       this.orgTodayKey(claims.orgId),
+      this.weekOffDays(claims.orgId),
     ]);
     const ids = roster.map((e) => e.id);
     const days = eachDayKey(scope.from, scope.to);
@@ -357,6 +368,7 @@ export class ReportsService {
           isHoliday: holidays.has(dateKey),
           employment: { joinDate: e.joinDate, exitDate: e.exitDate },
           isOnLeave: leave.has(`${e.id}|${dateKey}`),
+          weekOffDays: weekOff,
         });
         const bucket = daily.get(dateKey);
         if (status === 'PRESENT' || status === 'WFH') {
@@ -502,7 +514,7 @@ export class ReportsService {
     const byId = new Map(roster.map((e) => [e.id, e]));
     const year = Number(scope.to.slice(0, 4));
 
-    const [requests, holidays, balances] = await Promise.all([
+    const [requests, holidays, balances, weekOff] = await Promise.all([
       this.prisma.leaveRequest.findMany({
         where: {
           employeeId: { in: ids },
@@ -524,6 +536,7 @@ export class ReportsService {
         where: { year, employee: scope.where },
         _sum: { allocated: true, used: true, carriedOver: true },
       }),
+      this.weekOffDays(claims.orgId),
     ]);
 
     const leaveTypes = await this.prisma.leaveType.findMany({
@@ -547,7 +560,7 @@ export class ReportsService {
       if (r.status !== 'APPROVED') continue;
       const employee = byId.get(r.employeeId);
       const covered = eachDayKey(dateKeyOf(r.startDate), dateKeyOf(r.endDate)).filter(
-        (d) => d >= scope.from && d <= scope.to && !isWeekend(d) && !holidays.has(d),
+        (d) => d >= scope.from && d <= scope.to && !isWeekend(d, weekOff) && !holidays.has(d),
       );
       // A half day is only a half day when the whole request is that one day.
       const total =

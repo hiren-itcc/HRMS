@@ -25,12 +25,14 @@ export function calculateLeaveDays(
   endKey: string,
   holidayKeys: Set<string>,
   halfDaySide?: HalfDaySide | null,
+  /** Org working week; omit for the default Sat+Sun weekend. */
+  weekOffDays?: number[],
 ): LeaveDayBreakdown {
   const workingDays: string[] = [];
   const skipped: string[] = [];
 
   for (const dateKey of eachDayKey(startKey, endKey)) {
-    if (isWeekend(dateKey) || holidayKeys.has(dateKey)) skipped.push(dateKey);
+    if (isWeekend(dateKey, weekOffDays) || holidayKeys.has(dateKey)) skipped.push(dateKey);
     else workingDays.push(dateKey);
   }
 

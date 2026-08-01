@@ -26,7 +26,7 @@ import {
   LeaveTypeCreateDto,
   LeaveTypeUpdateDto,
 } from './dto/leave.dto';
-import { currentLeaveYear, LeaveBalancesService } from './leave-balances.service';
+import { LeaveBalancesService } from './leave-balances.service';
 import { LeaveRequestsService } from './leave-requests.service';
 import { LeaveTypesService } from './leave-types.service';
 
@@ -85,13 +85,10 @@ export class LeaveController {
   @Get('balances/me')
   @RequirePermissions('leave.read.own')
   @ApiOperation({ summary: 'Own balances for a year (provisioned on demand)' })
-  myBalances(@CurrentUser() user: AccessTokenClaims, @Query('year') year?: string) {
-    if (!user.employeeId) return { year: currentLeaveYear(), balances: [] };
-    return this.balances.forEmployee(
-      user.orgId,
-      user.employeeId,
-      year ? Number(year) : currentLeaveYear(),
-    );
+  async myBalances(@CurrentUser() user: AccessTokenClaims, @Query('year') year?: string) {
+    const resolved = year ? Number(year) : await this.balances.currentYear(user.orgId);
+    if (!user.employeeId) return { year: resolved, balances: [] };
+    return this.balances.forEmployee(user.orgId, user.employeeId, resolved);
   }
 
   @Get('balances')

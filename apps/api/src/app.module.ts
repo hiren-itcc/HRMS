@@ -18,6 +18,7 @@ import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     LeaveModule,
     AnnouncementsModule,
     ReportsModule,
+    SettingsModule,
   ],
   controllers: [HealthController],
   providers: [
