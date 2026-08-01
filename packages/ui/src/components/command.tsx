@@ -191,7 +191,14 @@ export function CommandItem({
   ...props
 }: React.ComponentProps<typeof AutocompleteItem>): React.ReactElement {
   return (
-    <AutocompleteItem className={cn('py-1.5', className)} data-slot="command-item" {...props} />
+    // gap-2 to match MenuItem: AutocompleteItem is laid out as `flex
+    // items-center` with no gap, so a command item with a leading icon had
+    // the glyph jammed against its label.
+    <AutocompleteItem
+      className={cn('gap-2 py-1.5', className)}
+      data-slot="command-item"
+      {...props}
+    />
   );
 }
 

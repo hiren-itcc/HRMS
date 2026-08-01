@@ -20,7 +20,7 @@ import {
   DialogPanel,
   DialogTitle,
 } from '@hrms/ui/components/dialog';
-import { Input } from '@hrms/ui/components/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@hrms/ui/components/input-group';
 import {
   Select,
   SelectContent,
@@ -32,7 +32,7 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { CheckCheck, Megaphone, Plus, Search } from 'lucide-react';
+import { CheckCheck, Megaphone, Plus, Search, X } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
@@ -200,19 +200,32 @@ function AnnouncementsView() {
           </SelectContent>
         </Select>
 
-        <div className="relative w-full max-w-xs">
-          <Search
-            className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
+        {/* InputGroup, not an icon absolutely positioned over a padded
+            input: the input's own bg-background painted over the icon in
+            light mode, which is why it only showed in dark. */}
+        <InputGroup className="w-full max-w-xs">
+          <InputGroupAddon>
+            <Search className="size-4" aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search announcements…"
-            className="pl-9"
             aria-label="Search announcements"
           />
-        </div>
+          {searchInput && (
+            <InputGroupAddon align="inline-end">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setSearchInput('')}
+                aria-label="Clear search"
+              >
+                <X className="size-4" aria-hidden />
+              </Button>
+            </InputGroupAddon>
+          )}
+        </InputGroup>
       </FadeInItem>
 
       <FadeInItem className="space-y-4">
