@@ -153,6 +153,7 @@ export class LeaveRequestsService {
         leaveTypeId: type.id,
         startDate: toDate(input.startDate),
         endDate: toDate(input.endDate),
+        leaveYear: year,
         halfDaySide: input.halfDaySide ?? null,
         days,
         reason: input.reason,
@@ -249,7 +250,8 @@ export class LeaveRequestsService {
       throw new ForbiddenException('You cannot approve your own leave');
     }
 
-    const year = await this.balances.yearFor(claims.orgId, dateKeyOf(request.startDate));
+    // Stored, not re-derived: the leave-year policy may have changed since.
+    const year = request.leaveYear;
     const days = Number(request.days);
 
     if (decision === 'APPROVED') {
@@ -350,7 +352,8 @@ export class LeaveRequestsService {
 
     // Approved days were booked — give them back
     if (request.status === 'APPROVED') {
-      const year = await this.balances.yearFor(claims.orgId, dateKeyOf(request.startDate));
+      // Stored, not re-derived: the leave-year policy may have changed since.
+      const year = request.leaveYear;
       const balance = await this.prisma.leaveBalance.findUnique({
         where: {
           employeeId_leaveTypeId_year: {

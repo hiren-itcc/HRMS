@@ -72,17 +72,42 @@ export const orgSettingsSchema = z.object({
   modules: modulesSchema,
 });
 
-/** Every group optional — a PATCH may carry one group or all four. */
+/**
+ * Strips `.default()` off every field, then makes each optional.
+ *
+ * `.partial()` alone is not enough: it wraps a defaulted field in
+ * `ZodOptional<ZodDefault<T>>`, and the inner default still fires on an
+ * absent key. Parsing a patch would then materialise every default, so a
+ * PATCH of one key would silently reset its siblings — writing
+ * `{leave:{yearStartMonth:4}}` would clear `allowNegativeBalance`.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: generic zod shape mapping
+function asPatch<T extends z.ZodObject<any>>(schema: T) {
+  const shape = Object.fromEntries(
+    Object.entries(schema.shape).map(([key, field]) => {
+      const inner = field as { removeDefault?: () => z.ZodTypeAny };
+      return [
+        key,
+        (inner.removeDefault ? inner.removeDefault() : (field as z.ZodTypeAny)).optional(),
+      ];
+    }),
+  );
+  return z.object(shape);
+}
+
+/** Every group optional, and every key within a group optional too. */
 export const orgSettingsPatchSchema = z
   .object({
-    workingWeek: workingWeekSchema.optional(),
-    leave: leavePolicySchema.optional(),
-    modules: modulesSchema.optional(),
+    workingWeek: asPatch(workingWeekSchema).optional(),
+    leave: asPatch(leavePolicySchema).optional(),
+    modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
 
 export type OrgSettings = z.infer<typeof orgSettingsSchema>;
-export type OrgSettingsPatch = z.infer<typeof orgSettingsPatchSchema>;
+export type OrgSettingsPatch = {
+  [K in keyof OrgSettings]?: Partial<OrgSettings[K]>;
+};
 export type SettingsGroup = keyof OrgSettings;
 
 export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'modules'] as const;

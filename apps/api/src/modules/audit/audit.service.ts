@@ -1,16 +1,20 @@
 import type { AuditEntry, AuditQuery } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { Injectable } from '@nestjs/common';
-import { toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+// Pure timezone helper — no attendance coupling, it just lives there.
+import { instantFromLocal } from '../attendance/attendance.util';
 
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(claims: AccessTokenClaims, query: AuditQuery) {
+    // "Today" has to mean the organization's today. Bounding on UTC midnight
+    // pushes early-morning events in UTC+X into the previous day's results.
+    const tz = await this.orgTimeZone(claims.orgId);
     const where: Prisma.AuditLogWhereInput = {
       organizationId: claims.orgId,
       ...(query.entity ? { entity: query.entity } : {}),
@@ -22,9 +26,9 @@ export class AuditService {
       ...(query.from || query.to
         ? {
             createdAt: {
-              ...(query.from ? { gte: toDate(query.from) } : {}),
-              // `to` is a date, so include the whole day.
-              ...(query.to ? { lt: addDays(query.to, 1) } : {}),
+              ...(query.from ? { gte: instantFromLocal(query.from, '00:00', tz) } : {}),
+              // `to` is a date, so include the whole of it.
+              ...(query.to ? { lt: instantFromLocal(nextDay(query.to), '00:00', tz) } : {}),
             },
           }
         : {}),
@@ -40,7 +44,7 @@ export class AuditService {
       this.prisma.auditLog.count({ where }),
     ]);
 
-    return toPaginated(await this.withActors(rows), total, query);
+    return toPaginated(await this.withActors(claims.orgId, rows), total, query);
   }
 
   /**
@@ -49,6 +53,7 @@ export class AuditService {
    * and a missing user is a "—", never a crash.
    */
   private async withActors(
+    orgId: string,
     rows: {
       id: string;
       action: string;
@@ -63,7 +68,7 @@ export class AuditService {
     const ids = [...new Set(rows.map((r) => r.actorId).filter((id): id is string => id !== null))];
     const users = ids.length
       ? await this.prisma.user.findMany({
-          where: { id: { in: ids } },
+          where: { id: { in: ids }, organizationId: orgId },
           select: {
             id: true,
             email: true,
@@ -94,6 +99,14 @@ export class AuditService {
     });
   }
 
+  private async orgTimeZone(orgId: string): Promise<string> {
+    const org = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+      select: { timezone: true },
+    });
+    return org.timezone;
+  }
+
   /** Distinct actions and entities present, so the filters offer real values. */
   async facets(claims: AccessTokenClaims) {
     const [actions, entities] = await this.prisma.$transaction([
@@ -117,8 +130,8 @@ export class AuditService {
   }
 }
 
-function addDays(dateKey: string, days: number): Date {
-  const date = toDate(dateKey);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date;
+function nextDay(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }

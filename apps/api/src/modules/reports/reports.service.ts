@@ -1,7 +1,7 @@
 import type { ReportChart, ReportColumn, ReportRangeQuery, ReportResult } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { Injectable } from '@nestjs/common';
-import { dateKeyOf, eachDayKey, isWeekend, toDate } from '../../common/utils/calendar';
+import { dateKeyOf, eachDayKey, isWeekend, leaveYearOf, toDate } from '../../common/utils/calendar';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { dateKeyInTz, deriveDayStatus } from '../attendance/attendance.util';
@@ -512,9 +512,13 @@ export class ReportsService {
     const roster = await this.roster(scope);
     const ids = roster.map((e) => e.id);
     const byId = new Map(roster.map((e) => [e.id, e]));
-    const year = Number(scope.to.slice(0, 4));
+    // The leave year the org actually runs on — bookings use the same rule, so
+    // reading the calendar year here would show a different year's entitlement
+    // beside days taken from real requests.
+    const { leave: leavePolicy, workingWeek } = await this.settings.get(claims.orgId);
+    const year = leaveYearOf(scope.to, leavePolicy.yearStartMonth);
 
-    const [requests, holidays, balances, weekOff] = await Promise.all([
+    const [requests, holidays, balances] = await Promise.all([
       this.prisma.leaveRequest.findMany({
         where: {
           employeeId: { in: ids },
@@ -536,8 +540,8 @@ export class ReportsService {
         where: { year, employee: scope.where },
         _sum: { allocated: true, used: true, carriedOver: true },
       }),
-      this.weekOffDays(claims.orgId),
     ]);
+    const weekOff = workingWeek.weekOffDays;
 
     const leaveTypes = await this.prisma.leaveType.findMany({
       where: { organizationId: claims.orgId },

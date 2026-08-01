@@ -3,7 +3,7 @@ import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
 import { PrismaService } from '../../database/prisma.service';
-import { applyGuardrails, revokeBlockedReason } from './rbac.guardrails';
+import { applyGuardrails, lockoutReason, type RoleGrants } from './rbac.guardrails';
 
 @Injectable()
 export class RbacService {
@@ -20,17 +20,35 @@ export class RbacService {
       orderBy: { name: 'asc' },
     });
 
-    return roles.map((role) => ({
+    const grants: RoleGrants[] = roles.map((role) => ({
       id: role.id,
       code: role.code,
-      name: role.name,
-      description: role.description,
-      isSystem: role.isSystem,
       userCount: role._count.users,
       permissions: role.permissions.map((rp) => rp.permission.code).sort(),
-      /** Codes this role may not lose, so the UI can disable those cells. */
-      locked: PERMISSIONS.filter((code) => revokeBlockedReason(role, code) !== null),
     }));
+
+    return roles.map((role, i) => {
+      const mine = grants[i] as RoleGrants;
+      return {
+        id: role.id,
+        code: role.code,
+        name: role.name,
+        description: role.description,
+        isSystem: role.isSystem,
+        userCount: role._count.users,
+        permissions: mine.permissions,
+        // Codes this role may not lose *given what every other role holds*,
+        // so the matrix can disable exactly those cells.
+        locked: mine.permissions.filter(
+          (code) =>
+            lockoutReason(
+              grants,
+              role.id,
+              mine.permissions.filter((c) => c !== code),
+            ) !== null,
+        ),
+      };
+    });
   }
 
   /**
@@ -55,12 +73,25 @@ export class RbacService {
    * silent no-op would read as success.
    */
   async setPermissions(claims: AccessTokenClaims, roleId: string, next: string[]) {
-    const role = await this.prisma.role.findFirst({
+    // The lockout rule spans every role in the organization — "is anyone left
+    // who can administer this workspace" cannot be answered from one row.
+    const all = await this.prisma.role.findMany({
       // Scoped by organization: a role id from another tenant must 404.
-      where: { id: roleId, organizationId: claims.orgId },
-      include: { permissions: { select: { permission: { select: { code: true } } } } },
+      where: { organizationId: claims.orgId },
+      include: {
+        permissions: { select: { permission: { select: { code: true } } } },
+        _count: { select: { users: true } },
+      },
     });
+    const role = all.find((r) => r.id === roleId);
     if (!role) throw new NotFoundException('Role not found');
+
+    const grants: RoleGrants[] = all.map((r) => ({
+      id: r.id,
+      code: r.code,
+      userCount: r._count.users,
+      permissions: r.permissions.map((rp) => rp.permission.code),
+    }));
 
     const unknown = next.filter((code) => !PERMISSIONS.includes(code as never));
     if (unknown.length > 0) {
@@ -68,16 +99,22 @@ export class RbacService {
     }
 
     const current = role.permissions.map((rp) => rp.permission.code);
-    const { permissions, blocked } = applyGuardrails(role, current, next);
+    const { permissions, blocked } = applyGuardrails(grants, roleId, next);
 
-    const granted = permissions.filter((code) => !current.includes(code));
-    const revoked = current.filter((code) => !permissions.includes(code));
+    // Only codes that exist as Permission rows can be granted, so compute the
+    // effect from those — not from what was asked for. Reporting a grant that
+    // was never written would be a lie in the response.
+    const rows = await this.prisma.permission.findMany({
+      where: { code: { in: permissions } },
+      select: { id: true, code: true },
+    });
+    const persisted = rows.map((r) => r.code);
+    const missing = permissions.filter((code) => !persisted.includes(code));
+
+    const granted = persisted.filter((code) => !current.includes(code));
+    const revoked = current.filter((code) => !persisted.includes(code));
 
     if (granted.length > 0 || revoked.length > 0) {
-      const rows = await this.prisma.permission.findMany({
-        where: { code: { in: permissions } },
-        select: { id: true, code: true },
-      });
       await this.prisma.$transaction([
         this.prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
         this.prisma.rolePermission.createMany({
@@ -94,6 +131,14 @@ export class RbacService {
       );
     }
 
-    return { granted, revoked, blocked, permissions };
+    return {
+      granted,
+      revoked,
+      blocked,
+      permissions: persisted.sort(),
+      // Catalog codes with no Permission row — the seed creates them all, so
+      // this is only non-empty if the catalog moved ahead of the database.
+      ...(missing.length > 0 ? { unavailable: missing } : {}),
+    };
   }
 }

@@ -1,70 +1,115 @@
 import {
   applyGuardrails,
-  canRevoke,
   editBlockedReason,
-  revokeBlockedReason,
+  lockoutReason,
+  type RoleGrants,
 } from './rbac.guardrails';
 
-const ADMIN = { code: 'ADMIN', isSystem: true };
-const HR = { code: 'HR', isSystem: true };
-const CUSTOM = { code: 'PAYROLL', isSystem: false };
+const FLOOR = ['settings.manage', 'role.manage'];
 
-describe('revoke guardrails', () => {
-  it('stops Admin losing the permissions that would lock everyone out', () => {
-    expect(canRevoke(ADMIN, 'settings.manage')).toBe(false);
-    expect(canRevoke(ADMIN, 'role.manage')).toBe(false);
+function roles(over: Partial<Record<string, Partial<RoleGrants>>> = {}): RoleGrants[] {
+  const base: RoleGrants[] = [
+    { id: 'admin', code: 'ADMIN', userCount: 1, permissions: [...FLOOR, 'report.export'] },
+    { id: 'hr', code: 'HR', userCount: 2, permissions: ['leave.manage', 'report.view'] },
+    { id: 'emp', code: 'EMPLOYEE', userCount: 8, permissions: ['leave.read.own'] },
+  ];
+  return base.map((r) => ({ ...r, ...(over[r.id] ?? {}) }));
+}
+
+describe('lockoutReason', () => {
+  it('blocks the last holder of a floor permission from losing it', () => {
+    expect(lockoutReason(roles(), 'admin', ['report.export'])).toMatch(/lock everyone out/);
   });
 
-  it('explains why, so the API and the tooltip agree', () => {
-    expect(revokeBlockedReason(ADMIN, 'role.manage')).toMatch(/lock everyone out/);
+  it('names the permission that would be lost', () => {
+    expect(lockoutReason(roles(), 'admin', ['role.manage'])).toContain('settings.manage');
   });
 
-  it('allows Admin to lose anything outside the floor', () => {
-    expect(canRevoke(ADMIN, 'report.export')).toBe(true);
-    expect(canRevoke(ADMIN, 'audit.read')).toBe(true);
+  it('allows the edit when another staffed role still holds the floor', () => {
+    const withBackup = roles({ hr: { permissions: ['leave.manage', ...FLOOR] } });
+    expect(lockoutReason(withBackup, 'admin', ['report.export'])).toBeNull();
   });
 
-  it('does not protect the same permissions on other roles', () => {
-    expect(canRevoke(HR, 'settings.manage')).toBe(true);
-    expect(canRevoke(CUSTOM, 'role.manage')).toBe(true);
+  it('ignores a role nobody holds — an empty ADMIN is not a safety net', () => {
+    const emptyAdmin = roles({
+      admin: { userCount: 0 },
+      hr: { permissions: ['leave.manage', ...FLOOR] },
+    });
+    // HR is the only *staffed* holder, so HR may not drop it.
+    expect(lockoutReason(emptyAdmin, 'hr', ['leave.manage'])).toMatch(/lock everyone out/);
+  });
+
+  it('protects a non-ADMIN role when it is the only staffed holder', () => {
+    const hrOnly = roles({
+      admin: { userCount: 0, permissions: [] },
+      hr: { permissions: [...FLOOR] },
+    });
+    expect(lockoutReason(hrOnly, 'hr', [])).toMatch(/lock everyone out/);
+  });
+
+  it('permits unrelated permissions to be revoked freely', () => {
+    expect(lockoutReason(roles(), 'hr', ['leave.manage'])).toBeNull();
+  });
+
+  it('permits granting', () => {
+    expect(lockoutReason(roles(), 'emp', ['leave.read.own', 'document.read.own'])).toBeNull();
+  });
+});
+
+describe('applyGuardrails', () => {
+  it('keeps a protected permission and reports it rather than erroring', () => {
+    const result = applyGuardrails(roles(), 'admin', ['report.export']);
+    expect(result.permissions).toEqual(['report.export', 'role.manage', 'settings.manage']);
+    expect(result.blocked.sort()).toEqual(['role.manage', 'settings.manage']);
+  });
+
+  it('blocks each floor permission separately when both are dropped at once', () => {
+    const result = applyGuardrails(roles(), 'admin', []);
+    expect(result.blocked.sort()).toEqual(['role.manage', 'settings.manage']);
+  });
+
+  it('restores only the floor, whatever order the grants are stored in', () => {
+    // The real catalog lists the floor last, which is what exposed an
+    // ordering-dependent bug: every earlier permission was reported blocked.
+    const catalogOrder = roles({
+      admin: { permissions: ['employee.read', 'report.export', ...FLOOR] },
+    });
+    const result = applyGuardrails(catalogOrder, 'admin', []);
+    expect(result.blocked.sort()).toEqual(['role.manage', 'settings.manage']);
+    expect(result.permissions).toEqual(['role.manage', 'settings.manage']);
+  });
+
+  it('never restores a non-floor permission', () => {
+    const result = applyGuardrails(roles(), 'admin', [...FLOOR]);
+    expect(result.blocked).toEqual([]);
+    expect(result.permissions).toEqual(['role.manage', 'settings.manage']);
+  });
+
+  it('allows the revoke once a second staffed role holds the floor', () => {
+    const withBackup = roles({ hr: { permissions: ['leave.manage', ...FLOOR] } });
+    const result = applyGuardrails(withBackup, 'admin', ['report.export']);
+    expect(result.permissions).toEqual(['report.export']);
+    expect(result.blocked).toEqual([]);
+  });
+
+  it('grants new permissions and returns a sorted set', () => {
+    const result = applyGuardrails(roles(), 'emp', ['leave.read.own', 'document.read.own']);
+    expect(result.permissions).toEqual(['document.read.own', 'leave.read.own']);
+  });
+
+  it('is a no-op when nothing changes', () => {
+    const result = applyGuardrails(roles(), 'hr', ['leave.manage', 'report.view']);
+    expect(result.permissions).toEqual(['leave.manage', 'report.view']);
+    expect(result.blocked).toEqual([]);
   });
 });
 
 describe('editBlockedReason', () => {
   it('protects system roles from rename and delete', () => {
-    expect(editBlockedReason(ADMIN)).toMatch(/System roles/);
+    expect(editBlockedReason({ code: 'ADMIN', isSystem: true })).toMatch(/System roles/);
   });
 
   it('leaves custom roles editable', () => {
-    expect(editBlockedReason(CUSTOM)).toBeNull();
-  });
-});
-
-describe('applyGuardrails', () => {
-  it('adds protected permissions back rather than rejecting the whole edit', () => {
-    const result = applyGuardrails(
-      ADMIN,
-      ['settings.manage', 'role.manage', 'report.export'],
-      ['report.export'],
-    );
-    expect(result.permissions).toEqual(['report.export', 'role.manage', 'settings.manage']);
-    expect(result.blocked).toEqual(['settings.manage', 'role.manage']);
-  });
-
-  it('reports nothing blocked on an allowed edit', () => {
-    const result = applyGuardrails(HR, ['leave.manage', 'report.view'], ['leave.manage']);
-    expect(result.permissions).toEqual(['leave.manage']);
-    expect(result.blocked).toEqual([]);
-  });
-
-  it('grants new permissions and keeps the result sorted', () => {
-    const result = applyGuardrails(CUSTOM, ['leave.read'], ['leave.read', 'employee.read']);
-    expect(result.permissions).toEqual(['employee.read', 'leave.read']);
-  });
-
-  it('is a no-op when nothing changes', () => {
-    const result = applyGuardrails(HR, ['org.manage'], ['org.manage']);
-    expect(result.permissions).toEqual(['org.manage']);
-    expect(result.blocked).toEqual([]);
+    expect(editBlockedReason({ code: 'PAYROLL', isSystem: false })).toBeNull();
   });
 });

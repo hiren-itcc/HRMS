@@ -115,7 +115,9 @@ export default function PreferencesPage() {
     set('workingWeek', { weekOffDays: next.sort((a, b) => a - b) });
   };
 
-  const SaveBar = ({ group, label }: { group: keyof OrgSettings; label: string }) =>
+  // Defined here rather than as a nested component so React does not remount
+  // the buttons on every keystroke.
+  const saveBar = (group: keyof OrgSettings, label: string) =>
     canManage ? (
       <div className="flex items-center gap-2 pt-1">
         <Button
@@ -210,7 +212,7 @@ export default function PreferencesPage() {
               </p>
             </div>
 
-            <SaveBar group="workingWeek" label="Save working week" />
+            {saveBar('workingWeek', 'Save working week')}
           </CardContent>
         </Card>
       </FadeInItem>
@@ -263,7 +265,7 @@ export default function PreferencesPage() {
               </div>
             </div>
 
-            <SaveBar group="leave" label="Save leave policy" />
+            {saveBar('leave', 'Save leave policy')}
           </CardContent>
         </Card>
       </FadeInItem>
@@ -293,7 +295,7 @@ export default function PreferencesPage() {
                 </div>
               </div>
             ))}
-            <SaveBar group="modules" label="Save modules" />
+            {saveBar('modules', 'Save modules')}
           </CardContent>
         </Card>
       </FadeInItem>
@@ -310,8 +312,9 @@ export default function PreferencesPage() {
             <AlertDialogDescription>
               Attendance is worked out when it is read, not stored day by day. Changing the working
               week re-reads history: days that showed as week-offs will become absences, and
-              attendance rates for past months will move. Approved leave already taken keeps the
-              days it was booked with.
+              attendance rates for past months will move. Leave balances keep the days they were
+              booked with, but the leave report recounts past requests under the new week, so the
+              two can disagree for leave taken before this change.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

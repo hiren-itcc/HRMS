@@ -33,9 +33,15 @@ export function render(template: string, vars: TemplateVars, escapeValues = true
   });
 }
 
-/** Subjects are plain text — escaping there would show `&amp;` in an inbox. */
+/**
+ * Subjects are plain text — escaping there would show `&amp;` in an inbox —
+ * but newlines must go: a CR or LF in a subject is SMTP header injection once
+ * a real transport replaces the dev logger.
+ */
 export function renderSubject(template: string, vars: TemplateVars): string {
-  return render(template, vars, false);
+  return render(template, vars, false)
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
 }
 
 /** Placeholders a template actually uses, in first-appearance order. */

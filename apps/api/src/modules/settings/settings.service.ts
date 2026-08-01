@@ -30,8 +30,17 @@ export class SettingsService {
   ): Promise<OrgSettings> {
     const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
 
+    // Merge over what is stored: every field has a zod default, so writing the
+    // parsed group verbatim would reset any key the caller left out — a PATCH
+    // of {leave:{yearStartMonth}} would silently clear allowNegativeBalance.
+    const stored = await this.get(ctx.orgId);
+    const merged = entries.map(
+      ([key, value]) =>
+        [key, { ...(stored[key as keyof typeof stored] ?? {}), ...(value as object) }] as const,
+    );
+
     await this.prisma.$transaction(
-      entries.map(([key, value]) =>
+      merged.map(([key, value]) =>
         this.prisma.setting.upsert({
           where: { organizationId_key: { organizationId: ctx.orgId, key } },
           update: { value: value as object },

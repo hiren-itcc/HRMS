@@ -421,6 +421,10 @@ model LeaveRequest {
   leaveTypeId  String
   startDate    DateTime       @db.Date
   endDate      DateTime       @db.Date
+  /// Leave year this request books against, fixed when it is raised. Derived
+  /// from the org's leave-year start month, which an admin can change — so it
+  /// must be stored, or approve and cancel could hit different balance rows.
+  leaveYear    Int
   halfDaySide  HalfDaySide?
   days         Decimal        @db.Decimal(5, 1)
   reason       String

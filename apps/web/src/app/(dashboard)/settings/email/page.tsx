@@ -147,11 +147,14 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
             <p className="font-medium text-xs">
               Subject: <span className="font-normal">{previewTemplate(subject)}</span>
             </p>
-            <div
-              className="prose-sm max-w-none text-sm [&_a]:text-primary [&_a]:underline"
-              // Preview of copy the admin just typed, rendered for them alone.
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: template preview
-              dangerouslySetInnerHTML={{ __html: previewTemplate(body) }}
+            {/* A sandboxed iframe, not innerHTML: template bodies are stored
+                HTML that another admin may have written, so rendering them in
+                this document would execute their script in this session. */}
+            <iframe
+              title="Email preview"
+              sandbox=""
+              className="h-40 w-full rounded-lg border bg-white"
+              srcDoc={`<!doctype html><meta charset="utf-8"><style>body{font:14px/1.5 system-ui,sans-serif;margin:8px;color:#0f172a}a{color:#4f46e5}</style>${previewTemplate(body)}`}
             />
             <p className="text-muted-foreground text-[11px]">
               Filled with sample values ({Object.keys(SAMPLE_VALUES).length} known variables).

@@ -28,7 +28,11 @@ type AdjustValues = z.input<typeof leaveBalanceAdjustSchema>;
 function LeaveSettingsView() {
   const queryClient = useQueryClient();
   const params = useListParams('name');
-  const year = Number(params.get('year') ?? new Date().getUTCFullYear());
+  // Left undefined so the API applies the organization's leave-year policy.
+  // Sending the calendar year here made merely opening the page provision a
+  // whole extra year of balances for everyone in scope.
+  const yearParam = params.get('year');
+  const year = yearParam ? Number(yearParam) : undefined;
   const [editing, setEditing] = useState<LeaveType | 'new' | null>(null);
   const [adjusting, setAdjusting] = useState<LeaveBalance | null>(null);
   const carryId = useId();
