@@ -111,12 +111,28 @@ endpoint — it is the same query surface.
 | `/reports/summary` | Six-month headcount trend for the dashboard widget (no range params) |
 
 ### Settings & Admin (`/settings`, `/roles`, `/audit`)
-| Method | Path |
-|---|---|
-| GET / PATCH | `/settings` — namespaced key-values |
-| GET | `/roles` · GET `/permissions` — matrix data |
-| PATCH | `/roles/:id/permissions` — edit grants (Admin; system-role guardrails) |
-| GET | `/audit?entity=&actorId=&from=&to=` — audit trail (Admin) |
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/settings` — typed groups, defaults filled in | any signed-in user |
+| PATCH | `/settings` — one or more groups | `settings.manage` |
+| GET | `/settings/email-templates` | `settings.manage` |
+| PUT / DELETE | `/settings/email-templates/:key` — edit / reset to default | `settings.manage` |
+| GET | `/roles` · GET `/permissions` — matrix data | `role.manage` |
+| PUT | `/roles/:id/permissions` — replace grants (guardrails applied) | `role.manage` |
+| GET | `/audit?resource=&entity=&actorId=&action=&from=&to=` | `audit.read` |
+| GET | `/audit/facets` — distinct actions and entities for the filters | `audit.read` |
+
+`GET /settings` is deliberately ungated: every user needs `localization` to
+format dates and `modules` to render navigation. The four groups are
+`workingWeek`, `leave`, `localization`, `modules`; each is stored as one
+`Setting` row so patching one never rewrites another.
+
+**Grants replace, not merge** — `PUT` carries the complete list for the role,
+so two admins editing different rows cannot merge into a state neither chose.
+Permissions the guardrails protect (the Admin floor: `settings.manage`,
+`role.manage`) are added back and returned in `blocked` rather than silently
+dropped. Changes reach signed-in users on their next token refresh, within 15
+minutes.
 
 ## Cross-cutting behavior
 
