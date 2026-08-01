@@ -6,9 +6,43 @@ export function toNumber(value: unknown): number {
   return round1(Number(value ?? 0));
 }
 
+/*
+ * These describe what the mapper reads, not one specific Prisma include —
+ * callers pass rows with `leaveType` and `employee` present or absent, which
+ * is what `any` was papering over. Structural types keep that flexibility
+ * while still failing the build if a column is renamed out from under them.
+ *
+ * `employee` is forwarded verbatim, so `unknown` is the honest type: this
+ * mapper reads nothing inside it.
+ */
+interface BalanceRow {
+  id: string;
+  year: number;
+  leaveTypeId: string;
+  allocated: unknown;
+  carriedOver: unknown;
+  used: unknown;
+  leaveType?: { id: string; name: string; code: string; isPaid: boolean } | null;
+  employee?: unknown;
+}
+
+interface RequestRow {
+  id: string;
+  startDate: Date;
+  endDate: Date;
+  halfDaySide: string | null;
+  days: unknown;
+  reason: string;
+  status: string;
+  approverNote: string | null;
+  actedAt: Date | null;
+  createdAt: Date;
+  leaveType?: { id: string; name: string; code: string } | null;
+  employee?: unknown;
+}
+
 /** Balance row → API shape with the derived `available` figure. */
-// biome-ignore lint/suspicious/noExplicitAny: Prisma row shapes vary by include
-export function mapBalance(row: any) {
+export function mapBalance(row: BalanceRow) {
   const allocated = toNumber(row.allocated);
   const carriedOver = toNumber(row.carriedOver);
   const used = toNumber(row.used);
@@ -33,8 +67,7 @@ export function mapBalance(row: any) {
 }
 
 /** Leave request row → API shape (dates as YYYY-MM-DD, days as number). */
-// biome-ignore lint/suspicious/noExplicitAny: Prisma row shapes vary by include
-export function mapRequest(row: any) {
+export function mapRequest(row: RequestRow) {
   return {
     id: row.id,
     startDate: dateKeyOf(row.startDate),

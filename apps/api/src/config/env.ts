@@ -12,6 +12,17 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(30),
   WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+  /**
+   * Number of reverse proxies in front of the API, or 0 when it is exposed
+   * directly.
+   *
+   * Express only reads `X-Forwarded-For` when this is set, and that header is
+   * trivially forged — so trusting it while directly exposed would let anyone
+   * choose the IP that the login rate limit counts against and that the audit
+   * log records. Off by default; set it to the number of hops you actually
+   * have (1 behind a single load balancer).
+   */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   UPLOAD_DIR: z.string().default('./uploads'),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(10),
   /**
