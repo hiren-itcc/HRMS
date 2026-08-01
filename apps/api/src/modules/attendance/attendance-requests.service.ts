@@ -11,7 +11,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
-import { toDate } from '../../common/utils/calendar';
+import { dateKeyOf, toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -22,6 +22,17 @@ import {
   statusForWorkedMinutes,
   workedMinutesBetween,
 } from './attendance.util';
+
+/**
+ * `date` is a `@db.Date` column, so Prisma hands back a full timestamp. Every
+ * consumer treats attendance dates as YYYY-MM-DD keys — the web builds
+ * `${date}T00:00:00.000Z` from it — so serialise it the same way leave does
+ * (leave.mapper.ts) rather than leaking the timestamp.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Prisma row shapes vary by include
+function mapRequest(row: any) {
+  return { ...row, date: dateKeyOf(row.date) };
+}
 
 const INCLUDE = {
   employee: {
@@ -71,7 +82,7 @@ export class AttendanceRequestsService {
       'AttendanceRequest',
       request.id,
     );
-    return request;
+    return mapRequest(request);
   }
 
   /**
@@ -95,7 +106,7 @@ export class AttendanceRequestsService {
       }),
       this.prisma.attendanceRequest.count({ where }),
     ]);
-    return toPaginated(data, total, query);
+    return toPaginated(data.map(mapRequest), total, query);
   }
 
   /**
@@ -188,7 +199,11 @@ export class AttendanceRequestsService {
       'AttendanceRequest',
       id,
     );
-    return this.prisma.attendanceRequest.findUniqueOrThrow({ where: { id }, include: INCLUDE });
+    const updated = await this.prisma.attendanceRequest.findUniqueOrThrow({
+      where: { id },
+      include: INCLUDE,
+    });
+    return mapRequest(updated);
   }
 
   /** An employee may withdraw their own pending request. */
