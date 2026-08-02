@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
+import { DEFAULT_PAY_COMPONENTS, ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -121,6 +121,26 @@ async function main() {
     `Roles: ${Object.keys(roles).length} system roles, ` +
       `${permissionCount} permissions, ${grantCount} grants`,
   );
+
+  // ── Pay component catalogue ──────────────────────────────────────────────
+  // Without these, payroll is unreachable: a salary structure is built out of
+  // components, so no components means no structure, no salary and nothing for
+  // a run to calculate. The demo seed created them and this did not, which left
+  // every real deployment with a payroll module it could not start using.
+  //
+  // isSystem, because the calculation engine looks BASIC/PF/ESI/PT up by code
+  // (COMPONENT_CODES) — they must exist and must not be deletable. Upserted
+  // rather than created so re-running stays additive, and `update: {}` so a
+  // component somebody has since renamed is left alone.
+  for (const [index, component] of DEFAULT_PAY_COMPONENTS.entries()) {
+    await prisma.payComponent.upsert({
+      where: { organizationId_code: { organizationId: org.id, code: component.code } },
+      update: {},
+      create: { organizationId: org.id, ...component, isSystem: true, order: index },
+    });
+  }
+  const componentCount = await prisma.payComponent.count({ where: { organizationId: org.id } });
+  console.log(`Pay components: ${componentCount} in the catalogue`);
 
   const adminRoleId = roles.ADMIN;
   if (!adminRoleId) throw new Error('ADMIN role missing from ROLE_PERMISSIONS.');

@@ -105,7 +105,8 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 37 | Run detail | `/payroll/[runId]` | Progress rail, state actions (only those legal *and* permitted), preflight warnings, payslip table, bulk payment bar |
 | 38 | Salaries | `/payroll/salaries` | Roster with current CTC; assign or revise in a dialog |
 | 39 | Salary timeline | `/payroll/salaries/[employeeId]` | Every revision, each with its delta and percentage |
-| 40 | Structures | `/payroll/structures` | Reusable earning/deduction templates; clone; delete blocked while assigned |
+| 40 | Structures | `/payroll/structures` | Reusable earning/deduction templates; create, edit, clone; delete blocked while assigned (deactivate instead) |
+| 40a | Structure editor | `/payroll/structures/new` · `/payroll/structures/[id]` | Name, code, active toggle and the ordered component lines; one line absorbs the balance |
 | 41 | Payroll reports | `/payroll/reports` | Register · bank transfer · PF · ESI · tax · department, with CSV/Excel export |
 | 42 | Payslip | `/payroll/payslips/[id]` | The document — earnings vs deductions, employer cost set apart, print to PDF |
 | 43 | My salary | `/payroll/me` | Employee self-service: current CTC, revision history, own published payslips |
