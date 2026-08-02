@@ -16,6 +16,8 @@
     "db:generate": "pnpm --filter @hrms/api db:generate",
     "db:migrate": "pnpm --filter @hrms/api db:migrate",
     "db:seed": "pnpm --filter @hrms/api db:seed",
+    "db:deploy": "pnpm --filter @hrms/api db:deploy",
+    "db:bootstrap": "pnpm --filter @hrms/api db:bootstrap",
     "prepare": "husky"
   },
   "devDependencies": {
