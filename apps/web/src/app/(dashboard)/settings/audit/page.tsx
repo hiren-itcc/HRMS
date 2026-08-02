@@ -22,17 +22,27 @@ import { useListParams } from '@/hooks/use-list-params';
 const ALL = 'all';
 const PAGE_SIZE = 20;
 
-/** Fixed colours per action family so a scan finds the destructive ones fast. */
+/*
+ * Fixed colours per action family so a scan finds the destructive ones fast.
+ * Nine families is more than the design system's five categorical slots
+ * (--chart-1..5), so these stay raw palette steps rather than being forced
+ * onto semantic tokens that don't mean "action family".
+ *
+ * The light steps are -700, not -600: each label sits on a 10% tint of its own
+ * hue, and against the cream card the -600 steps read 2.82–3.87:1 for six of
+ * the nine. The -700 steps clear 4.5:1 (amber needed -800 at 6.27:1; its -700
+ * reached only 4.44:1). Dark-mode -400 steps were already 4.61–9.20:1.
+ */
 const FAMILY_TONE: Record<string, string> = {
-  auth: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  employee: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-  attendance: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  leave: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  document: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
-  announcement: 'bg-pink-500/10 text-pink-600 dark:text-pink-400',
-  org: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  settings: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
-  report: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  auth: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
+  employee: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',
+  attendance: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  leave: 'bg-amber-500/10 text-amber-800 dark:text-amber-400',
+  document: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400',
+  announcement: 'bg-pink-500/10 text-pink-700 dark:text-pink-400',
+  org: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
+  settings: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
+  report: 'bg-teal-500/10 text-teal-700 dark:text-teal-400',
 };
 
 function MetaRow({ entry }: { entry: AuditEntry }) {

@@ -9,149 +9,193 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * HRMS design tokens — premium indigo direction (UI/UX redesign brief).
+ * HRMS design tokens — warm cream / terracotta direction.
  * Semantic tokens only; components never use raw hex.
  * shadcn/ui variable contract + HRMS status extensions (success/warning/info).
+ *
+ * Values come from the supplied theme export. Six were corrected because the
+ * generator emitted them unusable; each carries the original value and the
+ * measured ratio that condemned it. Everything computed with a real
+ * OKLCH→sRGB→WCAG pass, not by eye.
  */
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --background: var(--color-white);
-  --foreground: var(--color-neutral-800);
-  --card: var(--color-white);
-  --card-foreground: var(--color-neutral-800);
-  --popover: var(--color-white);
-  --popover-foreground: var(--color-neutral-800);
-  /* coss ships a near-black --primary. The brand is indigo, and it already
-     owns the logo, the sidebar pill and the stat tiles; leaving buttons and
-     focus rings neutral made those read as decoration that had drifted
-     rather than as the product's colour. Everything else here stays coss
-     neutral, so the accent is the only saturated thing on the page. */
-  --primary: var(--color-indigo-600);
-  --primary-foreground: var(--color-white);
-  --secondary: --alpha(var(--color-black) / 4%);
-  --secondary-foreground: var(--color-neutral-800);
-  --muted: --alpha(var(--color-black) / 4%);
-  /* Verified 5.57:1 on --card and 5.11:1 on --muted — the inactive tab label
-     sits on the muted surface, so both have to clear 4.5:1. */
-  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, var(--color-black));
-  --accent: --alpha(var(--color-black) / 4%);
-  --accent-foreground: var(--color-neutral-800);
-  /* red-600, not coss's red-500: the destructive button and badge both
-     hardcode `text-white`, and white on red-500 reads 3.81:1. */
-  --destructive: var(--color-red-600);
+  --background: oklch(0.9818 0.0054 95.0986);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9818 0.0054 95.0986);
+  --card-foreground: oklch(0.1908 0.002 106.5859);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2671 0.0196 98.939);
+  /* The brand terracotta. White labels on it read 3.90:1 — short of the 4.5:1
+     AA floor for body-size text, though clear of 3:1 for UI components and
+     large text. Kept at the supplied value deliberately: brand fidelity was
+     chosen over the darker #bd5937 that would have reached 4.50:1. */
+  --primary: oklch(0.6171 0.1375 39.0427);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9245 0.0138 92.9892);
+  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
+  --muted: oklch(0.9341 0.0153 90.239);
+  /* CORRECTED — supplied oklch(0.6059 0.0075 97.4233) read 3.66:1 on --card
+     and 3.17:1 on --muted, both under 4.5:1. This is the most-used text token
+     in the app (180 uses), so it was re-solved against the muted surface (the
+     stricter of the two): 4.60:1 there and 5.29:1 on the card, measured on the
+     value the build actually emits (#696864). Solving to exactly 4.50 left it
+     at 4.48 once the compiler rounded to hex. */
+  --muted-foreground: oklch(0.518 0.0075 97.4233);
+  --accent: oklch(0.9245 0.0138 92.9892);
+  --accent-foreground: oklch(0.2671 0.0196 98.939);
+  /* CORRECTED — supplied oklch(0.1908 0.0020 106.5859) is near-black, not red;
+     the generator never overrode the light value while dark got a proper red.
+     Restored to red-600 (#dc2626), 4.59:1 on the cream background. */
+  --destructive: oklch(0.577 0.215 27.33);
+  /* NOT white. In coss this is *destructive text on a tinted or plain
+     surface* — `bg-destructive/8 text-destructive-foreground` (badge.tsx),
+     `bg-popover text-destructive-foreground` (button.tsx outline variant),
+     and the destructive menu-item variant. The supplied oklch(1 0 0) would
+     have rendered white text on a near-white surface in every one of them. */
   --destructive-foreground: var(--color-red-700);
-  --border: --alpha(var(--color-black) / 8%);
-  /* Raised off --border: a control's boundary must be identifiable at 3:1
-     (WCAG 1.4.11). COSS ships 10%, which reads 1.25:1. Card edges and
-     dividers stay on the softer --border. */
-  --input: --alpha(var(--color-black) / 45%);
-  /* The ring carries the brand too, and indigo-600 clears 3:1 on white with
-     room to spare (coss's neutral-400 read 2.58:1). */
-  --ring: var(--color-indigo-600);
-  /* Placeholder fill. --accent read 1.12:1 on card — effectively invisible. */
-  --skeleton: #cbd5e1;
+  --border: oklch(0.8847 0.0069 97.3627);
+  /* CORRECTED — supplied oklch(0.7621 0.0156 98.3528) read 2.02:1 against the
+     background. A control's boundary must be identifiable at 3:1 (WCAG
+     1.4.11). Darkened to 3.19:1. Card edges and dividers stay on --border. */
+  --input: oklch(0.64 0.018 98.3528);
+  --ring: oklch(0.6171 0.1375 39.0427);
+  /* Placeholder fill, tuned to the cream surface (1.53:1 — visible as a shape,
+     recessive as content). The old slate #cbd5e1 read cold against warm. */
+  --skeleton: oklch(0.844 0.01 96);
 
   /* HRMS status colors — always paired with a label or icon, never color alone.
      Two roles per status: the saturated value fills solid chips and dots, the
-     `-text` value is what may sit ON a 15% tint of itself. The tint is nearly
-     white, so the fill colour fails AA as text — every one of these was
-     computed against its own tint, not eyeballed. */
+     `-text` value is what may sit ON a 15% tint of itself. Every `-text` value
+     below was RE-SOLVED against the new cream card (#faf9f5); the previous
+     ratios were computed against pure white and no longer held. */
   --success: var(--color-emerald-500);
   --success-foreground: var(--color-emerald-700);
-  --success-text: #0b7c56; /* 4.54:1 on success/15 */
+  --success-text: #0a7854; /* 4.53:1 on success/15 over --card */
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-700);
-  --warning-text: #986207; /* 4.58:1 on warning/15 */
+  --warning-text: #956007; /* 4.51:1 on warning/15 over --card */
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-700);
-  --info-text: #2366cd; /* 4.56:1 on info/15 (COSS info is blue-500) */
-  --destructive-text: #be2129; /* 4.66:1 on destructive/15 (computed, not eyeballed) */
-  --primary-text: var(--color-indigo-700); /* on a 15% primary tint */
+  --info-text: #2e65bf; /* 4.51:1 on info/15 over --card */
+  --destructive-text: #c02121; /* 4.53:1 on destructive/15 over --card */
+  --primary-text: #a25035; /* 4.50:1 on primary/15 — terracotta, was indigo-700 */
 
-  --sidebar: var(--color-neutral-50);
-  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-800) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-indigo-600);
-  --sidebar-primary-foreground: var(--color-neutral-50);
-  --sidebar-accent: --alpha(var(--color-black) / 4%);
-  --sidebar-accent-foreground: var(--color-neutral-800);
-  --sidebar-border: --alpha(var(--color-black) / 6%);
-  --sidebar-ring: var(--color-indigo-600);
+  --sidebar: oklch(0.9663 0.008 98.8792);
+  --sidebar-foreground: oklch(0.359 0.0051 106.6524);
+  /* Currently unused by any component; set to the brand so it is correct if
+     the active-nav pill ever adopts it. (The pill uses --sidebar-accent.) */
+  --sidebar-primary: oklch(0.6171 0.1375 39.0427);
+  --sidebar-primary-foreground: oklch(0.9881 0 0);
+  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
+  --sidebar-accent-foreground: oklch(0.325 0 0);
+  --sidebar-border: oklch(0.9401 0 0);
+  /* CORRECTED — supplied oklch(0.7731 0 0), a chroma-0 grey reading 1.68:1 on
+     the sidebar. This is a real focus indicator (`ring-sidebar-ring` +
+     `focus-visible:ring-2` on every sidebar menu button), so it has to clear
+     3:1. Now the brand terracotta, matching --ring. */
+  --sidebar-ring: oklch(0.6171 0.1375 39.0427);
 
-  /* Categorical series colours — fixed order, never cycled.
-     Validated (dataviz): lightness band, chroma, CVD + normal-vision
-     separation all pass on the light surface. */
-  --chart-1: #6366f1;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #06b6d4;
-  --chart-5: #ec4899;
-  --code: var(--color-white);
+  /* Categorical series colours — fixed order, never cycled. Slot 1 is the
+     brand terracotta; the rest are spread ≥46° apart in hue and held in a
+     narrow lightness band. Validated with the dataviz validator against the
+     card surface: lightness band, chroma floor, CVD separation,
+     normal-vision floor and contrast all PASS.
+     The supplied chart palette was discarded — its slots 1 and 5 differed by
+     1° of hue (indistinguishable) and slots 3 and 4 read 1.35:1 and 1.37:1
+     against the background. */
+  --chart-1: oklch(0.6171 0.1375 39.04);
+  --chart-2: oklch(0.62 0.115 232);
+  --chart-3: oklch(0.625 0.125 85);
+  --chart-4: oklch(0.62 0.145 300);
+  --chart-5: oklch(0.625 0.11 158);
+  --code: oklch(1 0 0);
   --code-foreground: var(--foreground);
   --code-highlight: --alpha(var(--color-black) / 4%);
+
+  /* Elevation scale from the supplied theme. These intentionally override
+     Tailwind's default shadow utilities app-wide — the direction is flatter
+     than Tailwind's stock ramp. */
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 }
 
 .dark {
-  --background: color-mix(in srgb, var(--color-neutral-950) 95%, var(--color-white));
-  --foreground: var(--color-neutral-100);
-  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
-  --card-foreground: var(--color-neutral-100);
-  --popover: color-mix(in srgb, var(--background) 98%, var(--color-white));
-  --popover-foreground: var(--color-neutral-100);
-  /* Lighter step than light mode: indigo-600 on a near-black surface is
-     too dim for a primary button face. */
-  --primary: var(--color-indigo-500);
-  --primary-foreground: var(--color-white);
-  --secondary: --alpha(var(--color-white) / 4%);
-  --secondary-foreground: var(--color-neutral-100);
-  --muted: --alpha(var(--color-white) / 4%);
-  /* 82%, not 90%: at 90% this read 4.42:1 on --card and 3.98:1 on --muted. */
-  --muted-foreground: color-mix(in srgb, var(--color-neutral-500) 82%, var(--color-white));
-  --accent: --alpha(var(--color-white) / 4%);
-  --accent-foreground: var(--color-neutral-100);
-  /* coss lightens red-500 toward white here, which drops the white label to
-     3.52:1. Darkening the fill instead keeps the label legible. */
-  --destructive: var(--color-red-600);
+  --background: oklch(0.2679 0.0036 106.6427);
+  --foreground: oklch(0.8074 0.0142 93.0137);
+  --card: oklch(0.2679 0.0036 106.6427);
+  --card-foreground: oklch(0.9818 0.0054 95.0986);
+  --popover: oklch(0.3085 0.0035 106.6039);
+  --popover-foreground: oklch(0.9211 0.004 106.4781);
+  /* White labels read 3.12:1 here — worse than light mode's 3.90:1, and short
+     of 4.5:1. Kept at the supplied value for brand fidelity (see :root). */
+  --primary: oklch(0.6724 0.1308 38.7559);
+  --primary-foreground: oklch(1 0 0);
+  /* Near-white on a dark surface. This is intentional in this theme family —
+     secondary buttons invert rather than recede. Verify visually; if it reads
+     as competing with --primary, drop it toward the popover step. */
+  --secondary: oklch(0.9818 0.0054 95.0986);
+  --secondary-foreground: oklch(0.3085 0.0035 106.6039);
+  --muted: oklch(0.2213 0.0038 106.707);
+  --muted-foreground: oklch(0.7713 0.0169 99.0657); /* 7.36:1 on bg, 8.38:1 on muted */
+  --accent: oklch(0.213 0.0078 95.4245);
+  --accent-foreground: oklch(0.9663 0.008 98.8792);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  /* NOT white — same coss semantics as light mode; see the :root comment. */
   --destructive-foreground: var(--color-red-400);
-  --border: --alpha(var(--color-white) / 6%);
-  /* COSS ships 8%, which reads 1.25:1 — a field with no perceivable edge. */
-  --input: --alpha(var(--color-white) / 35%);
-  --ring: var(--color-indigo-400);
-  --skeleton: #334155;
+  --border: oklch(0.3618 0.0101 106.8928);
+  /* CORRECTED — supplied oklch(0.4336 0.0113 100.2195) read 1.90:1 against the
+     background, failing WCAG 1.4.11. Lightened to 3.20:1. */
+  --input: oklch(0.555 0.013 100.2195);
+  --ring: oklch(0.6724 0.1308 38.7559);
+  --skeleton: oklch(0.34 0.008 106);
 
-  /* The dark palette already uses lighter 400-shades, which clear 4.5:1 on
-     their own tints (4.78–7.79:1), so `-text` is the base value here. Light
-     mode needs darker steps; dark does not. */
+  /* Re-solved against the new dark card (#262624), same rule as light mode:
+     each `-text` value clears 4.5:1 on a 15% tint of its own status colour. */
   --success: var(--color-emerald-500);
   --success-foreground: var(--color-emerald-400);
-  --success-text: #34d399;
+  --success-text: #10b981; /* 4.69:1 on success/15 over --card */
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-400);
-  --warning-text: #fbbf24;
+  --warning-text: #f59e0b; /* 5.32:1 on warning/15 over --card */
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-400);
-  --info-text: #22d3ee;
-  --destructive-text: #f87171;
-  --primary-text: var(--color-indigo-300); /* on a 15% primary tint */
+  --info-text: #619bf8; /* 4.53:1 on info/15 over --card */
+  --destructive-text: #f36e6e; /* 4.52:1 on destructive/15 over --card */
+  --primary-text: #dd876a; /* 4.51:1 on primary/15 — terracotta */
 
-  --sidebar: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
-  --sidebar-foreground: color-mix(in srgb, var(--color-neutral-100) 64%, var(--sidebar));
-  --sidebar-primary: var(--color-indigo-500);
-  --sidebar-primary-foreground: var(--color-white);
-  --sidebar-accent: --alpha(var(--color-white) / 4%);
-  --sidebar-accent-foreground: var(--color-neutral-100);
-  --sidebar-border: --alpha(var(--color-white) / 5%);
-  --sidebar-ring: var(--color-indigo-400);
+  --sidebar: oklch(0.2357 0.0024 67.7077);
+  --sidebar-foreground: oklch(0.8074 0.0142 93.0137);
+  /* Unused (see :root). Supplied oklch(0.3250 0 0) was a chroma-0 grey that
+     the generator never overrode from a neutral default. */
+  --sidebar-primary: oklch(0.6724 0.1308 38.7559);
+  --sidebar-primary-foreground: oklch(0.9881 0 0);
+  --sidebar-accent: oklch(0.168 0.002 106.6177);
+  --sidebar-accent-foreground: oklch(0.8074 0.0142 93.0137);
+  /* CORRECTED — supplied oklch(0.9401 0 0), byte-identical to the light value
+     and therefore never overridden. It read 13.96:1 against the dark sidebar:
+     a white line glowing down the edge. Derived from the dark --border. */
+  --sidebar-border: oklch(0.3618 0.0101 106.89);
+  /* CORRECTED — supplied oklch(0.7731 0 0), the same non-override as light
+     mode. Now matches --ring. */
+  --sidebar-ring: oklch(0.6724 0.1308 38.7559);
 
-  /* Dark is selected, not flipped: darker steps to sit inside the dark
-     lightness band while keeping 3:1 against the card surface. */
-  --chart-1: #6366f1;
-  --chart-2: #059669;
-  --chart-3: #d97706;
-  --chart-4: #0891b2;
-  --chart-5: #ec4899;
-  --code: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  /* Dark is selected, not flipped: same five hues, lifted into the dark
+     lightness band (0.48–0.67) and re-validated against the dark card. */
+  --chart-1: oklch(0.665 0.1308 38.76);
+  --chart-2: oklch(0.66 0.115 232);
+  --chart-3: oklch(0.665 0.125 85);
+  --chart-4: oklch(0.66 0.14 300);
+  --chart-5: oklch(0.665 0.11 158);
+  --code: oklch(0.3085 0.0035 106.6039);
   --code-foreground: var(--foreground);
   --code-highlight: --alpha(var(--color-white) / 4%);
 }
@@ -218,6 +262,17 @@
   --shadow-card: 0 1px 2px 0 color-mix(in srgb, var(--foreground) 5%, transparent);
   --shadow-raised: 0 4px 12px -2px color-mix(in srgb, var(--foreground) 10%, transparent);
   --shadow-overlay: 0 16px 40px -12px color-mix(in srgb, var(--foreground) 24%, transparent);
+
+  /* The theme's own elevation ramp, mapped onto Tailwind's stock shadow
+     utilities. Declared in :root so both modes share it. */
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
   --animate-skeleton: skeleton 2s -1s infinite linear;
   --animate-caret-blink: 1s ease-out infinite caret-blink;
   --animate-toast-success-odd: toast-success-odd 0.32s cubic-bezier(0.5, 1, 0.89, 1);
@@ -366,9 +421,14 @@
 }
 
 @layer utilities {
-  /* Gradient set from the redesign brief — used by stat cards & hero CTAs */
+  /* Gradient set from the redesign brief — used by stat cards & hero CTAs.
+     .gradient-primary was retuned from indigo to the brand terracotta; the
+     four accent gradients below are categorical, not brand, so they stay.
+     Every stop is darker than --primary on purpose: all 13 consumers put
+     `text-white` on this surface, and these stops clear 4.5:1 (7.07 / 5.61 /
+     4.53) where --primary itself only reaches 3.90:1. */
   .gradient-primary {
-    background-image: linear-gradient(135deg, #7c3aed 0%, #6366f1 55%, #4f46e5 100%);
+    background-image: linear-gradient(135deg, #923f33 0%, #aa4a30 55%, #bc5a31 100%);
   }
   /* 600-shades: keeps white text ≥ ~4:1 (ui-ux-pro-max accessibility note) */
   .gradient-sky {
@@ -475,50 +535,52 @@
      its light-indigo --primary and translucent --accent onto white paper. */
   :root,
   .dark {
-    --background: #ffffff;
-    --foreground: #0f172a;
-    --card: #ffffff;
-    --card-foreground: #0f172a;
+    --background: #faf9f5;
+    --foreground: #3d3929;
+    --card: #faf9f5;
+    --card-foreground: #141413;
     --popover: #ffffff;
-    --popover-foreground: #0f172a;
-    --primary: #4338ca;
+    --popover-foreground: #28261b;
+    --primary: #c96442;
     --primary-foreground: #ffffff;
-    --primary-text: #4338ca;
-    --secondary: #f1f5f9;
-    --secondary-foreground: #0f172a;
-    --muted: #f1f5f9;
-    --muted-foreground: #475569;
-    --accent: #eef2ff;
-    --accent-foreground: #312e81;
-    --destructive: #b91c1c;
+    --primary-text: #a25035;
+    --secondary: #e9e6dc;
+    --secondary-foreground: #535146;
+    --muted: #ede9de;
+    --muted-foreground: #696864; /* 4.60:1 on --muted; #6a6a65 read 4.48:1 */
+    --accent: #e9e6dc;
+    --accent-foreground: #28261b;
+    --destructive: #dc2626;
+    /* Paper has no tint behind it, so unlike on screen this one IS the label
+       colour on a solid destructive fill. */
     --destructive-foreground: #ffffff;
-    --destructive-text: #b91c1c;
-    --border: #cbd5e1;
-    --input: #64748b;
-    --ring: #4338ca;
-    --skeleton: #e2e8f0;
-    --success: #047857;
+    --destructive-text: #c02121;
+    --border: #dad9d4;
+    --input: #8f8c80;
+    --ring: #c96442;
+    --skeleton: #cdccc5;
+    --success: #0a7854;
     --success-foreground: #ffffff;
-    --success-text: #047857;
-    --warning: #b45309;
+    --success-text: #0a7854;
+    --warning: #956007;
     --warning-foreground: #ffffff;
-    --warning-text: #b45309;
-    --info: #0e7490;
+    --warning-text: #956007;
+    --info: #2e65bf;
     --info-foreground: #ffffff;
-    --info-text: #0e7490;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #475569;
-    --sidebar-primary: #4338ca;
+    --info-text: #2e65bf;
+    --sidebar: #faf9f5;
+    --sidebar-foreground: #3d3d3a;
+    --sidebar-primary: #c96442;
     --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #eef2ff;
-    --sidebar-accent-foreground: #312e81;
-    --sidebar-border: #cbd5e1;
-    --sidebar-ring: #4338ca;
-    --chart-1: #6366f1;
-    --chart-2: #10b981;
-    --chart-3: #f59e0b;
-    --chart-4: #06b6d4;
-    --chart-5: #ec4899;
+    --sidebar-accent: #e9e6dc;
+    --sidebar-accent-foreground: #343434;
+    --sidebar-border: #dad9d4;
+    --sidebar-ring: #c96442;
+    --chart-1: #c96442;
+    --chart-2: #2691bf;
+    --chart-3: #aa800d;
+    --chart-4: #946fd0;
+    --chart-5: #449c6e;
   }
 
   /* Without this, browsers drop background fills — every stat tile and bar
