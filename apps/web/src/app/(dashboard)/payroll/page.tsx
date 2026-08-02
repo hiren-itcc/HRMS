@@ -4,7 +4,7 @@ import { Button } from '@hrms/ui/components/button';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
@@ -26,9 +26,24 @@ export default function PayrollRunsPage() {
   const params = useListParams('month');
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { can } = useSession();
+  const { can, status } = useSession();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(previousMonth());
+
+  /*
+   * This is the module's landing route, but it is the *Runs* screen and runs
+   * need payroll.read. An employee only holds payroll.read.own, so the sidebar
+   * link — deliberately open to them, because everyone has a salary page —
+   * used to drop them on a table they cannot read: the layout showed them only
+   * a "My salary" tab while the body reported "something went wrong on our
+   * side". Send them to the one tab that is theirs instead.
+   */
+  const canReadRuns = can('payroll.read');
+  const redirecting = status === 'authenticated' && !canReadRuns;
+
+  useEffect(() => {
+    if (redirecting) router.replace('/payroll/me');
+  }, [redirecting, router]);
 
   const listQuery = {
     page: params.page,
@@ -39,6 +54,9 @@ export default function PayrollRunsPage() {
   const runs = useQuery({
     queryKey: [...payrollKeys.runs(), listQuery],
     queryFn: () => payrollApi.runs(listQuery),
+    // Never ask for runs we know will be refused; the 403 only produced a
+    // misleading error card on the way out of this page.
+    enabled: canReadRuns,
   });
 
   const create = useMutation({
@@ -97,6 +115,9 @@ export default function PayrollRunsPage() {
       render: (row) => row.payDate ?? '—',
     },
   ];
+
+  // Render nothing over the redirect rather than flashing the runs table.
+  if (redirecting) return null;
 
   return (
     <section className="space-y-4">
