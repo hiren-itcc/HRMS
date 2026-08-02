@@ -25,6 +25,10 @@ WORKDIR /app
 COPY --from=build --chown=hrms:hrms /out/ ./
 COPY --from=build --chown=hrms:hrms /repo/apps/api/dist ./dist
 COPY --from=build --chown=hrms:hrms /repo/apps/api/prisma ./prisma
+# Supabase's root CA, pinned by DATABASE_URL's sslrootcert. The path there is
+# relative to WORKDIR, so this must land at /app/certs or the API cannot open a
+# verified connection and refuses to start.
+COPY --from=build --chown=hrms:hrms /repo/apps/api/certs ./certs
 USER hrms
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

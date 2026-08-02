@@ -49,7 +49,14 @@ docker/         # compose.yaml (postgres + minio) and production Dockerfiles
 
 ## Getting started
 
-**Prerequisites:** Node ≥ 22, pnpm ≥ 11, and PostgreSQL 16+ (via `docker compose -f docker/compose.yaml up -d` or any local instance on `localhost:5432`).
+**Prerequisites:** Node ≥ 22, pnpm ≥ 11, and a Postgres.
+
+This checkout is wired to the **Supabase** project `zvcgaeoiaywupmzcdkwt`
+(`ap-northeast-2`) rather than a local database — see
+[docs/14-production-setup.md §2.1](docs/14-production-setup.md) for the
+connection string and its two mandatory SSL parameters. To go back to a
+throwaway local Postgres instead, swap in the commented-out `DATABASE_URL` in
+`apps/api/.env` and run `docker compose -f docker/compose.yaml up -d`.
 
 ```bash
 # 1. Install
@@ -59,18 +66,27 @@ pnpm install
 cp apps/api/.env.example apps/api/.env      # set DATABASE_URL + JWT_ACCESS_SECRET
 cp apps/web/.env.example apps/web/.env.local
 
-# 3. Database (role/db "hrms" must exist — compose creates it)
+# 3. Database
 pnpm db:generate
-pnpm db:migrate      # or: pnpm --filter @hrms/api db:deploy
-pnpm db:seed         # roles, permission matrix, admin user, defaults
+pnpm db:deploy       # apply migrations (use db:migrate only to author new ones)
 
-# 4. Run both apps
+# 4. Data — pick ONE, they are not interchangeable
+pnpm db:bootstrap    # one org, roles, one admin. Additive. Safe on a real database.
+pnpm db:seed         # demo workspace — WIPES THE ORGANIZATION FIRST. Local throwaway DB only.
+
+# 5. Run both apps
 pnpm dev
 ```
 
-Open **http://localhost:3000** — it redirects to sign-in. The seed creates a
-full demo workspace (Acme Industries) with seven accounts, all sharing the
-password `Passw0rd!2026`:
+Open **http://localhost:3000** — it redirects to sign-in.
+
+The Supabase database above was set up with `db:bootstrap`, so it holds one
+organization, the role/permission matrix and a single administrator — no demo
+people. The accounts below exist only after `db:seed`, on a local throwaway
+database. Running that seed against Supabase would delete the organization.
+
+The seed creates a full demo workspace (Acme Industries) with seven accounts,
+all sharing the password `Passw0rd!2026`:
 
 | Account | Role | Person | Use it to see |
 |---|---|---|---|
@@ -112,9 +128,22 @@ Payroll is where this earns its keep: nobody holds both `payroll.process` and
 `payroll.approve` by default, so the person who runs payroll is not the person
 who releases it.
 
-## Architecture docs
+## Documentation
+
+Start here depending on what you need:
+
+| Document | For |
+|---|---|
+| [`12-how-it-works.md`](docs/12-how-it-works.md) | What the system does, in plain language. No technical knowledge assumed. |
+| [`13-data-map.md`](docs/13-data-map.md) | How the modules connect, with diagrams. What happens on delete. |
+| [`14-production-setup.md`](docs/14-production-setup.md) | **Deploying to a server.** Env vars, migrations, creating the first admin. |
 
 The full design package lives in [`docs/`](docs/) — start with [`00-architecture-decisions.md`](docs/00-architecture-decisions.md). It covers the database schema & ER diagram, API conventions, auth architecture (token rotation, reuse detection), NestJS/Next.js structure, coding standards, git strategy, CI/CD, and the sprint roadmap.
+
+> **Deploying?** Migrations create tables but no data — a migrated database has
+> no roles and nobody who can sign in. Run `pnpm db:bootstrap`, not `db:seed`
+> (which loads demo data and wipes the organization). See
+> [`14-production-setup.md`](docs/14-production-setup.md).
 
 ## Branches
 
