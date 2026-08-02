@@ -7,6 +7,15 @@ export interface AccessTokenClaims {
   employeeId?: string;
   roleCode: RoleCode;
   perms: string[];
+  /**
+   * The account still holds the shared default password. Carried in the token
+   * so `PasswordChangeGuard` can refuse every route but the ones needed to
+   * replace it, without a database read per request.
+   *
+   * Optional because tokens minted before this claim existed are still valid
+   * until they expire; absent is treated as "not required to change".
+   */
+  mustChangePassword?: boolean;
 }
 
 /** Shape returned by POST /auth/login and POST /auth/refresh. */

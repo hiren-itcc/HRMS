@@ -9,8 +9,9 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Field } from '@/components/field';
+import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
-import { ApiError } from '@/lib/api-client';
+import { ApiError, setAccessToken } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
 
 const formSchema = changePasswordSchema
@@ -23,6 +24,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function ChangePasswordForm() {
   const [serverError, setServerError] = useState<string | null>(null);
+  const { reload } = useSession();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
@@ -32,7 +34,16 @@ export function ChangePasswordForm() {
   const onSubmit = form.handleSubmit(async ({ currentPassword, newPassword }) => {
     setServerError(null);
     try {
-      await authApi.changePassword({ currentPassword, newPassword });
+      const { accessToken } = await authApi.changePassword({ currentPassword, newPassword });
+      /*
+       * Swap the token before anything else. The one we authenticated with
+       * still carries mustChangePassword, and the API refuses every route
+       * while that claim is set — keeping it would lock the user out of the
+       * app they just unlocked. `reload` then clears the redirect that pins
+       * them to this page.
+       */
+      setAccessToken(accessToken);
+      await reload();
       form.reset();
       toast.success('Password changed. Other signed-in devices were logged out.');
     } catch (err) {
