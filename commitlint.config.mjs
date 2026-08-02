@@ -18,6 +18,9 @@ export default {
         'leave',
         'documents',
         'announcements',
+        // Shipped after this list was written, so it was the one module
+        // missing from it — every other module is named here.
+        'payroll',
         'reports',
         'settings',
         'db',
