@@ -3,7 +3,8 @@
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { type Column, DataTable } from '@/components/data-table';
@@ -22,6 +23,7 @@ const CALC_LABEL: Record<string, string> = {
 
 export default function StructuresPage() {
   const params = useListParams('name');
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { can } = useSession();
 
@@ -120,6 +122,8 @@ export default function StructuresPage() {
       search={params.search}
       onSearchChange={params.setSearch}
       managePerm="payroll.structure.manage"
+      onAdd={() => router.push('/payroll/structures/new')}
+      addLabel="New structure"
     >
       <DataTable
         columns={columns}
@@ -134,11 +138,19 @@ export default function StructuresPage() {
         order={params.order}
         onSortChange={params.toggleSort}
         emptyTitle="No salary structures yet"
-        emptyHint="A structure defines how CTC splits into basic, allowances and deductions."
+        emptyHint="A structure defines how CTC splits into basic, allowances and deductions. Use New structure to build the first one."
         actions={
           can('payroll.structure.manage')
             ? (row) => (
                 <>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Edit ${row.name}`}
+                    onClick={() => router.push(`/payroll/structures/${row.id}`)}
+                  >
+                    <Pencil className="size-4" aria-hidden />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon-sm"
