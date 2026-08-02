@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { AllowPasswordChange } from '../../common/decorators/allow-password-change.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { Env } from '../../config/env';
@@ -95,24 +96,28 @@ export class AuthController {
   @Post('change-password')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
+  @AllowPasswordChange()
   @ApiOperation({ summary: 'Change own password; revokes every other session' })
   async changePassword(
     @Body() dto: ChangePasswordDto,
     @CurrentUser() user: AccessTokenClaims,
     @Req() req: Request,
   ) {
-    await this.auth.changePassword(
+    const { accessToken } = await this.auth.changePassword(
       user.sub,
       dto.currentPassword,
       dto.newPassword,
       req.cookies?.[REFRESH_COOKIE],
       meta(req),
     );
-    return { message: 'Password changed.' };
+    // The new token no longer carries mustChangePassword — the client must
+    // swap it in, or every subsequent call is refused by PasswordChangeGuard.
+    return { message: 'Password changed.', accessToken };
   }
 
   @Get('me')
   @ApiBearerAuth()
+  @AllowPasswordChange()
   @ApiOperation({ summary: 'Current user with role, permissions and employee summary' })
   me(@CurrentUser() user: AccessTokenClaims) {
     return this.auth.getMe(user.sub);

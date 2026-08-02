@@ -19,6 +19,7 @@ import {
   BankDetailDto,
   EmployeeCreateDto,
   EmployeeQueryDto,
+  EmployeeRoleChangeDto,
   EmployeeUpdateDto,
   SelfProfileUpdateDto,
 } from './dto/employee.dto';
@@ -67,6 +68,17 @@ export class EmployeesController {
     @Body() dto: EmployeeUpdateDto,
   ) {
     return this.employees.update(user, id, dto);
+  }
+
+  @Patch(':id/role')
+  @RequirePermissions('role.manage')
+  @ApiOperation({ summary: "Change the role on an employee's login (Admin only)" })
+  changeRole(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: EmployeeRoleChangeDto,
+  ) {
+    return this.employees.changeRole(user, id, dto.roleCode);
   }
 
   @Delete(':id')

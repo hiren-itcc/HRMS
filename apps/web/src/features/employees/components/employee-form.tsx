@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
+import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { fullName } from '@/features/employees/types';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
 import { ApiError, api } from '@/lib/api-client';
@@ -346,10 +347,10 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       {!isEdit && (
         <Card>
           <CardHeader>
-            <CardTitle>Sign-in</CardTitle>
+            <CardTitle>Sign-in &amp; role</CardTitle>
             <CardDescription>
-              Creates a login using the work email above. Without one, the record exists but the
-              person cannot use the product.
+              Creates a login using the work email above, and decides what they can do. Without one,
+              the record exists but the person cannot use the product.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -380,14 +381,8 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[
-                          ['EMPLOYEE', 'Employee — self service'],
-                          ['MANAGER', 'Manager — plus direct reports'],
-                          ['HR', 'HR — all people operations'],
-                          ['FINANCE', 'Finance — approves and pays payroll'],
-                          ['ADMIN', 'Admin — everything'],
-                        ].map(([value, label]) => (
-                          <SelectItem key={value} value={value as string}>
+                        {ROLE_OPTIONS.map(({ value, label }) => (
+                          <SelectItem key={value} value={value}>
                             {label}
                           </SelectItem>
                         ))}
@@ -408,6 +403,27 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/*
+        The role lives at the bottom of a long form and defaults to Employee,
+        which made it easy to submit without ever seeing it. Restating it here
+        makes the default a choice rather than an accident.
+      */}
+      {!isEdit && (
+        <p className="text-muted-foreground text-sm">
+          {form.watch('createLogin') ? (
+            <>
+              Will create a sign-in as{' '}
+              <strong className="text-foreground">
+                {ROLE_LABEL[form.watch('loginRole') ?? 'EMPLOYEE']}
+              </strong>
+              .
+            </>
+          ) : (
+            'No sign-in will be created — this person will not be able to log in.'
+          )}
+        </p>
       )}
 
       <div className="flex gap-3">

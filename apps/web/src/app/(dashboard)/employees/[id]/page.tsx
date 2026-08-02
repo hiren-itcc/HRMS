@@ -1,7 +1,13 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { type BankDetailInput, bankDetailSchema } from '@hrms/shared';
+import {
+  type BankDetailInput,
+  bankDetailSchema,
+  type EmployeeRoleChangeInput,
+  employeeRoleChangeSchema,
+} from '@hrms/shared';
+import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +29,16 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Input } from '@hrms/ui/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Landmark, Pencil, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Landmark, Pencil, ShieldAlert, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -38,6 +51,7 @@ import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
+import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
 import { ApiError } from '@/lib/api-client';
 
@@ -54,6 +68,111 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <dt className="text-muted-foreground text-sm">{label}</dt>
       <dd className="font-medium text-sm sm:text-right">{value ?? '—'}</dd>
     </div>
+  );
+}
+
+/**
+ * The Role row, with a Change action for admins.
+ *
+ * Mirrors the server's guards rather than duplicating policy: the action is
+ * hidden without `role.manage`, when the person has no login (nothing to
+ * change), and on your own record — the server refuses that last one, and a
+ * button whose only outcome is a 403 is worse than no button.
+ */
+function RoleRow({ employee }: { employee: EmployeeDetail }) {
+  const { can, user: me } = useSession();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const form = useForm<EmployeeRoleChangeInput>({
+    resolver: zodResolver(employeeRoleChangeSchema),
+  });
+
+  const save = useMutation({
+    mutationFn: (input: EmployeeRoleChangeInput) => employeesApi.setRole(employee.id, input),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success(`Role changed to ${ROLE_LABEL[result.roleCode]}`, {
+        description: result.sessionsRevoked
+          ? 'They have been signed out and pick up the new role next time they sign in.'
+          : undefined,
+      });
+      setOpen(false);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not change role'),
+  });
+
+  const current = employee.user?.role?.code;
+  const canChange = can('role.manage') && !!employee.user && employee.user.id !== me?.id;
+
+  return (
+    <>
+      <Row
+        label="Role"
+        value={
+          employee.user ? (
+            <span className="inline-flex items-center gap-2">
+              {current ? ROLE_LABEL[current] : '—'}
+              {canChange && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2"
+                  onClick={() => {
+                    form.reset({ roleCode: current ?? 'EMPLOYEE' });
+                    setOpen(true);
+                  }}
+                >
+                  Change
+                </Button>
+              )}
+            </span>
+          ) : null
+        }
+      />
+
+      <FormDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Change role for ${fullName(employee)}`}
+        onSubmit={form.handleSubmit((input) => save.mutate(input))}
+        submitting={save.isPending}
+        submitLabel="Change role"
+      >
+        <Field label="Role" error={form.formState.errors.roleCode?.message}>
+          {(a11y) => (
+            <Select
+              value={form.watch('roleCode')}
+              onValueChange={(value) =>
+                form.setValue('roleCode', value as EmployeeRoleChangeInput['roleCode'])
+              }
+            >
+              <SelectTrigger id={a11y.id} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+        {form.watch('roleCode') === 'ADMIN' && (
+          <Alert variant="info">
+            <ShieldAlert aria-hidden />
+            <AlertTitle>Admin can do everything</AlertTitle>
+            <AlertDescription>
+              Including editing roles, reading every salary and changing settings.
+            </AlertDescription>
+          </Alert>
+        )}
+        <p className="text-muted-foreground text-sm">
+          Changing this signs them out. They pick up the new permissions when they sign in again.
+        </p>
+      </FormDialog>
+    </>
   );
 }
 
@@ -312,6 +431,7 @@ function EmployeeDetailView() {
                   label="Login"
                   value={e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'}
                 />
+                <RoleRow employee={e} />
               </dl>
             </CardContent>
           </Card>

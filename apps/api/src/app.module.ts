@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
@@ -51,9 +52,13 @@ import { SettingsModule } from './modules/settings/settings.module';
   controllers: [HealthController],
   providers: [
     // Request pipeline (docs/08-nestjs-architecture.md §cross-cutting):
-    // throttle → identity → permissions → zod validation → error shaping
+    // throttle → identity → default-password → permissions → zod → error shaping
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Must sit after identity (it reads req.user) and before permissions, so a
+    // holder of the shared default password is stopped regardless of what
+    // their role would otherwise allow.
+    { provide: APP_GUARD, useClass: PasswordChangeGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

@@ -133,7 +133,7 @@ export class AuthService {
     newPassword: string,
     currentRefreshToken: string | undefined,
     meta: RequestMeta,
-  ): Promise<void> {
+  ): Promise<{ accessToken: string }> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const valid = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
     if (!valid) throw new BadRequestException('Current password is incorrect');
@@ -156,6 +156,28 @@ export class AuthService {
       : null;
     await this.tokens.revokeAllForUser(userId, current?.id);
     await this.audit(user.organizationId, userId, 'auth.password_changed', meta);
+
+    /*
+     * A fresh token, because the caller's own session deliberately survives
+     * this call. Their existing one still asserts mustChangePassword, and
+     * PasswordChangeGuard reads that claim — returning the old token would
+     * lock them out of the app they just unlocked, until it expired.
+     */
+    const refreshed = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: userWithAccess,
+    });
+    const sessionUser = this.toSessionUser(refreshed);
+    return {
+      accessToken: await this.tokens.signAccessToken({
+        sub: refreshed.id,
+        orgId: refreshed.organizationId,
+        employeeId: refreshed.employee?.id,
+        roleCode: sessionUser.roleCode,
+        perms: sessionUser.permissions,
+        mustChangePassword: sessionUser.mustChangePassword,
+      }),
+    };
   }
 
   async getMe(userId: string): Promise<SessionUser> {
@@ -176,6 +198,7 @@ export class AuthService {
       employeeId: user.employee?.id,
       roleCode: sessionUser.roleCode,
       perms: sessionUser.permissions,
+      mustChangePassword: sessionUser.mustChangePassword,
     });
     return { accessToken, user: sessionUser, refreshToken };
   }

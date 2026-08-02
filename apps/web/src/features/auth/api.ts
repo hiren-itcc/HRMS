@@ -27,8 +27,10 @@ export const authApi = {
       body: JSON.stringify(input),
     }),
 
+  // Returns a fresh token: the old one still asserts mustChangePassword, and
+  // the API refuses every route while that claim is set.
   changePassword: (input: ChangePasswordInput) =>
-    api<{ message: string }>('/auth/change-password', {
+    api<{ message: string; accessToken: string }>('/auth/change-password', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

@@ -3,6 +3,7 @@ import {
   editBlockedReason,
   lockoutReason,
   type RoleGrants,
+  roleMoveLockoutReason,
 } from './rbac.guardrails';
 
 const FLOOR = ['settings.manage', 'role.manage'];
@@ -111,5 +112,33 @@ describe('editBlockedReason', () => {
 
   it('leaves custom roles editable', () => {
     expect(editBlockedReason({ code: 'PAYROLL', isSystem: false })).toBeNull();
+  });
+});
+
+describe('roleMoveLockoutReason', () => {
+  it('blocks moving the only admin out of the role holding the floor', () => {
+    expect(roleMoveLockoutReason(roles(), 'admin', 'emp')).toMatch(/lock everyone out/);
+  });
+
+  it('allows the move when a second person still holds the floor role', () => {
+    expect(roleMoveLockoutReason(roles({ admin: { userCount: 2 } }), 'admin', 'emp')).toBeNull();
+  });
+
+  it('allows promoting somebody into the floor role', () => {
+    expect(roleMoveLockoutReason(roles(), 'emp', 'admin')).toBeNull();
+  });
+
+  it('is a no-op when the role does not change', () => {
+    expect(roleMoveLockoutReason(roles(), 'admin', 'admin')).toBeNull();
+  });
+
+  it('keyed on people, not on the ADMIN code — an unstaffed ADMIN is no safety net', () => {
+    // HR is the only *staffed* holder of the floor; moving its lone remaining
+    // member out locks everyone out even though an ADMIN role still exists.
+    const hrHoldsFloor = roles({
+      admin: { userCount: 0 },
+      hr: { userCount: 1, permissions: [...FLOOR] },
+    });
+    expect(roleMoveLockoutReason(hrHoldsFloor, 'hr', 'emp')).toMatch(/lock everyone out/);
   });
 });

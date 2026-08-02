@@ -1,7 +1,9 @@
 import type {
   BankDetailInput,
   EmployeeCreateInput,
+  EmployeeRoleChangeInput,
   EmployeeUpdateInput,
+  RoleCodeInput,
   SelfProfileUpdateInput,
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
@@ -29,6 +31,11 @@ export const employeesApi = {
     }),
   update: (id: string, input: EmployeeUpdateInput) =>
     api<EmployeeListItem>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  setRole: (id: string, input: EmployeeRoleChangeInput) =>
+    api<{ roleCode: RoleCodeInput; sessionsRevoked: number }>(`/employees/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   remove: (id: string) => api<void>(`/employees/${id}`, { method: 'DELETE' }),
   upsertBank: (id: string, input: BankDetailInput) =>
     api<BankDetail>(`/employees/${id}/bank`, { method: 'PUT', body: JSON.stringify(input) }),
