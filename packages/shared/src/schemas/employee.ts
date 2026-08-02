@@ -3,6 +3,13 @@ import { dateOnlySchema, paginationQuerySchema } from './common';
 
 const trimmed = (max: number) => z.string().trim().max(max);
 
+/**
+ * The five seeded system roles (docs/04-rbac.md). Shared by the create form's
+ * `loginRole` and by the role-change action so the two can never drift apart.
+ */
+export const roleCodeSchema = z.enum(['EMPLOYEE', 'MANAGER', 'HR', 'FINANCE', 'ADMIN']);
+export type RoleCodeInput = z.infer<typeof roleCodeSchema>;
+
 /*
  * An HTML form sends "" for an untouched field, not `undefined`. These map
  * that to absent.
@@ -91,19 +98,26 @@ export const employeeCreateSchema = z.object({
    */
   createLogin: z.boolean().default(true),
   /** Role the new login gets. Anything beyond self-service is a decision. */
-  loginRole: z.enum(['EMPLOYEE', 'MANAGER', 'HR', 'FINANCE', 'ADMIN']).default('EMPLOYEE'),
+  loginRole: roleCodeSchema.default('EMPLOYEE'),
 });
 /*
  * Login fields are create-only. A sign-in is not an employee attribute you
  * edit — changing a role or resetting a password are their own actions with
  * their own permissions, and leaving these in would let an edit spread
  * unknown columns into the employee update.
+ *
+ * The role half of that is `employeeRoleChangeSchema` below, behind
+ * `role.manage` — see PATCH /employees/:id/role.
  */
 export const employeeUpdateSchema = employeeCreateSchema
   .omit({ createLogin: true, loginRole: true })
   .partial();
 export type EmployeeCreateInput = z.infer<typeof employeeCreateSchema>;
 export type EmployeeUpdateInput = z.infer<typeof employeeUpdateSchema>;
+
+/** Body of PATCH /employees/:id/role — the role a person's login should hold. */
+export const employeeRoleChangeSchema = z.object({ roleCode: roleCodeSchema });
+export type EmployeeRoleChangeInput = z.infer<typeof employeeRoleChangeSchema>;
 
 export const employeeQuerySchema = paginationQuerySchema.extend({
   departmentId: z.string().optional(),

@@ -3,6 +3,7 @@ import type {
   EmployeeCreateInput,
   EmployeeQuery,
   EmployeeUpdateInput,
+  RoleCodeInput,
   SelfProfileUpdateInput,
 } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
@@ -18,6 +19,7 @@ import { auditMutation } from '../../common/utils/audit';
 import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { roleMoveLockoutReason } from '../rbac/rbac.guardrails';
 
 const SORTABLE = ['firstName', 'employeeCode', 'joinDate', 'status'] as const;
 
@@ -42,7 +44,9 @@ const DETAIL_INCLUDE = {
       designation: { select: { title: true } },
     },
   },
-  user: { select: { id: true, email: true, status: true } },
+  user: {
+    select: { id: true, email: true, status: true, role: { select: { id: true, code: true } } },
+  },
 } as const;
 
 type Ctx = { orgId: string; userId: string; employeeId?: string; perms: Set<string> };
@@ -233,6 +237,100 @@ export class EmployeesService {
     });
     await auditMutation(this.prisma, ctx, 'employee.update', 'Employee', id);
     return employee;
+  }
+
+  /**
+   * Change the role on an employee's login (docs/04-rbac.md: a role attaches to
+   * the User, so an employee without a sign-in has nothing to change).
+   *
+   * Its own action behind `role.manage` rather than a field on the employee
+   * update, so that granting somebody Admin is deliberate and separately
+   * audited instead of riding along with an address correction.
+   */
+  async changeRole(claims: AccessTokenClaims, id: string, roleCode: RoleCodeInput) {
+    const ctx = ctxOf(claims);
+    const employee = await this.ensureExists(ctx.orgId, id);
+
+    if (!employee.userId) {
+      throw new BadRequestException(
+        'This employee has no sign-in, so there is no role to change. Create one first.',
+      );
+    }
+    /*
+     * Self-service here is either an escalation or a lockout: nothing stops an
+     * admin granting themselves Admin (they have it), so every real use is one
+     * of the two. Changing someone else's role is the only legitimate shape.
+     */
+    if (employee.userId === ctx.userId) {
+      throw new ForbiddenException('You cannot change your own role — ask another administrator');
+    }
+
+    const target = await this.prisma.role.findUnique({
+      where: { organizationId_code: { organizationId: ctx.orgId, code: roleCode } },
+      select: { id: true },
+    });
+    if (!target) throw new BadRequestException(`Role ${roleCode} does not exist`);
+
+    const current = await this.prisma.user.findUniqueOrThrow({
+      where: { id: employee.userId },
+      select: { roleId: true, role: { select: { code: true } } },
+    });
+    if (current.roleId === target.id) return { roleCode };
+
+    /*
+     * Counted per role over ACTIVE users only. `_count: { users: true }` — the
+     * shape rbac.service uses — includes SUSPENDED ones, and softDelete
+     * suspends a login while leaving its roleId intact. That would let an
+     * offboarded admin who cannot sign in satisfy the floor below.
+     */
+    const [roles, active] = await Promise.all([
+      this.prisma.role.findMany({
+        where: { organizationId: ctx.orgId },
+        select: {
+          id: true,
+          code: true,
+          permissions: { select: { permission: { select: { code: true } } } },
+        },
+      }),
+      this.prisma.user.groupBy({
+        by: ['roleId'],
+        where: { organizationId: ctx.orgId, status: 'ACTIVE' },
+        _count: { _all: true },
+      }),
+    ]);
+    const activeByRole = new Map(active.map((row) => [row.roleId, row._count._all]));
+    const blocked = roleMoveLockoutReason(
+      roles.map((role) => ({
+        id: role.id,
+        code: role.code,
+        userCount: activeByRole.get(role.id) ?? 0,
+        permissions: role.permissions.map((p) => p.permission.code),
+      })),
+      current.roleId,
+      target.id,
+    );
+    if (blocked) throw new BadRequestException(blocked);
+
+    /*
+     * Revoking refresh sessions is the demotion half of this working. The
+     * access token carries `perms` and lives 15 minutes, so without this a
+     * demoted admin keeps admin rights until it expires. This cannot kill the
+     * token already in flight — it caps the exposure and forces the next
+     * refresh to read the new role. Same move as softDelete.
+     */
+    const [, revoked] = await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: employee.userId }, data: { roleId: target.id } }),
+      this.prisma.refreshSession.updateMany({
+        where: { userId: employee.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await auditMutation(this.prisma, ctx, 'employee.role.change', 'Employee', id, {
+      before: { roleCode: current.role.code },
+      after: { roleCode },
+      sessionsRevoked: revoked.count,
+    });
+    return { roleCode, sessionsRevoked: revoked.count };
   }
 
   /**

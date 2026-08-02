@@ -1,3 +1,4 @@
+import type { RoleCodeInput } from '@hrms/shared';
 import type { EmployeeStatus, Gender } from '@hrms/types';
 
 interface Ref {
@@ -57,7 +58,12 @@ export interface EmployeeDetail extends EmployeeListItem {
     employeeCode: string;
     designation: { title: string } | null;
   }[];
-  user: { id: string; email: string; status: string } | null;
+  user: {
+    id: string;
+    email: string;
+    status: string;
+    role: { id: string; code: RoleCodeInput } | null;
+  } | null;
   bankDetail?: BankDetail | null;
 }
 
