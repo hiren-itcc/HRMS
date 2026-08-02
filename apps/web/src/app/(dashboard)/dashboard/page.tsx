@@ -184,19 +184,6 @@ export default function DashboardPage() {
           />
         ),
       },
-    canOrg && {
-      key: 'holidays',
-      card: (
-        <StatCard
-          label="Upcoming holidays"
-          value={holidays.data ? upcoming.length : undefined}
-          hint={`Rest of ${new Date().getFullYear()}`}
-          icon={Palmtree}
-          gradient="amber"
-          loading={holidays.isLoading}
-        />
-      ),
-    },
   ].filter(Boolean) as { key: string; card: React.ReactNode }[];
 
   const actions: QuickAction[] = [
