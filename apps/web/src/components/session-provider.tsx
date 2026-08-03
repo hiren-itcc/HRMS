@@ -17,6 +17,8 @@ interface SessionContextValue {
   /** Re-fetch /auth/me (e.g. after profile edits). */
   reload: () => Promise<void>;
   can: (permission: Permission) => boolean;
+  /** Adopt a session the API already minted — used by the invite flow. */
+  adoptSession: (accessToken: string, user: SessionUser) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -64,6 +66,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setStatus('authenticated');
   }, []);
 
+  /**
+   * Adopts the session the API returns after an invitation is redeemed. The
+   * hire is signed in by the act of setting their password — asking them to
+   * type it again immediately would be theatre.
+   */
+  const adoptSession = useCallback((accessToken: string, sessionUser: SessionUser) => {
+    setAccessToken(accessToken);
+    setUser(sessionUser);
+    setSessionMarker();
+    setStatus('authenticated');
+  }, []);
+
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => undefined);
     setAccessToken(null);
@@ -82,8 +96,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, status, login, logout, reload, can }),
-    [user, status, login, logout, reload, can],
+    () => ({ user, status, login, logout, reload, can, adoptSession }),
+    [user, status, login, logout, reload, can, adoptSession],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

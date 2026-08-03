@@ -1,4 +1,4 @@
-import type { RoleCode, UserStatus } from './enums';
+import type { EmployeeStatus, RoleCode, UserStatus } from './enums';
 
 /** Claims carried in the access-token JWT (doc 07). */
 export interface AccessTokenClaims {
@@ -16,6 +16,16 @@ export interface AccessTokenClaims {
    * until they expire; absent is treated as "not required to change".
    */
   mustChangePassword?: boolean;
+  /**
+   * The employee is still onboarding. Carried in the token for the same reason
+   * as `mustChangePassword`: `OnboardingGuard` refuses everything but the
+   * wizard, without a database read on every request.
+   *
+   * A stale token only ever stays *restrictive* — approval revokes the
+   * employee's refresh sessions, so the next refresh mints a token without
+   * this claim. Erring towards restrictive is the safe direction.
+   */
+  onboarding?: boolean;
 }
 
 /** Shape returned by POST /auth/login and POST /auth/refresh. */
@@ -43,5 +53,10 @@ export interface SessionUser {
     lastName: string;
     avatarUrl?: string | null;
     designation?: string | null;
+    /**
+     * Needed on the client to route an onboarding hire to the wizard. Without
+     * it the web app cannot tell a new starter from an active employee.
+     */
+    status: EmployeeStatus;
   } | null;
 }

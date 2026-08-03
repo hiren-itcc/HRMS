@@ -181,6 +181,12 @@ reason: a payslip is a document the employee already holds. If it were assembled
 from live data, renaming a department would silently rewrite payslips issued
 years ago, and they would stop matching the copies people had been given.
 
+**Letters follow the same rule.** An issued `Letter` stores its rendered HTML,
+and nothing re-renders it. Editing an offer-letter template changes the next
+letter and no earlier one — otherwise a paper copy and the system's copy would
+quietly stop matching, which is the failure this whole pattern exists to
+prevent.
+
 Consequences worth knowing:
 
 - Editing a salary structure **does not** change payslips already calculated.
@@ -211,8 +217,14 @@ salary history, payslip lines, announcement attachments and read receipts,
 sessions and password-reset tokens.
 
 **Blocked** — the database refuses while dependants exist. An employee with any
-attendance, leave, documents or payslips **cannot be hard-deleted**. Departments,
-job titles and locations are likewise protected while anyone references them.
+attendance, leave, documents, payslips or letters **cannot be hard-deleted**.
+Departments, job titles and locations are likewise protected while anyone
+references them.
+
+A `Letter` has no delete path at all, not even a soft one. It is withdrawn
+(`status = VOID`, with a reason) and still renders: a copy is already in
+someone's hands, so "we withdrew it, and here is why" is an answer where "it
+never existed" is not.
 
 **Soft delete** — the real removal path for people and documents. A `deletedAt`
 timestamp is set; the record vanishes from every list but the history survives.

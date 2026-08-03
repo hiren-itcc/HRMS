@@ -21,7 +21,7 @@ export interface EmailTemplateView {
 }
 
 /** Only password reset has a live sender today (auth.service.ts). */
-const WIRED_KEYS = new Set(['password_reset']);
+const WIRED_KEYS = new Set(['password_reset', 'employee_invite']);
 
 @Injectable()
 export class EmailTemplatesService {

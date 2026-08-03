@@ -26,11 +26,20 @@ export const RoleCode = {
 export type RoleCode = (typeof RoleCode)[keyof typeof RoleCode];
 
 export const EmployeeStatus = {
+  /** Invited or filling in their details — not yet operational staff. */
+  ONBOARDING: 'ONBOARDING',
   ACTIVE: 'ACTIVE',
   ON_NOTICE: 'ON_NOTICE',
   EXITED: 'EXITED',
 } as const;
 export type EmployeeStatus = (typeof EmployeeStatus)[keyof typeof EmployeeStatus];
+
+export const OnboardingStatus = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  SUBMITTED: 'SUBMITTED',
+  APPROVED: 'APPROVED',
+} as const;
+export type OnboardingStatus = (typeof OnboardingStatus)[keyof typeof OnboardingStatus];
 
 export const LocationType = {
   HEAD_OFFICE: 'HEAD_OFFICE',

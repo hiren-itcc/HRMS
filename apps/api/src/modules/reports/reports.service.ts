@@ -5,6 +5,7 @@ import { dateKeyOf, eachDayKey, isWeekend, leaveYearOf, toDate } from '../../com
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { dateKeyInTz, deriveDayStatus } from '../attendance/attendance.util';
+import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { toNumber } from '../leave/leave.mapper';
 import { round1 } from '../leave/leave.util';
 import { SettingsService } from '../settings/settings.service';
@@ -79,7 +80,8 @@ export class ReportsService {
       isOrgWide,
       where: {
         organizationId: claims.orgId,
-        deletedAt: null,
+        // Excludes ONBOARDING only — never EXITED, per the note below.
+        ...EMPLOYED_AND_LIVE,
         ...(isOrgWide ? {} : { managerId: claims.employeeId ?? '__none__' }),
         ...(query.departmentId ? { departmentId: query.departmentId } : {}),
         // Anyone employed for *any part* of the range belongs in it. Filtering

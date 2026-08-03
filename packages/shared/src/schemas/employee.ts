@@ -53,7 +53,20 @@ const requiredId = (label: string) =>
     .trim()
     .min(1, `${label} is required`);
 
+/**
+ * The statuses a human may *set* on an employee.
+ *
+ * ONBOARDING is deliberately absent. It is reached by inviting somebody and
+ * left by approving them — both audited, permissioned actions. If it were
+ * settable here it would flow into `employeeUpdateSchema`, and
+ * `PATCH /employees/:id { status: 'ONBOARDING' }` would become an unguarded
+ * way to shove an active employee back into the wizard, where their own
+ * bank details become self-editable again.
+ */
 export const employeeStatusSchema = z.enum(['ACTIVE', 'ON_NOTICE', 'EXITED']);
+
+/** The statuses a list may be *filtered* by — settable ones plus ONBOARDING. */
+export const employeeStatusFilterSchema = z.enum(['ONBOARDING', 'ACTIVE', 'ON_NOTICE', 'EXITED']);
 export const genderSchema = z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']);
 
 export const employeeCreateSchema = z.object({
@@ -124,7 +137,8 @@ export const employeeQuerySchema = paginationQuerySchema.extend({
   designationId: z.string().optional(),
   locationId: z.string().optional(),
   employmentTypeId: z.string().optional(),
-  status: employeeStatusSchema.optional(),
+  // Filter, not setter — HR has to be able to find people mid-onboarding.
+  status: employeeStatusFilterSchema.optional(),
 });
 export type EmployeeQuery = z.infer<typeof employeeQuerySchema>;
 

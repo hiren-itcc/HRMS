@@ -22,19 +22,22 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users        User[]
-  roles        Role[]
-  employees    Employee[]
-  departments  Department[]
-  designations Designation[]
-  locations    Location[]
-  holidays     Holiday[]
+  users          User[]
+  roles          Role[]
+  employees      Employee[]
+  departments    Department[]
+  designations   Designation[]
+  locations      Location[]
+  holidays       Holiday[]
   settings       Setting[]
   emailTemplates EmailTemplate[]
 
-  payComponents     PayComponent[]
-  salaryStructures  SalaryStructure[]
-  payrollRuns       PayrollRun[]
+  payComponents    PayComponent[]
+  salaryStructures SalaryStructure[]
+  payrollRuns      PayrollRun[]
+
+  letters         Letter[]
+  letterTemplates LetterTemplate[]
 }
 
 enum UserStatus {
@@ -44,19 +47,19 @@ enum UserStatus {
 }
 
 model User {
-  id             String     @id @default(cuid())
-  organizationId String
-  email          String     @unique
-  passwordHash   String
-  status         UserStatus @default(INVITED)
+  id                 String     @id @default(cuid())
+  organizationId     String
+  email              String     @unique
+  passwordHash       String
+  status             UserStatus @default(INVITED)
   /// Set when an account is created with a shared default password. Login
   /// succeeds but the app sends them straight to change it, so a predictable
   /// credential is never a usable one for long.
-  mustChangePassword Boolean @default(false)
-  roleId         String
-  lastLoginAt    DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  mustChangePassword Boolean    @default(false)
+  roleId             String
+  lastLoginAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   organization Organization         @relation(fields: [organizationId], references: [id])
   role         Role                 @relation(fields: [roleId], references: [id])
@@ -232,45 +235,48 @@ enum Gender {
 }
 
 enum EmployeeStatus {
+  /// Invited or filling in their details; not yet an operational employee.
+  /// Deliberately first so that "not yet started" sorts before "working".
+  ONBOARDING
   ACTIVE
   ON_NOTICE
   EXITED
 }
 
 model Employee {
-  id             String         @id @default(cuid())
-  organizationId String
-  userId         String?        @unique
-  employeeCode   String
-  firstName      String
-  lastName       String
-  workEmail      String
-  personalEmail  String?
-  phone          String?
-  dateOfBirth    DateTime?      @db.Date
-  gender         Gender?
-  avatarUrl      String?
-  addressLine    String?
-  city           String?
-  country        String?
-  departmentId   String?
-  designationId  String?
-  locationId     String?
+  id               String         @id @default(cuid())
+  organizationId   String
+  userId           String?        @unique
+  employeeCode     String
+  firstName        String
+  lastName         String
+  workEmail        String
+  personalEmail    String?
+  phone            String?
+  dateOfBirth      DateTime?      @db.Date
+  gender           Gender?
+  avatarUrl        String?
+  addressLine      String?
+  city             String?
+  country          String?
+  departmentId     String?
+  designationId    String?
+  locationId       String?
   managerId        String?
   shiftId          String?
   employmentTypeId String?
   status           EmployeeStatus @default(ACTIVE)
-  joinDate       DateTime       @db.Date
-  exitDate       DateTime?      @db.Date
-  deletedAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  joinDate         DateTime       @db.Date
+  exitDate         DateTime?      @db.Date
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  user         User?        @relation(fields: [userId], references: [id])
-  department   Department?  @relation(fields: [departmentId], references: [id])
-  designation  Designation? @relation(fields: [designationId], references: [id])
-  location     Location?    @relation(fields: [locationId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id])
+  designation    Designation?    @relation(fields: [designationId], references: [id])
+  location       Location?       @relation(fields: [locationId], references: [id])
   manager        Employee?       @relation("ReportsTo", fields: [managerId], references: [id])
   reports        Employee[]      @relation("ReportsTo")
   shift          Shift?          @relation(fields: [shiftId], references: [id])
@@ -286,6 +292,9 @@ model Employee {
   leaveRequests      LeaveRequest[]
   leaveBalances      LeaveBalance[]
   documents          Document[]
+  letters            Letter[]
+  invites            EmployeeInvite[]
+  onboarding         Onboarding?
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -842,11 +851,11 @@ model PayrollRun {
 
   /// Denormalised so the runs list does not aggregate every payslip.
   /// Rewritten on every calculation; asserted against the payslips in tests.
-  employeeCount      Int     @default(0)
-  totalEarnings      Decimal @default(0) @db.Decimal(14, 2)
-  totalDeductions    Decimal @default(0) @db.Decimal(14, 2)
-  totalEmployerCost  Decimal @default(0) @db.Decimal(14, 2)
-  netPayable         Decimal @default(0) @db.Decimal(14, 2)
+  employeeCount     Int     @default(0)
+  totalEarnings     Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions   Decimal @default(0) @db.Decimal(14, 2)
+  totalEmployerCost Decimal @default(0) @db.Decimal(14, 2)
+  netPayable        Decimal @default(0) @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -925,4 +934,163 @@ model PayslipLine {
   payslip Payslip @relation(fields: [payslipId], references: [id], onDelete: Cascade)
 
   @@index([payslipId])
+}
+
+// ─── Letters ──────────────────────────────────────────────────────────
+// Generated employment letters: offer, appointment, experience, salary
+// certificate. Templates are per-org overrides of a shipped catalogue; an
+// issued letter is frozen, for the reason payslips are (doc 13).
+
+enum LetterStatus {
+  ISSUED
+  VOID
+}
+
+/// Per-org override of a built-in letter template. A row exists only when an
+/// organization has edited one — absence means "use the shipped default", and
+/// deleting the row is Reset. Same contract as EmailTemplate.
+model LetterTemplate {
+  organizationId String
+  key            String
+  /// The heading printed on the page — the analogue of an email subject.
+  title          String
+  bodyHtml       String
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@id([organizationId, key])
+}
+
+model Letter {
+  id             String @id @default(cuid())
+  organizationId String
+  employeeId     String
+  /// Matches LetterTemplate.key and the shipped catalogue. A string rather
+  /// than an enum so adding a template is not a migration.
+  templateKey    String
+  /// Printed on the letter — "OFR/2026/0007".
+  letterNumber   String
+
+  /// FROZEN. The rendered document exactly as it was issued. Values were
+  /// HTML-escaped at render time and that escaping is load-bearing: anything
+  /// interpolated here is permanent and re-renders on every view.
+  title    String
+  bodyHtml String
+
+  /// Frozen index over the body, duplicated rather than joined so the list
+  /// still reads correctly after a department is renamed — and so the salary
+  /// gate below is answerable without parsing HTML.
+  employeeCode    String
+  employeeName    String
+  departmentName  String?
+  designationName String?
+  joinDate        DateTime  @db.Date
+  exitDate        DateTime? @db.Date
+  monthlyCtc      Decimal?  @db.Decimal(14, 2)
+
+  /// The access gate. Derived at issue time from the catalogue flag OR the
+  /// salary variables the effective body actually uses, so an org that adds
+  /// {{monthlyCtc}} to a customised template cannot slip past it. An
+  /// authorization decision that needed a regex over a document body is a
+  /// decision you eventually get wrong.
+  containsSalary Boolean @default(false)
+
+  /// The exact variable map used to render — answers "what figure did we
+  /// quote in March?" without re-deriving it from a template that has moved.
+  variables Json
+
+  status     LetterStatus @default(ISSUED)
+  issuedAt   DateTime     @default(now())
+  /// User id, matching Document.uploadedById.
+  issuedById String
+  voidedAt   DateTime?
+  voidedById String?
+  voidReason String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  employee     Employee     @relation(fields: [employeeId], references: [id])
+
+  @@unique([organizationId, letterNumber])
+  @@index([employeeId, issuedAt])
+  @@index([organizationId, templateKey, issuedAt])
+}
+
+// ─── Onboarding ───────────────────────────────────────────────────────
+// A new hire is invited by email at their PERSONAL address, sets their own
+// password through a single-use link, fills in their details and documents,
+// and becomes ACTIVE only when HR approves what they submitted.
+// docs/07-auth-architecture.md specified this flow; this is it.
+
+/// Single-use invitation to set a password and start onboarding.
+///
+/// Deliberately NOT PasswordResetToken. That token lives an hour and only
+/// changes a password; this one lives a week and also flips a User from
+/// INVITED to ACTIVE. Sharing one table would make a plain password-reset
+/// token a way to activate an invited account.
+model EmployeeInvite {
+  id          String    @id @default(cuid())
+  employeeId  String
+  /// sha256 of the token that was emailed — the raw value is never stored.
+  tokenHash   String    @unique
+  /// The personal address it went to. Answers "where did we send it?" weeks
+  /// later, when the hire says nothing arrived.
+  sentToEmail String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  /// Superseded by a re-invite, or killed when the employee was deleted.
+  /// Revoked rather than deleted: the row is the evidence HR did invite.
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+enum OnboardingStatus {
+  /// Signed in and filling things in. There is no INVITED member: that fact
+  /// is already `User.status`, and one state in two columns is one column too
+  /// many.
+  IN_PROGRESS
+  /// Waiting on HR.
+  SUBMITTED
+  /// HR accepted; the employee is ACTIVE.
+  APPROVED
+}
+
+model Onboarding {
+  id         String           @id @default(cuid())
+  employeeId String           @unique
+  status     OnboardingStatus @default(IN_PROGRESS)
+
+  /// Null = not yet answered, which keeps the documents step incomplete. A
+  /// first-jobber answers `false` and the relieving-letter requirement is
+  /// satisfied by the declaration rather than silently waived — "declared
+  /// first job on 3 Aug" is an answer, an empty folder is not.
+  hasPreviousEmployment Boolean?
+
+  /// The checklist, as foreign keys rather than a count of files in a folder.
+  /// Folders are renameable and deletable, so matching them by name breaks the
+  /// first time HR renames "Certificates".
+  idProofDocId        String?
+  bankProofDocId      String?
+  educationDocId      String?
+  prevEmploymentDocId String?
+
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  /// Why HR sent it back, shown to the employee on the wizard.
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }

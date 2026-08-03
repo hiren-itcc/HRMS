@@ -30,6 +30,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
      */
     if (user?.mustChangePassword && !pathname.startsWith('/profile')) {
       router.replace('/profile?changePassword=1');
+      return;
+    }
+    /*
+     * A new hire finishes their intake before anything else. The API says the
+     * same thing (OnboardingGuard), so this is only about landing them
+     * somewhere useful rather than on a wall of 403s — and `/onboarding` is
+     * exempt for the same reason `/profile` is above.
+     */
+    if (user?.employee?.status === 'ONBOARDING' && !pathname.startsWith('/onboarding')) {
+      router.replace('/onboarding');
     }
   }, [status, user, router, pathname]);
 

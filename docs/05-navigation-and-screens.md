@@ -87,10 +87,18 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 28 | Leave admin | `/leave/admin` | All requests, types CRUD, balance adjust (audited) |
 | 29 | Leave types config | `/leave/admin/types` | |
 
-### Documents (3)
-| 30 | My documents | `/documents` | Own + org-visible; upload |
-| 31 | Document admin | `/documents/admin` | By employee/category; bulk upload |
-| 32 | Categories config | (modal) | |
+### Documents & letters (6)
+
+One sidebar entry, four tabs, each gated by `can(...)` — the same arrangement
+payroll uses. "My documents" and "everyone's documents" are visibly different
+places rather than one screen that quietly shows you less.
+
+| 30 | My documents | `/documents` | Own files only, every role; upload |
+| 30a | My letters | `/documents/letters` | Own issued letters; `letter.read.own` |
+| 31 | Document admin | `/documents/admin` | Across every employee, filter by person/folder; `document.read` |
+| 32 | Folders | `/documents/folders` | Org-wide folder CRUD; `document.manage` |
+| 32a | Letter | `/letters/:id` | The issued document — print to PDF, void with a reason |
+| 32b | Letter templates | `/settings/letters` | Edit the four shipped templates; `letter.template.manage` |
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |

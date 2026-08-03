@@ -42,8 +42,15 @@ const PROFILE_SELECT = {
   },
 } as const;
 
-/** Nobody is listed once they have left; a directory is a list of colleagues. */
-const LISTED: Prisma.EmployeeWhereInput = { deletedAt: null, status: { not: 'EXITED' } };
+/**
+ * Nobody is listed once they have left; a directory is a list of colleagues.
+ * Nor before they arrive: an invited hire who has not accepted would otherwise
+ * be able to read every colleague's work email before signing anything.
+ */
+const LISTED: Prisma.EmployeeWhereInput = {
+  deletedAt: null,
+  status: { notIn: ['EXITED', 'ONBOARDING'] },
+};
 
 @Injectable()
 export class DirectoryService {

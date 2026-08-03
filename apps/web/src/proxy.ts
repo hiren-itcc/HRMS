@@ -26,7 +26,13 @@ export default function proxy(request: NextRequest) {
     url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
-  if (isPublic && hasSession) {
+  /*
+   * `/invite` is exempt from the signed-in bounce. Somebody arriving with a
+   * stale session cookie and a spent link needs to be told "this link has
+   * already been used" — bouncing them to the dashboard answers a question
+   * they did not ask.
+   */
+  if (isPublic && hasSession && !pathname.startsWith('/invite')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   return NextResponse.next();
@@ -44,6 +50,8 @@ export const config = {
     '/attendance/:path*',
     '/leave/:path*',
     '/documents/:path*',
+    '/letters/:path*',
+    '/onboarding/:path*',
     '/announcements/:path*',
     '/reports/:path*',
     '/settings/:path*',

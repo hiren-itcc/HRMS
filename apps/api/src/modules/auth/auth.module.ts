@@ -6,6 +6,7 @@ import type { Env } from '../../config/env';
 import { MailModule } from '../mail/mail.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { InviteService } from './invite.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TokenService } from './token.service';
 
@@ -23,7 +24,9 @@ import { TokenService } from './token.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [JwtStrategy, TokenService, AuthService],
-  exports: [JwtModule, TokenService],
+  providers: [JwtStrategy, TokenService, AuthService, InviteService],
+  // InviteService is exported so the onboarding module can mint a token inside
+  // its own create transaction — token crypto stays in one place.
+  exports: [JwtModule, TokenService, InviteService],
 })
 export class AuthModule {}

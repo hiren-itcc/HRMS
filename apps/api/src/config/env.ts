@@ -13,6 +13,19 @@ export const envSchema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(30),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   /**
+   * Resend API key. Optional on purpose: without it the mail transport logs
+   * the message instead of sending it, so a developer with no key can still
+   * walk the whole invite flow by reading the link out of the log, and CI
+   * needs no network. Set it in any environment that must really send.
+   */
+  RESEND_API_KEY: z.string().optional(),
+  /**
+   * The From header. The default is Resend's sandbox sender, which only
+   * delivers to the address that owns the Resend account — real sending needs
+   * a verified domain and a From address on it.
+   */
+  MAIL_FROM: z.string().default('HRMS <onboarding@resend.dev>'),
+  /**
    * Number of reverse proxies in front of the API, or 0 when it is exposed
    * directly.
    *

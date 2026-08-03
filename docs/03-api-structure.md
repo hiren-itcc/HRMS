@@ -88,9 +88,25 @@ the table later cannot be published to the company by accident.
 |---|---|
 | GET / POST | `/documents/categories` · PATCH/DELETE `/documents/categories/:id` |
 | POST | `/documents` — multipart upload (max size from settings) |
-| GET | `/documents?employeeId=&categoryId=` — scoped: self sees own + ORG-visible |
+| GET | `/documents?employeeId=&categoryId=&search=` — **org-wide, `document.read`.** The HR list across every employee, paginated. Per-employee reads stay on `/employees/:id/documents`, where the scope depends on *which* employee and so has to be settled in the service |
 | GET | `/documents/:id/download` — permission check → 302 to signed URL |
 | DELETE | `/documents/:id` — soft delete |
+
+### Letters (`/letters`)
+
+Generated employment letters. An issued letter is **frozen** — the rendered
+HTML is stored, never re-rendered — so editing a template afterwards cannot
+rewrite a letter someone is already holding.
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/letters/templates` · PUT/DELETE `/letters/templates/:key` — edit / reset to the shipped default | `letter.template.manage` |
+| GET | `/letters/preview?employeeId=&templateKey=` — renders, persists nothing, returns `blockers[]` | `letter.issue` |
+| POST | `/letters` — `{ employeeId, templateKey }`; renders and freezes. No client-supplied body | `letter.issue` |
+| GET | `/me/letters` | `letter.read.own` |
+| GET | `/employees/:employeeId/letters` | service: own, or `letter.read` |
+| GET | `/letters/:id` | service: own, or `letter.read` (+ `payroll.read` when it quotes pay) |
+| POST | `/letters/:id/void` — withdraws with a reason; never deletes | `letter.issue` |
 
 ### Announcements (`/announcements`)
 | Method | Path |

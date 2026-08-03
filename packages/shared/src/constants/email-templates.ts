@@ -37,16 +37,19 @@ export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
   {
     key: 'employee_invite',
     name: 'Employee invitation',
-    description: 'Sent when a new employee is invited to the workspace.',
-    subject: 'You have been invited to {{orgName}}',
+    description:
+      'Sent to a new hire’s personal address to start onboarding. States their work email as the login ID and carries a single-use link.',
+    subject: 'Welcome to {{orgName}} — set up your account',
     bodyHtml: [
       '<p>Hello {{firstName}},</p>',
-      '<p>{{inviterName}} has invited you to join <strong>{{orgName}}</strong>.</p>',
-      '<p><a href="{{inviteUrl}}">Set up your account</a></p>',
+      '<p>{{inviterName}} has invited you to join <strong>{{orgName}}</strong>. The link below sets your password and starts your onboarding.</p>',
+      '<p><a href="{{inviteUrl}}">Set your password and begin</a></p>',
+      '<p>Your sign-in address from now on is <strong>{{workEmail}}</strong>.</p>',
+      '<p>This link can be used once and expires in {{expiryDays}} days. If it has already expired, ask {{inviterName}} to send a new one.</p>',
       '<p>— {{orgName}}</p>',
     ].join('\n'),
-    variables: ['orgName', 'firstName', 'inviterName', 'inviteUrl'],
-    active: false,
+    variables: ['orgName', 'firstName', 'inviterName', 'inviteUrl', 'workEmail', 'expiryDays'],
+    active: true,
   },
   {
     key: 'leave_approved',

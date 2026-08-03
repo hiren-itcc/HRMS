@@ -65,7 +65,9 @@ describe('DirectoryService.list', () => {
     const { where } = (prisma.employee.findMany as Mock).mock.calls[0][0];
     expect(where.organizationId).toBe('org1');
     expect(where.deletedAt).toBeNull();
-    expect(where.status).toEqual({ not: 'EXITED' });
+    // Leavers and not-yet-arrived alike: an invited hire who has not accepted
+    // must not be able to read every colleague's work email.
+    expect(where.status).toEqual({ notIn: ['EXITED', 'ONBOARDING'] });
   });
 
   it('does not scope to the caller — a directory is the whole company', async () => {
@@ -127,7 +129,9 @@ describe('DirectoryService.profile', () => {
     const { service, prisma } = makeService();
     await expect(service.profile(claims(), 'gone')).rejects.toBeInstanceOf(NotFoundException);
     const { where } = (prisma.employee.findFirst as Mock).mock.calls[0][0];
-    expect(where.status).toEqual({ not: 'EXITED' });
+    // Leavers and not-yet-arrived alike: an invited hire who has not accepted
+    // must not be able to read every colleague's work email.
+    expect(where.status).toEqual({ notIn: ['EXITED', 'ONBOARDING'] });
     expect(where.deletedAt).toBeNull();
   });
 });

@@ -15,6 +15,13 @@ export const PERMISSIONS = [
   'employee.delete',
   'employee.invite',
   'employee.offboard',
+  /*
+   * Approving onboarding is what turns a candidate into a member of staff, so
+   * it is its own code rather than folded into `employee.update`: an
+   * organization that wants the person checking the ID proof to be someone
+   * other than the person editing records can compose that in Settings.
+   */
+  'employee.onboarding.approve',
 
   /*
    * The company directory: work contact details for everyone, and nothing
@@ -46,6 +53,22 @@ export const PERMISSIONS = [
   'document.read',
   'document.upload',
   'document.manage',
+
+  /*
+   * Letters have no `.team` scope on purpose. A document is a filing cabinet a
+   * manager legitimately browses; an offer or relieving letter is a bilateral
+   * instrument between the company and one person, and no manager workflow
+   * needs it. Adding the scope later is one code and one branch — removing it
+   * after tenants have granted it is a breaking change to their access model.
+   *
+   * Salary is not protected by these codes at all: it is gated on the letter's
+   * own `containsSalary`, so a custom role composed in Settings cannot become
+   * a second unguarded path to a CTC figure.
+   */
+  'letter.read.own',
+  'letter.read',
+  'letter.issue',
+  'letter.template.manage',
 
   'announcement.read',
   'announcement.manage',
@@ -90,6 +113,7 @@ const EMPLOYEE_PERMS: Permission[] = [
   'leave.request.own',
   'document.read.own',
   'document.upload.own',
+  'letter.read.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -114,6 +138,7 @@ const HR_PERMS: Permission[] = [
   'employee.update',
   'employee.invite',
   'employee.offboard',
+  'employee.onboarding.approve',
   'attendance.read',
   'attendance.approve',
   'attendance.manage',
@@ -123,6 +148,9 @@ const HR_PERMS: Permission[] = [
   'document.read',
   'document.upload',
   'document.manage',
+  'letter.read',
+  'letter.issue',
+  'letter.template.manage',
   'announcement.manage',
   'org.manage',
   'report.view',
