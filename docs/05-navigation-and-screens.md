@@ -66,7 +66,8 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 14 | My sessions | `/profile/sessions` | Device list; revoke |
 
 ### Directory & org (5)
-| 15 | Directory | `/directory` | Card grid, search-first |
+| 15 | Directory | `/directory` | Card grid, search-first; every role. Work contact details only — the HR record stays on screen 10 behind `employee.read` |
+| 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
 | 16 | Org chart | `/organization/chart` | Collapsible tree |
 | 17 | Departments & designations | `/organization/departments` | Two-pane CRUD |
 | 18 | Locations | `/organization/locations` | |

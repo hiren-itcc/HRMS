@@ -47,6 +47,18 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 | GET | `/employees/:id/reports` — direct reports |
 | GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, address, emergency contacts) |
 
+### Directory (`/directory`)
+
+Separate from `/employees` on purpose: that serves the HR record behind
+`employee.read`, this serves work contact details to everyone. The response is a
+hard-coded column whitelist rather than the employee row, so a column added to
+the table later cannot be published to the company by accident.
+
+| Method | Path |
+|---|---|
+| GET | `/directory` — current colleagues (filters: department, location, search) |
+| GET | `/directory/:id` — work profile: job title, department, work email/phone, location, manager |
+
 ### Attendance (`/attendance`)
 | Method | Path |
 |---|---|

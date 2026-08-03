@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { DataTable } from '@/components/data-table';
+import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
@@ -206,6 +207,16 @@ function EmployeesView() {
 }
 
 export default function EmployeesPage() {
+  const { can, status } = useSession();
+
+  /*
+   * The HR roster, not the people list. Without this an employee who reached
+   * the URL got a table that error-carded on the 403; the directory is the
+   * screen they actually want, so point at it rather than dead-ending.
+   */
+  if (status === 'authenticated' && !can('employee.read') && !can('employee.read.team')) {
+    return <NoAccess what="the employee records" />;
+  }
   return (
     <Suspense>
       <EmployeesView />

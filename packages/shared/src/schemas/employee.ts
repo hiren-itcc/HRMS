@@ -128,6 +128,17 @@ export const employeeQuerySchema = paginationQuerySchema.extend({
 });
 export type EmployeeQuery = z.infer<typeof employeeQuerySchema>;
 
+/**
+ * GET /directory — the company people list. Deliberately narrower than the
+ * employee query: no status filter, because the directory only ever lists
+ * current colleagues.
+ */
+export const directoryQuerySchema = paginationQuerySchema.extend({
+  departmentId: z.string().optional(),
+  locationId: z.string().optional(),
+});
+export type DirectoryQuery = z.infer<typeof directoryQuerySchema>;
+
 export const bankDetailSchema = z.object({
   accountHolderName: trimmed(100).min(1, 'Account holder is required'),
   bankName: trimmed(100).min(1, 'Bank name is required'),
