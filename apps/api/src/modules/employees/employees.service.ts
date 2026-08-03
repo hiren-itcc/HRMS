@@ -20,6 +20,7 @@ import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { roleMoveLockoutReason } from '../rbac/rbac.guardrails';
+import { EMPLOYED_AND_LIVE } from './employee-scopes';
 
 const SORTABLE = ['firstName', 'employeeCode', 'joinDate', 'status'] as const;
 
@@ -99,7 +100,8 @@ export class EmployeesService {
   /** Flat list for manager pickers — org-wide, needs full read. */
   options(orgId: string) {
     return this.prisma.employee.findMany({
-      where: { organizationId: orgId, deletedAt: null },
+      // Somebody who has not accepted their invite cannot be a manager.
+      where: { organizationId: orgId, ...EMPLOYED_AND_LIVE },
       select: { id: true, firstName: true, lastName: true, employeeCode: true },
       orderBy: { firstName: 'asc' },
     });
@@ -465,7 +467,7 @@ export class EmployeesService {
         input.managerId,
         () =>
           this.prisma.employee.findFirst({
-            where: { id: input.managerId ?? '', organizationId: orgId, deletedAt: null },
+            where: { id: input.managerId ?? '', organizationId: orgId, ...EMPLOYED_AND_LIVE },
           }),
         'Manager',
       ],

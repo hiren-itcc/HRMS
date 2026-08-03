@@ -50,7 +50,7 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://hrms:hrms@postgres:5432/hrms?schema=public
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in docker/.env}
-      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
     ports:
       - "4000:4000"
     depends_on:
@@ -65,8 +65,10 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
     restart: unless-stopped
+    environment:
+      PORT: 5173
     ports:
-      - "3000:3000"
+      - "5173:5173"
     depends_on:
       - api
 

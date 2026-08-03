@@ -3,6 +3,7 @@
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useSession } from '@/components/session-provider';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeForm } from '@/features/employees/components/employee-form';
@@ -18,11 +19,19 @@ export default function EditEmployeePage() {
     queryFn: () => employeesApi.detail(id),
   });
 
-  if (status === 'authenticated' && !can('employee.update')) {
-    router.replace(`/employees/${id}`);
-    return null;
-  }
+  /*
+   * Someone who can read the record but not change it is sent back to the
+   * detail page rather than shown an error — the edit route is reachable by
+   * URL alone. The redirect has to happen in an effect: navigating during
+   * render updates the Router while this component is still rendering.
+   */
+  const redirecting = status === 'authenticated' && !can('employee.update');
 
+  useEffect(() => {
+    if (redirecting) router.replace(`/employees/${id}`);
+  }, [redirecting, router, id]);
+
+  if (redirecting) return null;
   if (employee.isLoading) return <Skeleton className="h-96 w-full max-w-3xl rounded-xl" />;
   if (!employee.data) return null;
   const e = employee.data;
@@ -59,7 +68,13 @@ export default function EditEmployeePage() {
           shiftId: e.shiftId ?? '',
           employmentTypeId: e.employmentTypeId ?? '',
           managerId: e.managerId,
-          status: e.status,
+          /*
+           * An onboarding hire has no settable status to show — they leave
+           * that state by being approved, not by an edit here. Omitting it
+           * keeps the select on its default rather than offering a value the
+           * API would reject.
+           */
+          status: e.status === 'ONBOARDING' ? undefined : e.status,
           joinDate: e.joinDate.slice(0, 10),
         }}
         onSaved={(savedId) => {

@@ -2,9 +2,21 @@ import { CalendarCheck, ClipboardList, ShieldCheck, Users } from 'lucide-react';
 import { AuthIllustration } from '@/features/auth/components/auth-illustration';
 
 const HIGHLIGHTS = [
-  { icon: Users, label: 'People', hint: 'Records, structure and reporting lines' },
-  { icon: CalendarCheck, label: 'Attendance', hint: 'Clock in, corrections and approvals' },
-  { icon: ClipboardList, label: 'Leave', hint: 'Balances, requests and holidays' },
+  {
+    icon: Users,
+    label: 'People',
+    hint: 'Records, structure and reporting lines',
+  },
+  {
+    icon: CalendarCheck,
+    label: 'Attendance',
+    hint: 'Clock in, corrections and approvals',
+  },
+  {
+    icon: ClipboardList,
+    label: 'Leave',
+    hint: 'Balances, requests and holidays',
+  },
 ];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -59,7 +71,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <p className="relative p-10 pt-0 text-sidebar-foreground/60 text-xs">
-          © {new Date().getFullYear()} HRMS — internal use only
+          © {new Date().getFullYear()} HRMS
         </p>
       </aside>
 
@@ -78,7 +90,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <p className="mt-10 text-center text-muted-foreground text-xs lg:hidden">
-          © {new Date().getFullYear()} HRMS — internal use only
+          © {new Date().getFullYear()} HRMS
         </p>
       </main>
     </div>

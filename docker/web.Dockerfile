@@ -21,11 +21,13 @@ RUN pnpm --filter @hrms/types build \
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
+# Next's standalone server reads PORT (defaults to 3000)
+ENV PORT=5173
 RUN addgroup -S hrms && adduser -S hrms -G hrms
 WORKDIR /app
 COPY --from=build --chown=hrms:hrms /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=hrms:hrms /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=hrms:hrms /repo/apps/web/public ./apps/web/public
 USER hrms
-EXPOSE 3000
+EXPOSE 5173
 CMD ["node", "apps/web/server.js"]

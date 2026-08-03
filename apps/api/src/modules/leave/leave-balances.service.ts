@@ -5,6 +5,7 @@ import { auditMutation } from '../../common/utils/audit';
 import { dateKeyOf, leaveYearOf } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
+import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { SettingsService } from '../settings/settings.service';
 import { mapBalance } from './leave.mapper';
 
@@ -78,7 +79,13 @@ export class LeaveBalancesService {
     const year = query.year ?? (await this.currentYear(claims.orgId));
     const employeeWhere = {
       organizationId: claims.orgId,
-      deletedAt: null,
+      /*
+       * Onboarding hires are excluded, and not only for tidiness: listing them
+       * calls ensureForEmployee below, which *provisions a full leave year* as
+       * a side effect. A candidate who never joins would otherwise be holding
+       * an allocation because HR opened a screen.
+       */
+      ...EMPLOYED_AND_LIVE,
       ...(query.employeeId ? { id: query.employeeId } : {}),
       ...(perms.has('leave.read') ? {} : { managerId: claims.employeeId ?? '__none__' }),
     };

@@ -82,7 +82,16 @@ export class AuthService {
   /** Always resolves — response never reveals whether the account exists. */
   async forgotPassword(email: string, meta: RequestMeta): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || user.status === 'SUSPENDED') return;
+    /*
+     * INVITED is excluded alongside SUSPENDED, and it is not cosmetic. An
+     * invited account has no password to reset, and this would mail a reset
+     * link to `user.email` — the *work* address, which for a hire who has not
+     * started may not exist yet, or may land in a catch-all somebody else
+     * reads. Work addresses are formulaic and guessable, so that link is an
+     * unauthenticated route into an account nobody has used. The invite goes
+     * to the personal address for exactly this reason.
+     */
+    if (!user || user.status === 'SUSPENDED' || user.status === 'INVITED') return;
 
     const raw = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({
@@ -176,8 +185,25 @@ export class AuthService {
         roleCode: sessionUser.roleCode,
         perms: sessionUser.permissions,
         mustChangePassword: sessionUser.mustChangePassword,
+        onboarding: refreshed.employee?.status === 'ONBOARDING' || undefined,
       }),
     };
+  }
+
+  /**
+   * A session for a user who has just proved themselves some other way than a
+   * password — today, by redeeming an invitation. Login's own checks have
+   * already been satisfied by that flow, so this only builds the result.
+   */
+  async sessionFor(userId: string, meta: RequestMeta): Promise<AuthResult> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: userWithAccess,
+    });
+    const issued = await this.tokens.createRefreshSession(user.id, meta);
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await this.audit(user.organizationId, user.id, 'auth.invite_accepted', meta);
+    return this.buildAuthResult(user, issued.token);
   }
 
   async getMe(userId: string): Promise<SessionUser> {
@@ -199,6 +225,7 @@ export class AuthService {
       roleCode: sessionUser.roleCode,
       perms: sessionUser.permissions,
       mustChangePassword: sessionUser.mustChangePassword,
+      onboarding: user.employee?.status === 'ONBOARDING' || undefined,
     });
     return { accessToken, user: sessionUser, refreshToken };
   }
@@ -218,6 +245,7 @@ export class AuthService {
             lastName: user.employee.lastName,
             avatarUrl: user.employee.avatarUrl,
             designation: user.employee.designation?.title ?? null,
+            status: user.employee.status,
           }
         : null,
     };

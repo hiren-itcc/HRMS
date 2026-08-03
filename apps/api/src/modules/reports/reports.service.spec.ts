@@ -82,7 +82,12 @@ describe('ReportsService scoping', () => {
       claims({ perms: ['report.view'] }),
       RANGE,
     );
-    expect(captured.employeeWhere).not.toHaveProperty('status');
+    /*
+     * The status filter must exclude ONBOARDING and nothing else. Excluding
+     * EXITED here would erase exactly the people an attrition report exists
+     * to show, which is what this test is really guarding.
+     */
+    expect(captured.employeeWhere?.status).toEqual({ not: 'ONBOARDING' });
     // The employment window must live under AND: a top-level OR would be
     // silently overwritten by any other OR added to the same object.
     expect(captured.employeeWhere?.AND).toEqual([

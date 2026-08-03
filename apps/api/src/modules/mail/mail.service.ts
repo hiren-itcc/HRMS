@@ -1,19 +1,21 @@
 import { emailTemplateDefault } from '@hrms/shared';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../database/prisma.service';
 import { render, renderSubject, type TemplateVars } from './template-renderer';
+import { MAIL_TRANSPORT, type MailTransport } from './transport';
 
 /**
  * Mail port (ADR A5) — provider is config, callers depend on this interface.
- * Until an SMTP provider is wired, the dev adapter logs the message so the
- * reset flow is fully exercisable locally.
+ * This class owns *what* is sent: which template, rendered with which values.
+ * Putting it on the wire is the transport's job (`transport.ts`).
  */
 @Injectable()
 export class MailService {
   constructor(
     private readonly logger: PinoLogger,
     private readonly prisma: PrismaService,
+    @Inject(MAIL_TRANSPORT) private readonly transport: MailTransport,
   ) {
     this.logger.setContext(MailService.name);
   }
@@ -32,12 +34,32 @@ export class MailService {
       expiryMinutes: context?.expiryMinutes ?? 60,
     };
     const { subject, html } = await this.compose(context?.orgId, 'password_reset', vars);
+    await this.transport.send({ to, subject, html });
+  }
 
-    // SMTP adapter replaces this body; the signature is the contract.
-    this.logger.info(
-      { to, subject, html },
-      'Password reset email (dev transport — message logged only)',
-    );
+  /**
+   * The onboarding invite, sent to the hire's **personal** address — they have
+   * no access to the work mailbox yet, which is the whole reason this exists.
+   *
+   * The mail states the work email as the login ID and carries a single-use
+   * link; no password is ever put in it.
+   */
+  async sendOnboardingInvite(
+    to: string,
+    vars: {
+      firstName: string;
+      workEmail: string;
+      inviteUrl: string;
+      inviterName: string;
+      expiryDays: number;
+    },
+    context: { orgId: string; orgName?: string },
+  ): Promise<void> {
+    const { subject, html } = await this.compose(context.orgId, 'employee_invite', {
+      ...vars,
+      orgName: context.orgName ?? (await this.orgName(context.orgId)),
+    });
+    await this.transport.send({ to, subject, html });
   }
 
   private async orgName(orgId: string | undefined): Promise<string> {

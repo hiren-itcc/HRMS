@@ -1,4 +1,5 @@
 import type { DocumentCategoryCreateInput } from '@hrms/shared';
+import type { Paginated } from '@hrms/types';
 import { api, fetchBlob, uploadFile } from '@/lib/api-client';
 
 export interface DocumentFolder {
@@ -16,6 +17,17 @@ export interface EmployeeDocument {
   createdAt: string;
   categoryId: string | null;
   category: { id: string; name: string } | null;
+}
+
+/** A row of the org-wide list — the same document, plus who it belongs to. */
+export interface AdminDocument extends EmployeeDocument {
+  employeeId: string | null;
+  employee: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeCode: string;
+  } | null;
 }
 
 function qs(params: Record<string, string | undefined>): string {
@@ -44,6 +56,24 @@ export const documentsApi = {
 
   list: (employeeId: string, params: { categoryId?: string; search?: string } = {}) =>
     api<EmployeeDocument[]>(`/employees/${employeeId}/documents${qs(params)}`),
+
+  /** Org-wide, behind `document.read` — the HR view, paginated. */
+  listAll: (params: {
+    employeeId?: string;
+    categoryId?: string;
+    search?: string;
+    page: number;
+    limit: number;
+  }) =>
+    api<Paginated<AdminDocument>>(
+      `/documents${qs({
+        employeeId: params.employeeId,
+        categoryId: params.categoryId,
+        search: params.search,
+        page: String(params.page),
+        limit: String(params.limit),
+      })}`,
+    ),
 
   upload: (
     employeeId: string,

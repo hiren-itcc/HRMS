@@ -1,3 +1,4 @@
+import type { DocumentAdminQuery } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import {
   BadRequestException,
@@ -7,8 +8,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { auditMutation } from '../../common/utils/audit';
+import { toPaginated } from '../../common/utils/list-query';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../database/prisma.service';
+import type { Prisma } from '../../generated/prisma/client';
 import { DocumentCategoriesService } from './document-categories.service';
 import { StorageService } from './storage.service';
 
@@ -30,6 +33,14 @@ const LIST_SELECT = {
   createdAt: true,
   categoryId: true,
   category: { select: { id: true, name: true } },
+} as const;
+
+/** The org-wide list needs the owner too — that is the column it is read by. */
+const ADMIN_SELECT = {
+  employeeId: true,
+  employee: {
+    select: { id: true, firstName: true, lastName: true, employeeCode: true },
+  },
 } as const;
 
 @Injectable()
@@ -62,6 +73,36 @@ export class DocumentsService {
       select: LIST_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * The org-wide list behind `document.read` — the one document query whose
+   * scope the guard can settle on its own, because it is not asked about a
+   * particular employee. `.own` and `.team` holders are refused by the guard
+   * rather than silently narrowed: a team-scoped answer to "show me every
+   * document" would be a different question wearing the same name.
+   */
+  async listAll(claims: AccessTokenClaims, query: DocumentAdminQuery) {
+    const where: Prisma.DocumentWhereInput = {
+      organizationId: claims.orgId,
+      deletedAt: null,
+      // Generated letters and company files have no employee; this list is
+      // about personnel files, and the employee column would be empty.
+      employeeId: query.employeeId ?? { not: null },
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.search ? { name: { contains: query.search, mode: 'insensitive' as const } } : {}),
+    };
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.document.findMany({
+        where,
+        select: { ...LIST_SELECT, ...ADMIN_SELECT },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.document.count({ where }),
+    ]);
+    return toPaginated(data, total, query);
   }
 
   async upload(

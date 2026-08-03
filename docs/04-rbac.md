@@ -46,6 +46,9 @@ document.read.own      document.upload.own
 document.read.team
 document.read          document.upload          document.manage     (categories, delete)
 
+letter.read.own
+letter.read            letter.issue             letter.template.manage
+
 announcement.read      announcement.manage
 
 org.read               org.manage               (departments, designations, locations, holidays)
@@ -84,6 +87,8 @@ settings.manage        role.manage              audit.read
 | `document.read.own` / `upload.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `document.read.team` | ✅ | ✅ | — | ✅ | — |
 | `document.read` (all) / `upload` (any) / `manage` | ✅ | ✅ | — | — | — |
+| `letter.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
 | `announcement.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `announcement.manage` | ✅ | ✅ | — | — | — |
 | `org.read` (directory, org chart, holidays) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -112,6 +117,29 @@ Request → JwtAuthGuard (identity) → PermissionsGuard (matrix) → Service (s
 2. **`PermissionsGuard`** reads `@RequirePermissions(...codes)` metadata; any-of semantics, e.g. leave inbox declares `leave.approve.team | leave.approve`.
 3. **Service-level scoping** is the part guards can't do: `.team` queries add `WHERE employee.managerId = callerEmployeeId`; `.own` routes derive the employee from the JWT and ignore any client-sent id. **Rule: scope is never taken from request params.**
 4. **UI mirrors, never replaces:** the web app hides what `GET /auth/me` says you can't do — cosmetic only; the API is the boundary.
+
+## Beyond the guard: content as a second gate
+
+Letters need something the matrix cannot express either — not *when* an action
+is legal, but whether *this particular row* may be read. An offer letter and a
+salary certificate quote pay; an appointment letter does not. So a letter
+carries `containsSalary`, computed at issue from the template **and** from the
+salary variables its body actually interpolates, and reading one takes:
+
+```
+subject of the letter                        → always
+letter.read                                  → letters that quote no pay
+letter.read + payroll.read                   → all of them
+```
+
+Gating on the letter's content rather than the reader's role is what makes this
+survive Settings → Roles: a custom role granted `letter.read` without
+`payroll.read` was never considered by anyone, and still cannot read a CTC.
+
+It is also why **letters have no `.team` scope**. A document is a filing cabinet
+a manager legitimately browses; a letter is a bilateral instrument between the
+company and one person. Adding the scope later is one code and one branch —
+removing it after tenants have granted it is a breaking change.
 
 ## Beyond the guard: state as a second gate
 

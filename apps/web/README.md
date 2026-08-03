@@ -80,7 +80,7 @@ also the argument for opening a screen after changing it.
 ## Scripts
 
 ```bash
-pnpm dev              # localhost:3000
+pnpm dev              # localhost:5173
 pnpm build
 pnpm typecheck
 pnpm lint

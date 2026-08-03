@@ -1,4 +1,5 @@
 export * from './constants/email-templates';
+export * from './constants/letter-templates';
 export * from './constants/pay-components';
 export * from './constants/permissions';
 export * from './schemas/announcement';
@@ -9,6 +10,8 @@ export * from './schemas/common';
 export * from './schemas/document';
 export * from './schemas/employee';
 export * from './schemas/leave';
+export * from './schemas/letter';
+export * from './schemas/onboarding';
 export * from './schemas/organization';
 export * from './schemas/payroll';
 export * from './schemas/report';
