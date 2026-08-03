@@ -32,6 +32,7 @@ interface RecordRow {
 /** The Ahmedabad head office, placed on the map. */
 const OFFICE = {
   id: 'loc1',
+  type: 'HEAD_OFFICE' as const,
   latitude: 23.0225,
   longitude: 72.5714,
   geofenceRadiusMeters: 200,
@@ -423,44 +424,51 @@ describe('AttendanceService — where someone worked', () => {
     offices: [OFFICE],
   });
 
-  it('records the mode on the session', async () => {
+  it('reads an office day from a position at the office', async () => {
     const { service, sessions } = makeService({ offices: [OFFICE] });
-    await service.checkIn(claims(), { workMode: 'CLIENT_SITE', ...AT_OFFICE });
-    expect(sessions[0]?.workMode).toBe('CLIENT_SITE');
-  });
-
-  it('verifies an office claim made at the office', async () => {
-    const { service, sessions } = makeService({ offices: [OFFICE] });
-    await service.checkIn(claims(), { workMode: 'OFFICE', ...AT_OFFICE });
+    await service.checkIn(claims(), AT_OFFICE);
+    expect(sessions[0]?.workMode).toBe('OFFICE');
     expect(sessions[0]?.inVerification).toBe('VERIFIED');
     expect(sessions[0]?.locationId).toBe('loc1');
   });
 
-  it('flags an office claim made elsewhere without refusing it', async () => {
+  it('reads a remote day from a position away from the office', async () => {
     const { service, sessions } = makeService({ offices: [OFFICE] });
-    const entry = await service.checkIn(claims(), { workMode: 'OFFICE', ...FAR_AWAY });
-    expect(sessions[0]?.inVerification).toBe('OUTSIDE');
-    expect(sessions[0]?.inDistanceMeters).toBeGreaterThan(4000);
-    // The whole point: they are still clocked in.
+    const entry = await service.checkIn(claims(), FAR_AWAY);
+    expect(sessions[0]?.workMode).toBe('REMOTE');
+    expect(sessions[0]?.inVerification).toBe('VERIFIED');
     expect(entry.checkIn).not.toBeNull();
   });
 
-  it('clocks in unverified when no position was given', async () => {
+  it('keeps no coordinates once the day reads as remote — that is somebody’s home', async () => {
     const { service, sessions } = makeService({ offices: [OFFICE] });
-    const entry = await service.checkIn(claims(), { workMode: 'OFFICE' });
+    await service.checkIn(claims(), FAR_AWAY);
+    expect(sessions[0]?.workMode).toBe('REMOTE');
+    expect(sessions[0]?.inLatitude).toBeNull();
+    expect(sessions[0]?.inLongitude).toBeNull();
+    // The distance survives; it is the reason for the call, not a location.
+    expect(sessions[0]?.inDistanceMeters).toBeGreaterThan(4000);
+  });
+
+  it('falls back to an unverified office day when nothing is on the map', async () => {
+    const { service, sessions } = makeService({ offices: [] });
+    const entry = await service.checkIn(claims(), AT_OFFICE);
+    expect(sessions[0]?.workMode).toBe('OFFICE');
     expect(sessions[0]?.inVerification).toBe('UNVERIFIED');
     expect(entry.checkIn).not.toBeNull();
   });
 
-  it('keeps no coordinates for a remote punch — that is somebody’s home', async () => {
+  it('falls back the same way when the device could not supply a position', async () => {
     const { service, sessions } = makeService({ offices: [OFFICE] });
-    await service.checkIn(claims(), { workMode: 'REMOTE', ...AT_OFFICE });
-    expect(sessions[0]?.inLatitude).toBeNull();
-    expect(sessions[0]?.inLongitude).toBeNull();
-    expect(sessions[0]?.inVerification).toBe('NOT_APPLICABLE');
+    const entry = await service.checkIn(claims(), { locationUnavailable: true });
+    expect(sessions[0]?.workMode).toBe('OFFICE');
+    expect(sessions[0]?.inVerification).toBe('UNVERIFIED');
+    expect(entry.checkIn).not.toBeNull();
   });
 
-  it('re-declares mode and position when a mis-tap reopens a session', async () => {
+  it('measures again when a mis-tap reopens a session', async () => {
+    // Opened at the office, reopened seconds later from somewhere else: the
+    // reopened sitting must take the new reading, not keep the stale one.
     const { service, sessions } = makeService({
       record: {
         id: 'a1',
@@ -471,11 +479,19 @@ describe('AttendanceService — where someone worked', () => {
         status: 'PRESENT',
         note: null,
       },
-      sessions: [{ id: 's1', checkIn: ago(HOUR), checkOut: ago(5 * 1000), workMode: 'OFFICE' }],
+      sessions: [
+        {
+          id: 's1',
+          checkIn: ago(HOUR),
+          checkOut: ago(5 * 1000),
+          workMode: 'OFFICE',
+          inVerification: 'VERIFIED',
+        },
+      ],
       offices: [OFFICE],
     });
 
-    await service.checkIn(claims(), { workMode: 'REMOTE' });
+    await service.checkIn(claims(), FAR_AWAY);
     expect(sessions).toHaveLength(1);
     expect(sessions[0]?.workMode).toBe('REMOTE');
     expect(sessions[0]?.checkOut).toBeNull();

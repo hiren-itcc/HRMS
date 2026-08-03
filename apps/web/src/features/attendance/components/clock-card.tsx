@@ -8,31 +8,36 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Label } from '@hrms/ui/components/label';
-import { Radio, RadioGroup } from '@hrms/ui/components/radio-group';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
-import { LogIn, LogOut, Timer } from 'lucide-react';
+import { LogIn, LogOut, MapPinOff, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 import {
   attendanceApi,
   formatDuration,
+  getPosition,
   openSessionOf,
+  punchBody,
   sessionMinutes,
   timeIn,
-  tryGetPosition,
-  WORK_MODE_LABEL,
-  type WorkMode,
 } from '../api';
 import { AttendanceStatusBadge } from './status-badge';
 import { VerificationChip, WorkModeChip } from './work-mode-chip';
 
-const MODES: WorkMode[] = ['OFFICE', 'REMOTE', 'CLIENT_SITE'];
-/** Most people work the same way most days, so the last choice is the default. */
-const MODE_STORAGE_KEY = 'hrms.workMode';
+/**
+ * Thrown when the browser asked and got nothing back. Carried through the
+ * mutation's error path so the card can say something the person can act on,
+ * rather than the generic failure message an API error would produce.
+ */
+class PositionRefused extends Error {
+  constructor() {
+    super('Location is needed to clock in or out');
+    this.name = 'PositionRefused';
+  }
+}
 
 /** mm:ss / h:mm:ss elapsed, ticking every second. */
 function elapsedLabel(fromIso: string, now: number): string {
@@ -48,18 +53,7 @@ export function ClockCard() {
   const queryClient = useQueryClient();
   const reduceMotion = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
-  const [mode, setMode] = useState<WorkMode>('OFFICE');
-
-  // Read after mount: localStorage does not exist while this renders on the server.
-  useEffect(() => {
-    const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
-    if (saved && MODES.includes(saved as WorkMode)) setMode(saved as WorkMode);
-  }, []);
-
-  const chooseMode = (next: WorkMode) => {
-    setMode(next);
-    window.localStorage.setItem(MODE_STORAGE_KEY, next);
-  };
+  const [refused, setRefused] = useState(false);
 
   const today = useQuery({
     queryKey: ['attendance', 'today'],
@@ -87,31 +81,40 @@ export function ClockCard() {
   /*
    * The position is asked for when the button is pressed, never on page load.
    * A permission prompt that appears before the person has done anything is the
-   * surest way to a permanent refusal — and `tryGetPosition` resolves to null on
-   * every failure, so a refusal costs the punch nothing.
+   * surest way to a permanent refusal — and a refusal now costs them the punch,
+   * so the timing matters more than it did.
    */
+  const requirePosition = async () => {
+    const result = await getPosition();
+    if (result.status === 'refused') throw new PositionRefused();
+    setRefused(false);
+    return punchBody(result);
+  };
+
+  const onPunchError = (err: unknown, fallback: string) => {
+    if (err instanceof PositionRefused) {
+      setRefused(true);
+      return;
+    }
+    toast.error(err instanceof ApiError ? err.message : fallback);
+  };
+
   const clockIn = useMutation({
-    mutationFn: async () => {
-      const fix = await tryGetPosition();
-      return attendanceApi.checkIn({ workMode: mode, ...(fix ?? {}) });
-    },
+    mutationFn: async () => attendanceApi.checkIn(await requirePosition()),
     onSuccess: (entry) => {
       invalidate();
       toast.success(entry.isLate ? 'Clocked in — marked late' : 'Clocked in');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not clock in'),
+    onError: (err) => onPunchError(err, 'Could not clock in'),
   });
 
   const clockOut = useMutation({
-    mutationFn: async () => {
-      const fix = await tryGetPosition();
-      return attendanceApi.checkOut(fix ?? {});
-    },
+    mutationFn: async () => attendanceApi.checkOut(await requirePosition()),
     onSuccess: (entry) => {
       invalidate();
       toast.success(`Clocked out — ${formatDuration(entry.workMinutes)} logged today`);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not clock out'),
+    onError: (err) => onPunchError(err, 'Could not clock out'),
   });
 
   // No employee record linked (e.g. the bootstrap admin) — nothing to clock
@@ -205,30 +208,24 @@ export function ClockCard() {
           )}
         </div>
 
-        {/* Only when about to clock in — the mode belongs to the sitting you
-            are opening, and you do not re-choose it on the way out. */}
-        {!open && (
-          <fieldset className="space-y-2 border-t pt-3">
-            <legend className="mb-2 font-medium text-sm">Where are you working?</legend>
-            <RadioGroup
-              value={mode}
-              onValueChange={(value) => chooseMode(value as WorkMode)}
-              className="flex flex-wrap gap-x-5 gap-y-2"
-            >
-              {MODES.map((value) => (
-                <div key={value} className="flex items-center gap-2">
-                  <Radio id={`work-mode-${value}`} value={value} />
-                  <Label htmlFor={`work-mode-${value}`} className="cursor-pointer text-sm">
-                    {WORK_MODE_LABEL[value]}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-            <p className="text-muted-foreground text-xs">
-              Your location is recorded at the moment you clock in or out, and never in between.
-              {mode === 'REMOTE' && ' Remote days record no location at all.'}
-            </p>
-          </fieldset>
+        {refused ? (
+          <div
+            role="alert"
+            className="flex items-start gap-2 border-t pt-3 text-amber-600 text-xs dark:text-amber-500"
+          >
+            <MapPinOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span>
+              Your location is needed to clock in or out, and the browser did not provide it. Allow
+              location for this site and try again — you may need to check the address bar or your
+              browser settings.
+            </span>
+          </div>
+        ) : (
+          <p className="border-t pt-3 text-muted-foreground text-xs">
+            Where you are decides whether the day counts as office or remote. It is read at the
+            moment you clock in or out, never in between, and a day away from the office keeps no
+            coordinates.
+          </p>
         )}
 
         {state.sessions.length > 0 && (

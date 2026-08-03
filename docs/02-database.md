@@ -372,9 +372,9 @@ model AttendanceSession {
   source    AttendanceSource @default(WEB)
   createdAt DateTime         @default(now())
 
-  workMode   WorkMode @default(OFFICE)  // the claim
-  locationId String?                    // the office it was measured against
-  // …and the evidence: a position and a verdict at each end of the session.
+  workMode   WorkMode @default(OFFICE)  // worked out from the position below
+  locationId String?                    // the place it was measured against
+  // …the position and how sure it was, at each end of the session.
   inLatitude  Float?   inLongitude  Float?   inAccuracyMeters  Int?
   inVerification  LocationVerification @default(NOT_APPLICABLE)   inDistanceMeters  Int?
   outLatitude Float?   outLongitude Float?   outAccuracyMeters Int?
@@ -386,9 +386,13 @@ model AttendanceSession {
   @@index([recordId, checkIn])
 }
 
+// Derived from the position at each punch, never declared.
 enum WorkMode { OFFICE REMOTE CLIENT_SITE }
-// Four values on purpose: "we could not tell" is a different answer from
-// "they were not there", and only one of them is an accusation.
+
+// How sure the reading was. Only VERIFIED and UNVERIFIED are ever written now:
+// OUTSIDE and NOT_APPLICABLE are left over from when somebody declared a mode
+// and the position was checked against the claim. Rows carrying them predate
+// automatic detection; nothing produces them any more.
 enum LocationVerification { VERIFIED OUTSIDE UNVERIFIED NOT_APPLICABLE }
 
 enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF WFH }

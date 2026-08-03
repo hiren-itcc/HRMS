@@ -81,7 +81,10 @@ reads from it.
   can sit inside "Engineering". Each can have a head.
 - **Job titles** — the list of positions people can hold.
 - **Locations** — offices and branches, each with its own timezone. A location
-  can be a head office, a branch, remote, or a client site.
+  can be a head office, a branch, remote, or a client site. Give one
+  coordinates and a radius and attendance can tell, from where somebody is
+  standing, whether their day is an office day. A location with no coordinates
+  is not on the map and places nobody.
 - **Employment types** — full-time, part-time, contract, intern.
 - **Shifts** — working hours, e.g. 09:30–18:30, plus a *grace period* (by
   default 15 minutes) before someone counts as late.
@@ -129,21 +132,34 @@ minutes simply resumes the session, leaving no trace of the mistake.
 Tapping clock-in twice without leaving does nothing the second time, so a double
 tap still can't create a mess.
 
-Each sitting also records **where**: office, remote, or a client site. If the
-browser will say where the person is, that position is taken at the moment of
-the punch — never in between — and an "office" claim is checked against the
-office's own coordinates.
+Nobody is asked where they are working. The position answers it: a punch inside
+one of the places you have put on the map is an office day — or a client-site
+day, if that is what the place is — and a punch anywhere else is a remote one.
+Location is required, and it is read at the moment of each punch, never in
+between.
 
-The check is deliberately gentle. Nobody is ever stopped from clocking in. A
-refused permission, an old phone or a position too vague to mean anything all
-read as *unverified*, which is a different answer from *not there* and is never
-treated as one. Only a precise position that clearly is not at any office is
-flagged, with the distance shown, for a human to make sense of. And a remote day
-stores no coordinates at all — that would be somebody's home, and the mode
-already says everything the business needs.
+What the system is *sure* of is recorded alongside. A position comes with an
+accuracy, which is a radius of uncertainty rather than a margin of error, and
+wifi positioning is routinely a kilometre out. So a reading only counts as
+confirmed when that whole circle of uncertainty sits clearly on one side of the
+boundary. When it straddles the fence, the nearest reading is recorded and
+marked as **not confirmed** — an honest "we could not tell", never an
+accusation, and never a reason to stop somebody working.
 
-A day worked entirely from home is recorded as **work from home**; mix a remote
-morning with an afternoon in the office and it is simply a present day.
+Two other things read as not confirmed: a browser that cannot supply a position
+at all, and an organization that has not yet put any place on the map. Both take
+the answer that penalises nobody — an office day — and say plainly that it was
+a guess. A refused permission is different: that *is* something the person can
+undo, so the punch waits until they do.
+
+A day away from the office keeps no coordinates. They have to be measured to
+work out the answer, but once the answer is "remote" the position is discarded
+rather than stored: it would be somebody's home, and the answer is all the
+business needs.
+
+A day worked entirely away from the office is recorded as **work from home**;
+mix a remote morning with an afternoon in the office and it is simply a present
+day.
 
 The system decides how each day counts:
 

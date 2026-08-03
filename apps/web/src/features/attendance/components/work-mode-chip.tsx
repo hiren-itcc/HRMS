@@ -16,32 +16,25 @@ export function WorkModeChip({ mode, className }: { mode: WorkMode; className?: 
 }
 
 /**
- * The verdict on an office claim, shown only when there is something to say.
+ * How sure the reading was, shown only when it was not sure.
  *
- * Deliberately quiet: a verified punch gets no chip at all, because decorating
- * every ordinary day with a green tick trains people to stop reading. Only
- * "we could not check" and "this does not match" are worth a person's
- * attention, and neither is phrased as an accusation.
+ * Deliberately quiet: a conclusive punch gets no chip at all, because
+ * decorating every ordinary day with a green tick trains people to stop
+ * reading them. What is worth saying is when the mode beside it is a guess —
+ * the reading straddled the geofence, or there was no reading, or no office
+ * has been put on the map. None of that is an accusation, and it is not
+ * phrased as one.
  */
 export function VerificationChip({ session }: { session: DaySession }) {
-  if (session.workMode !== 'OFFICE') return null;
-
-  if (session.verification === 'OUTSIDE') {
-    return (
-      <Badge className="border-transparent bg-warning/15 text-warning-text">
-        <TriangleAlert className="size-3" aria-hidden />
-        {session.officeName
-          ? `${formatDistance(session.distanceMeters)} from ${session.officeName}`
-          : formatDistance(session.distanceMeters)}
-      </Badge>
-    );
-  }
-  if (session.verification === 'UNVERIFIED') {
-    return (
-      <Badge className="border-transparent bg-muted text-muted-foreground">
-        Location not shared
-      </Badge>
-    );
-  }
-  return null;
+  if (session.verification !== 'UNVERIFIED') return null;
+  // The measurement, when there was one, is the useful half of "not sure".
+  const measured =
+    session.distanceMeters !== null && session.officeName
+      ? ` · ${formatDistance(session.distanceMeters)} from ${session.officeName}`
+      : '';
+  return (
+    <Badge className="border-transparent bg-muted text-muted-foreground">
+      <TriangleAlert className="size-3" aria-hidden /> Location not confirmed{measured}
+    </Badge>
+  );
 }
