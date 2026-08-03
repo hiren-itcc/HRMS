@@ -24,6 +24,13 @@ export interface OnboardingEmployee {
   addressLine?: string | null;
   city?: string | null;
   country?: string | null;
+  /** Deferred at invite time, required before approval. */
+  departmentId?: string | null;
+  designationId?: string | null;
+  locationId?: string | null;
+  shiftId?: string | null;
+  employmentTypeId?: string | null;
+  managerId?: string | null;
   bankDetail?: {
     accountHolderName: string;
     bankName: string;

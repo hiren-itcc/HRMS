@@ -24,6 +24,7 @@ import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
+import { JobDetailsCard } from '@/features/onboarding/components/job-details-card';
 import { ApiError } from '@/lib/api-client';
 
 const dateFmt = new Intl.DateTimeFormat('en-GB', {
@@ -182,6 +183,26 @@ export default function OnboardingReviewPage() {
           </Card>
         </FadeInItem>
       </div>
+
+      {/*
+       * Before the documents, because it is the thing that blocks approval —
+       * and the error that used to say "set the department" had nowhere on
+       * this page to go and do it.
+       */}
+      <FadeInItem>
+        <JobDetailsCard
+          employeeId={e.id}
+          current={{
+            departmentId: e.departmentId ?? null,
+            designationId: e.designationId ?? null,
+            locationId: e.locationId ?? null,
+            shiftId: e.shiftId ?? null,
+            employmentTypeId: e.employmentTypeId ?? null,
+            managerId: e.managerId ?? null,
+          }}
+          disabled={r.status === 'APPROVED' || !can('employee.update')}
+        />
+      </FadeInItem>
 
       <FadeInItem>
         <Card>
