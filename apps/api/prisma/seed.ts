@@ -591,6 +591,13 @@ async function main() {
       // out — both are ordinary, and both need real rows to render against.
       const split = slot === 3 && !isEarlyShift;
       const forgotOut = slot === 8;
+      // WFH is earned from the sittings now, so a work-from-home day has to be
+      // made of remote ones rather than asserted on the record.
+      const workMode = wfh
+        ? ('REMOTE' as const)
+        : slot === 15
+          ? ('CLIENT_SITE' as const)
+          : ('OFFICE' as const);
       const checkIn = at(key, late ? '10:05' : isEarlyShift ? '07:02' : '09:24');
       const checkOut = at(key, half ? '13:30' : isEarlyShift ? '16:10' : '18:36');
       const sessions: { checkIn: Date; checkOut: Date | null }[] = split
@@ -604,6 +611,7 @@ async function main() {
           key,
           employeeId: emp(email),
           sessions,
+          workMode,
           isLate: late,
           status: half ? ('HALF_DAY' as const) : wfh ? ('WFH' as const) : ('PRESENT' as const),
           note: half ? 'Left early — personal appointment' : null,
@@ -629,6 +637,7 @@ async function main() {
         workMinutes: day.sessions.reduce((sum, s) => sum + minutesOf(s), 0),
         isLate: day.isLate,
         status: day.status,
+        workMode: day.workMode,
         source: 'WEB' as const,
         note: day.note,
       };
@@ -653,6 +662,7 @@ async function main() {
             recordId,
             checkIn: s.checkIn,
             checkOut: s.checkOut,
+            workMode: day.workMode,
             source: 'WEB' as const,
           }))
         : [];

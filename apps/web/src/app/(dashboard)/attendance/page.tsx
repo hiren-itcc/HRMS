@@ -29,6 +29,7 @@ import { ClockCard } from '@/features/attendance/components/clock-card';
 import { CorrectionDialog } from '@/features/attendance/components/correction-dialog';
 import { RequestStatusChip } from '@/features/attendance/components/request-status-chip';
 import { AttendanceStatusBadge } from '@/features/attendance/components/status-badge';
+import { VerificationChip, WorkModeChip } from '@/features/attendance/components/work-mode-chip';
 import { ApiError } from '@/lib/api-client';
 
 const monthLabel = (month: string) =>
@@ -105,16 +106,18 @@ function DayPanel({
         </p>
       )}
 
-      {day.sessions.length > 1 && (
-        <ul className="space-y-1 border-t pt-3 text-sm">
+      {day.sessions.length > 0 && (
+        <ul className="space-y-1.5 border-t pt-3 text-sm">
           {day.sessions.map((session, index) => (
-            <li key={session.id} className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">
+            <li key={session.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
                 Session {index + 1}
-                <span className="ml-2 tabular-nums">
+                <span className="tabular-nums">
                   {timeIn(session.checkIn, timeZone)} –{' '}
                   {session.checkOut ? timeIn(session.checkOut, timeZone) : '—'}
                 </span>
+                <WorkModeChip mode={session.workMode} />
+                <VerificationChip session={session} />
               </span>
               <span className="tabular-nums">{formatDuration(sessionMinutes(session))}</span>
             </li>

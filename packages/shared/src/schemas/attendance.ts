@@ -13,6 +13,53 @@ export const attendanceStatusSchema = z.enum([
 
 export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Expected YYYY-MM');
 
+export const workModeSchema = z.enum(['OFFICE', 'REMOTE', 'CLIENT_SITE']);
+export type WorkModeInput = z.infer<typeof workModeSchema>;
+
+export const locationVerificationSchema = z.enum([
+  'VERIFIED',
+  'OUTSIDE',
+  'UNVERIFIED',
+  'NOT_APPLICABLE',
+]);
+
+/**
+ * A browser position reading. All three fields travel together or not at all —
+ * a coordinate without its accuracy cannot be judged, so the refinement below
+ * refuses the half-supplied case rather than guessing a precision.
+ */
+const fixFields = {
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  accuracyMeters: z.number().nonnegative().max(100_000).optional(),
+};
+
+const hasWholeFixOrNone = (d: {
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+}) => {
+  const given = [d.latitude, d.longitude, d.accuracyMeters].filter((v) => v !== undefined).length;
+  return given === 0 || given === 3;
+};
+const FIX_MESSAGE = 'Send latitude, longitude and accuracy together, or none of them';
+
+/**
+ * POST /attendance/check-in. Every field is optional so an older client — or a
+ * request with no body at all — still clocks in; location is evidence, never a
+ * precondition for starting work.
+ */
+export const clockInSchema = z
+  .object({ workMode: workModeSchema.default('OFFICE'), ...fixFields })
+  .refine(hasWholeFixOrNone, { path: ['accuracyMeters'], message: FIX_MESSAGE });
+export type ClockInInput = z.infer<typeof clockInSchema>;
+
+/** POST /attendance/check-out — the mode was settled when the session opened. */
+export const clockOutSchema = z
+  .object(fixFields)
+  .refine(hasWholeFixOrNone, { path: ['accuracyMeters'], message: FIX_MESSAGE });
+export type ClockOutInput = z.infer<typeof clockOutSchema>;
+
 /** GET /me/attendance — calendar/history for one month. */
 export const myAttendanceQuerySchema = z.object({
   month: monthSchema,

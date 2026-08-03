@@ -256,6 +256,12 @@ docker compose run api npx prisma migrate deploy
 - [ ] `UPLOAD_DIR` on persistent storage that survives redeploys
 - [ ] Database credentials changed from `hrms`/`hrms`
 - [ ] `TRUST_PROXY` matches the actual proxy count
+- [ ] **HTTPS terminates in front of the web app.** This repo ships no reverse
+      proxy — `docker/compose.yaml` serves plain HTTP. Two things break without
+      TLS: the refresh cookie is set `secure` in production and so is never
+      sent, and `navigator.geolocation` refuses to run outside a secure
+      context, which silently disables attendance location capture for
+      everyone with no error anyone can see.
 - [ ] `NEXT_PUBLIC_API_URL` correct **and the web app rebuilt** after setting it
 - [ ] `pnpm db:deploy` run
 - [ ] `pnpm db:bootstrap` run, sign-in confirmed, password changed

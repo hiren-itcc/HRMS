@@ -3,12 +3,15 @@ import {
   daysInMonth,
   deriveDayStatus,
   halfDayThresholdMinutes,
+  haversineMeters,
   instantFromLocal,
   isLateArrival,
   rollUpSessions,
+  rollUpWorkMode,
   shiftDurationMinutes,
   statusForWorkedMinutes,
   timeInTz,
+  verifyAgainstOffices,
   weekdayOf,
   workedMinutesBetween,
 } from './attendance.util';
@@ -159,6 +162,119 @@ describe('rollUpSessions', () => {
     // Neither half clears the 270-minute threshold on its own.
     const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', '19:00')], GENERAL);
     expect(roll.workedStatus).toBe('PRESENT');
+  });
+});
+
+describe('haversineMeters', () => {
+  it('measures a known distance', () => {
+    // Ahmedabad ↔ Mumbai, great circle, is a shade under 440 km.
+    const ahmedabad = { latitude: 23.0225, longitude: 72.5714 };
+    const mumbai = { latitude: 19.076, longitude: 72.8777 };
+    expect(haversineMeters(ahmedabad, mumbai) / 1000).toBeCloseTo(440, 0);
+  });
+
+  it('is zero for the same point and symmetric between two', () => {
+    const a = { latitude: 23.0225, longitude: 72.5714 };
+    const b = { latitude: 23.03, longitude: 72.58 };
+    expect(haversineMeters(a, a)).toBe(0);
+    expect(haversineMeters(a, b)).toBeCloseTo(haversineMeters(b, a), 6);
+  });
+
+  it('handles a short hop at office scale', () => {
+    // ~0.001° of latitude is ~111 m anywhere on Earth.
+    const a = { latitude: 23.0225, longitude: 72.5714 };
+    const b = { latitude: 23.0235, longitude: 72.5714 };
+    expect(haversineMeters(a, b)).toBeCloseTo(111, 0);
+  });
+});
+
+describe('verifyAgainstOffices', () => {
+  const OFFICE = {
+    id: 'loc1',
+    latitude: 23.0225,
+    longitude: 72.5714,
+    geofenceRadiusMeters: 200,
+  };
+  const at = (latitude: number, longitude: number, accuracyMeters = 20) => ({
+    latitude,
+    longitude,
+    accuracyMeters,
+  });
+
+  it('verifies a precise fix inside the fence', () => {
+    const verdict = verifyAgainstOffices(at(23.0226, 72.5715), [OFFICE]);
+    expect(verdict.verification).toBe('VERIFIED');
+    expect(verdict.locationId).toBe('loc1');
+    expect(verdict.distanceMeters).toBeLessThan(200);
+  });
+
+  it('flags a precise fix well outside it, with the distance as evidence', () => {
+    const verdict = verifyAgainstOffices(at(23.06, 72.5714), [OFFICE]);
+    expect(verdict.verification).toBe('OUTSIDE');
+    expect(verdict.locationId).toBe('loc1');
+    expect(verdict.distanceMeters).toBeGreaterThan(4000);
+  });
+
+  it('cannot conclude without a fix', () => {
+    expect(verifyAgainstOffices(null, [OFFICE])).toEqual({
+      verification: 'UNVERIFIED',
+      locationId: null,
+      distanceMeters: null,
+    });
+  });
+
+  it('cannot conclude when no office has been put on the map', () => {
+    expect(verifyAgainstOffices(at(23.0226, 72.5715), [])).toMatchObject({
+      verification: 'UNVERIFIED',
+    });
+  });
+
+  it('refuses to judge a fix too vague to mean anything', () => {
+    // 5 km of uncertainty: wifi positioning, not GPS. It cannot place anyone.
+    const verdict = verifyAgainstOffices(at(23.06, 72.5714, 5000), [OFFICE]);
+    expect(verdict.verification).toBe('UNVERIFIED');
+    expect(verdict.distanceMeters).toBeNull();
+  });
+
+  it('gives the benefit of the doubt when accuracy reaches the fence', () => {
+    // ~330 m away but the reading is ±400 m, so they may well be inside.
+    const verdict = verifyAgainstOffices(at(23.0255, 72.5714, 400), [OFFICE]);
+    expect(verdict.verification).toBe('VERIFIED');
+  });
+
+  it('is not fooled by generous accuracy that still falls short', () => {
+    const verdict = verifyAgainstOffices(at(23.0255, 72.5714, 50), [OFFICE]);
+    expect(verdict.verification).toBe('OUTSIDE');
+  });
+
+  it('verifies against any office, so visiting another branch is fine', () => {
+    const other = { id: 'loc2', latitude: 19.076, longitude: 72.8777, geofenceRadiusMeters: 150 };
+    const verdict = verifyAgainstOffices(at(19.0761, 72.8778), [OFFICE, other]);
+    expect(verdict.verification).toBe('VERIFIED');
+    expect(verdict.locationId).toBe('loc2');
+  });
+
+  it('reports the nearest office when outside them all', () => {
+    const other = { id: 'loc2', latitude: 19.076, longitude: 72.8777, geofenceRadiusMeters: 150 };
+    const verdict = verifyAgainstOffices(at(23.06, 72.5714), [OFFICE, other]);
+    expect(verdict.verification).toBe('OUTSIDE');
+    expect(verdict.locationId).toBe('loc1');
+  });
+});
+
+describe('rollUpWorkMode', () => {
+  it('has no mode for a day with no sittings', () => {
+    expect(rollUpWorkMode([])).toBeNull();
+  });
+
+  it('takes the mode of a day worked one way', () => {
+    expect(rollUpWorkMode([{ workMode: 'REMOTE' }, { workMode: 'REMOTE' }])).toBe('REMOTE');
+    expect(rollUpWorkMode([{ workMode: 'CLIENT_SITE' }])).toBe('CLIENT_SITE');
+  });
+
+  it('calls a mixed day an office day — they did come in', () => {
+    expect(rollUpWorkMode([{ workMode: 'REMOTE' }, { workMode: 'OFFICE' }])).toBe('OFFICE');
+    expect(rollUpWorkMode([{ workMode: 'CLIENT_SITE' }, { workMode: 'REMOTE' }])).toBe('OFFICE');
   });
 });
 

@@ -75,6 +75,23 @@ export const AttendanceSource = {
 } as const;
 export type AttendanceSource = (typeof AttendanceSource)[keyof typeof AttendanceSource];
 
+/** Where someone says they are working when they clock in. */
+export const WorkMode = {
+  OFFICE: 'OFFICE',
+  REMOTE: 'REMOTE',
+  CLIENT_SITE: 'CLIENT_SITE',
+} as const;
+export type WorkMode = (typeof WorkMode)[keyof typeof WorkMode];
+
+/** Whether an OFFICE claim was borne out by the position taken alongside it. */
+export const LocationVerification = {
+  VERIFIED: 'VERIFIED',
+  OUTSIDE: 'OUTSIDE',
+  UNVERIFIED: 'UNVERIFIED',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+} as const;
+export type LocationVerification = (typeof LocationVerification)[keyof typeof LocationVerification];
+
 export const HalfDaySide = {
   FIRST_HALF: 'FIRST_HALF',
   SECOND_HALF: 'SECOND_HALF',

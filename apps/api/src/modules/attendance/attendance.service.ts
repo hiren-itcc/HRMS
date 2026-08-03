@@ -1,4 +1,9 @@
-import type { AttendanceDayQuery, AttendanceSummaryQuery } from '@hrms/shared';
+import type {
+  AttendanceDayQuery,
+  AttendanceSummaryQuery,
+  ClockInInput,
+  ClockOutInput,
+} from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
@@ -13,9 +18,16 @@ import {
   daysInMonth,
   deriveDayStatus,
   type EmploymentWindow,
+  type Fix,
   isLateArrival,
+  type LocationVerdict,
+  type OfficeGeofence,
   rollUpSessions,
+  rollUpWorkMode,
   type ShiftLike,
+  type VerificationValue,
+  verifyAgainstOffices,
+  type WorkModeValue,
 } from './attendance.util';
 
 /** Employee joined with everything the attendance rules need. */
@@ -26,7 +38,12 @@ const EMPLOYEE_CONTEXT = {
 } as const;
 
 /** A day's sessions, oldest first — the order every rollup and screen expects. */
-const WITH_SESSIONS = { sessions: { orderBy: { checkIn: 'asc' } } } as const;
+const WITH_SESSIONS = {
+  sessions: {
+    orderBy: { checkIn: 'asc' },
+    include: { location: { select: { name: true } } },
+  },
+} as const;
 
 /**
  * Clocking out and straight back in is a mis-tap, not a break, so the next
@@ -39,10 +56,20 @@ const REOPEN_WINDOW_MS = 2 * 60 * 1000;
 const MAX_SESSIONS_PER_DAY = 20;
 
 /**
- * The only statuses the rollup owns. WFH, ON_LEAVE and the rest were set
- * deliberately and must survive a clock-out that would otherwise overwrite them.
+ * The statuses the rollup owns and may recompute. WFH belongs here now that it
+ * is earned from the day's sessions rather than set by hand — leaving it out
+ * would trap a day as WFH forever once an all-remote morning had set it, even
+ * after the person came into the office in the afternoon. ON_LEAVE, HOLIDAY and
+ * the rest stay out: those were set deliberately and must survive a clock-out.
  */
-const DERIVED_STATUSES = new Set(['PRESENT', 'HALF_DAY']);
+const DERIVED_STATUSES = new Set(['PRESENT', 'HALF_DAY', 'WFH']);
+
+/** Nothing to check: remote and client-site punches are not office claims. */
+const NOT_APPLICABLE = {
+  verification: 'NOT_APPLICABLE',
+  locationId: null,
+  distanceMeters: null,
+} as const satisfies LocationVerdict;
 
 /** How a time got recorded — mirrors the `AttendanceSource` enum. */
 export type AttendanceSourceValue = 'WEB' | 'MOBILE' | 'ADMIN' | 'IMPORT';
@@ -60,6 +87,14 @@ export interface DaySession {
   id: string;
   checkIn: string;
   checkOut: string | null;
+  /** Where they said they were working. */
+  workMode: WorkModeValue;
+  /** Whether an OFFICE claim held up; NOT_APPLICABLE for the other modes. */
+  verification: VerificationValue;
+  /** Metres from the nearest office, when a position was taken and judged. */
+  distanceMeters: number | null;
+  /** Name of that office, for a message a person can act on. */
+  officeName: string | null;
 }
 
 export interface DayEntry {
@@ -73,6 +108,8 @@ export interface DayEntry {
   workMinutes: number | null;
   isLate: boolean;
   note: string | null;
+  /** The day rolled up: all one way, or OFFICE when the sittings were mixed. */
+  workMode: WorkModeValue | null;
   sessions: DaySession[];
 }
 
@@ -115,6 +152,57 @@ export class AttendanceService {
     return claims.employeeId;
   }
 
+  // ── where someone worked ──────────────────────────────────────────────
+
+  /** Every office in the org that has actually been placed on the map. */
+  private async officesOf(orgId: string): Promise<OfficeGeofence[]> {
+    const rows = await this.prisma.location.findMany({
+      where: { organizationId: orgId, latitude: { not: null }, longitude: { not: null } },
+      select: { id: true, latitude: true, longitude: true, geofenceRadiusMeters: true },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      latitude: r.latitude as number,
+      longitude: r.longitude as number,
+      geofenceRadiusMeters: r.geofenceRadiusMeters,
+    }));
+  }
+
+  /**
+   * Turns a claim plus an optional position into what gets stored.
+   *
+   * Two deliberate choices. A remote punch keeps no coordinates at all: those
+   * are somebody's home, they are sensitive, and the mode already tells the
+   * business everything it needs. And nothing here ever throws — a refused
+   * permission or a hopeless fix produces UNVERIFIED, never a failed clock-in.
+   */
+  private async resolveFix(
+    orgId: string,
+    workMode: WorkModeValue,
+    input: { latitude?: number; longitude?: number; accuracyMeters?: number },
+  ) {
+    const fix: Fix | null =
+      input.latitude !== undefined &&
+      input.longitude !== undefined &&
+      input.accuracyMeters !== undefined
+        ? {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracyMeters: input.accuracyMeters,
+          }
+        : null;
+
+    if (workMode === 'REMOTE') {
+      return { fix: null, verdict: NOT_APPLICABLE };
+    }
+    if (workMode === 'CLIENT_SITE') {
+      // Being away from the office is the point, so there is nothing to verify
+      // — but where they were is worth keeping.
+      return { fix, verdict: NOT_APPLICABLE };
+    }
+    return { fix, verdict: verifyAgainstOffices(fix, await this.officesOf(orgId)) };
+  }
+
   // ── clock in / out ────────────────────────────────────────────────────
 
   /**
@@ -124,7 +212,7 @@ export class AttendanceService {
    * Still idempotent where it matters: tapping the button twice without
    * clocking out in between returns the running day unchanged.
    */
-  async checkIn(claims: AccessTokenClaims) {
+  async checkIn(claims: AccessTokenClaims, input: ClockInInput = { workMode: 'OFFICE' }) {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const now = new Date();
     const dateKey = dateKeyInTz(now, ctx.timeZone);
@@ -154,18 +242,39 @@ export class AttendanceService {
         },
       }));
 
+    const { fix, verdict } = await this.resolveFix(ctx.organizationId, input.workMode, input);
+    const placement = {
+      workMode: input.workMode,
+      locationId: verdict.locationId,
+      inLatitude: fix?.latitude ?? null,
+      inLongitude: fix?.longitude ?? null,
+      inAccuracyMeters: fix ? Math.round(fix.accuracyMeters) : null,
+      inVerification: verdict.verification,
+      inDistanceMeters: verdict.distanceMeters,
+    };
+
     const last = sessions[sessions.length - 1];
     const misTap =
       last?.checkOut && now.getTime() - last.checkOut.getTime() <= REOPEN_WINDOW_MS ? last : null;
 
     if (misTap) {
+      // Re-declared here and now, so the reopened session takes the fresh mode
+      // and position — keeping the old ones would leave a stale claim standing.
       await this.prisma.attendanceSession.update({
         where: { id: misTap.id },
-        data: { checkOut: null },
+        data: {
+          checkOut: null,
+          outLatitude: null,
+          outLongitude: null,
+          outAccuracyMeters: null,
+          outVerification: 'NOT_APPLICABLE',
+          outDistanceMeters: null,
+          ...placement,
+        },
       });
     } else {
       await this.prisma.attendanceSession.create({
-        data: { recordId: record.id, checkIn: now, source: 'WEB' },
+        data: { recordId: record.id, checkIn: now, source: 'WEB', ...placement },
       });
     }
 
@@ -181,7 +290,7 @@ export class AttendanceService {
   }
 
   /** Closes the running session. Idempotent: with none open, returns the day as-is. */
-  async checkOut(claims: AccessTokenClaims) {
+  async checkOut(claims: AccessTokenClaims, input: ClockOutInput = {}) {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const now = new Date();
     const dateKey = dateKeyInTz(now, ctx.timeZone);
@@ -194,9 +303,19 @@ export class AttendanceService {
     // Already out — repeating the action reports the day, it is not an error.
     if (!open) return this.toDayEntry(dateKey, record, dateKey);
 
+    // Judged against the mode the session was opened with: leaving is measured
+    // the same way arriving was.
+    const { fix, verdict } = await this.resolveFix(ctx.organizationId, open.workMode, input);
     await this.prisma.attendanceSession.update({
       where: { id: open.id },
-      data: { checkOut: now },
+      data: {
+        checkOut: now,
+        outLatitude: fix?.latitude ?? null,
+        outLongitude: fix?.longitude ?? null,
+        outAccuracyMeters: fix ? Math.round(fix.accuracyMeters) : null,
+        outVerification: verdict.verification,
+        outDistanceMeters: verdict.distanceMeters,
+      },
     });
     const updated = await this.applyRollUp(record.id, ctx);
     await auditMutation(
@@ -225,19 +344,30 @@ export class AttendanceService {
       include: WITH_SESSIONS,
     });
     const roll = rollUpSessions(record.sessions, ctx.shift);
+    const workMode = rollUpWorkMode(record.sessions);
+    /*
+     * A day worked entirely from home earns WFH — until now the status only
+     * ever came from the demo seed. Hours still win over place: a short remote
+     * day is a half day, because that is what payroll and the reports mean by
+     * it. Reports already count WFH as a working day, so nothing shifts.
+     */
+    const status =
+      workMode === 'REMOTE' && roll.workedStatus === 'PRESENT' ? 'WFH' : roll.workedStatus;
+
     return client.attendanceRecord.update({
       where: { id: recordId },
       data: {
         checkIn: roll.checkIn,
         checkOut: roll.checkOut,
         workMinutes: roll.workMinutes,
+        workMode,
         // The late mark follows the day's first arrival wherever it came from —
         // a later session never changes when someone showed up, and an approved
         // correction to the arrival time does.
         isLate: roll.checkIn ? isLateArrival(roll.checkIn, ctx.timeZone, ctx.shift) : false,
-        // A WFH or on-leave day was marked as such deliberately; only the two
-        // statuses derived from hours worked are recomputed.
-        ...(DERIVED_STATUSES.has(record.status) ? { status: roll.workedStatus } : {}),
+        // An on-leave or holiday day was marked as such deliberately; only the
+        // statuses derived from the day's own sessions are recomputed.
+        ...(DERIVED_STATUSES.has(record.status) ? { status } : {}),
         ...fields,
       },
       include: WITH_SESSIONS,
@@ -572,8 +702,19 @@ export class AttendanceService {
       isLate: boolean;
       status: string;
       note: string | null;
+      workMode?: WorkModeValue | null;
       /** Absent on the summary path, which never returns the entry to a client. */
-      sessions?: { id: string; checkIn: Date; checkOut: Date | null }[];
+      sessions?: {
+        id: string;
+        checkIn: Date;
+        checkOut: Date | null;
+        workMode: WorkModeValue;
+        inVerification: VerificationValue;
+        outVerification: VerificationValue;
+        inDistanceMeters: number | null;
+        outDistanceMeters: number | null;
+        location?: { name: string } | null;
+      }[];
     } | null,
     todayKey: string,
     isHoliday = false,
@@ -597,10 +738,17 @@ export class AttendanceService {
       workMinutes: record?.workMinutes ?? null,
       isLate: record?.isLate ?? false,
       note: record?.note ?? null,
+      workMode: record?.workMode ?? null,
       sessions: (record?.sessions ?? []).map((s) => ({
         id: s.id,
         checkIn: s.checkIn.toISOString(),
         checkOut: s.checkOut?.toISOString() ?? null,
+        workMode: s.workMode,
+        // The arrival is what an office claim rests on, so that is the verdict
+        // and the distance shown. The clock-out fix is kept but not surfaced.
+        verification: s.inVerification,
+        distanceMeters: s.inDistanceMeters,
+        officeName: s.location?.name ?? null,
       })),
     };
   }

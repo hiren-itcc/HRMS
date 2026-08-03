@@ -11,6 +11,8 @@ import {
   AttendanceRequestCreateDto,
   AttendanceRequestQueryDto,
   AttendanceSummaryQueryDto,
+  ClockInDto,
+  ClockOutDto,
   MyAttendanceQueryDto,
 } from './dto/attendance.dto';
 
@@ -28,17 +30,19 @@ export class AttendanceController {
   @Post('check-in')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('attendance.mark.own')
-  @ApiOperation({ summary: 'Clock in for today (idempotent; flags late arrivals)' })
-  checkIn(@CurrentUser() user: AccessTokenClaims) {
-    return this.attendance.checkIn(user);
+  @ApiOperation({
+    summary: 'Open a session — records the work mode and, if sent, where they are',
+  })
+  checkIn(@CurrentUser() user: AccessTokenClaims, @Body() dto: ClockInDto) {
+    return this.attendance.checkIn(user, dto);
   }
 
   @Post('check-out')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('attendance.mark.own')
-  @ApiOperation({ summary: 'Clock out for today (idempotent; computes hours + half day)' })
-  checkOut(@CurrentUser() user: AccessTokenClaims) {
-    return this.attendance.checkOut(user);
+  @ApiOperation({ summary: 'Close the running session (computes hours + half day)' })
+  checkOut(@CurrentUser() user: AccessTokenClaims, @Body() dto: ClockOutDto) {
+    return this.attendance.checkOut(user, dto);
   }
 
   @Get('today')

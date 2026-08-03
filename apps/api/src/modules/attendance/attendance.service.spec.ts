@@ -11,6 +11,12 @@ interface SessionRow {
   id: string;
   checkIn: Date;
   checkOut: Date | null;
+  workMode?: string;
+  inVerification?: string;
+  inLatitude?: number | null;
+  inLongitude?: number | null;
+  inDistanceMeters?: number | null;
+  locationId?: string | null;
 }
 interface RecordRow {
   id: string;
@@ -20,7 +26,18 @@ interface RecordRow {
   isLate: boolean;
   status: string;
   note: string | null;
+  workMode?: string | null;
 }
+
+/** The Ahmedabad head office, placed on the map. */
+const OFFICE = {
+  id: 'loc1',
+  latitude: 23.0225,
+  longitude: 72.5714,
+  geofenceRadiusMeters: 200,
+};
+const AT_OFFICE = { latitude: 23.0226, longitude: 72.5715, accuracyMeters: 20 };
+const FAR_AWAY = { latitude: 23.06, longitude: 72.5714, accuracyMeters: 20 };
 
 const ago = (ms: number) => new Date(Date.now() - ms);
 const MINUTE = 60 * 1000;
@@ -31,13 +48,22 @@ const HOUR = 60 * MINUTE;
  * because clocking in, out and back in is a sequence: the point of the tests is
  * what the second clock-in sees, which per-call stubs cannot express.
  */
-function makeService(seed: { record?: RecordRow; sessions?: SessionRow[] } = {}) {
-  const sessions: SessionRow[] = seed.sessions ?? [];
+function makeService(
+  seed: { record?: RecordRow; sessions?: SessionRow[]; offices?: (typeof OFFICE)[] } = {},
+) {
+  // Sessions seeded without a mode are office ones, which is what every
+  // pre-existing row in a real database backfilled to.
+  const sessions: SessionRow[] = (seed.sessions ?? []).map((s) => ({
+    workMode: 'OFFICE',
+    inVerification: 'NOT_APPLICABLE',
+    ...s,
+  }));
   let record: RecordRow | null = seed.record ?? null;
   let nextId = sessions.length + 1;
   const withSessions = () => (record ? { ...record, sessions: [...sessions] } : null);
 
   const prisma = {
+    location: { findMany: jest.fn(async () => seed.offices ?? []) },
     employee: {
       findFirst: jest.fn().mockResolvedValue({
         id: 'e1',
@@ -361,7 +387,9 @@ describe('AttendanceService.checkOut', () => {
     expect((prisma.attendanceRecord.update as Mock).mock.calls[0][0].data.status).toBe('PRESENT');
   });
 
-  it('leaves a deliberate status like WFH alone', async () => {
+  it('leaves a deliberate status like ON_LEAVE alone', async () => {
+    // Statuses that did not come from the day's own sessions must survive a
+    // clock-out. WFH no longer belongs in that set — it is earned now.
     const { service, prisma } = makeService({
       record: {
         id: 'a1',
@@ -369,7 +397,7 @@ describe('AttendanceService.checkOut', () => {
         checkOut: null,
         workMinutes: null,
         isLate: false,
-        status: 'WFH',
+        status: 'ON_LEAVE',
         note: null,
       },
       sessions: [{ id: 's1', checkIn: ago(8 * HOUR), checkOut: null }],
@@ -377,6 +405,134 @@ describe('AttendanceService.checkOut', () => {
 
     await service.checkOut(claims());
     expect((prisma.attendanceRecord.update as Mock).mock.calls[0][0].data.status).toBeUndefined();
+  });
+});
+
+describe('AttendanceService — where someone worked', () => {
+  const officeDay = (mode: string) => ({
+    record: {
+      id: 'a1',
+      checkIn: ago(8 * HOUR),
+      checkOut: null,
+      workMinutes: null,
+      isLate: false,
+      status: 'PRESENT',
+      note: null,
+    },
+    sessions: [{ id: 's1', checkIn: ago(8 * HOUR), checkOut: null, workMode: mode }],
+    offices: [OFFICE],
+  });
+
+  it('records the mode on the session', async () => {
+    const { service, sessions } = makeService({ offices: [OFFICE] });
+    await service.checkIn(claims(), { workMode: 'CLIENT_SITE', ...AT_OFFICE });
+    expect(sessions[0]?.workMode).toBe('CLIENT_SITE');
+  });
+
+  it('verifies an office claim made at the office', async () => {
+    const { service, sessions } = makeService({ offices: [OFFICE] });
+    await service.checkIn(claims(), { workMode: 'OFFICE', ...AT_OFFICE });
+    expect(sessions[0]?.inVerification).toBe('VERIFIED');
+    expect(sessions[0]?.locationId).toBe('loc1');
+  });
+
+  it('flags an office claim made elsewhere without refusing it', async () => {
+    const { service, sessions } = makeService({ offices: [OFFICE] });
+    const entry = await service.checkIn(claims(), { workMode: 'OFFICE', ...FAR_AWAY });
+    expect(sessions[0]?.inVerification).toBe('OUTSIDE');
+    expect(sessions[0]?.inDistanceMeters).toBeGreaterThan(4000);
+    // The whole point: they are still clocked in.
+    expect(entry.checkIn).not.toBeNull();
+  });
+
+  it('clocks in unverified when no position was given', async () => {
+    const { service, sessions } = makeService({ offices: [OFFICE] });
+    const entry = await service.checkIn(claims(), { workMode: 'OFFICE' });
+    expect(sessions[0]?.inVerification).toBe('UNVERIFIED');
+    expect(entry.checkIn).not.toBeNull();
+  });
+
+  it('keeps no coordinates for a remote punch — that is somebody’s home', async () => {
+    const { service, sessions } = makeService({ offices: [OFFICE] });
+    await service.checkIn(claims(), { workMode: 'REMOTE', ...AT_OFFICE });
+    expect(sessions[0]?.inLatitude).toBeNull();
+    expect(sessions[0]?.inLongitude).toBeNull();
+    expect(sessions[0]?.inVerification).toBe('NOT_APPLICABLE');
+  });
+
+  it('re-declares mode and position when a mis-tap reopens a session', async () => {
+    const { service, sessions } = makeService({
+      record: {
+        id: 'a1',
+        checkIn: ago(HOUR),
+        checkOut: ago(5 * 1000),
+        workMinutes: 60,
+        isLate: false,
+        status: 'PRESENT',
+        note: null,
+      },
+      sessions: [{ id: 's1', checkIn: ago(HOUR), checkOut: ago(5 * 1000), workMode: 'OFFICE' }],
+      offices: [OFFICE],
+    });
+
+    await service.checkIn(claims(), { workMode: 'REMOTE' });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.workMode).toBe('REMOTE');
+    expect(sessions[0]?.checkOut).toBeNull();
+  });
+
+  it('earns WFH for a day worked entirely from home', async () => {
+    const { service, prisma } = makeService(officeDay('REMOTE'));
+    await service.checkOut(claims());
+    const data = (prisma.attendanceRecord.update as Mock).mock.calls[0][0].data;
+    expect(data.workMode).toBe('REMOTE');
+    expect(data.status).toBe('WFH');
+  });
+
+  it('moves a day back off WFH once someone comes in', async () => {
+    // The trap this design has to avoid: a remote morning must not fix the day
+    // as WFH after an office afternoon.
+    const { service, prisma } = makeService({
+      record: {
+        id: 'a1',
+        checkIn: ago(9 * HOUR),
+        checkOut: ago(5 * HOUR),
+        workMinutes: 240,
+        isLate: false,
+        status: 'WFH',
+        note: null,
+        workMode: 'REMOTE',
+      },
+      sessions: [
+        { id: 's1', checkIn: ago(9 * HOUR), checkOut: ago(5 * HOUR), workMode: 'REMOTE' },
+        { id: 's2', checkIn: ago(4 * HOUR), checkOut: null, workMode: 'OFFICE' },
+      ],
+      offices: [OFFICE],
+    });
+
+    await service.checkOut(claims());
+    const data = (prisma.attendanceRecord.update as Mock).mock.calls[0][0].data;
+    expect(data.workMode).toBe('OFFICE');
+    expect(data.status).toBe('PRESENT');
+  });
+
+  it('keeps a short remote day a half day — hours outrank place', async () => {
+    const { service, prisma } = makeService({
+      record: {
+        id: 'a1',
+        checkIn: ago(2 * HOUR),
+        checkOut: null,
+        workMinutes: null,
+        isLate: false,
+        status: 'PRESENT',
+        note: null,
+      },
+      sessions: [{ id: 's1', checkIn: ago(2 * HOUR), checkOut: null, workMode: 'REMOTE' }],
+      offices: [OFFICE],
+    });
+
+    await service.checkOut(claims());
+    expect((prisma.attendanceRecord.update as Mock).mock.calls[0][0].data.status).toBe('HALF_DAY');
   });
 });
 

@@ -206,10 +206,16 @@ model Location {
   city           String?
   country        String?
   timezone       String?                 // overrides org default (ADR A7)
+  // The attendance geofence. No coordinates means this office verifies nobody,
+  // which is a legitimate state rather than a misconfiguration.
+  latitude             Float?
+  longitude            Float?
+  geofenceRadiusMeters Int     @default(200)
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id])
   employees    Employee[]
   holidays     Holiday[]
+  sessions     AttendanceSession[]
 
   @@unique([organizationId, name])
 }
@@ -340,6 +346,7 @@ model AttendanceRecord {
   checkIn      DateTime?                // first session's clock-in
   checkOut     DateTime?                // last session's clock-out; null while one is open
   workMinutes  Int?                     // sum of the closed sessions
+  workMode     WorkMode?                // the day's rollup; OFFICE when mixed
   status       AttendanceStatus @default(PRESENT)
   source       AttendanceSource @default(WEB)
   note         String?
@@ -365,10 +372,24 @@ model AttendanceSession {
   source    AttendanceSource @default(WEB)
   createdAt DateTime         @default(now())
 
-  record AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  workMode   WorkMode @default(OFFICE)  // the claim
+  locationId String?                    // the office it was measured against
+  // …and the evidence: a position and a verdict at each end of the session.
+  inLatitude  Float?   inLongitude  Float?   inAccuracyMeters  Int?
+  inVerification  LocationVerification @default(NOT_APPLICABLE)   inDistanceMeters  Int?
+  outLatitude Float?   outLongitude Float?   outAccuracyMeters Int?
+  outVerification LocationVerification @default(NOT_APPLICABLE)   outDistanceMeters Int?
+
+  record   AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  location Location?        @relation(fields: [locationId], references: [id])
 
   @@index([recordId, checkIn])
 }
+
+enum WorkMode { OFFICE REMOTE CLIENT_SITE }
+// Four values on purpose: "we could not tell" is a different answer from
+// "they were not there", and only one of them is an accusation.
+enum LocationVerification { VERIFIED OUTSIDE UNVERIFIED NOT_APPLICABLE }
 
 enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF WFH }
 enum AttendanceSource { WEB MOBILE ADMIN IMPORT }   // MOBILE/biometric arrive later as new sources

@@ -31,6 +31,9 @@ employee.invite        employee.offboard
 
 directory.read         (work contact details for everyone — not the HR record)
 
+Note: the attendance geofence lives on Location, so configuring it needs
+org.manage rather than any attendance permission.
+
 attendance.read.own    attendance.mark.own      attendance.request.own
 attendance.read.team   attendance.approve.team
 attendance.read        attendance.approve       attendance.manage   (shifts, admin edits)

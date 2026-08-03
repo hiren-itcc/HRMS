@@ -8,6 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { Label } from '@hrms/ui/components/label';
+import { Radio, RadioGroup } from '@hrms/ui/components/radio-group';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -15,8 +17,22 @@ import { LogIn, LogOut, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
-import { attendanceApi, formatDuration, openSessionOf, sessionMinutes, timeIn } from '../api';
+import {
+  attendanceApi,
+  formatDuration,
+  openSessionOf,
+  sessionMinutes,
+  timeIn,
+  tryGetPosition,
+  WORK_MODE_LABEL,
+  type WorkMode,
+} from '../api';
 import { AttendanceStatusBadge } from './status-badge';
+import { VerificationChip, WorkModeChip } from './work-mode-chip';
+
+const MODES: WorkMode[] = ['OFFICE', 'REMOTE', 'CLIENT_SITE'];
+/** Most people work the same way most days, so the last choice is the default. */
+const MODE_STORAGE_KEY = 'hrms.workMode';
 
 /** mm:ss / h:mm:ss elapsed, ticking every second. */
 function elapsedLabel(fromIso: string, now: number): string {
@@ -32,6 +48,18 @@ export function ClockCard() {
   const queryClient = useQueryClient();
   const reduceMotion = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
+  const [mode, setMode] = useState<WorkMode>('OFFICE');
+
+  // Read after mount: localStorage does not exist while this renders on the server.
+  useEffect(() => {
+    const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
+    if (saved && MODES.includes(saved as WorkMode)) setMode(saved as WorkMode);
+  }, []);
+
+  const chooseMode = (next: WorkMode) => {
+    setMode(next);
+    window.localStorage.setItem(MODE_STORAGE_KEY, next);
+  };
 
   const today = useQuery({
     queryKey: ['attendance', 'today'],
@@ -56,8 +84,17 @@ export function ClockCard() {
     queryClient.invalidateQueries({ queryKey: ['attendance'] });
   };
 
+  /*
+   * The position is asked for when the button is pressed, never on page load.
+   * A permission prompt that appears before the person has done anything is the
+   * surest way to a permanent refusal — and `tryGetPosition` resolves to null on
+   * every failure, so a refusal costs the punch nothing.
+   */
   const clockIn = useMutation({
-    mutationFn: attendanceApi.checkIn,
+    mutationFn: async () => {
+      const fix = await tryGetPosition();
+      return attendanceApi.checkIn({ workMode: mode, ...(fix ?? {}) });
+    },
     onSuccess: (entry) => {
       invalidate();
       toast.success(entry.isLate ? 'Clocked in — marked late' : 'Clocked in');
@@ -66,7 +103,10 @@ export function ClockCard() {
   });
 
   const clockOut = useMutation({
-    mutationFn: attendanceApi.checkOut,
+    mutationFn: async () => {
+      const fix = await tryGetPosition();
+      return attendanceApi.checkOut(fix ?? {});
+    },
     onSuccess: (entry) => {
       invalidate();
       toast.success(`Clocked out — ${formatDuration(entry.workMinutes)} logged today`);
@@ -165,16 +205,44 @@ export function ClockCard() {
           )}
         </div>
 
-        {state.sessions.length > 1 && (
-          <ul className="space-y-1 border-t pt-3 text-sm">
+        {/* Only when about to clock in — the mode belongs to the sitting you
+            are opening, and you do not re-choose it on the way out. */}
+        {!open && (
+          <fieldset className="space-y-2 border-t pt-3">
+            <legend className="mb-2 font-medium text-sm">Where are you working?</legend>
+            <RadioGroup
+              value={mode}
+              onValueChange={(value) => chooseMode(value as WorkMode)}
+              className="flex flex-wrap gap-x-5 gap-y-2"
+            >
+              {MODES.map((value) => (
+                <div key={value} className="flex items-center gap-2">
+                  <Radio id={`work-mode-${value}`} value={value} />
+                  <Label htmlFor={`work-mode-${value}`} className="cursor-pointer text-sm">
+                    {WORK_MODE_LABEL[value]}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+            <p className="text-muted-foreground text-xs">
+              Your location is recorded at the moment you clock in or out, and never in between.
+              {mode === 'REMOTE' && ' Remote days record no location at all.'}
+            </p>
+          </fieldset>
+        )}
+
+        {state.sessions.length > 0 && (
+          <ul className="space-y-1.5 border-t pt-3 text-sm">
             {state.sessions.map((session, index) => (
-              <li key={session.id} className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">
+              <li key={session.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
                   Session {index + 1}
-                  <span className="ml-2 tabular-nums">
+                  <span className="tabular-nums">
                     {timeIn(session.checkIn, state.timeZone)} –{' '}
                     {session.checkOut ? timeIn(session.checkOut, state.timeZone) : 'now'}
                   </span>
+                  <WorkModeChip mode={session.workMode} />
+                  <VerificationChip session={session} />
                 </span>
                 <span className="tabular-nums">
                   {session.checkOut ? formatDuration(sessionMinutes(session)) : 'in progress'}
