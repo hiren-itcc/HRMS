@@ -10,6 +10,7 @@ import { auditMutation } from '../../common/utils/audit';
 import { daysInMonth, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
+import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { SettingsService } from '../settings/settings.service';
 import { type AdjustmentInput, calculatePayslip, type StructureLineInput } from './payroll.calc';
 import { maskAccount, toDateKey, toDays, toMoney } from './payroll.mapper';
@@ -131,7 +132,10 @@ export class PayrollRunsService {
     const employees = await this.prisma.employee.findMany({
       where: {
         organizationId: orgId,
-        deletedAt: null,
+        // Same exclusion as calculate(), or preflight reports an onboarding
+        // hire as "no salary, no bank" on the screen whose job is to say
+        // whether *this payroll* is safe.
+        ...EMPLOYED_AND_LIVE,
         joinDate: { lte: toDate(monthEnd) },
         OR: [{ exitDate: null }, { exitDate: { gte: toDate(`${run.month}-01`) } }],
       },
@@ -198,7 +202,13 @@ export class PayrollRunsService {
     const employees = await this.prisma.employee.findMany({
       where: {
         organizationId: claims.orgId,
-        deletedAt: null,
+        /*
+         * Onboarding hires are excluded explicitly rather than by luck. Today
+         * they escape a payslip only because nobody has assigned them a
+         * salary — but assigning one before the start date is perfectly
+         * normal once the offer is signed, and then they would be paid.
+         */
+        ...EMPLOYED_AND_LIVE,
         joinDate: { lte: toDate(monthEnd) },
         OR: [{ exitDate: null }, { exitDate: { gte: toDate(monthStart) } }],
       },

@@ -1,5 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { PERMISSIONS_KEY } from '../../common/decorators/require-permissions.decorator';
+import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 
 type Mock = jest.Mock;
@@ -12,8 +14,12 @@ function makeService() {
       findFirst: jest.fn(),
       create: jest.fn().mockResolvedValue({ id: 'd1' }),
       update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     auditLog: { create: jest.fn() },
+    // The real client runs both halves of a list in one transaction; the
+    // double just resolves whatever the service handed it.
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
   const storage = { put: jest.fn().mockResolvedValue('org1/key.pdf'), stream: jest.fn() };
   const categories = { assertBelongs: jest.fn() };
@@ -72,6 +78,67 @@ describe('DocumentsService access matrix', () => {
     await expect(
       service.listForEmployee(claims({ perms: ['document.read.own'], employeeId: 'e3' }), 'e2'),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('DocumentsService.listAll', () => {
+  const query = { page: 1, limit: 20, order: 'asc' as const };
+
+  /*
+   * This list is gated by @RequirePermissions('document.read') on the route,
+   * not inside the service — so the service is tested for what it actually
+   * decides (scope, filters, shape) and the gate is asserted separately below.
+   */
+  it('scopes to the org, skips deleted rows and skips documents with no employee', async () => {
+    const { service, prisma } = makeService();
+    await service.listAll(claims({ perms: ['document.read'] }), query);
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: 'org1',
+          deletedAt: null,
+          employeeId: { not: null },
+        }),
+      }),
+    );
+  });
+
+  it('narrows to one employee and folder when asked', async () => {
+    const { service, prisma } = makeService();
+    await service.listAll(claims({ perms: ['document.read'] }), {
+      ...query,
+      employeeId: 'e2',
+      categoryId: 'c1',
+    });
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ employeeId: 'e2', categoryId: 'c1' }),
+      }),
+    );
+  });
+
+  it('paginates and reports the total', async () => {
+    const { service, prisma } = makeService();
+    (prisma.document.count as Mock).mockResolvedValue(42);
+    const result = await service.listAll(claims({ perms: ['document.read'] }), {
+      ...query,
+      page: 3,
+      limit: 10,
+    });
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 20, take: 10 }),
+    );
+    expect(result.meta).toEqual({ page: 3, limit: 10, total: 42 });
+  });
+});
+
+describe('the org-wide list route', () => {
+  it('demands document.read — not .own or .team', () => {
+    const required = Reflect.getMetadata(
+      PERMISSIONS_KEY,
+      DocumentsController.prototype.listAll,
+    ) as string[];
+    expect(required).toEqual(['document.read']);
   });
 });
 

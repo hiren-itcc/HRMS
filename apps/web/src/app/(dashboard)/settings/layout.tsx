@@ -9,8 +9,13 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const { can, status } = useSession();
 
   // Anyone who can administer *something* gets in; each tab gates itself.
+  // HR holds none of the others, so letter templates are its only way in here.
   const canEnter =
-    can('settings.manage') || can('role.manage') || can('audit.read') || can('org.manage');
+    can('settings.manage') ||
+    can('role.manage') ||
+    can('audit.read') ||
+    can('org.manage') ||
+    can('letter.template.manage');
 
   if (status === 'authenticated' && !canEnter) {
     return <NoAccess what="workspace settings" />;
@@ -31,6 +36,11 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           { href: '/settings/preferences', label: 'Preferences', show: can('settings.manage') },
           { href: '/settings/roles', label: 'Roles', show: can('role.manage') },
           { href: '/settings/email', label: 'Email templates', show: can('settings.manage') },
+          {
+            href: '/settings/letters',
+            label: 'Letter templates',
+            show: can('letter.template.manage'),
+          },
           { href: '/settings/audit', label: 'Audit log', show: can('audit.read') },
         ]}
       />

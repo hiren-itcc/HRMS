@@ -1,5 +1,10 @@
 import 'dotenv/config';
-import { DEFAULT_PAY_COMPONENTS, ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
+import {
+  DEFAULT_DOCUMENT_CATEGORIES,
+  DEFAULT_PAY_COMPONENTS,
+  ROLE_PERMISSIONS,
+  SYSTEM_ROLES,
+} from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { PrismaClient } from '../src/generated/prisma/client';
@@ -141,6 +146,21 @@ async function main() {
   }
   const componentCount = await prisma.payComponent.count({ where: { organizationId: org.id } });
   console.log(`Pay components: ${componentCount} in the catalogue`);
+
+  // ── Document folders ─────────────────────────────────────────────────────
+  // Same omission as pay components had: only the demo seed created these, so
+  // a real deployment had nowhere to file anything. Onboarding is the first
+  // feature that depends on them existing — a new hire is asked for an ID
+  // proof and a bank proof on their first day.
+  for (const name of DEFAULT_DOCUMENT_CATEGORIES) {
+    await prisma.documentCategory.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {},
+      create: { organizationId: org.id, name },
+    });
+  }
+  const folderCount = await prisma.documentCategory.count({ where: { organizationId: org.id } });
+  console.log(`Document folders: ${folderCount}`);
 
   const adminRoleId = roles.ADMIN;
   if (!adminRoleId) throw new Error('ADMIN role missing from ROLE_PERMISSIONS.');

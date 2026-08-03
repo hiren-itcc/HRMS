@@ -74,11 +74,26 @@ function EmployeesView() {
         description="Directory of everyone in the organization"
         search={params.search}
         onSearchChange={params.setSearch}
-        onAdd={() => router.push('/employees/new')}
-        addLabel="Add employee"
+        onAdd={() => router.push('/employees/onboard')}
+        addLabel="Onboard a hire"
         managePerm="employee.create"
         filters={
           <>
+            {/*
+             * Two ways in, on purpose. Onboarding is the normal path for
+             * somebody who has not started; "Add directly" stays for records
+             * HR is entering after the fact, where there is nobody to invite.
+             */}
+            {can('employee.read') && (
+              <Button variant="outline" size="sm" render={<Link href="/employees/onboarding" />}>
+                Onboarding
+              </Button>
+            )}
+            {can('employee.create') && (
+              <Button variant="ghost" size="sm" render={<Link href="/employees/new" />}>
+                Add directly
+              </Button>
+            )}
             <Select
               value={departmentId ?? ALL}
               onValueChange={(v) => params.setFilter('departmentId', v === ALL ? undefined : v)}

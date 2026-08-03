@@ -1,4 +1,5 @@
 import type {
+  AcceptInviteInput,
   ChangePasswordInput,
   ForgotPasswordInput,
   LoginInput,
@@ -34,6 +35,16 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  /** Read-only: is this invitation still usable, and whose is it? */
+  checkInvite: (token: string) =>
+    api<{ valid: boolean; reason?: string; name?: string }>(
+      `/auth/invite/${encodeURIComponent(token)}`,
+    ),
+
+  /** Sets a password from an invitation and returns a signed-in session. */
+  acceptInvite: (input: AcceptInviteInput) =>
+    api<AuthResponse>('/auth/accept-invite', { method: 'POST', body: JSON.stringify(input) }),
 
   me: () => api<SessionUser>('/auth/me'),
 };

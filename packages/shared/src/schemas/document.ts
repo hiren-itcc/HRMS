@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationQuerySchema } from './common';
 
 /**
  * Document folders are org-wide categories (Resume, PAN, …) that every
@@ -16,6 +17,17 @@ export const documentQuerySchema = z.object({
   search: z.string().trim().max(120).optional(),
 });
 export type DocumentQuery = z.infer<typeof documentQuerySchema>;
+
+/**
+ * The org-wide list, behind `document.read`. Paginated where the per-employee
+ * list is not: one person's file count is bounded by their own uploads, the
+ * whole organization's is not.
+ */
+export const documentAdminQuerySchema = paginationQuerySchema.extend({
+  employeeId: z.string().optional(),
+  categoryId: z.string().optional(),
+});
+export type DocumentAdminQuery = z.infer<typeof documentAdminQuerySchema>;
 
 /** Moving a document between folders. */
 export const documentMoveSchema = z.object({

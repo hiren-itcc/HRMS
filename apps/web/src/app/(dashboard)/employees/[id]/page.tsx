@@ -53,6 +53,8 @@ import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
+import { LettersPanel } from '@/features/letters/components/letters-panel';
+import { InviteCard } from '@/features/onboarding/components/invite-card';
 import { ApiError } from '@/lib/api-client';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
@@ -457,6 +459,11 @@ function EmployeeDetailView() {
           </Card>
         </FadeInItem>
 
+        {/* Renders nothing unless this person is mid-onboarding. */}
+        <FadeInItem>
+          <InviteCard employeeId={e.id} />
+        </FadeInItem>
+
         <FadeInItem>
           <BankCard employee={e} />
         </FadeInItem>
@@ -472,6 +479,22 @@ function EmployeeDetailView() {
             </CardContent>
           </Card>
         </FadeInItem>
+
+        {(can('letter.read') || can('letter.issue')) && (
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle>Letters</CardTitle>
+                <CardDescription>
+                  Offer, appointment, experience and salary letters issued to this employee
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+              </CardContent>
+            </Card>
+          </FadeInItem>
+        )}
 
         {e.reports.length > 0 && (
           <FadeInItem>

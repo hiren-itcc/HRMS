@@ -453,7 +453,10 @@ export class AttendanceService {
     const where: Prisma.EmployeeWhereInput = {
       organizationId: claims.orgId,
       deletedAt: null,
-      status: { not: 'EXITED' },
+      // ONBOARDING as well as EXITED: a hire who has not started would
+      // otherwise read as absent to their manager from their join date on,
+      // and inflate `notMarked` in today's stats.
+      status: { notIn: ['EXITED', 'ONBOARDING'] },
       ...(perms.has('attendance.read') ? {} : { managerId: claims.employeeId ?? '__none__' }),
       ...(query.departmentId ? { departmentId: query.departmentId } : {}),
       ...(query.locationId ? { locationId: query.locationId } : {}),
@@ -538,7 +541,10 @@ export class AttendanceService {
     const where: Prisma.EmployeeWhereInput = {
       organizationId: claims.orgId,
       deletedAt: null,
-      status: { not: 'EXITED' },
+      // ONBOARDING as well as EXITED: a hire who has not started would
+      // otherwise read as absent to their manager from their join date on,
+      // and inflate `notMarked` in today's stats.
+      status: { notIn: ['EXITED', 'ONBOARDING'] },
       ...(perms.has('attendance.read') ? {} : { managerId: claims.employeeId ?? '__none__' }),
       ...(query.departmentId ? { departmentId: query.departmentId } : {}),
     };
@@ -614,7 +620,10 @@ export class AttendanceService {
     const scope: Prisma.EmployeeWhereInput = {
       organizationId: claims.orgId,
       deletedAt: null,
-      status: { not: 'EXITED' },
+      // ONBOARDING as well as EXITED: a hire who has not started would
+      // otherwise read as absent to their manager from their join date on,
+      // and inflate `notMarked` in today's stats.
+      status: { notIn: ['EXITED', 'ONBOARDING'] },
       ...(perms.has('attendance.read') ? {} : { managerId: claims.employeeId ?? '__none__' }),
     };
 

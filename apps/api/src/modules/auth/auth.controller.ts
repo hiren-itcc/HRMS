@@ -1,5 +1,5 @@
 import type { AccessTokenClaims } from '@hrms/types';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -9,7 +9,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { Env } from '../../config/env';
 import { AuthService, type RequestMeta } from './auth.service';
-import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
+import {
+  AcceptInviteDto,
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
+import { InviteService } from './invite.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -22,6 +29,7 @@ export class AuthController {
 
   constructor(
     private readonly auth: AuthService,
+    private readonly invites: InviteService,
     config: ConfigService<Env, true>,
   ) {
     this.isProd = config.get('NODE_ENV', { infer: true }) === 'production';
@@ -91,6 +99,35 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
     await this.auth.resetPassword(dto.token, dto.password, meta(req));
     return { message: 'Password updated. You can now sign in.' };
+  }
+
+  /**
+   * Read-only check so the invite page can say *why* a link does not work.
+   * Without it the page renders a password form that fails on submit, which
+   * reads as "the product is broken" rather than "ask HR to resend".
+   */
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Get('invite/:token')
+  @ApiOperation({ summary: 'Is this invitation still usable?' })
+  checkInvite(@Param('token') token: string) {
+    return this.invites.check(token);
+  }
+
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set a password from an invitation and sign in' })
+  async acceptInvite(
+    @Body() dto: AcceptInviteDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userId = await this.invites.accept(dto.token, dto.password);
+    const { refreshToken, ...result } = await this.auth.sessionFor(userId, meta(req));
+    this.setRefreshCookie(res, refreshToken);
+    return result;
   }
 
   @Post('change-password')

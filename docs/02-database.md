@@ -509,6 +509,54 @@ model Document {
 }
 
 enum DocVisibility { PRIVATE ORG }      // PRIVATE = employee + HR/Admin; ORG = everyone
+// NOT YET WIRED: nothing reads `visibility`, and a company-wide document
+// (employeeId = null) cannot be uploaded or listed. "Own + org-visible" on
+// screen 30 is therefore half-built — a gap, not a decision.
+
+// ─── Letters ──────────────────────────────────────────────────────────
+
+model LetterTemplate {                  // per-org override; absent = shipped default
+  organizationId String
+  key            String                 // "offer_letter", "salary_certificate"…
+  title          String
+  bodyHtml       String
+  updatedAt      DateTime @updatedAt
+
+  @@id([organizationId, key])
+}
+
+enum LetterStatus { ISSUED VOID }
+
+model Letter {
+  id             String @id @default(cuid())
+  organizationId String
+  employeeId     String
+  templateKey    String
+  letterNumber   String                 // OFR/2026/0007
+
+  title    String                       // FROZEN — rendered at issue,
+  bodyHtml String                       // never re-rendered
+
+  employeeCode    String                // frozen index over the body, so the
+  employeeName    String                // list reads right after a rename
+  departmentName  String?
+  designationName String?
+  joinDate        DateTime  @db.Date
+  exitDate        DateTime? @db.Date
+  monthlyCtc      Decimal?  @db.Decimal(14, 2)
+  containsSalary  Boolean   @default(false)   // the access gate (doc 04)
+  variables       Json                        // what we actually quoted
+
+  status     LetterStatus @default(ISSUED)
+  issuedAt   DateTime     @default(now())
+  issuedById String
+  voidedAt   DateTime?
+  voidedById String?
+  voidReason String?
+
+  @@unique([organizationId, letterNumber])
+  @@index([employeeId, issuedAt])
+}
 
 // ─── Announcements & Notifications ────────────────────────────────────
 

@@ -1,4 +1,8 @@
-import { documentCategoryCreateSchema, documentMoveSchema } from '@hrms/shared';
+import {
+  documentAdminQuerySchema,
+  documentCategoryCreateSchema,
+  documentMoveSchema,
+} from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import {
   BadRequestException,
@@ -21,6 +25,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createZodDto } from 'nestjs-zod';
+import { AllowDuringOnboarding } from '../../common/decorators/allow-during-onboarding.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { DocumentCategoriesService } from './document-categories.service';
@@ -28,6 +33,7 @@ import { DocumentsService } from './documents.service';
 
 class DocumentCategoryDto extends createZodDto(documentCategoryCreateSchema) {}
 class DocumentMoveDto extends createZodDto(documentMoveSchema) {}
+class DocumentAdminQueryDto extends createZodDto(documentAdminQuerySchema) {}
 
 @ApiTags('documents')
 @ApiBearerAuth()
@@ -41,6 +47,7 @@ export class DocumentsController {
   // ── folders ───────────────────────────────────────────────────────────
 
   @Get('documents/categories')
+  @AllowDuringOnboarding()
   @ApiOperation({ summary: 'Document folders with counts (optionally per employee)' })
   async listCategories(
     @CurrentUser() user: AccessTokenClaims,
@@ -79,7 +86,22 @@ export class DocumentsController {
 
   // ── documents ─────────────────────────────────────────────────────────
 
+  @Get('documents')
+  @RequirePermissions('document.read')
+  @ApiOperation({ summary: 'Every employee’s documents (HR/Admin) — filter, search, paginate' })
+  listAll(@CurrentUser() user: AccessTokenClaims, @Query() query: DocumentAdminQueryDto) {
+    return this.documents.listAll(user, query);
+  }
+
+  /*
+   * The next four are reachable while onboarding — uploading ID and bank
+   * proof is the point of the wizard. Safe to open at route level because
+   * `ensureEmployeeAccess` already narrows every one of them to the caller's
+   * own record via `document.*.own`; the guard would only be re-implementing
+   * a check that already exists one layer down.
+   */
   @Get('employees/:employeeId/documents')
+  @AllowDuringOnboarding()
   @ApiOperation({ summary: "List an employee's documents (folder filter + search)" })
   list(
     @CurrentUser() user: AccessTokenClaims,
@@ -91,6 +113,7 @@ export class DocumentsController {
   }
 
   @Post('employees/:employeeId/documents')
+  @AllowDuringOnboarding()
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a document (field "file", optional "categoryId")' })
@@ -115,6 +138,7 @@ export class DocumentsController {
   }
 
   @Get('documents/:id/file')
+  @AllowDuringOnboarding()
   @ApiOperation({ summary: 'Stream file content — inline for preview, ?download=1 to download' })
   async file(
     @CurrentUser() user: AccessTokenClaims,
@@ -133,6 +157,8 @@ export class DocumentsController {
   }
 
   @Delete('documents/:id')
+  // Reachable while onboarding so a hire can replace a file they got wrong.
+  @AllowDuringOnboarding()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete a document (document.manage or the self-uploader)' })
   remove(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {

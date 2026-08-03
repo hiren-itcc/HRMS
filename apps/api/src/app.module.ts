@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { OnboardingGuard } from './common/guards/onboarding.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
@@ -18,6 +19,8 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
+import { LettersModule } from './modules/letters/letters.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
@@ -40,6 +43,8 @@ import { SettingsModule } from './modules/settings/settings.module';
     OrganizationModule,
     EmployeesModule,
     DocumentsModule,
+    LettersModule,
+    OnboardingModule,
     AttendanceModule,
     LeaveModule,
     AnnouncementsModule,
@@ -52,13 +57,16 @@ import { SettingsModule } from './modules/settings/settings.module';
   controllers: [HealthController],
   providers: [
     // Request pipeline (docs/08-nestjs-architecture.md §cross-cutting):
-    // throttle → identity → default-password → permissions → zod → error shaping
+    // throttle → identity → default-password → onboarding → permissions → zod → error shaping
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // Must sit after identity (it reads req.user) and before permissions, so a
     // holder of the shared default password is stopped regardless of what
     // their role would otherwise allow.
     { provide: APP_GUARD, useClass: PasswordChangeGuard },
+    // Same reasoning one step further: an employee still onboarding holds the
+    // EMPLOYEE role, which is far wider than the wizard they should be in.
+    { provide: APP_GUARD, useClass: OnboardingGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

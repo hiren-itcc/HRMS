@@ -1,4 +1,5 @@
 import {
+  acceptInviteSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -12,3 +13,4 @@ export class LoginDto extends createZodDto(loginSchema) {}
 export class ForgotPasswordDto extends createZodDto(forgotPasswordSchema) {}
 export class ResetPasswordDto extends createZodDto(resetPasswordSchema) {}
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
+export class AcceptInviteDto extends createZodDto(acceptInviteSchema) {}

@@ -129,7 +129,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 |---|---|---|
 | `NODE_ENV` | `development` | **Set to `production`.** Also disables the API docs page. |
 | `PORT` | `4000` | |
-| `WEB_ORIGIN` | `http://localhost:3000` | **Must be your real site URL.** This is the CORS allow-list; leaving it wrong blocks the browser. |
+| `WEB_ORIGIN` | `http://localhost:5173` | **Must be your real site URL.** This is the CORS allow-list; leaving it wrong blocks the browser. |
 | `JWT_ACCESS_TTL` | `15m` | How long a sign-in lasts before silent refresh |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | How long "stay signed in" lasts |
 | `TRUST_PROXY` | `0` | Set to the number of proxies in front of the API (usually `1` behind nginx). Wrong value means wrong client IPs in the audit log. |
@@ -142,6 +142,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | Variable | Notes |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | e.g. `https://api.yourcompany.com/api/v1` |
+| `PORT` | The server listens on `5173` (set in `apps/web/package.json` and the Dockerfile). |
 
 **This is baked in at build time.** Changing it means rebuilding the web app —
 restarting the container will not pick up a new value.

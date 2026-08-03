@@ -39,7 +39,11 @@ import { ApiError, api } from '@/lib/api-client';
 const NONE = 'none';
 type FormValues = z.input<typeof employeeCreateSchema>;
 
-const STATUS_LABEL: Record<EmployeeStatus, string> = {
+/**
+ * Only the settable statuses appear in the form. ONBOARDING is reached by
+ * inviting somebody and left by approving them — never by picking it here.
+ */
+const STATUS_LABEL: Record<Exclude<EmployeeStatus, 'ONBOARDING'>, string> = {
   ACTIVE: 'Active',
   ON_NOTICE: 'On notice',
   EXITED: 'Exited',
@@ -326,7 +330,9 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             <Select
               value={form.watch('status') ?? 'ACTIVE'}
               onValueChange={(v) =>
-                form.setValue('status', v as EmployeeStatus, { shouldDirty: true })
+                form.setValue('status', v as Exclude<EmployeeStatus, 'ONBOARDING'>, {
+                  shouldDirty: true,
+                })
               }
             >
               <SelectTrigger id="employment-status" className="w-full">
