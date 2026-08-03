@@ -78,7 +78,7 @@ pnpm db:seed         # demo workspace — WIPES THE ORGANIZATION FIRST. Local th
 pnpm dev
 ```
 
-Open **http://localhost:3000** — it redirects to sign-in.
+Open **http://localhost:5173** — it redirects to sign-in.
 
 The Supabase database above was set up with `db:bootstrap`, so it holds one
 organization, the role/permission matrix and a single administrator — no demo
@@ -115,7 +115,7 @@ Swagger API docs: **http://localhost:4000/api/docs**
 
 | Command | Does |
 |---|---|
-| `pnpm dev` | Run web (3000) + api (4000) in watch mode |
+| `pnpm dev` | Run web (5173) + api (4000) in watch mode |
 | `pnpm build` / `pnpm typecheck` / `pnpm test` | Turborepo pipeline across all workspaces |
 | `pnpm check` | Biome lint + format check |
 | `pnpm db:migrate` / `db:seed` / `db:generate` | Prisma workflows (run against `apps/api/.env`) |

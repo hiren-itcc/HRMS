@@ -11,7 +11,7 @@ export const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(30),
-  WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+  WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   /**
    * Number of reverse proxies in front of the API, or 0 when it is exposed
    * directly.
