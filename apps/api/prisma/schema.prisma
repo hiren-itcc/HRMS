@@ -340,6 +340,10 @@ enum AttendanceSource {
   IMPORT
 }
 
+/// One row per employee per day — the unit payroll and reports aggregate on.
+/// The times here are a *rollup* of the day's sessions, not the source of
+/// truth: `checkIn` is the first session's, `checkOut` the last session's (null
+/// while one is still open), and `workMinutes` the sum of the closed ones.
 model AttendanceRecord {
   id             String           @id @default(cuid())
   organizationId String
@@ -355,10 +359,27 @@ model AttendanceRecord {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee Employee            @relation(fields: [employeeId], references: [id])
+  sessions AttendanceSession[]
 
   @@unique([employeeId, date])
   @@index([organizationId, date])
+}
+
+/// A single clock-in/clock-out pair. A day holds as many as the person works,
+/// so leaving for lunch — or clocking out by accident — never ends the day.
+/// `checkOut` is null exactly while the person is currently clocked in.
+model AttendanceSession {
+  id        String           @id @default(cuid())
+  recordId  String
+  checkIn   DateTime
+  checkOut  DateTime?
+  source    AttendanceSource @default(WEB)
+  createdAt DateTime         @default(now())
+
+  record AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, checkIn])
 }
 
 enum ApprovalStatus {

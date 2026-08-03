@@ -73,7 +73,7 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |
 
 ### Attendance (5)
-| 20 | My attendance | `/attendance` | Month calendar + day drawer; regularize action |
+| 20 | My attendance | `/attendance` | Month calendar + day drawer listing that day's sessions; regularize action; open sessions on a past day flagged |
 | 21 | Team attendance | `/team/attendance` | Day/week matrix of reports |
 | 22 | Attendance admin | `/attendance/admin` | Org day view; edit (audited); shifts CRUD |
 | 23 | Regularization form | (drawer) | Date, in/out, reason |

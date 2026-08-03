@@ -14,14 +14,25 @@ export type DerivedStatus =
   | 'NOT_EMPLOYED'
   | 'FUTURE';
 
+/** One clock-in/clock-out pair; `checkOut` is null while the person is in. */
+export interface DaySession {
+  id: string;
+  checkIn: string;
+  checkOut: string | null;
+}
+
 export interface DayEntry {
   date: string;
   status: DerivedStatus;
+  /** First session's clock-in. */
   checkIn: string | null;
+  /** Last session's clock-out — null while any session is still open. */
   checkOut: string | null;
+  /** Summed across closed sessions; the running one counts when it ends. */
   workMinutes: number | null;
   isLate: boolean;
   note: string | null;
+  sessions: DaySession[];
 }
 
 export interface TodayState extends DayEntry {
@@ -141,6 +152,22 @@ export function formatDuration(minutes: number | null | undefined): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+/** Minutes worked in one session; null while it is still running. */
+export function sessionMinutes(session: DaySession): number | null {
+  if (!session.checkOut) return null;
+  return Math.max(
+    0,
+    Math.round(
+      (new Date(session.checkOut).getTime() - new Date(session.checkIn).getTime()) / 60_000,
+    ),
+  );
+}
+
+/** The session currently running, if any — at most one can be open. */
+export function openSessionOf(entry: Pick<DayEntry, 'sessions'>): DaySession | null {
+  return entry.sessions.find((s) => !s.checkOut) ?? null;
+}
+
 /** Wall-clock HH:MM of an ISO instant, rendered in the given timezone. */
 export function timeIn(iso: string | null, timeZone?: string): string {
   if (!iso) return '—';
@@ -154,6 +181,17 @@ export function timeIn(iso: string | null, timeZone?: string): string {
 
 export function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
+}
+
+/** Today's YYYY-MM-DD in the given timezone — mirrors the server's day key. */
+export function todayKeyIn(timeZone: string): string {
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 export function shiftMonth(month: string, delta: number): string {

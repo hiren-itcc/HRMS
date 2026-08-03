@@ -120,14 +120,22 @@ login is disabled and they are signed out everywhere immediately.
 
 ## Every working day: attendance
 
-People clock in when they start and clock out when they finish. Clocking in
-twice does nothing the second time, so a double tap can't create a mess.
+People clock in when they start and clock out when they stop — as many times a
+day as they need to. Lunch, a client visit, an evening stint: each is its own
+session, and the day adds them up. Clocking out is never the end of the day, so
+doing it by accident costs nothing; clocking straight back in within a couple of
+minutes simply resumes the session, leaving no trace of the mistake.
+
+Tapping clock-in twice without leaving does nothing the second time, so a double
+tap still can't create a mess.
 
 The system decides how each day counts:
 
 - **Late** — arriving after the shift start *plus* the grace period, measured in
   the employee's own timezone, not the head office's.
-- **Half day** — working less than half the shift's length.
+- **Half day** — working less than half the shift's length, counting every
+  session but not the gaps between them: an hour out for lunch is not paid, and
+  a day is never judged while someone is still clocked in.
 - Days are also recorded as absent, on leave, a holiday, a week off, or working
   from home.
 
@@ -138,15 +146,22 @@ then is there approved leave; otherwise it is an absence. Approved leave always
 beats "absent" — someone on booked holiday is never marked down as absent.
 
 Only one attendance record can exist per person per day, so two entries can
-never disagree.
+never disagree. The day's sessions hang off that one record and its times are
+only ever their total — first clock-in, last clock-out, hours added up.
+
+Someone who leaves without clocking out keeps an open session. Their day shows
+that plainly and counts none of those hours, which is a correction to raise
+rather than something the system guesses at overnight.
 
 ### When a day is wrong
 
 The employee raises a **correction request** — "I was here on the 12th, I forgot
-to clock in." Their manager approves or rejects it. Approving updates the actual
-attendance record in the same action, so the record and the approval can never
-tell different stories. Only one correction can be open per person per day, and
-nobody can approve their own.
+to clock in." Their manager approves or rejects it. Approving rewrites that day's
+sessions in the same action, so the record and the approval can never tell
+different stories. Giving both times describes the whole day and replaces it;
+giving one moves just that edge, which leaves the other sittings of a split day
+alone. Only one correction can be open per person per day, and nobody can approve
+their own.
 
 ---
 

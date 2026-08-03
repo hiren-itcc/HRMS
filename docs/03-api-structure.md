@@ -9,7 +9,7 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 - **Envelope:** success returns the resource directly; errors return RFC-7807-style `{ statusCode, error, message, details? }`. No `{ success: true }` wrappers.
 - **Lists:** `?page=&limit=&sort=&order=&search=` + module-specific filters. Response: `{ data: T[], meta: { page, limit, total } }`.
 - **Dates:** ISO-8601 UTC in transport; date-only fields as `YYYY-MM-DD`.
-- **Idempotency:** check-in/out and approval actions are idempotent (repeating returns current state, not an error).
+- **Idempotency:** check-in/out and approval actions are idempotent (repeating returns current state, not an error). Repeating means *while nothing has changed* — clocking in again after a clock-out opens a new session rather than returning the old one.
 
 ## Endpoints by module
 
@@ -50,7 +50,7 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 ### Attendance (`/attendance`)
 | Method | Path |
 |---|---|
-| POST | `/attendance/check-in` · POST `/attendance/check-out` — self, idempotent |
+| POST | `/attendance/check-in` · POST `/attendance/check-out` — self; opens/closes a session, any number per day |
 | GET | `/attendance/today` — self, current day state |
 | GET | `/me/attendance?from=&to=` — self history |
 | GET | `/attendance?date=&departmentId=` — team/org view (permission-scoped: manager sees reports, HR sees all) |

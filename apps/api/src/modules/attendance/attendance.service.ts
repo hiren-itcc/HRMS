@@ -14,9 +14,8 @@ import {
   deriveDayStatus,
   type EmploymentWindow,
   isLateArrival,
+  rollUpSessions,
   type ShiftLike,
-  statusForWorkedMinutes,
-  workedMinutesBetween,
 } from './attendance.util';
 
 /** Employee joined with everything the attendance rules need. */
@@ -26,6 +25,28 @@ const EMPLOYEE_CONTEXT = {
   organization: { select: { timezone: true } },
 } as const;
 
+/** A day's sessions, oldest first — the order every rollup and screen expects. */
+const WITH_SESSIONS = { sessions: { orderBy: { checkIn: 'asc' } } } as const;
+
+/**
+ * Clocking out and straight back in is a mis-tap, not a break, so the next
+ * clock-in inside this window reopens the session that was just closed instead
+ * of leaving a stub on the timeline.
+ */
+const REOPEN_WINDOW_MS = 2 * 60 * 1000;
+
+/** A backstop against a jammed button — nobody legitimately works 20 sittings. */
+const MAX_SESSIONS_PER_DAY = 20;
+
+/**
+ * The only statuses the rollup owns. WFH, ON_LEAVE and the rest were set
+ * deliberately and must survive a clock-out that would otherwise overwrite them.
+ */
+const DERIVED_STATUSES = new Set(['PRESENT', 'HALF_DAY']);
+
+/** How a time got recorded — mirrors the `AttendanceSource` enum. */
+export type AttendanceSourceValue = 'WEB' | 'MOBILE' | 'ADMIN' | 'IMPORT';
+
 export interface AttendanceContext {
   employeeId: string;
   organizationId: string;
@@ -34,14 +55,25 @@ export interface AttendanceContext {
   employment: EmploymentWindow;
 }
 
+/** One clock-in/clock-out pair; `checkOut` is null while the person is in. */
+export interface DaySession {
+  id: string;
+  checkIn: string;
+  checkOut: string | null;
+}
+
 export interface DayEntry {
   date: string;
   status: DerivedStatus;
+  /** First session's clock-in. */
   checkIn: string | null;
+  /** Last session's clock-out — null while any session is still open. */
   checkOut: string | null;
+  /** Summed across closed sessions; the running one counts when it ends. */
   workMinutes: number | null;
   isLate: boolean;
   note: string | null;
+  sessions: DaySession[];
 }
 
 @Injectable()
@@ -85,28 +117,59 @@ export class AttendanceService {
 
   // ── clock in / out ────────────────────────────────────────────────────
 
-  /** Idempotent: clocking in twice returns the existing record unchanged. */
+  /**
+   * Opens a session. A day holds as many as the person works, so clocking out
+   * — deliberately at lunch or by accident — never ends the day.
+   *
+   * Still idempotent where it matters: tapping the button twice without
+   * clocking out in between returns the running day unchanged.
+   */
   async checkIn(claims: AccessTokenClaims) {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const now = new Date();
     const dateKey = dateKeyInTz(now, ctx.timeZone);
 
     const existing = await this.findRecord(ctx.employeeId, dateKey);
-    if (existing?.checkIn) return this.toDayEntry(dateKey, existing, dateKey);
+    const sessions = existing?.sessions ?? [];
 
-    const record = await this.prisma.attendanceRecord.upsert({
-      where: { employeeId_date: { employeeId: ctx.employeeId, date: toDate(dateKey) } },
-      update: { checkIn: now, isLate: isLateArrival(now, ctx.timeZone, ctx.shift) },
-      create: {
-        organizationId: ctx.organizationId,
-        employeeId: ctx.employeeId,
-        date: toDate(dateKey),
-        checkIn: now,
-        isLate: isLateArrival(now, ctx.timeZone, ctx.shift),
-        status: 'PRESENT',
-        source: 'WEB',
-      },
-    });
+    // Already clocked in — a double tap is not a new sitting.
+    if (sessions.some((s) => s.checkOut === null)) {
+      return this.toDayEntry(dateKey, existing, dateKey);
+    }
+    if (sessions.length >= MAX_SESSIONS_PER_DAY) {
+      throw new BadRequestException(
+        'Too many clock-ins today — raise a correction request instead',
+      );
+    }
+
+    const record =
+      existing ??
+      (await this.prisma.attendanceRecord.create({
+        data: {
+          organizationId: ctx.organizationId,
+          employeeId: ctx.employeeId,
+          date: toDate(dateKey),
+          status: 'PRESENT',
+          source: 'WEB',
+        },
+      }));
+
+    const last = sessions[sessions.length - 1];
+    const misTap =
+      last?.checkOut && now.getTime() - last.checkOut.getTime() <= REOPEN_WINDOW_MS ? last : null;
+
+    if (misTap) {
+      await this.prisma.attendanceSession.update({
+        where: { id: misTap.id },
+        data: { checkOut: null },
+      });
+    } else {
+      await this.prisma.attendanceSession.create({
+        data: { recordId: record.id, checkIn: now, source: 'WEB' },
+      });
+    }
+
+    const updated = await this.applyRollUp(record.id, ctx);
     await auditMutation(
       this.prisma,
       { orgId: ctx.organizationId, userId: claims.sub },
@@ -114,28 +177,28 @@ export class AttendanceService {
       'AttendanceRecord',
       record.id,
     );
-    return this.toDayEntry(dateKey, record, dateKey);
+    return this.toDayEntry(dateKey, updated, dateKey);
   }
 
-  /** Idempotent: clocking out twice returns the finished record unchanged. */
+  /** Closes the running session. Idempotent: with none open, returns the day as-is. */
   async checkOut(claims: AccessTokenClaims) {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const now = new Date();
     const dateKey = dateKeyInTz(now, ctx.timeZone);
 
     const record = await this.findRecord(ctx.employeeId, dateKey);
-    if (!record?.checkIn) throw new BadRequestException('Clock in before clocking out');
-    if (record.checkOut) return this.toDayEntry(dateKey, record, dateKey);
+    if (!record || record.sessions.length === 0) {
+      throw new BadRequestException('Clock in before clocking out');
+    }
+    const open = record.sessions.find((s) => s.checkOut === null);
+    // Already out — repeating the action reports the day, it is not an error.
+    if (!open) return this.toDayEntry(dateKey, record, dateKey);
 
-    const workMinutes = workedMinutesBetween(record.checkIn, now);
-    const updated = await this.prisma.attendanceRecord.update({
-      where: { id: record.id },
-      data: {
-        checkOut: now,
-        workMinutes,
-        status: statusForWorkedMinutes(workMinutes, ctx.shift),
-      },
+    await this.prisma.attendanceSession.update({
+      where: { id: open.id },
+      data: { checkOut: now },
     });
+    const updated = await this.applyRollUp(record.id, ctx);
     await auditMutation(
       this.prisma,
       { orgId: ctx.organizationId, userId: claims.sub },
@@ -144,6 +207,41 @@ export class AttendanceService {
       record.id,
     );
     return this.toDayEntry(dateKey, updated, dateKey);
+  }
+
+  /**
+   * Rewrites the day-level columns from its sessions. Every write to a record's
+   * times goes through here, so the rollup and the sessions cannot drift apart.
+   * Pass `client` to join a transaction the caller already opened.
+   */
+  async applyRollUp(
+    recordId: string,
+    ctx: Pick<AttendanceContext, 'shift' | 'timeZone'>,
+    fields: { note?: string; source?: AttendanceSourceValue } = {},
+    client: Prisma.TransactionClient = this.prisma,
+  ) {
+    const record = await client.attendanceRecord.findUniqueOrThrow({
+      where: { id: recordId },
+      include: WITH_SESSIONS,
+    });
+    const roll = rollUpSessions(record.sessions, ctx.shift);
+    return client.attendanceRecord.update({
+      where: { id: recordId },
+      data: {
+        checkIn: roll.checkIn,
+        checkOut: roll.checkOut,
+        workMinutes: roll.workMinutes,
+        // The late mark follows the day's first arrival wherever it came from —
+        // a later session never changes when someone showed up, and an approved
+        // correction to the arrival time does.
+        isLate: roll.checkIn ? isLateArrival(roll.checkIn, ctx.timeZone, ctx.shift) : false,
+        // A WFH or on-leave day was marked as such deliberately; only the two
+        // statuses derived from hours worked are recomputed.
+        ...(DERIVED_STATUSES.has(record.status) ? { status: roll.workedStatus } : {}),
+        ...fields,
+      },
+      include: WITH_SESSIONS,
+    });
   }
 
   /** Live state for the clock card. */
@@ -186,6 +284,7 @@ export class AttendanceService {
     const [records, holidays, leave, weekOff] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
         where: { employeeId: ctx.employeeId, date: { gte: from, lte: to } },
+        include: WITH_SESSIONS,
       }),
       this.holidayKeys(ctx.organizationId, from, to),
       this.leaveKeys([ctx.employeeId], from, to),
@@ -249,7 +348,7 @@ export class AttendanceService {
           joinDate: true,
           exitDate: true,
           department: { select: { name: true } },
-          attendance: { where: { date: toDate(dateKey) } },
+          attendance: { where: { date: toDate(dateKey) }, include: WITH_SESSIONS },
         },
         orderBy: { firstName: 'asc' },
         skip: (query.page - 1) * query.limit,
@@ -414,9 +513,10 @@ export class AttendanceService {
 
   // ── helpers ───────────────────────────────────────────────────────────
 
-  private findRecord(employeeId: string, dateKey: string) {
+  findRecord(employeeId: string, dateKey: string) {
     return this.prisma.attendanceRecord.findUnique({
       where: { employeeId_date: { employeeId, date: toDate(dateKey) } },
+      include: WITH_SESSIONS,
     });
   }
 
@@ -472,6 +572,8 @@ export class AttendanceService {
       isLate: boolean;
       status: string;
       note: string | null;
+      /** Absent on the summary path, which never returns the entry to a client. */
+      sessions?: { id: string; checkIn: Date; checkOut: Date | null }[];
     } | null,
     todayKey: string,
     isHoliday = false,
@@ -495,6 +597,11 @@ export class AttendanceService {
       workMinutes: record?.workMinutes ?? null,
       isLate: record?.isLate ?? false,
       note: record?.note ?? null,
+      sessions: (record?.sessions ?? []).map((s) => ({
+        id: s.id,
+        checkIn: s.checkIn.toISOString(),
+        checkOut: s.checkOut?.toISOString() ?? null,
+      })),
     };
   }
 }

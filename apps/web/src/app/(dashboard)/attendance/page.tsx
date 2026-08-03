@@ -10,7 +10,7 @@ import {
 } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
@@ -19,8 +19,10 @@ import {
   currentMonth,
   type DayEntry,
   formatDuration,
+  sessionMinutes,
   shiftMonth,
   timeIn,
+  todayKeyIn,
 } from '@/features/attendance/api';
 import { AttendanceCalendar } from '@/features/attendance/components/attendance-calendar';
 import { ClockCard } from '@/features/attendance/components/clock-card';
@@ -51,10 +53,84 @@ function SummaryTile({ label, value }: { label: string; value: string | number }
   );
 }
 
+/** The selected day: its totals, then every clock-in/out that made them up. */
+function DayPanel({
+  day,
+  timeZone,
+  onRequestCorrection,
+  onClose,
+}: {
+  day: DayEntry | null;
+  timeZone: string;
+  onRequestCorrection: (date: string) => void;
+  onClose: () => void;
+}) {
+  if (!day) return null;
+
+  // A session still running on a day that has already ended means someone left
+  // without clocking out. Say so — those hours are not being counted.
+  const neverClockedOut = day.date < todayKeyIn(timeZone) && day.sessions.some((s) => !s.checkOut);
+
+  return (
+    <div className="space-y-3 rounded-xl border bg-muted/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <p className="flex flex-wrap items-center gap-2 font-medium text-sm">
+            {dayLabel(day.date)}
+            <AttendanceStatusBadge status={day.status} isLate={day.isLate} />
+          </p>
+          <p className="text-muted-foreground text-sm tabular-nums">
+            In {timeIn(day.checkIn, timeZone)} · Out {timeIn(day.checkOut, timeZone)} ·{' '}
+            {formatDuration(day.workMinutes)}
+          </p>
+          {day.note && <p className="text-muted-foreground text-xs">{day.note}</p>}
+        </div>
+        <div className="flex gap-2">
+          {day.status !== 'FUTURE' && (
+            <Button size="sm" onClick={() => onRequestCorrection(day.date)}>
+              <CalendarPlus className="size-4" aria-hidden /> Request correction
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" aria-label="Close day details" onClick={onClose}>
+            <X className="size-4" aria-hidden />
+          </Button>
+        </div>
+      </div>
+
+      {neverClockedOut && (
+        <p className="flex items-center gap-2 text-amber-600 text-xs dark:text-amber-500">
+          <TriangleAlert className="size-3.5" aria-hidden />
+          This day was never clocked out, so its hours are not counted. Request a correction to fix
+          it.
+        </p>
+      )}
+
+      {day.sessions.length > 1 && (
+        <ul className="space-y-1 border-t pt-3 text-sm">
+          {day.sessions.map((session, index) => (
+            <li key={session.id} className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">
+                Session {index + 1}
+                <span className="ml-2 tabular-nums">
+                  {timeIn(session.checkIn, timeZone)} –{' '}
+                  {session.checkOut ? timeIn(session.checkOut, timeZone) : '—'}
+                </span>
+              </span>
+              <span className="tabular-nums">{formatDuration(sessionMinutes(session))}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function MyAttendancePage() {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(currentMonth);
-  const [selected, setSelected] = useState<DayEntry | null>(null);
+  // The date, not the entry: a day's sessions change while it is open, so the
+  // panel has to re-read the day rather than hold a snapshot of it.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [correctionFor, setCorrectionFor] = useState<string | null>(null);
 
   const data = useQuery({
@@ -113,7 +189,7 @@ export default function MyAttendancePage() {
                       aria-label="Previous month"
                       onClick={() => {
                         setMonth(shiftMonth(month, -1));
-                        setSelected(null);
+                        setSelectedDate(null);
                       }}
                     >
                       <ChevronLeft className="size-4" aria-hidden />
@@ -125,7 +201,7 @@ export default function MyAttendancePage() {
                       disabled={month >= currentMonth()}
                       onClick={() => {
                         setMonth(shiftMonth(month, 1));
-                        setSelected(null);
+                        setSelectedDate(null);
                       }}
                     >
                       <ChevronRight className="size-4" aria-hidden />
@@ -151,46 +227,16 @@ export default function MyAttendancePage() {
 
                     <AttendanceCalendar
                       days={data.data.days}
-                      selected={selected?.date}
-                      onSelect={setSelected}
+                      selected={selectedDate ?? undefined}
+                      onSelect={(day) => setSelectedDate(day.date)}
                     />
 
-                    {selected && (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 p-4">
-                        <div className="space-y-1">
-                          <p className="flex flex-wrap items-center gap-2 font-medium text-sm">
-                            {dayLabel(selected.date)}
-                            <AttendanceStatusBadge
-                              status={selected.status}
-                              isLate={selected.isLate}
-                            />
-                          </p>
-                          <p className="text-muted-foreground text-sm tabular-nums">
-                            In {timeIn(selected.checkIn, data.data.timeZone)} · Out{' '}
-                            {timeIn(selected.checkOut, data.data.timeZone)} ·{' '}
-                            {formatDuration(selected.workMinutes)}
-                          </p>
-                          {selected.note && (
-                            <p className="text-muted-foreground text-xs">{selected.note}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          {selected.status !== 'FUTURE' && (
-                            <Button size="sm" onClick={() => setCorrectionFor(selected.date)}>
-                              <CalendarPlus className="size-4" aria-hidden /> Request correction
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Close day details"
-                            onClick={() => setSelected(null)}
-                          >
-                            <X className="size-4" aria-hidden />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                    <DayPanel
+                      day={data.data.days.find((d) => d.date === selectedDate) ?? null}
+                      timeZone={data.data.timeZone}
+                      onRequestCorrection={setCorrectionFor}
+                      onClose={() => setSelectedDate(null)}
+                    />
                   </>
                 )}
               </CardContent>
