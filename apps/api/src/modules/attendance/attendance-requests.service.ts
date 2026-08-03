@@ -16,12 +16,7 @@ import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { AttendanceService } from './attendance.service';
-import {
-  instantFromLocal,
-  isLateArrival,
-  statusForWorkedMinutes,
-  workedMinutesBetween,
-} from './attendance.util';
+import { instantFromLocal } from './attendance.util';
 
 /**
  * `date` is a `@db.Date` column, so Prisma hands back a full timestamp. Every
@@ -138,8 +133,11 @@ export class AttendanceRequestsService {
       throw new ForbiddenException('You cannot approve your own correction');
     }
 
-    const writes: Prisma.PrismaPromise<unknown>[] = [
-      this.prisma.attendanceRequest.update({
+    const ctx =
+      decision === 'APPROVED' ? await this.attendance.contextFor(request.employeeId) : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.attendanceRequest.update({
         where: { id },
         data: {
           status: decision,
@@ -147,50 +145,33 @@ export class AttendanceRequestsService {
           actedAt: new Date(),
           approverNote: input.note,
         },
-      }),
-    ];
+      });
+      if (!ctx) return;
 
-    if (decision === 'APPROVED') {
-      const ctx = await this.attendance.contextFor(request.employeeId);
-      const existing = await this.prisma.attendanceRecord.findUnique({
-        where: {
-          employeeId_date: { employeeId: request.employeeId, date: request.date },
+      const record = await tx.attendanceRecord.upsert({
+        where: { employeeId_date: { employeeId: request.employeeId, date: request.date } },
+        update: {},
+        create: {
+          organizationId: ctx.organizationId,
+          employeeId: request.employeeId,
+          date: request.date,
+          status: 'PRESENT',
+          source: 'ADMIN',
         },
+        include: { sessions: { orderBy: { checkIn: 'asc' } } },
       });
 
-      const checkIn = request.requestedIn ?? existing?.checkIn ?? null;
-      const checkOut = request.requestedOut ?? existing?.checkOut ?? null;
-      const workMinutes = checkIn && checkOut ? workedMinutesBetween(checkIn, checkOut) : null;
-      const data = {
-        checkIn,
-        checkOut,
-        workMinutes,
-        isLate: checkIn ? isLateArrival(checkIn, ctx.timeZone, ctx.shift) : false,
-        status:
-          workMinutes !== null
-            ? statusForWorkedMinutes(workMinutes, ctx.shift)
-            : ('PRESENT' as const),
-        source: 'ADMIN' as const,
-        note: request.reason,
-      };
-
-      writes.push(
-        this.prisma.attendanceRecord.upsert({
-          where: {
-            employeeId_date: { employeeId: request.employeeId, date: request.date },
-          },
-          update: data,
-          create: {
-            ...data,
-            organizationId: ctx.organizationId,
-            employeeId: request.employeeId,
-            date: request.date,
-          },
-        }),
+      await this.applyToSessions(tx, record.id, record.sessions, request);
+      // Rolling up here is what keeps the record and its sessions from ever
+      // telling different stories, the same guarantee the transaction gives
+      // the request and the record.
+      await this.attendance.applyRollUp(
+        record.id,
+        ctx,
+        { source: 'ADMIN', note: request.reason },
+        tx,
       );
-    }
-
-    await this.prisma.$transaction(writes);
+    });
     await auditMutation(
       this.prisma,
       { orgId: claims.orgId, userId: claims.sub },
@@ -225,6 +206,60 @@ export class AttendanceRequestsService {
       'AttendanceRequest',
       id,
     );
+  }
+
+  /**
+   * A correction is written as one in/out pair, so it edits the day's sessions
+   * rather than the record's columns — the record is only ever their rollup.
+   *
+   * Giving both times describes the whole day and replaces it. Giving one moves
+   * just that edge, which leaves the middle sittings of a split day alone: "I
+   * forgot to clock out after the client visit" should not erase the morning.
+   */
+  private async applyToSessions(
+    tx: Prisma.TransactionClient,
+    recordId: string,
+    sessions: { id: string }[],
+    request: { requestedIn: Date | null; requestedOut: Date | null },
+  ) {
+    const { requestedIn, requestedOut } = request;
+
+    if (requestedIn && requestedOut) {
+      await tx.attendanceSession.deleteMany({ where: { recordId } });
+      await tx.attendanceSession.create({
+        data: { recordId, checkIn: requestedIn, checkOut: requestedOut, source: 'ADMIN' },
+      });
+      return;
+    }
+
+    const first = sessions[0];
+    const last = sessions[sessions.length - 1];
+
+    if (requestedIn) {
+      if (first) {
+        await tx.attendanceSession.update({
+          where: { id: first.id },
+          data: { checkIn: requestedIn, source: 'ADMIN' },
+        });
+      } else {
+        await tx.attendanceSession.create({
+          data: { recordId, checkIn: requestedIn, source: 'ADMIN' },
+        });
+      }
+      return;
+    }
+
+    // Only a clock-out, and nothing to close: there is no arrival to infer, so
+    // say so rather than invent one or silently drop the correction.
+    if (!last) {
+      throw new BadRequestException(
+        'That day has no clock-in to correct — the request needs a clock-in time too',
+      );
+    }
+    await tx.attendanceSession.update({
+      where: { id: last.id },
+      data: { checkOut: requestedOut, source: 'ADMIN' },
+    });
   }
 
   private inboxScope(claims: AccessTokenClaims): Prisma.EmployeeWhereInput {

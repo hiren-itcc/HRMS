@@ -574,7 +574,7 @@ async function main() {
     'zara@hrms.local',
   ];
   const today = dateKey(new Date());
-  const records = days.flatMap((key, dayIndex) =>
+  const seedDays = days.flatMap((key, dayIndex) =>
     staff.flatMap((email, person) => {
       // Asha is left unmarked today so you can exercise clock-in yourself;
       // everyone else is already in, so "Present today" is a real number.
@@ -587,25 +587,77 @@ async function main() {
       const half = slot === 12;
       const wfh = slot === 6;
       const isEarlyShift = email === 'rohan@hrms.local';
+      // Two sittings around lunch, and the odd day someone forgets to clock
+      // out — both are ordinary, and both need real rows to render against.
+      const split = slot === 3 && !isEarlyShift;
+      const forgotOut = slot === 8;
       const checkIn = at(key, late ? '10:05' : isEarlyShift ? '07:02' : '09:24');
       const checkOut = at(key, half ? '13:30' : isEarlyShift ? '16:10' : '18:36');
+      const sessions: { checkIn: Date; checkOut: Date | null }[] = split
+        ? [
+            { checkIn, checkOut: at(key, '13:12') },
+            { checkIn: at(key, '14:06'), checkOut },
+          ]
+        : [{ checkIn, checkOut: forgotOut ? null : checkOut }];
       return [
         {
-          organizationId: org.id,
+          key,
           employeeId: emp(email),
-          date: toDate(key),
-          checkIn,
-          checkOut,
-          workMinutes: Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000),
+          sessions,
           isLate: late,
           status: half ? ('HALF_DAY' as const) : wfh ? ('WFH' as const) : ('PRESENT' as const),
-          source: 'WEB' as const,
           note: half ? 'Left early — personal appointment' : null,
         },
       ];
     }),
   );
-  await prisma.attendanceRecord.createMany({ data: records, skipDuplicates: true });
+
+  const minutesOf = (s: { checkIn: Date; checkOut: Date | null }) =>
+    s.checkOut ? Math.round((s.checkOut.getTime() - s.checkIn.getTime()) / 60_000) : 0;
+
+  await prisma.attendanceRecord.createMany({
+    // The record's times are a rollup of its sessions, so build them that way
+    // here too rather than letting the seed invent a shape the API never makes.
+    data: seedDays.map((day) => {
+      const last = day.sessions[day.sessions.length - 1] as (typeof day.sessions)[number];
+      return {
+        organizationId: org.id,
+        employeeId: day.employeeId,
+        date: toDate(day.key),
+        checkIn: (day.sessions[0] as (typeof day.sessions)[number]).checkIn,
+        checkOut: last.checkOut,
+        workMinutes: day.sessions.reduce((sum, s) => sum + minutesOf(s), 0),
+        isLate: day.isLate,
+        status: day.status,
+        source: 'WEB' as const,
+        note: day.note,
+      };
+    }),
+    skipDuplicates: true,
+  });
+
+  // createMany cannot nest children and returns no ids, so the sessions are
+  // matched back onto their records by the pair that makes a day unique.
+  const attendanceRows = await prisma.attendanceRecord.findMany({
+    where: { organizationId: org.id },
+    select: { id: true, employeeId: true, date: true },
+  });
+  const recordIds = new Map(
+    attendanceRows.map((r) => [`${r.employeeId}|${dateKey(r.date)}`, r.id]),
+  );
+  await prisma.attendanceSession.createMany({
+    data: seedDays.flatMap((day) => {
+      const recordId = recordIds.get(`${day.employeeId}|${day.key}`);
+      return recordId
+        ? day.sessions.map((s) => ({
+            recordId,
+            checkIn: s.checkIn,
+            checkOut: s.checkOut,
+            source: 'WEB' as const,
+          }))
+        : [];
+    }),
+  });
 
   // One pending correction for the manager's inbox, one already decided.
   const pendingDay = days.at(-4) as string;

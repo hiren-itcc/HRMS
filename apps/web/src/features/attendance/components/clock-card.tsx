@@ -15,7 +15,7 @@ import { LogIn, LogOut, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
-import { attendanceApi, formatDuration, timeIn } from '../api';
+import { attendanceApi, formatDuration, openSessionOf, sessionMinutes, timeIn } from '../api';
 import { AttendanceStatusBadge } from './status-badge';
 
 /** mm:ss / h:mm:ss elapsed, ticking every second. */
@@ -40,7 +40,10 @@ export function ClockCard() {
     refetchInterval: 60_000,
   });
 
-  const working = Boolean(today.data?.checkIn && !today.data?.checkOut);
+  // A day is a series of sessions, so "am I in right now" is one open session
+  // rather than the absence of a checkout — clocking out is never the end.
+  const open = today.data ? openSessionOf(today.data) : null;
+  const working = Boolean(open);
 
   // Tick only while the timer is actually visible
   useEffect(() => {
@@ -66,7 +69,7 @@ export function ClockCard() {
     mutationFn: attendanceApi.checkOut,
     onSuccess: (entry) => {
       invalidate();
-      toast.success(`Clocked out — ${formatDuration(entry.workMinutes)} logged`);
+      toast.success(`Clocked out — ${formatDuration(entry.workMinutes)} logged today`);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not clock out'),
   });
@@ -78,7 +81,6 @@ export function ClockCard() {
   }
 
   const state = today.data;
-  const done = Boolean(state.checkOut);
 
   return (
     <Card className="hover-lift overflow-hidden">
@@ -115,7 +117,7 @@ export function ClockCard() {
                 {working ? 'Elapsed' : 'Worked'}
               </p>
               <p className="flex items-center gap-1.5 font-semibold text-lg tabular-nums">
-                {working && state.checkIn ? (
+                {open ? (
                   <>
                     <motion.span
                       aria-hidden
@@ -123,7 +125,7 @@ export function ClockCard() {
                       animate={reduceMotion ? undefined : { opacity: [1, 0.35, 1] }}
                       transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
                     />
-                    <span aria-live="off">{elapsedLabel(state.checkIn, now)}</span>
+                    <span aria-live="off">{elapsedLabel(open.checkIn, now)}</span>
                   </>
                 ) : (
                   <>
@@ -135,17 +137,12 @@ export function ClockCard() {
             </div>
           </div>
 
-          {!state.checkIn && (
-            <Button
-              size="lg"
-              className="min-h-11 w-full sm:w-auto"
-              disabled={clockIn.isPending}
-              onClick={() => clockIn.mutate()}
-            >
-              <LogIn className="size-4.5" aria-hidden /> Clock in
-            </Button>
-          )}
-          {working && (
+          {/*
+            Always one action, never a dead end: clocking out is a pause, so the
+            way back in is the same button. Accidentally ending the day used to
+            be unrecoverable until tomorrow.
+          */}
+          {open ? (
             <Button
               size="lg"
               variant="outline"
@@ -155,11 +152,37 @@ export function ClockCard() {
             >
               <LogOut className="size-4.5" aria-hidden /> Clock out
             </Button>
-          )}
-          {done && (
-            <p className="text-muted-foreground text-sm">Day complete — see you tomorrow 👋</p>
+          ) : (
+            <Button
+              size="lg"
+              className="min-h-11 w-full sm:w-auto"
+              disabled={clockIn.isPending}
+              onClick={() => clockIn.mutate()}
+            >
+              <LogIn className="size-4.5" aria-hidden />
+              {state.sessions.length ? 'Clock back in' : 'Clock in'}
+            </Button>
           )}
         </div>
+
+        {state.sessions.length > 1 && (
+          <ul className="space-y-1 border-t pt-3 text-sm">
+            {state.sessions.map((session, index) => (
+              <li key={session.id} className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Session {index + 1}
+                  <span className="ml-2 tabular-nums">
+                    {timeIn(session.checkIn, state.timeZone)} –{' '}
+                    {session.checkOut ? timeIn(session.checkOut, state.timeZone) : 'now'}
+                  </span>
+                </span>
+                <span className="tabular-nums">
+                  {session.checkOut ? formatDuration(sessionMinutes(session)) : 'in progress'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

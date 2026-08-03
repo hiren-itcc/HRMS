@@ -109,6 +109,55 @@ export function workedMinutesBetween(checkIn: Date, checkOut: Date): number {
   return Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000));
 }
 
+/** One clock-in/clock-out pair; `checkOut` is null while the person is in. */
+export interface SessionLike {
+  checkIn: Date;
+  checkOut: Date | null;
+}
+
+export interface DayRollUp<T extends SessionLike> {
+  checkIn: Date | null;
+  checkOut: Date | null;
+  workMinutes: number | null;
+  workedStatus: 'PRESENT' | 'HALF_DAY';
+  /** The session currently running, if any — at most one can be open. */
+  openSession: T | null;
+  sessions: T[];
+}
+
+/**
+ * Collapses a day's sessions into the day-level numbers every other screen
+ * reads. The single definition of what a multi-session day adds up to.
+ *
+ * A day still in progress is deliberately not judged: while a session is open
+ * the status stays PRESENT, because calling a day half-done before the person
+ * has left is how a mistaken clock-out used to freeze a day at HALF_DAY.
+ */
+export function rollUpSessions<T extends SessionLike>(
+  sessions: T[],
+  shift: ShiftLike | null,
+): DayRollUp<T> {
+  const ordered = [...sessions].sort((a, b) => a.checkIn.getTime() - b.checkIn.getTime());
+  const openSession = ordered.find((s) => s.checkOut === null) ?? null;
+  const last = ordered[ordered.length - 1];
+
+  // Only closed sessions have worked time; the running one is counted when it ends.
+  const workMinutes = ordered.reduce(
+    (sum, s) => (s.checkOut ? sum + workedMinutesBetween(s.checkIn, s.checkOut) : sum),
+    0,
+  );
+
+  return {
+    checkIn: ordered[0]?.checkIn ?? null,
+    // Null while someone is still in, so "who is in right now" stays a null check.
+    checkOut: openSession ? null : (last?.checkOut ?? null),
+    workMinutes: ordered.length ? workMinutes : null,
+    workedStatus: openSession ? 'PRESENT' : statusForWorkedMinutes(workMinutes, shift),
+    openSession,
+    sessions: ordered,
+  };
+}
+
 /**
  * Single source of truth for "what happened on this day" — used by the
  * calendar, the day view and every dashboard so they can never disagree.

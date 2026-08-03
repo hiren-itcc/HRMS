@@ -337,19 +337,37 @@ model AttendanceRecord {
   organizationId String
   employeeId   String
   date         DateTime         @db.Date
-  checkIn      DateTime?
-  checkOut     DateTime?
-  workMinutes  Int?                     // computed at checkout / by nightly job
+  checkIn      DateTime?                // first session's clock-in
+  checkOut     DateTime?                // last session's clock-out; null while one is open
+  workMinutes  Int?                     // sum of the closed sessions
   status       AttendanceStatus @default(PRESENT)
   source       AttendanceSource @default(WEB)
   note         String?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee Employee            @relation(fields: [employeeId], references: [id])
+  sessions AttendanceSession[]
 
   @@unique([employeeId, date])
   @@index([organizationId, date])
+}
+
+// A day holds as many clock-in/clock-out pairs as the person works, so leaving
+// for lunch — or clocking out by accident — never ends the day. The record above
+// stays one row per person per day and holds their rollup, which is what payroll
+// and every report aggregate on.
+model AttendanceSession {
+  id        String           @id @default(cuid())
+  recordId  String
+  checkIn   DateTime
+  checkOut  DateTime?                   // null exactly while the person is in
+  source    AttendanceSource @default(WEB)
+  createdAt DateTime         @default(now())
+
+  record AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, checkIn])
 }
 
 enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF WFH }

@@ -253,7 +253,17 @@ function TeamAttendanceView() {
                 header: 'Hours',
                 className: 'hidden sm:table-cell',
                 render: (row) => (
-                  <span className="tabular-nums">{formatDuration(row.workMinutes)}</span>
+                  <span className="tabular-nums">
+                    {formatDuration(row.workMinutes)}
+                    {/* In and Out are the day's first and last; say so when the
+                        person came and went more than once, or the gap between
+                        them looks like unexplained missing hours. */}
+                    {row.sessions.length > 1 && (
+                      <span className="ml-1.5 text-muted-foreground text-xs">
+                        ×{row.sessions.length}
+                      </span>
+                    )}
+                  </span>
                 ),
               },
               {

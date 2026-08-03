@@ -5,6 +5,7 @@ import {
   halfDayThresholdMinutes,
   instantFromLocal,
   isLateArrival,
+  rollUpSessions,
   shiftDurationMinutes,
   statusForWorkedMinutes,
   timeInTz,
@@ -97,6 +98,67 @@ describe('shift duration & half day', () => {
     const t = new Date('2026-08-01T10:00:00.000Z');
     expect(workedMinutesBetween(t, new Date('2026-08-01T09:00:00.000Z'))).toBe(0);
     expect(workedMinutesBetween(t, new Date('2026-08-01T12:30:00.000Z'))).toBe(150);
+  });
+});
+
+describe('rollUpSessions', () => {
+  const on = (hhmm: string) => new Date(`2026-08-05T${hhmm}:00.000Z`);
+  const session = (from: string, to: string | null) => ({
+    checkIn: on(from),
+    checkOut: to ? on(to) : null,
+  });
+
+  it('has nothing to report for a day with no sessions', () => {
+    const roll = rollUpSessions([], GENERAL);
+    expect(roll.checkIn).toBeNull();
+    expect(roll.checkOut).toBeNull();
+    expect(roll.workMinutes).toBeNull();
+    expect(roll.openSession).toBeNull();
+  });
+
+  it('spans the first check-in to the last check-out', () => {
+    const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', '18:00')], GENERAL);
+    expect(roll.checkIn).toEqual(on('09:00'));
+    expect(roll.checkOut).toEqual(on('18:00'));
+  });
+
+  it('sums the sessions rather than the span, so the lunch gap is not paid', () => {
+    const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', '18:00')], GENERAL);
+    expect(roll.workMinutes).toBe(8 * 60);
+  });
+
+  it('orders sessions by check-in however they arrive', () => {
+    const roll = rollUpSessions([session('14:00', '18:00'), session('09:00', '13:00')], GENERAL);
+    expect(roll.checkIn).toEqual(on('09:00'));
+    expect(roll.sessions[0]?.checkIn).toEqual(on('09:00'));
+  });
+
+  it('leaves check-out null while a session is open, so "still in" stays a null check', () => {
+    const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', null)], GENERAL);
+    expect(roll.checkOut).toBeNull();
+    expect(roll.openSession?.checkIn).toEqual(on('14:00'));
+  });
+
+  it('counts only closed sessions — the running one is banked when it ends', () => {
+    const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', null)], GENERAL);
+    expect(roll.workMinutes).toBe(4 * 60);
+  });
+
+  it('does not judge a day still in progress', () => {
+    // The three-second mis-tap that used to freeze a whole day at HALF_DAY.
+    const roll = rollUpSessions([session('09:00', '09:00'), session('09:01', null)], GENERAL);
+    expect(roll.workedStatus).toBe('PRESENT');
+  });
+
+  it('calls a finished short day a half day', () => {
+    const roll = rollUpSessions([session('09:00', '11:00')], GENERAL);
+    expect(roll.workedStatus).toBe('HALF_DAY');
+  });
+
+  it('adds split sittings up to a full day', () => {
+    // Neither half clears the 270-minute threshold on its own.
+    const roll = rollUpSessions([session('09:00', '13:00'), session('14:00', '19:00')], GENERAL);
+    expect(roll.workedStatus).toBe('PRESENT');
   });
 });
 
