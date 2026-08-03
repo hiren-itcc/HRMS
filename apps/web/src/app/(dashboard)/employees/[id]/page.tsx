@@ -305,11 +305,31 @@ function EmployeeDetailView() {
     );
   }
   if (employee.isError || !employee.data) {
+    /*
+     * This page is the HR record. Someone who cannot open it usually just
+     * wanted to find a colleague, so send them to the directory rather than
+     * back to a roster they also cannot read.
+     */
+    const toDirectory = !can('employee.read') && !can('employee.read.team');
     return (
       <div className="py-24 text-center">
-        <p className="font-medium">Employee not found or not visible to you</p>
-        <Button variant="outline" className="mt-4" render={<Link href="/employees" />}>
-          <ArrowLeft className="size-4" aria-hidden /> Back to employees
+        <p className="font-medium">
+          {toDirectory
+            ? 'This is the HR record, which your role does not cover'
+            : 'Employee not found or not visible to you'}
+        </p>
+        {toDirectory && (
+          <p className="mt-1 text-muted-foreground text-sm">
+            Their work contact details are in the directory.
+          </p>
+        )}
+        <Button
+          variant="outline"
+          className="mt-4"
+          render={<Link href={toDirectory ? `/directory/${id}` : '/employees'} />}
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          {toDirectory ? 'Open in the directory' : 'Back to employees'}
         </Button>
       </div>
     );

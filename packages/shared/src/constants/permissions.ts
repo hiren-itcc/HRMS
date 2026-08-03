@@ -16,6 +16,13 @@ export const PERMISSIONS = [
   'employee.invite',
   'employee.offboard',
 
+  /*
+   * The company directory: work contact details for everyone, and nothing
+   * else. Deliberately separate from `employee.read`, which opens the HR
+   * record — date of birth, home address, bank details. Every role holds it.
+   */
+  'directory.read',
+
   'attendance.read.own',
   'attendance.mark.own',
   'attendance.request.own',
@@ -74,6 +81,8 @@ export type Permission = (typeof PERMISSIONS)[number];
 const EMPLOYEE_PERMS: Permission[] = [
   'employee.read.own',
   'employee.update.own',
+  // Everyone can look a colleague up; nobody gains their HR record by it.
+  'directory.read',
   'attendance.read.own',
   'attendance.mark.own',
   'attendance.request.own',

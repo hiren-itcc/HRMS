@@ -29,6 +29,8 @@ employee.read.team
 employee.read          employee.create      employee.update      employee.delete
 employee.invite        employee.offboard
 
+directory.read         (work contact details for everyone — not the HR record)
+
 attendance.read.own    attendance.mark.own      attendance.request.own
 attendance.read.team   attendance.approve.team
 attendance.read        attendance.approve       attendance.manage   (shifts, admin edits)
@@ -67,6 +69,7 @@ settings.manage        role.manage              audit.read
 | `employee.read` (all) | ✅ | ✅ | ✅ | — | — |
 | `employee.create` / `update` / `invite` / `offboard` | ✅ | ✅ | — | — | — |
 | `employee.delete` | ✅ | — | — | — | — |
+| `directory.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
 | `attendance.read` (all) / `approve` (all) | ✅ | ✅ | — | — | — |

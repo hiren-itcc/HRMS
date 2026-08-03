@@ -40,6 +40,7 @@ export const config = {
     '/profile/:path*',
     '/organization/:path*',
     '/employees/:path*',
+    '/directory/:path*',
     '/attendance/:path*',
     '/leave/:path*',
     '/documents/:path*',

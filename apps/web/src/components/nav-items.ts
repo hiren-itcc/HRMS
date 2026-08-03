@@ -2,6 +2,7 @@ import type { OrgSettings, Permission } from '@hrms/shared';
 import {
   BarChart3,
   CalendarClock,
+  Contact,
   FileText,
   LayoutDashboard,
   type LucideIcon,
@@ -32,6 +33,8 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Users,
     perms: ['employee.read', 'employee.read.team'],
   },
+  // Open to everyone: looking up a colleague's desk phone is not an HR action.
+  { href: '/directory', label: 'Directory', icon: Contact, perms: ['directory.read'] },
   { href: '/organization', label: 'Organization', icon: Network, perms: ['org.read'] },
   { href: '/attendance', label: 'Attendance', icon: CalendarClock, module: 'attendance' },
   { href: '/leave', label: 'Leave', icon: Palmtree, module: 'leave' },
