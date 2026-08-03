@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type BankDetailInput,
   bankDetailSchema,
-  ONBOARDING_DOCUMENTS,
   type OnboardingProfileInput,
   onboardingProfileSchema,
 } from '@hrms/shared';
@@ -37,6 +36,7 @@ import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
+import { OnboardingDocuments } from '@/features/onboarding/components/onboarding-documents';
 import { ApiError } from '@/lib/api-client';
 
 /**
@@ -322,11 +322,27 @@ export default function OnboardingPage() {
           <CardHeader>
             <CardTitle>Documents</CardTitle>
             <CardDescription>
-              {ONBOARDING_DOCUMENTS.map((d) => d.label).join(' · ')}
+              Upload against each item — a file on its own cannot tell us which requirement it
+              answers
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            {user?.employee?.id && <DocumentsBrowser employeeId={user.employee.id} compact />}
+          <CardContent className="space-y-6">
+            {user?.employee?.id && (
+              <OnboardingDocuments
+                record={record.data}
+                employeeId={user.employee.id}
+                disabled={!open}
+              />
+            )}
+
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted-foreground">
+                All my uploaded files
+              </summary>
+              <div className="pt-3">
+                {user?.employee?.id && <DocumentsBrowser employeeId={user.employee.id} compact />}
+              </div>
+            </details>
           </CardContent>
         </Card>
       </FadeInItem>

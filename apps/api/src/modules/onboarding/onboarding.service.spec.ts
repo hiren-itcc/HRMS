@@ -108,6 +108,41 @@ describe('the wizard closes when it leaves IN_PROGRESS', () => {
   });
 });
 
+describe('filing a document against a checklist slot', () => {
+  function withDoc(record: Record<string, unknown>) {
+    const made = makeService(record);
+    made.prisma.document = { findFirst: jest.fn().mockResolvedValue({ id: 'doc9' }) };
+    return made;
+  }
+
+  it('writes the document id to the slot column', async () => {
+    const { service, prisma } = withDoc({ ...complete, idProofDocId: null });
+    await service.attachDocument(hire(), { slot: 'idProof', documentId: 'doc9' });
+    expect(prisma.onboarding.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { idProofDocId: 'doc9' } }),
+    );
+  });
+
+  /*
+   * The uploaded file must belong to the person filing it — otherwise a hire
+   * could satisfy their own checklist with somebody else's document id.
+   */
+  it('refuses a document that is not theirs', async () => {
+    const { service, prisma } = withDoc({ ...complete });
+    (prisma.document.findFirst as Mock).mockResolvedValue(null);
+    await expect(
+      service.attachDocument(hire(), { slot: 'idProof', documentId: 'someone-elses' }),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it('refuses once the record has left the employee', async () => {
+    const { service } = withDoc({ ...complete, status: 'SUBMITTED' });
+    await expect(
+      service.attachDocument(hire(), { slot: 'idProof', documentId: 'doc9' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
 describe('submission completeness', () => {
   it('refuses while a required document is missing', async () => {
     const { service } = makeService({ ...complete, idProofDocId: null });
