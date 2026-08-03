@@ -17,16 +17,16 @@ import {
   dateKeyInTz,
   daysInMonth,
   deriveDayStatus,
+  detectPlacement,
   type EmploymentWindow,
   type Fix,
   isLateArrival,
-  type LocationVerdict,
-  type OfficeGeofence,
+  type PlaceGeofence,
+  type Placement,
   rollUpSessions,
   rollUpWorkMode,
   type ShiftLike,
   type VerificationValue,
-  verifyAgainstOffices,
   type WorkModeValue,
 } from './attendance.util';
 
@@ -64,13 +64,6 @@ const MAX_SESSIONS_PER_DAY = 20;
  */
 const DERIVED_STATUSES = new Set(['PRESENT', 'HALF_DAY', 'WFH']);
 
-/** Nothing to check: remote and client-site punches are not office claims. */
-const NOT_APPLICABLE = {
-  verification: 'NOT_APPLICABLE',
-  locationId: null,
-  distanceMeters: null,
-} as const satisfies LocationVerdict;
-
 /** How a time got recorded — mirrors the `AttendanceSource` enum. */
 export type AttendanceSourceValue = 'WEB' | 'MOBILE' | 'ADMIN' | 'IMPORT';
 
@@ -87,9 +80,9 @@ export interface DaySession {
   id: string;
   checkIn: string;
   checkOut: string | null;
-  /** Where they said they were working. */
+  /** Worked out from the position, not declared. */
   workMode: WorkModeValue;
-  /** Whether an OFFICE claim held up; NOT_APPLICABLE for the other modes. */
+  /** How sure the reading was: VERIFIED when conclusive, else UNVERIFIED. */
   verification: VerificationValue;
   /** Metres from the nearest office, when a position was taken and judged. */
   distanceMeters: number | null;
@@ -154,14 +147,21 @@ export class AttendanceService {
 
   // ── where someone worked ──────────────────────────────────────────────
 
-  /** Every office in the org that has actually been placed on the map. */
-  private async officesOf(orgId: string): Promise<OfficeGeofence[]> {
+  /** Every place in the org that has actually been put on the map. */
+  private async placesOf(orgId: string): Promise<PlaceGeofence[]> {
     const rows = await this.prisma.location.findMany({
       where: { organizationId: orgId, latitude: { not: null }, longitude: { not: null } },
-      select: { id: true, latitude: true, longitude: true, geofenceRadiusMeters: true },
+      select: {
+        id: true,
+        type: true,
+        latitude: true,
+        longitude: true,
+        geofenceRadiusMeters: true,
+      },
     });
     return rows.map((r) => ({
       id: r.id,
+      type: r.type,
       latitude: r.latitude as number,
       longitude: r.longitude as number,
       geofenceRadiusMeters: r.geofenceRadiusMeters,
@@ -169,18 +169,23 @@ export class AttendanceService {
   }
 
   /**
-   * Turns a claim plus an optional position into what gets stored.
+   * Works out where somebody is working, and decides what to keep of how we
+   * found out.
    *
-   * Two deliberate choices. A remote punch keeps no coordinates at all: those
-   * are somebody's home, they are sensitive, and the mode already tells the
-   * business everything it needs. And nothing here ever throws — a refused
-   * permission or a hopeless fix produces UNVERIFIED, never a failed clock-in.
+   * The privacy rule survives the move to detection but had to change shape.
+   * The mode cannot be known until the position has been measured, so a home
+   * position now reaches the server and is thrown away here rather than never
+   * being sent. Nothing about somebody's home is stored; something about it is
+   * briefly transmitted, which was not true before and is worth being honest
+   * about.
+   *
+   * Nothing here throws. A position that cannot place someone produces an
+   * unverified office day, never a failed punch.
    */
-  private async resolveFix(
+  private async resolvePlacement(
     orgId: string,
-    workMode: WorkModeValue,
     input: { latitude?: number; longitude?: number; accuracyMeters?: number },
-  ) {
+  ): Promise<{ fix: Fix | null; placement: Placement }> {
     const fix: Fix | null =
       input.latitude !== undefined &&
       input.longitude !== undefined &&
@@ -192,15 +197,9 @@ export class AttendanceService {
           }
         : null;
 
-    if (workMode === 'REMOTE') {
-      return { fix: null, verdict: NOT_APPLICABLE };
-    }
-    if (workMode === 'CLIENT_SITE') {
-      // Being away from the office is the point, so there is nothing to verify
-      // — but where they were is worth keeping.
-      return { fix, verdict: NOT_APPLICABLE };
-    }
-    return { fix, verdict: verifyAgainstOffices(fix, await this.officesOf(orgId)) };
+    const placement = detectPlacement(fix, await this.placesOf(orgId));
+    // Measured, used, discarded.
+    return { fix: placement.workMode === 'REMOTE' ? null : fix, placement };
   }
 
   // ── clock in / out ────────────────────────────────────────────────────
@@ -212,7 +211,7 @@ export class AttendanceService {
    * Still idempotent where it matters: tapping the button twice without
    * clocking out in between returns the running day unchanged.
    */
-  async checkIn(claims: AccessTokenClaims, input: ClockInInput = { workMode: 'OFFICE' }) {
+  async checkIn(claims: AccessTokenClaims, input: ClockInInput = {}) {
     const ctx = await this.contextFor(this.requireEmployee(claims));
     const now = new Date();
     const dateKey = dateKeyInTz(now, ctx.timeZone);
@@ -242,15 +241,15 @@ export class AttendanceService {
         },
       }));
 
-    const { fix, verdict } = await this.resolveFix(ctx.organizationId, input.workMode, input);
-    const placement = {
-      workMode: input.workMode,
-      locationId: verdict.locationId,
+    const { fix, placement } = await this.resolvePlacement(ctx.organizationId, input);
+    const arrival = {
+      workMode: placement.workMode,
+      locationId: placement.locationId,
       inLatitude: fix?.latitude ?? null,
       inLongitude: fix?.longitude ?? null,
       inAccuracyMeters: fix ? Math.round(fix.accuracyMeters) : null,
-      inVerification: verdict.verification,
-      inDistanceMeters: verdict.distanceMeters,
+      inVerification: placement.verification,
+      inDistanceMeters: placement.distanceMeters,
     };
 
     const last = sessions[sessions.length - 1];
@@ -258,8 +257,8 @@ export class AttendanceService {
       last?.checkOut && now.getTime() - last.checkOut.getTime() <= REOPEN_WINDOW_MS ? last : null;
 
     if (misTap) {
-      // Re-declared here and now, so the reopened session takes the fresh mode
-      // and position — keeping the old ones would leave a stale claim standing.
+      // Measured again here and now, so the reopened session takes the fresh
+      // placement — keeping the old one would leave a stale position standing.
       await this.prisma.attendanceSession.update({
         where: { id: misTap.id },
         data: {
@@ -267,14 +266,14 @@ export class AttendanceService {
           outLatitude: null,
           outLongitude: null,
           outAccuracyMeters: null,
-          outVerification: 'NOT_APPLICABLE',
+          outVerification: 'UNVERIFIED',
           outDistanceMeters: null,
-          ...placement,
+          ...arrival,
         },
       });
     } else {
       await this.prisma.attendanceSession.create({
-        data: { recordId: record.id, checkIn: now, source: 'WEB', ...placement },
+        data: { recordId: record.id, checkIn: now, source: 'WEB', ...arrival },
       });
     }
 
@@ -303,9 +302,12 @@ export class AttendanceService {
     // Already out — repeating the action reports the day, it is not an error.
     if (!open) return this.toDayEntry(dateKey, record, dateKey);
 
-    // Judged against the mode the session was opened with: leaving is measured
-    // the same way arriving was.
-    const { fix, verdict } = await this.resolveFix(ctx.organizationId, open.workMode, input);
+    /*
+     * Measured the same way as the arrival, but the session's own workMode is
+     * left alone: the arrival defines the sitting, and somebody clocking out
+     * from the train home has not retroactively worked from there.
+     */
+    const { fix, placement } = await this.resolvePlacement(ctx.organizationId, input);
     await this.prisma.attendanceSession.update({
       where: { id: open.id },
       data: {
@@ -313,8 +315,8 @@ export class AttendanceService {
         outLatitude: fix?.latitude ?? null,
         outLongitude: fix?.longitude ?? null,
         outAccuracyMeters: fix ? Math.round(fix.accuracyMeters) : null,
-        outVerification: verdict.verification,
-        outDistanceMeters: verdict.distanceMeters,
+        outVerification: placement.verification,
+        outDistanceMeters: placement.distanceMeters,
       },
     });
     const updated = await this.applyRollUp(record.id, ctx);

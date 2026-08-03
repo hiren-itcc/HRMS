@@ -124,24 +124,19 @@ export interface Fix extends Coords {
   accuracyMeters: number;
 }
 
-export interface OfficeGeofence extends Coords {
+/** A place the org has put on the map, and what working there counts as. */
+export interface PlaceGeofence extends Coords {
   id: string;
+  type: 'HEAD_OFFICE' | 'BRANCH' | 'REMOTE' | 'CLIENT_SITE';
   geofenceRadiusMeters: number;
 }
 
-export interface LocationVerdict {
+export interface Placement {
+  workMode: WorkModeValue;
   verification: VerificationValue;
   locationId: string | null;
   distanceMeters: number | null;
 }
-
-/**
- * A fix this vague says nothing. Wifi and IP positioning routinely land
- * kilometres from the truth, and a reading that could be anywhere in a
- * kilometre cannot put somebody outside a 200 m fence — claiming otherwise is
- * how an honest person gets accused.
- */
-export const MAX_USEFUL_ACCURACY_M = 1000;
 
 const EARTH_RADIUS_M = 6_371_008.8;
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -156,44 +151,76 @@ export function haversineMeters(a: Coords, b: Coords): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-export interface Coords {
-  latitude: number;
-  longitude: number;
-}
+/** A head office and a branch are both "the office"; the rest speak for themselves. */
+const MODE_OF_PLACE: Record<PlaceGeofence['type'], WorkModeValue> = {
+  HEAD_OFFICE: 'OFFICE',
+  BRANCH: 'OFFICE',
+  REMOTE: 'REMOTE',
+  CLIENT_SITE: 'CLIENT_SITE',
+};
+
+/** Nothing to measure against, or nothing to measure: office, and say so. */
+const CANNOT_TELL: Placement = {
+  workMode: 'OFFICE',
+  verification: 'UNVERIFIED',
+  locationId: null,
+  distanceMeters: null,
+};
 
 /**
- * Judges an OFFICE claim against every office that has been placed on the map.
+ * Works out where somebody is, from where they are.
  *
- * The fix is treated as a circle of radius `accuracyMeters`: if that circle
- * reaches the geofence at all, the person may well be standing inside it and
- * gets the benefit of the doubt. Only a fix that is precise *and* clearly
- * elsewhere is reported as OUTSIDE, and even then it is a flag rather than a
- * refusal — the caller never blocks on this.
+ * The reading is a circle: a point plus `accuracyMeters` of uncertainty around
+ * it. So the question is not "is the point inside the fence" but "is this
+ * circle small enough to be sure either way":
  *
- * All offices are considered, not just the employee's own, so someone visiting
- * another branch verifies normally.
+ *   distance + accuracy <= radius   certainly inside  → that place, verified
+ *   distance - accuracy >  radius   certainly outside → remote, verified
+ *   otherwise                       the circle straddles the fence, so the
+ *                                   answer is a guess and is marked as one
+ *
+ * That symmetry matters. An earlier version of this gave a fix the benefit of
+ * the doubt in one direction, which was right when it was checking somebody's
+ * stated claim and wrong now that it is making the claim itself — being
+ * generous toward "office" would quietly record people at home as being in.
+ *
+ * Every located place counts, not just the employee's own, so visiting another
+ * branch resolves correctly and a registered client site resolves as one.
  */
-export function verifyAgainstOffices(fix: Fix | null, offices: OfficeGeofence[]): LocationVerdict {
-  const unverified: LocationVerdict = {
-    verification: 'UNVERIFIED',
-    locationId: null,
-    distanceMeters: null,
-  };
-  if (!fix || offices.length === 0) return unverified;
-  if (fix.accuracyMeters > MAX_USEFUL_ACCURACY_M) return unverified;
+export function detectPlacement(fix: Fix | null, places: PlaceGeofence[]): Placement {
+  if (!fix || places.length === 0) return CANNOT_TELL;
 
-  const measured = offices
-    .map((office) => ({ office, distance: haversineMeters(fix, office) }))
+  const measured = places
+    .map((place) => ({ place, distance: haversineMeters(fix, place) }))
     .sort((a, b) => a.distance - b.distance);
 
-  const inside = measured.find(
-    ({ office, distance }) => distance <= office.geofenceRadiusMeters + fix.accuracyMeters,
+  const certainlyInside = measured.find(
+    ({ place, distance }) => distance + fix.accuracyMeters <= place.geofenceRadiusMeters,
   );
-  const chosen = inside ?? (measured[0] as (typeof measured)[number]);
+  if (certainlyInside) {
+    return {
+      workMode: MODE_OF_PLACE[certainlyInside.place.type],
+      verification: 'VERIFIED',
+      locationId: certainlyInside.place.id,
+      distanceMeters: Math.round(certainlyInside.distance),
+    };
+  }
+
+  // Nearest is enough to decide "outside everything": if the closest place
+  // cannot contain them, none of the further ones can either.
+  const nearest = measured[0] as (typeof measured)[number];
+  const certainlyOutside =
+    nearest.distance - fix.accuracyMeters > nearest.place.geofenceRadiusMeters;
+
   return {
-    verification: inside ? 'VERIFIED' : 'OUTSIDE',
-    locationId: chosen.office.id,
-    distanceMeters: Math.round(chosen.distance),
+    workMode: certainlyOutside
+      ? 'REMOTE'
+      : nearest.distance <= nearest.place.geofenceRadiusMeters
+        ? MODE_OF_PLACE[nearest.place.type]
+        : 'REMOTE',
+    verification: certainlyOutside ? 'VERIFIED' : 'UNVERIFIED',
+    locationId: nearest.place.id,
+    distanceMeters: Math.round(nearest.distance),
   };
 }
 

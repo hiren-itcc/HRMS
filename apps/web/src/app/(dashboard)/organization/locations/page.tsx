@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
+import { TriangleAlert } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
@@ -145,6 +146,24 @@ function LocationsView() {
             sortable: true,
             className: 'hidden md:table-cell',
             render: (l) => l.country ?? '—',
+          },
+          {
+            key: 'geofence',
+            header: 'On the map',
+            className: 'hidden md:table-cell',
+            // Said where it is fixed rather than in the docs: until a place has
+            // coordinates, attendance cannot tell an office day from a remote
+            // one and records everything as an unconfirmed office day.
+            render: (l) =>
+              l.latitude !== null && l.longitude !== null ? (
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {l.latitude.toFixed(4)}, {l.longitude.toFixed(4)} · {l.geofenceRadiusMeters} m
+                </span>
+              ) : (
+                <Badge className="border-transparent bg-warning/15 text-warning-text">
+                  <TriangleAlert className="size-3" aria-hidden /> No coordinates
+                </Badge>
+              ),
           },
           {
             key: 'employees',

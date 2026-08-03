@@ -184,6 +184,10 @@ async function main() {
       city: 'Ahmedabad',
       country: 'India',
       timezone: 'Asia/Kolkata',
+      // On the map, so attendance can tell an office day from a remote one.
+      latitude: 23.0121,
+      longitude: 72.5075,
+      geofenceRadiusMeters: 200,
     },
   });
   const pune = await prisma.location.create({
@@ -195,6 +199,9 @@ async function main() {
       city: 'Pune',
       country: 'India',
       timezone: 'Asia/Kolkata',
+      latitude: 18.5679,
+      longitude: 73.7712,
+      geofenceRadiusMeters: 200,
     },
   });
 
@@ -663,6 +670,20 @@ async function main() {
             checkIn: s.checkIn,
             checkOut: s.checkOut,
             workMode: day.workMode,
+            // Demo history that looks like the product made it: a mode always
+            // arrives with a verdict, and an office day carries the office it
+            // was measured against. Remote days keep no coordinates, as ever.
+            inVerification: 'VERIFIED' as const,
+            outVerification: s.checkOut ? ('VERIFIED' as const) : ('UNVERIFIED' as const),
+            ...(day.workMode === 'REMOTE'
+              ? {}
+              : {
+                  locationId: hq.id,
+                  inLatitude: 23.0121,
+                  inLongitude: 72.5075,
+                  inAccuracyMeters: 18,
+                  inDistanceMeters: 40,
+                }),
             source: 'WEB' as const,
           }))
         : [];

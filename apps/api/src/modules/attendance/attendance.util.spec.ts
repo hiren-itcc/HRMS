@@ -2,6 +2,7 @@ import {
   dateKeyInTz,
   daysInMonth,
   deriveDayStatus,
+  detectPlacement,
   halfDayThresholdMinutes,
   haversineMeters,
   instantFromLocal,
@@ -11,7 +12,6 @@ import {
   shiftDurationMinutes,
   statusForWorkedMinutes,
   timeInTz,
-  verifyAgainstOffices,
   weekdayOf,
   workedMinutesBetween,
 } from './attendance.util';
@@ -188,9 +188,10 @@ describe('haversineMeters', () => {
   });
 });
 
-describe('verifyAgainstOffices', () => {
+describe('detectPlacement', () => {
   const OFFICE = {
     id: 'loc1',
+    type: 'HEAD_OFFICE' as const,
     latitude: 23.0225,
     longitude: 72.5714,
     geofenceRadiusMeters: 200,
@@ -201,64 +202,105 @@ describe('verifyAgainstOffices', () => {
     accuracyMeters,
   });
 
-  it('verifies a precise fix inside the fence', () => {
-    const verdict = verifyAgainstOffices(at(23.0226, 72.5715), [OFFICE]);
-    expect(verdict.verification).toBe('VERIFIED');
-    expect(verdict.locationId).toBe('loc1');
-    expect(verdict.distanceMeters).toBeLessThan(200);
+  it('reads a precise fix inside the fence as an office day', () => {
+    const placement = detectPlacement(at(23.0226, 72.5715), [OFFICE]);
+    expect(placement.workMode).toBe('OFFICE');
+    expect(placement.verification).toBe('VERIFIED');
+    expect(placement.locationId).toBe('loc1');
+    expect(placement.distanceMeters).toBeLessThan(200);
   });
 
-  it('flags a precise fix well outside it, with the distance as evidence', () => {
-    const verdict = verifyAgainstOffices(at(23.06, 72.5714), [OFFICE]);
-    expect(verdict.verification).toBe('OUTSIDE');
-    expect(verdict.locationId).toBe('loc1');
-    expect(verdict.distanceMeters).toBeGreaterThan(4000);
+  it('reads a precise fix well away from everything as a remote day', () => {
+    const placement = detectPlacement(at(23.06, 72.5714), [OFFICE]);
+    expect(placement.workMode).toBe('REMOTE');
+    expect(placement.verification).toBe('VERIFIED');
+    // Still records what it measured against, as the evidence for the call.
+    expect(placement.locationId).toBe('loc1');
+    expect(placement.distanceMeters).toBeGreaterThan(4000);
   });
 
-  it('cannot conclude without a fix', () => {
-    expect(verifyAgainstOffices(null, [OFFICE])).toEqual({
+  it('cannot tell without a fix, and says office rather than accuse anyone', () => {
+    expect(detectPlacement(null, [OFFICE])).toEqual({
+      workMode: 'OFFICE',
       verification: 'UNVERIFIED',
       locationId: null,
       distanceMeters: null,
     });
   });
 
-  it('cannot conclude when no office has been put on the map', () => {
-    expect(verifyAgainstOffices(at(23.0226, 72.5715), [])).toMatchObject({
+  it('cannot tell when nothing has been put on the map', () => {
+    expect(detectPlacement(at(23.0226, 72.5715), [])).toMatchObject({
+      workMode: 'OFFICE',
       verification: 'UNVERIFIED',
     });
   });
 
-  it('refuses to judge a fix too vague to mean anything', () => {
-    // 5 km of uncertainty: wifi positioning, not GPS. It cannot place anyone.
-    const verdict = verifyAgainstOffices(at(23.06, 72.5714, 5000), [OFFICE]);
-    expect(verdict.verification).toBe('UNVERIFIED');
-    expect(verdict.distanceMeters).toBeNull();
+  it('marks a reading that straddles the fence as a guess', () => {
+    // ~330 m out but ±400 m: could be inside, could be 730 m away.
+    const placement = detectPlacement(at(23.0255, 72.5714, 400), [OFFICE]);
+    expect(placement.verification).toBe('UNVERIFIED');
   });
 
-  it('gives the benefit of the doubt when accuracy reaches the fence', () => {
-    // ~330 m away but the reading is ±400 m, so they may well be inside.
-    const verdict = verifyAgainstOffices(at(23.0255, 72.5714, 400), [OFFICE]);
-    expect(verdict.verification).toBe('VERIFIED');
+  it('guesses by the plain reading when it cannot be sure', () => {
+    // 150 m out, ±100 m — inside on the face of it, but not conclusively.
+    const placement = detectPlacement(at(23.02385, 72.5714, 100), [OFFICE]);
+    expect(placement.workMode).toBe('OFFICE');
+    expect(placement.verification).toBe('UNVERIFIED');
   });
 
-  it('is not fooled by generous accuracy that still falls short', () => {
-    const verdict = verifyAgainstOffices(at(23.0255, 72.5714, 50), [OFFICE]);
-    expect(verdict.verification).toBe('OUTSIDE');
+  it('needs the whole uncertainty circle inside before it is sure', () => {
+    // 150 m out with ±20 m is conclusive; the same spot with ±100 m is not.
+    expect(detectPlacement(at(23.02385, 72.5714, 20), [OFFICE]).verification).toBe('VERIFIED');
+    expect(detectPlacement(at(23.02385, 72.5714, 100), [OFFICE]).verification).toBe('UNVERIFIED');
   });
 
-  it('verifies against any office, so visiting another branch is fine', () => {
-    const other = { id: 'loc2', latitude: 19.076, longitude: 72.8777, geofenceRadiusMeters: 150 };
-    const verdict = verifyAgainstOffices(at(19.0761, 72.8778), [OFFICE, other]);
-    expect(verdict.verification).toBe('VERIFIED');
-    expect(verdict.locationId).toBe('loc2');
+  it('is inconclusive near the office on a vague fix, but sure far from it', () => {
+    // The case the old accuracy cap got wrong: ±5 km says nothing at 4 km out,
+    // and everything at 40 km out.
+    expect(detectPlacement(at(23.06, 72.5714, 5000), [OFFICE]).verification).toBe('UNVERIFIED');
+    const faraway = detectPlacement(at(23.4, 72.5714, 5000), [OFFICE]);
+    expect(faraway.verification).toBe('VERIFIED');
+    expect(faraway.workMode).toBe('REMOTE');
   });
 
-  it('reports the nearest office when outside them all', () => {
-    const other = { id: 'loc2', latitude: 19.076, longitude: 72.8777, geofenceRadiusMeters: 150 };
-    const verdict = verifyAgainstOffices(at(23.06, 72.5714), [OFFICE, other]);
-    expect(verdict.verification).toBe('OUTSIDE');
-    expect(verdict.locationId).toBe('loc1');
+  it('recognises a registered client site as its own kind of day', () => {
+    const client = {
+      id: 'loc3',
+      type: 'CLIENT_SITE' as const,
+      latitude: 19.076,
+      longitude: 72.8777,
+      geofenceRadiusMeters: 150,
+    };
+    const placement = detectPlacement(at(19.0761, 72.8778), [OFFICE, client]);
+    expect(placement.workMode).toBe('CLIENT_SITE');
+    expect(placement.verification).toBe('VERIFIED');
+    expect(placement.locationId).toBe('loc3');
+  });
+
+  it('treats another branch as the office too', () => {
+    const branch = {
+      id: 'loc2',
+      type: 'BRANCH' as const,
+      latitude: 19.076,
+      longitude: 72.8777,
+      geofenceRadiusMeters: 150,
+    };
+    const placement = detectPlacement(at(19.0761, 72.8778), [OFFICE, branch]);
+    expect(placement.workMode).toBe('OFFICE');
+    expect(placement.locationId).toBe('loc2');
+  });
+
+  it('names the nearest place when outside them all', () => {
+    const branch = {
+      id: 'loc2',
+      type: 'BRANCH' as const,
+      latitude: 19.076,
+      longitude: 72.8777,
+      geofenceRadiusMeters: 150,
+    };
+    const placement = detectPlacement(at(23.06, 72.5714), [OFFICE, branch]);
+    expect(placement.workMode).toBe('REMOTE');
+    expect(placement.locationId).toBe('loc1');
   });
 });
 

@@ -260,8 +260,14 @@ docker compose run api npx prisma migrate deploy
       proxy — `docker/compose.yaml` serves plain HTTP. Two things break without
       TLS: the refresh cookie is set `secure` in production and so is never
       sent, and `navigator.geolocation` refuses to run outside a secure
-      context, which silently disables attendance location capture for
-      everyone with no error anyone can see.
+      context. Attendance still works in that state — every punch falls back to
+      an unconfirmed office day rather than blocking anyone — but the position
+      is never read, so the office/remote split stays empty and every day looks
+      the same. The feature is inert, not broken, and nothing on screen says so.
+- [ ] **At least one location has coordinates** (Organization › Locations).
+      Until then attendance cannot tell an office day from a remote one and
+      records every punch as an unconfirmed office day. The locations table
+      flags the ones that are not on the map.
 - [ ] `NEXT_PUBLIC_API_URL` correct **and the web app rebuilt** after setting it
 - [ ] `pnpm db:deploy` run
 - [ ] `pnpm db:bootstrap` run, sign-in confirmed, password changed

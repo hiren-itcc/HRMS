@@ -272,16 +272,15 @@ function TeamAttendanceView() {
                 header: 'Where',
                 className: 'hidden md:table-cell',
                 render: (row) => {
-                  // The flag belongs where a manager already looks. Only the
-                  // first sitting that has something to say is shown — a row is
-                  // a prompt to open the day, not the whole story.
-                  const flagged = row.sessions.find(
-                    (s) => s.workMode === 'OFFICE' && s.verification === 'OUTSIDE',
-                  );
+                  // Where the day was worked, and a marker when that rests on
+                  // a reading the system could not confirm. Only the first
+                  // uncertain sitting is shown — a row is a prompt to open the
+                  // day, not the whole story.
+                  const unsure = row.sessions.find((s) => s.verification === 'UNVERIFIED');
                   return (
                     <span className="flex flex-wrap items-center gap-1.5">
                       {row.workMode && <WorkModeChip mode={row.workMode} />}
-                      {flagged && <VerificationChip session={flagged} />}
+                      {unsure && <VerificationChip session={unsure} />}
                     </span>
                   );
                 },

@@ -174,37 +174,48 @@ export function formatDuration(minutes: number | null | undefined): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+export type PositionResult =
+  | { status: 'ok'; latitude: number; longitude: number; accuracyMeters: number }
+  /** The browser will not even ask: no HTTPS, or no geolocation at all. */
+  | { status: 'unavailable' }
+  /** It asked and came back empty: refused, timed out, or no signal. */
+  | { status: 'refused' };
+
 /**
- * Asks the browser where we are, and never makes a fuss about it.
+ * Asks the browser where we are, and reports *why* when it cannot say.
  *
- * Every failure — no secure context, no support, a refused permission, a
- * timeout — resolves to null rather than rejecting. Location is evidence
- * attached to a punch, and it must never be the reason somebody cannot start
- * their day. Callers send what they get and let the server judge.
- *
- * Note the secure-context check: geolocation is unavailable over plain HTTP, so
- * without TLS in front of the app this quietly returns null every time.
+ * That distinction is the whole point. A refusal is something the person can
+ * undo, so the caller turns it into an error and the punch does not happen. A
+ * page served over plain HTTP, or a browser with no geolocation, is not — so
+ * those go through, recorded as unverified, rather than stopping somebody
+ * working over a deployment detail they have no control of.
  */
-export function tryGetPosition(): Promise<{
-  latitude: number;
-  longitude: number;
-  accuracyMeters: number;
-} | null> {
+export function getPosition(): Promise<PositionResult> {
   if (typeof window === 'undefined' || !window.isSecureContext || !navigator.geolocation) {
-    return Promise.resolve(null);
+    return Promise.resolve({ status: 'unavailable' });
   }
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) =>
         resolve({
+          status: 'ok',
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracyMeters: position.coords.accuracy,
         }),
-      () => resolve(null),
+      () => resolve({ status: 'refused' }),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
     );
   });
+}
+
+/** The position part of a punch body, or the reason there is not one. */
+export function punchBody(result: PositionResult): ClockInInput {
+  if (result.status === 'ok') {
+    const { status: _status, ...fix } = result;
+    return fix;
+  }
+  return { locationUnavailable: true };
 }
 
 /** "2.4 km away" / "180 m away" — distance a person can act on. */
