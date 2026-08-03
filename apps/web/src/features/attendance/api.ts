@@ -1,4 +1,9 @@
-import type { ApprovalDecisionInput, AttendanceRequestCreateInput } from '@hrms/shared';
+import type {
+  ApprovalDecisionInput,
+  AttendanceRequestCreateInput,
+  ClockInInput,
+  ClockOutInput,
+} from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
 
@@ -14,11 +19,24 @@ export type DerivedStatus =
   | 'NOT_EMPLOYED'
   | 'FUTURE';
 
+export type WorkMode = 'OFFICE' | 'REMOTE' | 'CLIENT_SITE';
+export type LocationVerification = 'VERIFIED' | 'OUTSIDE' | 'UNVERIFIED' | 'NOT_APPLICABLE';
+
+export const WORK_MODE_LABEL: Record<WorkMode, string> = {
+  OFFICE: 'Office',
+  REMOTE: 'Remote',
+  CLIENT_SITE: 'Client site',
+};
+
 /** One clock-in/clock-out pair; `checkOut` is null while the person is in. */
 export interface DaySession {
   id: string;
   checkIn: string;
   checkOut: string | null;
+  workMode: WorkMode;
+  verification: LocationVerification;
+  distanceMeters: number | null;
+  officeName: string | null;
 }
 
 export interface DayEntry {
@@ -32,6 +50,8 @@ export interface DayEntry {
   workMinutes: number | null;
   isLate: boolean;
   note: string | null;
+  /** The day rolled up: all one way, or OFFICE when the sittings were mixed. */
+  workMode: WorkMode | null;
   sessions: DaySession[];
 }
 
@@ -111,8 +131,10 @@ function qs(params: Record<string, string | number | undefined>): string {
 
 export const attendanceApi = {
   today: () => api<TodayState>('/attendance/today'),
-  checkIn: () => api<DayEntry>('/attendance/check-in', { method: 'POST' }),
-  checkOut: () => api<DayEntry>('/attendance/check-out', { method: 'POST' }),
+  checkIn: (input: ClockInInput) =>
+    api<DayEntry>('/attendance/check-in', { method: 'POST', body: JSON.stringify(input) }),
+  checkOut: (input: ClockOutInput = {}) =>
+    api<DayEntry>('/attendance/check-out', { method: 'POST', body: JSON.stringify(input) }),
 
   myMonth: (month: string) => api<MonthResponse>(`/attendance/me${qs({ month })}`),
   employeeMonth: (employeeId: string, month: string) =>
@@ -150,6 +172,45 @@ export function formatDuration(minutes: number | null | undefined): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+/**
+ * Asks the browser where we are, and never makes a fuss about it.
+ *
+ * Every failure — no secure context, no support, a refused permission, a
+ * timeout — resolves to null rather than rejecting. Location is evidence
+ * attached to a punch, and it must never be the reason somebody cannot start
+ * their day. Callers send what they get and let the server judge.
+ *
+ * Note the secure-context check: geolocation is unavailable over plain HTTP, so
+ * without TLS in front of the app this quietly returns null every time.
+ */
+export function tryGetPosition(): Promise<{
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+} | null> {
+  if (typeof window === 'undefined' || !window.isSecureContext || !navigator.geolocation) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: position.coords.accuracy,
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  });
+}
+
+/** "2.4 km away" / "180 m away" — distance a person can act on. */
+export function formatDistance(meters: number | null): string {
+  if (meters === null) return '';
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km away` : `${Math.round(meters)} m away`;
 }
 
 /** Minutes worked in one session; null while it is still running. */

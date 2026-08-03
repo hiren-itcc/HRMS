@@ -27,6 +27,7 @@ import {
   timeIn,
 } from '@/features/attendance/api';
 import { AttendanceStatusBadge } from '@/features/attendance/components/status-badge';
+import { VerificationChip, WorkModeChip } from '@/features/attendance/components/work-mode-chip';
 import { initials } from '@/features/employees/types';
 import { departmentsApi } from '@/features/organization/api';
 import { useListParams } from '@/hooks/use-list-params';
@@ -265,6 +266,25 @@ function TeamAttendanceView() {
                     )}
                   </span>
                 ),
+              },
+              {
+                key: 'where',
+                header: 'Where',
+                className: 'hidden md:table-cell',
+                render: (row) => {
+                  // The flag belongs where a manager already looks. Only the
+                  // first sitting that has something to say is shown — a row is
+                  // a prompt to open the day, not the whole story.
+                  const flagged = row.sessions.find(
+                    (s) => s.workMode === 'OFFICE' && s.verification === 'OUTSIDE',
+                  );
+                  return (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {row.workMode && <WorkModeChip mode={row.workMode} />}
+                      {flagged && <VerificationChip session={flagged} />}
+                    </span>
+                  );
+                },
               },
               {
                 key: 'status',

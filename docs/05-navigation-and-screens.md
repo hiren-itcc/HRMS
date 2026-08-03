@@ -70,11 +70,11 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
 | 16 | Org chart | `/organization/chart` | Collapsible tree |
 | 17 | Departments & designations | `/organization/departments` | Two-pane CRUD |
-| 18 | Locations | `/organization/locations` | |
+| 18 | Locations | `/organization/locations` | Includes the attendance geofence: coordinates and a radius, both optional |
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |
 
 ### Attendance (5)
-| 20 | My attendance | `/attendance` | Month calendar + day drawer listing that day's sessions; regularize action; open sessions on a past day flagged |
+| 20 | My attendance | `/attendance` | Month calendar + day drawer listing that day's sessions with where each was worked; regularize action; open sessions on a past day flagged |
 | 21 | Team attendance | `/team/attendance` | Day/week matrix of reports |
 | 22 | Attendance admin | `/attendance/admin` | Org day view; edit (audited); shifts CRUD |
 | 23 | Regularization form | (drawer) | Date, in/out, reason |

@@ -109,6 +109,104 @@ export function workedMinutesBetween(checkIn: Date, checkOut: Date): number {
   return Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000));
 }
 
+// ── where someone worked ──────────────────────────────────────────────
+
+export type WorkModeValue = 'OFFICE' | 'REMOTE' | 'CLIENT_SITE';
+export type VerificationValue = 'VERIFIED' | 'OUTSIDE' | 'UNVERIFIED' | 'NOT_APPLICABLE';
+
+export interface Coords {
+  latitude: number;
+  longitude: number;
+}
+
+/** A position reading from the browser. `accuracyMeters` is a radius, not a margin. */
+export interface Fix extends Coords {
+  accuracyMeters: number;
+}
+
+export interface OfficeGeofence extends Coords {
+  id: string;
+  geofenceRadiusMeters: number;
+}
+
+export interface LocationVerdict {
+  verification: VerificationValue;
+  locationId: string | null;
+  distanceMeters: number | null;
+}
+
+/**
+ * A fix this vague says nothing. Wifi and IP positioning routinely land
+ * kilometres from the truth, and a reading that could be anywhere in a
+ * kilometre cannot put somebody outside a 200 m fence — claiming otherwise is
+ * how an honest person gets accused.
+ */
+export const MAX_USEFUL_ACCURACY_M = 1000;
+
+const EARTH_RADIUS_M = 6_371_008.8;
+const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+/** Great-circle distance in metres. Accurate well past any office geofence. */
+export function haversineMeters(a: Coords, b: Coords): number {
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export interface Coords {
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * Judges an OFFICE claim against every office that has been placed on the map.
+ *
+ * The fix is treated as a circle of radius `accuracyMeters`: if that circle
+ * reaches the geofence at all, the person may well be standing inside it and
+ * gets the benefit of the doubt. Only a fix that is precise *and* clearly
+ * elsewhere is reported as OUTSIDE, and even then it is a flag rather than a
+ * refusal — the caller never blocks on this.
+ *
+ * All offices are considered, not just the employee's own, so someone visiting
+ * another branch verifies normally.
+ */
+export function verifyAgainstOffices(fix: Fix | null, offices: OfficeGeofence[]): LocationVerdict {
+  const unverified: LocationVerdict = {
+    verification: 'UNVERIFIED',
+    locationId: null,
+    distanceMeters: null,
+  };
+  if (!fix || offices.length === 0) return unverified;
+  if (fix.accuracyMeters > MAX_USEFUL_ACCURACY_M) return unverified;
+
+  const measured = offices
+    .map((office) => ({ office, distance: haversineMeters(fix, office) }))
+    .sort((a, b) => a.distance - b.distance);
+
+  const inside = measured.find(
+    ({ office, distance }) => distance <= office.geofenceRadiusMeters + fix.accuracyMeters,
+  );
+  const chosen = inside ?? (measured[0] as (typeof measured)[number]);
+  return {
+    verification: inside ? 'VERIFIED' : 'OUTSIDE',
+    locationId: chosen.office.id,
+    distanceMeters: Math.round(chosen.distance),
+  };
+}
+
+/**
+ * The day's mode from its sittings. A day worked entirely one way is that way;
+ * anything mixed reads as OFFICE, because they did come in.
+ */
+export function rollUpWorkMode(sessions: { workMode: WorkModeValue }[]): WorkModeValue | null {
+  const first = sessions[0];
+  if (!first) return null;
+  return sessions.every((s) => s.workMode === first.workMode) ? first.workMode : 'OFFICE';
+}
+
 /** One clock-in/clock-out pair; `checkOut` is null while the person is in. */
 export interface SessionLike {
   checkIn: Date;

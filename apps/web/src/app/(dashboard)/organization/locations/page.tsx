@@ -56,7 +56,17 @@ function LocationsView() {
   const type = form.watch('type') ?? 'BRANCH';
 
   const openNew = () => {
-    form.reset({ name: '', type: 'BRANCH', address: '', city: '', country: '', timezone: '' });
+    form.reset({
+      name: '',
+      type: 'BRANCH',
+      address: '',
+      city: '',
+      country: '',
+      timezone: '',
+      latitude: '' as unknown as undefined,
+      longitude: '' as unknown as undefined,
+      geofenceRadiusMeters: 200,
+    });
     setEditing('new');
   };
   const openEdit = (row: Location) => {
@@ -67,6 +77,9 @@ function LocationsView() {
       city: row.city ?? '',
       country: row.country ?? '',
       timezone: row.timezone ?? '',
+      latitude: (row.latitude ?? '') as unknown as undefined,
+      longitude: (row.longitude ?? '') as unknown as undefined,
+      geofenceRadiusMeters: row.geofenceRadiusMeters,
     });
     setEditing(row);
   };
@@ -218,6 +231,46 @@ function LocationsView() {
             />
           )}
         </Field>
+
+        <div className="space-y-3 rounded-lg border p-3">
+          <p className="font-medium text-sm">Attendance geofence</p>
+          <p className="text-muted-foreground text-xs">
+            Coordinates let someone clocking in as "Office" be checked against this place. Leave
+            them empty and nobody is checked against it — a missing fence never counts against
+            anyone.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Latitude" error={form.formState.errors.latitude?.message}>
+              {(a11y) => (
+                <Input
+                  {...a11y}
+                  inputMode="decimal"
+                  placeholder="23.0225"
+                  {...form.register('latitude')}
+                />
+              )}
+            </Field>
+            <Field label="Longitude" error={form.formState.errors.longitude?.message}>
+              {(a11y) => (
+                <Input
+                  {...a11y}
+                  inputMode="decimal"
+                  placeholder="72.5714"
+                  {...form.register('longitude')}
+                />
+              )}
+            </Field>
+          </div>
+          <Field
+            label="Radius in metres"
+            error={form.formState.errors.geofenceRadiusMeters?.message}
+            hint="How far from the coordinates still counts as being here"
+          >
+            {(a11y) => (
+              <Input {...a11y} inputMode="numeric" {...form.register('geofenceRadiusMeters')} />
+            )}
+          </Field>
+        </div>
       </FormDialog>
     </CrudShell>
   );

@@ -62,7 +62,8 @@ the table later cannot be published to the company by accident.
 ### Attendance (`/attendance`)
 | Method | Path |
 |---|---|
-| POST | `/attendance/check-in` · POST `/attendance/check-out` — self; opens/closes a session, any number per day |
+| POST | `/attendance/check-in` — self; opens a session. Body `{ workMode, latitude?, longitude?, accuracyMeters? }`, all optional |
+| POST | `/attendance/check-out` — self; closes it. Body `{ latitude?, longitude?, accuracyMeters? }` |
 | GET | `/attendance/today` — self, current day state |
 | GET | `/me/attendance?from=&to=` — self history |
 | GET | `/attendance?date=&departmentId=` — team/org view (permission-scoped: manager sees reports, HR sees all) |

@@ -181,9 +181,17 @@ model Location {
   country        String?
   timezone       String?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  /// The geofence attendance checks an OFFICE claim against. Optional: a
+  /// location without coordinates simply cannot verify anyone, which reads as
+  /// "unverified" rather than as an accusation.
+  latitude             Float?
+  longitude            Float?
+  geofenceRadiusMeters Int    @default(200)
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
   employees    Employee[]
   holidays     Holiday[]
+  sessions     AttendanceSession[]
 
   @@unique([organizationId, name])
 }
@@ -359,6 +367,10 @@ model AttendanceRecord {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
+  /// The day's mode, rolled up from its sessions so reports never join them.
+  /// A day of mixed sittings reads as OFFICE — they did come in.
+  workMode WorkMode?
+
   employee Employee            @relation(fields: [employeeId], references: [id])
   sessions AttendanceSession[]
 
@@ -377,9 +389,51 @@ model AttendanceSession {
   source    AttendanceSource @default(WEB)
   createdAt DateTime         @default(now())
 
-  record AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  /// What the person said they were doing. A claim, not a fact — the columns
+  /// below are the evidence taken at the same moment.
+  workMode   WorkMode @default(OFFICE)
+  /// The office a fix was measured against, when one matched or came closest.
+  locationId String?
+
+  inLatitude       Float?
+  inLongitude      Float?
+  inAccuracyMeters Int?
+  inVerification   LocationVerification @default(NOT_APPLICABLE)
+  /// Metres from `location` at check-in — kept as evidence, frozen at the
+  /// moment of the punch, because an office may be moved or re-fenced later.
+  inDistanceMeters Int?
+
+  outLatitude       Float?
+  outLongitude      Float?
+  outAccuracyMeters Int?
+  outVerification   LocationVerification @default(NOT_APPLICABLE)
+  outDistanceMeters Int?
+
+  record   AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  location Location?        @relation(fields: [locationId], references: [id])
 
   @@index([recordId, checkIn])
+}
+
+/// Where someone is working, as they declare it when clocking in.
+enum WorkMode {
+  OFFICE
+  REMOTE
+  CLIENT_SITE
+}
+
+/// Whether an OFFICE claim was borne out by the position taken alongside it.
+/// Deliberately four values: "we could not tell" is a different answer from
+/// "they were not there", and only one of them is an accusation.
+enum LocationVerification {
+  /// Inside an office geofence.
+  VERIFIED
+  /// A usable fix that lands outside every office.
+  OUTSIDE
+  /// No position, or one too vague to conclude anything from.
+  UNVERIFIED
+  /// Remote or client site — there is nothing to check against.
+  NOT_APPLICABLE
 }
 
 enum ApprovalStatus {

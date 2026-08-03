@@ -129,6 +129,22 @@ minutes simply resumes the session, leaving no trace of the mistake.
 Tapping clock-in twice without leaving does nothing the second time, so a double
 tap still can't create a mess.
 
+Each sitting also records **where**: office, remote, or a client site. If the
+browser will say where the person is, that position is taken at the moment of
+the punch — never in between — and an "office" claim is checked against the
+office's own coordinates.
+
+The check is deliberately gentle. Nobody is ever stopped from clocking in. A
+refused permission, an old phone or a position too vague to mean anything all
+read as *unverified*, which is a different answer from *not there* and is never
+treated as one. Only a precise position that clearly is not at any office is
+flagged, with the distance shown, for a human to make sense of. And a remote day
+stores no coordinates at all — that would be somebody's home, and the mode
+already says everything the business needs.
+
+A day worked entirely from home is recorded as **work from home**; mix a remote
+morning with an afternoon in the office and it is simply a present day.
+
 The system decides how each day counts:
 
 - **Late** — arriving after the shift start *plus* the grace period, measured in

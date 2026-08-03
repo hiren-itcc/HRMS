@@ -40,6 +40,10 @@ export interface Location {
   city: string | null;
   country: string | null;
   timezone: string | null;
+  /** The attendance geofence; null coordinates mean this office verifies nobody. */
+  latitude: number | null;
+  longitude: number | null;
+  geofenceRadiusMeters: number;
   _count: { employees: number; holidays: number };
 }
 

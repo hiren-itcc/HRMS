@@ -337,8 +337,8 @@ export class ReportsService {
           status: true,
           isLate: true,
           workMinutes: true,
-          checkIn: true,
-          checkOut: true,
+          // The day's rollup, so hybrid split needs no join onto sessions.
+          workMode: true,
         },
       }),
       this.holidayKeys(claims.orgId, scope.fromDate, scope.toDate),
@@ -357,7 +357,17 @@ export class ReportsService {
     >(days.map((d) => [d, { date: d, present: 0, absent: 0, onLeave: 0, late: 0 }]));
 
     const rows = roster.map((e) => {
-      const totals = { present: 0, absent: 0, halfDay: 0, onLeave: 0, late: 0, minutes: 0 };
+      const totals = {
+        present: 0,
+        absent: 0,
+        halfDay: 0,
+        onLeave: 0,
+        late: 0,
+        minutes: 0,
+        office: 0,
+        remote: 0,
+        clientSite: 0,
+      };
       let workingDays = 0;
       for (const dateKey of days) {
         const record = byEmployeeDay.get(`${e.id}|${dateKey}`) ?? null;
@@ -395,6 +405,11 @@ export class ReportsService {
           totals.late += 1;
           if (bucket) bucket.late += 1;
         }
+        // Where the day was worked, counted only on days actually worked —
+        // this is the hybrid-policy split, not another attendance measure.
+        if (record?.workMode === 'OFFICE') totals.office += 1;
+        else if (record?.workMode === 'REMOTE') totals.remote += 1;
+        else if (record?.workMode === 'CLIENT_SITE') totals.clientSite += 1;
         totals.minutes += record?.workMinutes ?? 0;
       }
       return {
@@ -409,6 +424,9 @@ export class ReportsService {
           absent: totals.absent,
           onLeave: totals.onLeave,
           late: totals.late,
+          office: totals.office,
+          remote: totals.remote,
+          clientSite: totals.clientSite,
           hours: Math.round(totals.minutes / 6) / 10,
           attendanceRate: percentage(totals.present + totals.halfDay * 0.5, workingDays),
         },
@@ -498,6 +516,9 @@ export class ReportsService {
         { key: 'absent', header: 'Absent', type: 'number' },
         { key: 'onLeave', header: 'On leave', type: 'number' },
         { key: 'late', header: 'Late', type: 'number' },
+        { key: 'office', header: 'In office', type: 'number' },
+        { key: 'remote', header: 'Remote', type: 'number' },
+        { key: 'clientSite', header: 'Client site', type: 'number' },
         { key: 'hours', header: 'Hours', type: 'number' },
         { key: 'attendanceRate', header: 'Rate %', type: 'number' },
       ],

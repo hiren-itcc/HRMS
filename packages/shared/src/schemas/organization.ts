@@ -81,6 +81,30 @@ export const locationCreateSchema = z.object({
     .max(64)
     .optional()
     .or(z.literal('').transform(() => undefined)),
+  /*
+   * The geofence attendance measures an "I'm at the office" claim against.
+   * Coerced because the form posts strings, and empty means "not on the map" —
+   * which is a legitimate state: an office without coordinates verifies nobody
+   * rather than accusing everybody.
+   */
+  latitude: z.coerce
+    .number()
+    .min(-90)
+    .max(90)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  longitude: z.coerce
+    .number()
+    .min(-180)
+    .max(180)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  geofenceRadiusMeters: z.coerce
+    .number()
+    .int()
+    .min(25, 'A fence tighter than 25 m fails on ordinary GPS drift')
+    .max(20_000)
+    .default(200),
 });
 export const locationUpdateSchema = locationCreateSchema.partial();
 export type LocationCreateInput = z.infer<typeof locationCreateSchema>;
