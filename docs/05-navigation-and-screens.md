@@ -106,7 +106,7 @@ for somebody joining, who has no work mailbox yet.
 ### Directory & org (5)
 | 15 | Directory | `/directory` | Card grid, search-first; every role. Work contact details only — the HR record stays on screen 10 behind `employee.read` |
 | 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
-| 16 | ~~Org chart~~ | `/organization/chart` | **Not built.** `managerId` is populated and cycle-checked; the employee detail page shows a flat direct-reports list |
+| 16 | Org chart | `/organization/chart` | Collapsible tree with a per-node count of everybody below. Search filters by name, code, title or department and expands to the hit. Several roots are normal |
 | 17 | Departments & designations | `/organization/departments`, `/organization/designations` | Separate tabs, one CRUD table each — not two-pane. Employment types and shifts have their own tabs |
 | 18 | Locations | `/organization/locations` | Includes the attendance geofence: coordinates and a radius, both optional |
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |

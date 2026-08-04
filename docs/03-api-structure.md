@@ -42,7 +42,7 @@ allowed and clears the cookie with it.
 | GET / POST | `/organization/designations` · PATCH/DELETE `/organization/designations/:id` |
 | GET / POST | `/organization/locations` · PATCH/DELETE `/organization/locations/:id` |
 | GET / POST | `/organization/holidays` · PATCH/DELETE `/organization/holidays/:id` |
-| GET | `/organization/chart` — org-chart tree (department → employees) |
+| GET | `/organization/chart` — reporting tree, work contact facts only; `org.read` |
 
 ### Employees (`/employees`)
 | Method | Path |

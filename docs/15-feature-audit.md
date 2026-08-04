@@ -3,10 +3,12 @@
 Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
 web pages, the 54-permission catalogue and docs 00–14.
 
-> **Status:** every **P0** item is done, and **6 of 9 P1 items**. Built so far:
-> session pruning, session management, the four orphaned endpoints, structure
-> deactivation, payroll adjustments, offboarding and emergency contacts. Still
-> open: the org chart and frontend tests. Items struck through below are fixed.
+> **Status:** every **P0** item is done, and **8 of 9 P1 items** — session
+> pruning, session management, the four orphaned endpoints, structure
+> deactivation, payroll adjustments, offboarding, emergency contacts and the org
+> chart. **Frontend tests are the one P1 still open**, and they are the reason
+> everything above was verified by hand against a running API. Items struck
+> through below are fixed.
 
 ## How to read this
 
@@ -67,7 +69,7 @@ the identifier appears nowhere outside generated Prisma output.
 | **Frontend tests** — Vitest, Testing Library, MSW, and 5 golden Playwright flows | `09:60-66`; a sprint-exit criterion five times in `11` | **Verified absent.** Zero test files under `apps/web` or `packages/ui`. All 468 tests are API unit tests. |
 | ~~**Session management**~~ | `03:26`, `07:41`, `05:66` | ✅ **Built.** `GET /auth/sessions`, `DELETE /auth/sessions/:id` and `/profile/sessions`, linked from the avatar menu. |
 | ~~**Offboarding**~~ | `03:46`, `05:64`, `12:118-120` | ✅ **Built.** `POST /employees/:id/offboard` plus the screen-12 dialog. Retires the dead `employee.offboard` permission and gives `EmployeeStatus.ON_NOTICE` its first meaning. |
-| **Org chart** — `GET /organization/chart`, screen 16 collapsible tree | `03:36`, `05:72` | Found nothing. The data exists (`managerId`, and a flat direct-reports list renders at `employees/[id]/page.tsx:499`). |
+| ~~**Org chart**~~ | `03:36`, `05:72` | ✅ **Built.** `GET /organization/chart` plus screen 16. Somebody whose manager has left becomes a root rather than vanishing from the tree. |
 | `GET /employees/:id/reports` | `03:47` | Found nothing. Manager scoping exists via the list filter; the named endpoint does not. |
 | **Company-wide documents** and `Document.visibility` | `02:500-514` | **Verified absent.** The enum is dead. Doc 02 self-declares this at `:512-514`. |
 | **Employee list saved views and CSV export** | `05:60` | Found nothing. Reports export; the employee list does not. |
@@ -279,7 +281,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
-| **Org chart** | ❌ | ✅ all four |
+| ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ | ✅ all four |
 | **Notifications** | ❌ | ✅ all four |
 | **Bulk import / export** | ❌ (reports only) | ✅ all four |
@@ -356,9 +358,10 @@ which other documents were citing.
 12. ~~**Emergency contacts**~~ ✅ — editable on `/profile`, visible on the
     employee record.
 
+13. ~~**Org chart**~~ ✅ — collapsible tree at `/organization/chart`.
+
 **Still open:**
 
-13. **Org chart** — `managerId` is populated and cycle-checked.
 14. **Frontend tests.** Zero exist. Start with the five golden flows in `09:64`
     rather than chasing coverage.
 15. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
