@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { useMutation } from '@tanstack/react-query';
 import { Loader2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -22,8 +21,8 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
-import { onboardingApi } from '@/features/onboarding/api';
-import { ApiError } from '@/lib/api-client';
+import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
+import { useApiMutation } from '@/hooks/use-crud';
 
 /**
  * Inviting a new hire.
@@ -40,8 +39,15 @@ function OnboardForm() {
     defaultValues: { joinDate: new Date().toISOString().slice(0, 10) },
   });
 
-  const onboard = useMutation({
+  const onboard = useApiMutation({
     mutationFn: onboardingApi.onboard,
+    /*
+     * This invalidated nothing. Inviting somebody creates an employee record,
+     * so the directory, the pickers and the onboarding queue were all a hire
+     * out of date until their entries went stale on their own.
+     */
+    invalidate: [['employees'], onboardingKeys.all()],
+    error: 'Could not create the record',
     onSuccess: (result) => {
       if (result.inviteSent) {
         toast.success('Invitation sent to their personal email');
@@ -59,8 +65,6 @@ function OnboardForm() {
       }
       router.push(`/employees/${result.employee.id}`);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not create the record'),
   });
 
   return (

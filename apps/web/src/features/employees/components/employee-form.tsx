@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { SelectItem } from '@hrms/ui/components/select';
+import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -106,15 +107,25 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
   });
   const { isSubmitting } = form.formState;
 
+  /*
+   * This form submits directly rather than through a mutation, so nothing was
+   * telling the cache. Adding somebody and landing back on the directory
+   * showed a list without them in it until the entry went stale.
+   */
+  const queryClient = useQueryClient();
+  const invalidateEmployees = () => queryClient.invalidateQueries({ queryKey: ['employees'] });
+
   const submit = form.handleSubmit(async (raw) => {
     const input = employeeCreateSchema.parse(raw);
     try {
       if (isEdit && employeeId) {
         await employeesApi.update(employeeId, input);
+        invalidateEmployees();
         toast.success('Employee updated');
         onSaved(employeeId);
       } else {
         const created = await employeesApi.create(input);
+        invalidateEmployees();
         toast.success(`${fullName(created)} added (${created.employeeCode})`, {
           description: created.loginCreated
             ? `They can sign in as ${created.loginEmail} with the default password.`

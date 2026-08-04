@@ -126,4 +126,6 @@ export const onboardingKeys = {
   mine: () => ['onboarding', 'mine'] as const,
   list: (status?: string) => ['onboarding', 'list', status ?? 'all'] as const,
   one: (id: string) => ['onboarding', id] as const,
+  /** Under 'onboarding' so that approving or resending reaches it. */
+  invite: (employeeId: string) => ['onboarding', 'invite', employeeId] as const,
 };

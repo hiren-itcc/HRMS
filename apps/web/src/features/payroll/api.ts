@@ -93,14 +93,23 @@ export const payrollApi = {
     api<PayrollReport>(`/payroll/reports/${kind}${qs(params)}`),
 };
 
-/** Query keys, grouped so a run action can invalidate everything it touches. */
+/**
+ * Query keys, grouped so a run action can invalidate everything it touches.
+ *
+ * Every key here starts with 'payroll' on purpose: `all` is what the run
+ * actions invalidate, and it only reaches a key that sits underneath it. A
+ * single payslip used to be fetched as `['payslip', id]`, outside this tree,
+ * so marking one paid never refreshed its own page.
+ */
 export const payrollKeys = {
-  all: ['payroll'] as const,
+  all: () => ['payroll'] as const,
   structures: () => ['payroll', 'structures'] as const,
+  structure: (id: string) => ['payroll', 'structures', id] as const,
   salaries: () => ['payroll', 'salaries'] as const,
   runs: () => ['payroll', 'runs'] as const,
   run: (id: string) => ['payroll', 'runs', id] as const,
   payslips: () => ['payroll', 'payslips'] as const,
+  payslip: (id: string) => ['payroll', 'payslips', id] as const,
   reports: () => ['payroll', 'reports'] as const,
   adjustments: (month: string) => ['payroll', 'adjustments', month] as const,
 };

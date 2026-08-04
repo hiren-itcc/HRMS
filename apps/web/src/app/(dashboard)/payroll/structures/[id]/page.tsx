@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { EmptyState } from '@/components/empty-state';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
-import { payrollApi } from '@/features/payroll/api';
+import { payrollApi, payrollKeys } from '@/features/payroll/api';
 import { StructureForm } from '@/features/payroll/components/structure-form';
 
 export default function EditStructurePage() {
@@ -16,7 +16,7 @@ export default function EditStructurePage() {
   const canManage = can('payroll.structure.manage');
 
   const structure = useQuery({
-    queryKey: ['payroll', 'structures', id],
+    queryKey: payrollKeys.structure(id),
     queryFn: () => payrollApi.structure(id),
     enabled: canManage,
     retry: false,

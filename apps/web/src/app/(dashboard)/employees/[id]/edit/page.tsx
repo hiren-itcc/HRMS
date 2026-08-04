@@ -17,6 +17,9 @@ export default function EditEmployeePage() {
   const employee = useQuery({
     queryKey: ['employees', 'detail', id],
     queryFn: () => employeesApi.detail(id),
+    // Matches the detail page, which shares this cache entry. Without it the
+    // two disagreed about retrying a 404, and whichever mounted first won.
+    retry: false,
   });
 
   /*

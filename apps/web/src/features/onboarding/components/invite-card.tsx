@@ -40,14 +40,14 @@ export function InviteCard({ employeeId }: { employeeId: string }) {
   const [lastError, setLastError] = useState<string | null>(null);
 
   const invite = useQuery({
-    queryKey: ['invite-status', employeeId],
+    queryKey: onboardingKeys.invite(employeeId),
     queryFn: () => onboardingApi.inviteStatus(employeeId),
   });
 
   const resend = useMutation({
     mutationFn: () => onboardingApi.resendInvite(employeeId),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['invite-status', employeeId] });
+      // all() covers the invite key now that it lives under 'onboarding'.
       queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
       if (result.inviteSent) {
         setLastError(null);

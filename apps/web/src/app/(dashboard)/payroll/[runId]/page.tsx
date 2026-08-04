@@ -117,7 +117,7 @@ export default function PayrollRunPage() {
   });
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: payrollKeys.all });
+    queryClient.invalidateQueries({ queryKey: payrollKeys.all() });
     setSelected(new Set());
   };
 
