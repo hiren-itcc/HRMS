@@ -377,9 +377,15 @@ change their role — do not rely on the menu toggle.
 
 Being straight about this is more useful than a feature list:
 
-- **Password reset emails are not delivered.** The screen works, but no email is
-  actually sent, because no mail service is connected yet. In practice an
-  administrator has to reset passwords for people.
+- **Email only reaches one address until a domain is verified.** Mail is
+  connected — password resets and onboarding invites are really sent, through
+  Resend. But the default sender is Resend's sandbox address, and it delivers
+  only to the address that owns the Resend account. Everyone else gets nothing,
+  and the send is refused rather than lost silently. Verifying a domain and
+  pointing `MAIL_FROM` at it is what makes mail work for real people.
+- **Only two emails have senders.** Settings lists four editable templates, but
+  `leave_approved` and `leave_rejected` are never sent by anything — the screen
+  marks them so. Approving leave notifies nobody.
 - **Payslips cannot be downloaded as PDFs** — data exports are spreadsheets.
 - **There is no mobile app.**
 - **Companies cannot sign themselves up.** A new company has to be created on

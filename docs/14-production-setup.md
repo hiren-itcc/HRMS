@@ -340,14 +340,28 @@ Verified against the code at the time of writing. Each of these will surprise
 someone during a deployment, so they are recorded rather than left to be
 discovered.
 
-### Password reset does not work
+### Email reaches exactly one address until you verify a domain
 
-`apps/api/src/modules/mail/mail.service.ts` has no SMTP adapter — it logs the
-message instead of sending it. The "forgot password" screen appears to work and
-the user is told to check their email, but **no email is ever delivered.**
+Mail is connected. `mail.service.ts` sends through the transport injected at
+`MAIL_TRANSPORT`, and `transport.ts` provides a Resend adapter when
+`RESEND_API_KEY` is set — password resets and onboarding invites are really
+delivered. (This section previously said no adapter existed; that stopped being
+true when Resend was wired.)
 
-Until a mail provider is connected, an administrator must reset passwords
-manually. Plan for that, or connect SMTP before go-live.
+The remaining constraint is the sender. `MAIL_FROM` defaults to
+`onboarding@resend.dev`, Resend's sandbox address, which **delivers only to the
+address that owns the Resend account**. An invite to anyone else is refused by
+Resend with a 403 — the API surfaces the reason in the response rather than
+reporting success, but nothing arrives.
+
+So before onboarding a real hire: verify a domain in Resend and set `MAIL_FROM`
+to an address on it. Without the key entirely, the transport logs the message
+instead, which is what keeps local development and CI working offline.
+
+Two of the four templates in Settings — `leave_approved` and `leave_rejected` —
+have no sender behind them and are never dispatched. The API reports this
+honestly as `hasSender: false`, and the screen shows it, but the templates are
+editable and look live.
 
 ### Deploys are triggered by hand
 
