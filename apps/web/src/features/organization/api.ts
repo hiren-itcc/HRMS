@@ -59,22 +59,34 @@ export const departmentsApi = {
   options: () => api<Option[]>('/organization/departments/options'),
 };
 
-export const designationsApi = crudApi<Designation, DesignationCreateInput, DesignationUpdateInput>(
-  '/organization/designations',
-);
+/**
+ * Designations are the odd one out: the API calls the column `title`, not
+ * `name`. That is why every picker has to say which column its label comes
+ * from — see `useOptions`.
+ */
+export const designationsApi = {
+  ...crudApi<Designation, DesignationCreateInput, DesignationUpdateInput>(
+    '/organization/designations',
+  ),
+  options: () => api<{ id: string; title: string }[]>('/organization/designations/options'),
+};
 
-export const employmentTypesApi = crudApi<
-  EmploymentTypeRow,
-  EmploymentTypeCreateInput,
-  EmploymentTypeUpdateInput
->('/organization/employment-types');
+export const employmentTypesApi = {
+  ...crudApi<EmploymentTypeRow, EmploymentTypeCreateInput, EmploymentTypeUpdateInput>(
+    '/organization/employment-types',
+  ),
+  options: () => api<Option[]>('/organization/employment-types/options'),
+};
 
 export const locationsApi = {
   ...crudApi<Location, LocationCreateInput, LocationUpdateInput>('/organization/locations'),
   options: () => api<(Option & { type: string })[]>('/organization/locations/options'),
 };
 
-export const shiftsApi = crudApi<Shift, ShiftCreateInput, ShiftUpdateInput>('/organization/shifts');
+export const shiftsApi = {
+  ...crudApi<Shift, ShiftCreateInput, ShiftUpdateInput>('/organization/shifts'),
+  options: () => api<Option[]>('/organization/shifts/options'),
+};
 
 export const holidaysApi = crudApi<Holiday, HolidayCreateInput, HolidayUpdateInput>(
   '/organization/holidays',

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormSelect, FormTextarea } from '@/components/form';
+import { useOptions } from '@/hooks/use-crud';
 import { ApiError } from '@/lib/api-client';
 import { formatDays, type LeaveBalance, leaveApi } from '../api';
 
@@ -26,10 +27,8 @@ interface ApplyDialogProps {
 
 export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogProps) {
   const queryClient = useQueryClient();
-  const types = useQuery({
-    queryKey: ['leave', 'types', 'options'],
-    queryFn: leaveApi.typeOptions,
-    staleTime: 60_000,
+  // Keyed under ['leave'] so that editing a leave type invalidates this too.
+  const types = useOptions(['leave', 'types'], leaveApi.typeOptions, (t) => t.name, {
     enabled: open,
   });
 
@@ -111,11 +110,11 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
         placeholder="Choose a type"
         busy={types.isPending}
       >
-        {types.data?.map((t) => {
+        {types.options?.map((t) => {
           const b = balances.find((x) => x.leaveTypeId === t.id);
           return (
             <SelectItem key={t.id} value={t.id}>
-              {t.name}
+              {t.label}
               {b ? ` — ${b.available} left` : ''}
             </SelectItem>
           );

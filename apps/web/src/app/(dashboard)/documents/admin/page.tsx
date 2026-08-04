@@ -25,6 +25,7 @@ import {
 } from '@/features/documents/api';
 import { DocumentPreview } from '@/features/documents/components/document-preview';
 import { employeesApi } from '@/features/employees/api';
+import { useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const ALL = '__all__';
@@ -50,7 +51,11 @@ function DocumentAdminTable() {
   const employeeId = params.get('employeeId');
   const categoryId = params.get('categoryId');
 
-  const employees = useQuery({ queryKey: ['employees', 'options'], queryFn: employeesApi.options });
+  const employees = useOptions(
+    'employees',
+    employeesApi.options,
+    (e) => `${e.firstName} ${e.lastName}`,
+  );
   const folders = useQuery({
     queryKey: ['documents', 'folders', 'org'],
     queryFn: () => documentsApi.folders(),
@@ -150,9 +155,9 @@ function DocumentAdminTable() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All employees</SelectItem>
-                {employees.data?.map((e) => (
+                {employees.options?.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName}
+                    {e.label}
                   </SelectItem>
                 ))}
               </SelectContent>

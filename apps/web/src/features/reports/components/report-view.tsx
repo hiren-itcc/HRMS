@@ -28,6 +28,7 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { StatCard, type StatGradient } from '@/components/stat-card';
 import { departmentsApi } from '@/features/organization/api';
+import { useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 import { defaultRange, type ReportName, reportsApi } from '../api';
 import { DateRangeFilter } from './date-range-filter';
@@ -101,10 +102,7 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
     queryFn: () => reportsApi.get(report, range),
   });
 
-  const departments = useQuery({
-    queryKey: ['org-departments', 'options'],
-    queryFn: departmentsApi.options,
-    staleTime: 60_000,
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name, {
     enabled: showDepartmentFilter && can('org.read'),
   });
 
@@ -135,9 +133,9 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All departments</SelectItem>
-                {departments.data?.map((d) => (
+                {departments.options?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>

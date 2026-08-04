@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useQuery } from '@tanstack/react-query';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -23,8 +22,15 @@ import { FormCheckbox, FormDatePicker, FormInput, FormSelect } from '@/component
 import { employeesApi } from '@/features/employees/api';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { fullName } from '@/features/employees/types';
-import { departmentsApi, locationsApi } from '@/features/organization/api';
-import { ApiError, api } from '@/lib/api-client';
+import {
+  departmentsApi,
+  designationsApi,
+  employmentTypesApi,
+  locationsApi,
+  shiftsApi,
+} from '@/features/organization/api';
+import { type Option, useOptions } from '@/hooks/use-crud';
+import { ApiError } from '@/lib/api-client';
 
 type FormValues = z.input<typeof employeeCreateSchema>;
 
@@ -51,26 +57,24 @@ interface EmployeeFormProps {
   onSaved: (id: string) => void;
 }
 
-function useOptionsQuery<T>(key: string, fn: () => Promise<T>) {
-  return useQuery({ queryKey: [key, 'options'], queryFn: fn, staleTime: 60_000 });
-}
-
 export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps) {
   const router = useRouter();
   const isEdit = Boolean(employeeId);
 
-  const departments = useOptionsQuery('org-departments', departmentsApi.options);
-  const designations = useOptionsQuery('org-designations', () =>
-    api<{ id: string; title: string }[]>('/organization/designations/options'),
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name);
+  const designations = useOptions('org-designations', designationsApi.options, (d) => d.title);
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
+  const shifts = useOptions('org-shifts', shiftsApi.options, (s) => s.name);
+  const employmentTypes = useOptions(
+    'org-employment-types',
+    employmentTypesApi.options,
+    (t) => t.name,
   );
-  const locations = useOptionsQuery('org-locations', locationsApi.options);
-  const shifts = useOptionsQuery('org-shifts', () =>
-    api<{ id: string; name: string }[]>('/organization/shifts/options'),
+  const managers = useOptions(
+    'employees',
+    employeesApi.options,
+    (m) => `${fullName(m)} (${m.employeeCode})`,
   );
-  const employmentTypes = useOptionsQuery('org-employment-types', () =>
-    api<{ id: string; name: string }[]>('/organization/employment-types/options'),
-  );
-  const managers = useOptionsQuery('employees', employeesApi.options);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(employeeCreateSchema),
@@ -124,12 +128,13 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
   });
 
   /**
-   * The six job-detail selects, which differ only in their option list.
+   * The five required job-detail selects, which differ only in their options.
    *
    * All the wiring that used to live here — the id, the four aria props on the
-   * trigger, the error, the NONE sentinel — belongs to `FormSelect` now. What
-   * is left is the one thing genuinely local: options arrive asynchronously, so
-   * an empty list has to read as "not yet" rather than "there are none".
+   * trigger, the error, the NONE sentinel — belongs to `FormSelect` now, and
+   * the `{id, label}` normalisation to `useOptions`. What is left is the one
+   * thing genuinely local: options arrive asynchronously, so an empty list has
+   * to read as "not yet" rather than "there are none".
    */
   const OptionSelect = ({
     label,
@@ -138,7 +143,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
   }: {
     label: string;
     name: 'departmentId' | 'designationId' | 'locationId' | 'shiftId' | 'employmentTypeId';
-    items: { id: string; label: string }[] | undefined;
+    items: Option[] | undefined;
   }) => {
     const pending = items === undefined;
     return (
@@ -238,21 +243,9 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             required
             placeholder="Select joining date"
           />
-          <OptionSelect
-            label="Department"
-            name="departmentId"
-            items={departments.data?.map((d) => ({ id: d.id, label: d.name }))}
-          />
-          <OptionSelect
-            label="Designation"
-            name="designationId"
-            items={designations.data?.map((d) => ({ id: d.id, label: d.title }))}
-          />
-          <OptionSelect
-            label="Location"
-            name="locationId"
-            items={locations.data?.map((l) => ({ id: l.id, label: l.name }))}
-          />
+          <OptionSelect label="Department" name="departmentId" items={departments.options} />
+          <OptionSelect label="Designation" name="designationId" items={designations.options} />
+          <OptionSelect label="Location" name="locationId" items={locations.options} />
           {/*
            * Manager is the only optional one: somebody has to be at the top of
            * the org chart, and the first employee in a new organization has
@@ -263,26 +256,22 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             name="managerId"
             label="Reporting manager"
             emptyLabel="None — top of the organisation"
-            busy={managers.data === undefined}
+            busy={managers.isPending}
             placeholder="Select reporting manager"
           >
-            {managers.data
+            {managers.options
               ?.filter((m) => m.id !== employeeId)
               .map((m) => (
                 <SelectItem key={m.id} value={m.id}>
-                  {fullName(m)} ({m.employeeCode})
+                  {m.label}
                 </SelectItem>
               ))}
           </FormSelect>
-          <OptionSelect
-            label="Shift"
-            name="shiftId"
-            items={shifts.data?.map((s) => ({ id: s.id, label: s.name }))}
-          />
+          <OptionSelect label="Shift" name="shiftId" items={shifts.options} />
           <OptionSelect
             label="Employment type"
             name="employmentTypeId"
-            items={employmentTypes.data?.map((t) => ({ id: t.id, label: t.name }))}
+            items={employmentTypes.options}
           />
           <FormSelect control={form.control} name="status" label="Employment status">
             {Object.entries(STATUS_LABEL).map(([value, label]) => (

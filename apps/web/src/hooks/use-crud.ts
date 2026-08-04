@@ -138,15 +138,19 @@ export interface Option {
  * endpoints, and it is checked.
  */
 export function useOptions<T extends { id: string }>(
-  key: string,
+  key: string | readonly unknown[],
   fetcher: () => Promise<T[]>,
   toLabel: (row: T) => string,
+  { enabled = true }: { enabled?: boolean } = {},
 ) {
   const query = useQuery({
-    queryKey: [key, 'options'],
+    // A prefix, not just a name: leave types live at `['leave', 'types',
+    // 'options']` so that invalidating `['leave']` after an edit reaches them.
+    queryKey: [...(typeof key === 'string' ? [key] : key), 'options'],
     queryFn: fetcher,
     // Options change when somebody edits the organization, which is rare.
     staleTime: 60_000,
+    enabled,
   });
 
   return {

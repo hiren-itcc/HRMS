@@ -15,29 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { Field } from '@/components/field';
+import { employeesApi } from '@/features/employees/api';
 import { onboardingKeys } from '@/features/onboarding/api';
-import { departmentsApi, locationsApi } from '@/features/organization/api';
-import { ApiError, api } from '@/lib/api-client';
-
-interface Option {
-  id: string;
-  label: string;
-}
-
-function useOptions<T>(key: string, fn: () => Promise<T[]>, toLabel: (row: T) => string) {
-  const query = useQuery({ queryKey: [key, 'options'], queryFn: fn, staleTime: 60_000 });
-  return {
-    ...query,
-    options: (query.data ?? []).map(
-      (row) => ({ id: (row as { id: string }).id, label: toLabel(row) }) satisfies Option,
-    ),
-  };
-}
+import {
+  departmentsApi,
+  designationsApi,
+  employmentTypesApi,
+  locationsApi,
+  shiftsApi,
+} from '@/features/organization/api';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
 
 /**
  * Where HR fills in the job details onboarding let them defer.
@@ -63,47 +53,40 @@ export function JobDetailsCard({
   };
   disabled: boolean;
 }) {
-  const queryClient = useQueryClient();
   const [draft, setDraft] = useState(current);
 
   const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name);
-  const designations = useOptions(
-    'org-designations',
-    () => api<{ id: string; title: string }[]>('/organization/designations/options'),
-    (d) => d.title,
-  );
+  const designations = useOptions('org-designations', designationsApi.options, (d) => d.title);
   const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
-  const shifts = useOptions(
-    'org-shifts',
-    () => api<{ id: string; name: string }[]>('/organization/shifts/options'),
-    (s) => s.name,
-  );
+  const shifts = useOptions('org-shifts', shiftsApi.options, (s) => s.name);
   const employmentTypes = useOptions(
     'org-employment-types',
-    () => api<{ id: string; name: string }[]>('/organization/employment-types/options'),
+    employmentTypesApi.options,
     (t) => t.name,
   );
 
-  const save = useMutation({
+  const save = useApiMutation({
     /*
      * Only the fields that have a value. `employeeUpdateSchema` is a partial
      * of the create schema, where these ids are `requiredId` — so an absent
      * key is fine but an explicit null is a validation error, and a
      * half-filled form would fail on the boxes HR had not reached yet.
      */
-    mutationFn: () => {
-      const patch = Object.fromEntries(Object.entries(draft).filter(([, v]) => v));
-      return api(`/employees/${employeeId}`, { method: 'PATCH', body: JSON.stringify(patch) });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Job details saved');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not save the job details'),
+    mutationFn: () =>
+      employeesApi.update(
+        employeeId,
+        Object.fromEntries(Object.entries(draft).filter(([, v]) => v)),
+      ),
+    invalidate: [onboardingKeys.all(), ['employees']],
+    success: 'Job details saved',
+    error: 'Could not save the job details',
   });
 
+  /*
+   * `opts` is undefined until the request settles. That distinction is the
+   * point: this card told HR "None configured yet" through the whole first
+   * render, sending them off to create departments that already existed.
+   */
   const rows = [
     { key: 'departmentId', label: 'Department', opts: departments.options },
     { key: 'designationId', label: 'Designation', opts: designations.options },
@@ -133,15 +116,25 @@ export function JobDetailsCard({
                 <Select
                   value={draft[row.key] ?? ''}
                   onValueChange={(v) => setDraft((d) => ({ ...d, [row.key]: v }))}
-                  disabled={disabled || row.opts.length === 0}
+                  disabled={disabled || row.opts?.length === 0}
                 >
-                  <SelectTrigger {...a11y} className="w-full">
+                  <SelectTrigger
+                    {...a11y}
+                    aria-busy={row.opts === undefined || undefined}
+                    className="w-full"
+                  >
                     <SelectValue
-                      placeholder={row.opts.length === 0 ? 'None configured yet' : 'Select'}
+                      placeholder={
+                        row.opts === undefined
+                          ? 'Loading…'
+                          : row.opts.length === 0
+                            ? 'None configured yet'
+                            : 'Select'
+                      }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {row.opts.map((o) => (
+                    {row.opts?.map((o) => (
                       <SelectItem key={o.id} value={o.id}>
                         {o.label}
                       </SelectItem>
@@ -153,7 +146,7 @@ export function JobDetailsCard({
           ))}
         </div>
 
-        {rows.some((r) => r.opts.length === 0) && (
+        {rows.some((r) => r.opts?.length === 0) && (
           <p className="text-muted-foreground text-xs">
             Anything marked “None configured yet” has to be created under Organization first.
           </p>

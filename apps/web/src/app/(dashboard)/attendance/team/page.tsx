@@ -30,6 +30,7 @@ import { AttendanceStatusBadge } from '@/features/attendance/components/status-b
 import { VerificationChip, WorkModeChip } from '@/features/attendance/components/work-mode-chip';
 import { initials } from '@/features/employees/types';
 import { departmentsApi } from '@/features/organization/api';
+import { useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const ALL = 'all';
@@ -50,10 +51,7 @@ function TeamAttendanceView() {
   const view = params.get('view') === 'monthly' ? 'monthly' : 'daily';
 
   const stats = useQuery({ queryKey: ['attendance', 'stats'], queryFn: attendanceApi.stats });
-  const departments = useQuery({
-    queryKey: ['org-departments', 'options'],
-    queryFn: departmentsApi.options,
-    staleTime: 60_000,
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name, {
     enabled: can('org.read'),
   });
 
@@ -201,9 +199,9 @@ function TeamAttendanceView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All departments</SelectItem>
-                {departments.data?.map((d) => (
+                {departments.options?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>

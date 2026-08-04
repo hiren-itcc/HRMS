@@ -9,7 +9,7 @@ import {
 import { Button } from '@hrms/ui/components/button';
 import { Label } from '@hrms/ui/components/label';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Paperclip, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -18,6 +18,7 @@ import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/form';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
+import { useOptions } from '@/hooks/use-crud';
 import { ApiError } from '@/lib/api-client';
 import { type Announcement, announcementsApi } from '../api';
 import { RichTextEditor } from './rich-text-editor';
@@ -47,16 +48,10 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
   const form = useForm<FormValues>({ resolver: zodResolver(announcementCreateSchema) });
   const audience = form.watch('audience') ?? 'ALL';
 
-  const departments = useQuery({
-    queryKey: ['org-departments', 'options'],
-    queryFn: departmentsApi.options,
-    staleTime: 60_000,
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name, {
     enabled: open,
   });
-  const locations = useQuery({
-    queryKey: ['org-locations', 'options'],
-    queryFn: locationsApi.options,
-    staleTime: 60_000,
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name, {
     enabled: open,
   });
 
@@ -203,12 +198,12 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
           name="departmentId"
           label="Department"
           required
-          busy={departments.data === undefined}
+          busy={departments.options === undefined}
           placeholder="Choose a department"
         >
-          {departments.data?.map((d) => (
+          {departments.options?.map((d) => (
             <SelectItem key={d.id} value={d.id}>
-              {d.name}
+              {d.label}
             </SelectItem>
           ))}
         </FormSelect>
@@ -220,12 +215,12 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
           name="locationId"
           label="Location"
           required
-          busy={locations.data === undefined}
+          busy={locations.options === undefined}
           placeholder="Choose a location"
         >
-          {locations.data?.map((l) => (
+          {locations.options?.map((l) => (
             <SelectItem key={l.id} value={l.id}>
-              {l.name}
+              {l.label}
             </SelectItem>
           ))}
         </FormSelect>

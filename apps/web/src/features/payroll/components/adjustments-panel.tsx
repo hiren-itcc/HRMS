@@ -26,6 +26,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
+import { useOptions } from '@/hooks/use-crud';
 
 /**
  * One-off amounts for this month: bonuses, incentives, loan instalments.
@@ -65,11 +66,12 @@ export function AdjustmentsPanel({
     enabled: open,
   });
 
-  const employees = useQuery({
-    queryKey: ['employees', 'options'],
-    queryFn: employeesApi.options,
-    enabled: open,
-  });
+  const employees = useOptions(
+    'employees',
+    employeesApi.options,
+    (e) => `${e.firstName} ${e.lastName} · ${e.employeeCode}`,
+    { enabled: open },
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: payrollKeys.adjustments(month) });
@@ -199,9 +201,9 @@ export function AdjustmentsPanel({
                 <SelectValue placeholder="Choose an employee" />
               </SelectTrigger>
               <SelectContent>
-                {(employees.data ?? []).map((e) => (
+                {employees.options?.map((e) => (
                   <SelectItem key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName} · {e.employeeCode}
+                    {e.label}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -21,6 +21,7 @@ import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryRow } from '@/features/payroll/types';
+import { useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const REVISION_TYPES = [
@@ -61,10 +62,12 @@ export default function SalariesPage() {
     queryKey: [...payrollKeys.salaries(), listQuery],
     queryFn: () => payrollApi.salaries(listQuery),
   });
-  const structures = useQuery({
-    queryKey: [...payrollKeys.structures(), 'options'],
-    queryFn: payrollApi.structureOptions,
-  });
+  // Keyed under payrollKeys.structures() so editing a structure reaches it.
+  const structures = useOptions(
+    payrollKeys.structures(),
+    payrollApi.structureOptions,
+    (s) => s.name,
+  );
 
   const assign = useMutation({
     mutationFn: () =>
@@ -89,7 +92,7 @@ export default function SalariesPage() {
   const openFor = (row: SalaryRow) => {
     setEditing(row);
     setForm({
-      structureId: row.current?.structureId ?? structures.data?.[0]?.id ?? '',
+      structureId: row.current?.structureId ?? structures.options?.[0]?.id ?? '',
       effectiveFrom: new Date().toISOString().slice(0, 10),
       monthlyCtc: row.current ? String(row.current.monthlyCtc) : '',
       monthlyTds: row.current ? String(row.current.monthlyTds) : '0',
@@ -161,9 +164,9 @@ export default function SalariesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All structures</SelectItem>
-              {structures.data?.map((structure) => (
+              {structures.options?.map((structure) => (
                 <SelectItem key={structure.id} value={structure.id}>
-                  {structure.name}
+                  {structure.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -232,9 +235,9 @@ export default function SalariesPage() {
                 <SelectValue placeholder="Choose a structure" />
               </SelectTrigger>
               <SelectContent>
-                {structures.data?.map((structure) => (
+                {structures.options?.map((structure) => (
                   <SelectItem key={structure.id} value={structure.id}>
-                    {structure.name}
+                    {structure.label}
                   </SelectItem>
                 ))}
               </SelectContent>
