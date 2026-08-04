@@ -26,6 +26,10 @@ erDiagram
     User }o--|| Role : "has"
     Role }o--o{ Permission : "grants (RolePermission)"
     User ||--o{ RefreshSession : "signs in via"
+    User ||--o{ PasswordResetToken : "resets via"
+
+    Employee ||--o{ EmployeeInvite : "invited by"
+    Employee ||--o| Onboarding : "joins via"
 
     Department ||--o{ Employee : contains
     Department |o--o| Department : "parent of"
@@ -56,17 +60,30 @@ erDiagram
     Employee ||--o{ Payslip : "paid by"
     Payslip ||--o{ PayslipLine : "broken down into"
 
+    Employee ||--o{ Letter : "issued"
+    LetterTemplate ||--o{ Letter : "rendered from"
+
     User ||--o{ Announcement : authors
     Announcement ||--o{ AnnouncementRead : "read by"
+    Announcement ||--o{ AnnouncementAttachment : carries
     User ||--o{ AnnouncementRead : reads
-    User ||--o{ Notification : receives
     User ||--o{ AuditLog : performs
 ```
 
+`Notification` is not on this diagram. The table exists and nothing reads or
+writes it — see the model below.
+
 ## Prisma models
 
-The schema below is applied — `apps/api/prisma/schema.prisma` is the source of
-truth and this is its narrative form.
+`apps/api/prisma/schema.prisma` is the source of truth. What follows is its
+narrative form: the same models, trimmed of indexes and mapping noise so the
+shape is readable, with the reasoning that the schema file cannot carry.
+
+**Where the two disagree, the schema wins** — and they will disagree, because
+only one of them is compiled. This page has drifted before, badly enough that it
+declared `EmploymentType` as both a table and an enum at once. If you are
+implementing against it, check the model you care about; if you are changing the
+schema, this page is part of the change.
 
 ```prisma
 // ─── Identity & Access ────────────────────────────────────────────────
@@ -93,8 +110,12 @@ model User {
   id             String     @id @default(cuid())
   organizationId String
   email          String     @unique
-  passwordHash   String                    // Argon2id
+  passwordHash   String                    // Argon2id. For an invited hire this is
+                                            // 32 random bytes nobody can reproduce —
+                                            // there is no password until they set one.
   status         UserStatus @default(INVITED)
+  mustChangePassword Boolean @default(false) // Set when created on the shared
+                                            // default; cleared by any password change
   roleId         String
   lastLoginAt    DateTime?
   createdAt      DateTime   @default(now())
@@ -104,6 +125,7 @@ model User {
   role         Role          @relation(fields: [roleId], references: [id])
   employee     Employee?
   sessions     RefreshSession[]
+  resetTokens  PasswordResetToken[]
 
   @@index([organizationId])
 }
@@ -163,6 +185,8 @@ model PasswordResetToken {
   usedAt    DateTime?                  // single-use: a replay is a no-op
   createdAt DateTime  @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
@@ -202,6 +226,7 @@ model Location {
   id             String  @id @default(cuid())
   organizationId String
   name           String
+  type           LocationType @default(BRANCH)
   address        String?
   city           String?
   country        String?
@@ -219,6 +244,8 @@ model Location {
 
   @@unique([organizationId, name])
 }
+
+enum LocationType { HEAD_OFFICE BRANCH REMOTE CLIENT_SITE }
 
 model EmploymentType {                 // Full-time, Contract, Intern…
   id             String  @id @default(cuid())
@@ -267,7 +294,7 @@ model Employee {
   locationId     String?
   managerId      String?                        // reportsTo
   shiftId        String?
-  employmentType EmploymentType @default(FULL_TIME)
+  employmentTypeId String?               // FK to the EmploymentType table
   status         EmployeeStatus @default(ACTIVE)
   joinDate       DateTime       @db.Date
   exitDate       DateTime?      @db.Date
@@ -299,8 +326,15 @@ model Employee {
 }
 
 enum Gender { MALE FEMALE OTHER PREFER_NOT_TO_SAY }
-enum EmploymentType { FULL_TIME PART_TIME CONTRACT INTERN }
-enum EmployeeStatus { ACTIVE ON_NOTICE EXITED }
+
+// ONBOARDING sorts first on purpose: "not yet started" before "working".
+// ON_NOTICE is settable but nothing branches on it — every scope filter treats
+// it exactly like ACTIVE, because offboarding was never built (doc 15).
+enum EmployeeStatus { ONBOARDING ACTIVE ON_NOTICE EXITED }
+
+// EmploymentType is a TABLE, above — full-time, contract and intern are things
+// a company edits in Settings, not values baked into a migration. This page
+// used to declare it both ways at once.
 
 model BankDetail {                     // 1-1 with Employee; payroll's payment target
   id                String   @id @default(cuid())
@@ -389,10 +423,17 @@ model AttendanceSession {
 // Derived from the position at each punch, never declared.
 enum WorkMode { OFFICE REMOTE CLIENT_SITE }
 
-// How sure the reading was. Only VERIFIED and UNVERIFIED are ever written now:
-// OUTSIDE and NOT_APPLICABLE are left over from when somebody declared a mode
-// and the position was checked against the claim. Rows carrying them predate
-// automatic detection; nothing produces them any more.
+// How sure the reading was. detectPlacement() returns only VERIFIED or
+// UNVERIFIED — a punch with no usable fix is "office, unverified", not a
+// special case. OUTSIDE is dead: it is left from when somebody declared a mode
+// and the position was checked against the claim, and nothing produces it.
+//
+// NOT_APPLICABLE is NOT dead, though no code writes it either. It is the
+// @default, and check-in sets only the `in*` columns — so it is precisely what
+// outVerification holds on a session that has been opened and not yet closed.
+// It means "no checkout to verify", which is why it cannot be dropped with
+// OUTSIDE. (Reopening a mis-tap writes UNVERIFIED there instead, so an open
+// session can hold either.)
 enum LocationVerification { VERIFIED OUTSIDE UNVERIFIED NOT_APPLICABLE }
 
 enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF WFH }
@@ -460,6 +501,11 @@ model LeaveRequest {
   endDate     DateTime       @db.Date
   halfDaySide HalfDaySide?               // null = full days
   days        Decimal        @db.Decimal(5, 1)
+  // Which leave year this request books against, fixed when it is raised.
+  // Derived at approve time instead, a settings change between raising and
+  // approving would credit the balance back to a different year than it was
+  // taken from (doc 13).
+  leaveYear   Int
   reason      String
   status      ApprovalStatus @default(PENDING)
   approverId  String?
@@ -565,6 +611,8 @@ model Announcement {
   organizationId String
   title          String
   body           String                  // markdown
+  category       AnnouncementCategory @default(GENERAL)
+  priority       AnnouncementPriority @default(NORMAL)
   audience       Audience @default(ALL)
   departmentId   String?                 // when audience = DEPARTMENT
   locationId     String?                 // when audience = LOCATION
@@ -574,12 +622,15 @@ model Announcement {
   authorId       String                  // User id
   createdAt      DateTime @default(now())
 
-  reads AnnouncementRead[]
+  reads       AnnouncementRead[]
+  attachments AnnouncementAttachment[]
 
   @@index([organizationId, publishAt])
 }
 
 enum Audience { ALL DEPARTMENT LOCATION }
+enum AnnouncementCategory { GENERAL HOLIDAY BIRTHDAY POLICY }
+enum AnnouncementPriority { NORMAL HIGH URGENT }
 
 model AnnouncementAttachment {
   id             String   @id @default(cuid())
@@ -589,6 +640,8 @@ model AnnouncementAttachment {
   mimeType       String
   sizeBytes      Int
   createdAt      DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@index([announcementId])
 }
@@ -603,6 +656,11 @@ model AnnouncementRead {
   @@id([announcementId, userId])
 }
 
+// DEAD TABLE. Nothing in the API reads or writes a Notification — there is no
+// notifications module, endpoint or bell, and the feature was retracted from
+// doc 03. The table and its index exist only because the migration created
+// them. Left in place because dropping it is a migration nobody needs yet;
+// treat it as reserved for the module if it is ever built (doc 15).
 model Notification {
   id        String    @id @default(cuid())
   userId    String
@@ -615,6 +673,67 @@ model Notification {
 
   @@index([userId, readAt])
 }
+
+// ─── Onboarding ───────────────────────────────────────────────────────
+// The path a new hire takes: invited by email, fills in their own details,
+// HR reviews, account becomes usable. Doc 03 has the endpoints, doc 07 the
+// token model.
+
+model EmployeeInvite {
+  id          String    @id @default(cuid())
+  employeeId  String
+  tokenHash   String    @unique          // SHA-256; the raw token only ever
+                                         // exists in the email
+  sentToEmail String                     // the PERSONAL address — the work
+                                         // mailbox does not exist yet
+  expiresAt   DateTime                   // 7 days
+  usedAt      DateTime?                  // single use
+  revokedAt   DateTime?                  // resending kills the previous link,
+                                         // so only one is ever live. Revoked
+                                         // rather than deleted: the row is the
+                                         // evidence HR did invite them
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model Onboarding {
+  id         String           @id @default(cuid())
+  employeeId String           @unique
+  status     OnboardingStatus @default(IN_PROGRESS)
+
+  // Null = not yet answered, which keeps the documents step incomplete. A
+  // first-jobber answers false and the relieving-letter requirement is
+  // satisfied by the declaration rather than silently waived — "declared first
+  // job" is an answer; an empty folder is not.
+  hasPreviousEmployment Boolean?
+
+  // The checklist, as foreign keys rather than a count of files in a folder.
+  // Folders are renameable and deletable, so matching them by name breaks the
+  // first time HR renames "Certificates".
+  idProofDocId        String?
+  bankProofDocId      String?
+  educationDocId      String?
+  prevEmploymentDocId String?
+
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNote   String?                   // why HR sent it back; shown to the hire
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// There is deliberately no INVITED member: that fact is already User.status,
+// and one state in two columns is one column too many. request-changes returns
+// SUBMITTED to IN_PROGRESS. Transitions use optimistic updateMany guards, so
+// two reviewers acting at once cannot both win.
+enum OnboardingStatus { IN_PROGRESS SUBMITTED APPROVED }
 
 // ─── Payroll ──────────────────────────────────────────────────────────
 // Money is Decimal(14,2) throughout. See "Notable design calls" below for
