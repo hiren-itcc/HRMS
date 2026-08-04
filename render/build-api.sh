@@ -20,3 +20,24 @@ pnpm --filter @hrms/api db:generate
 pnpm --filter @hrms/types build
 pnpm --filter @hrms/shared build
 pnpm --filter @hrms/api build
+
+# Apply pending migrations before the new code starts serving.
+#
+# Nothing did this, so the schema only ever moved when somebody remembered to
+# move it by hand. That is a slow failure: the build succeeds, the service goes
+# live, and the first request touching a new table is the thing that reports
+# it — as a Prisma error, to a user.
+#
+# `migrate deploy` applies pending migrations and nothing else. It never
+# generates, never resets, and never prompts, so it is the one Prisma command
+# that is safe without a person watching. It is also idempotent: a deploy with
+# nothing pending is a no-op.
+#
+# The place for this is really Render's Pre-Deploy Command, which runs after a
+# successful build and before the swap. That field, like the Build Command,
+# cannot be edited after the service is created — so this runs at the end of
+# the build instead. The distinction matters for a migration that would break
+# the running version: this applies it while the old code is still serving.
+# Additive changes are fine; a destructive one needs the expand-contract split
+# (ship the code that tolerates both shapes first, drop the old column after).
+pnpm --filter @hrms/api db:deploy
