@@ -287,6 +287,7 @@ model Employee {
   bankDetail         BankDetail?
   salaries           EmployeeSalary[]
   payslips           Payslip[]
+  adjustments        PayrollAdjustment[]
   attendance         AttendanceRecord[]
   attendanceRequests AttendanceRequest[]
   leaveRequests      LeaveRequest[]
@@ -728,11 +729,46 @@ model PayComponent {
   order          Int              @default(0)
   active         Boolean          @default(true)
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
+  organization   Organization        @relation(fields: [organizationId], references: [id])
   structureLines StructureLine[]
+  adjustments    PayrollAdjustment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, kind])
+}
+
+/// A one-off amount for one employee in one month: a bonus, an incentive, a
+/// loan instalment. The calculation engine has always accepted these; this is
+/// where they are entered.
+///
+/// Deliberately not prorated and deliberately not part of the salary
+/// structure — a structure is what somebody earns every month, and a bonus is
+/// the opposite of that. Keeping them apart means a one-off never has to be
+/// added to a structure and then removed again, which is how a "temporary"
+/// component becomes permanent.
+model PayrollAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  employeeId     String
+  /// yyyy-MM, matching PayrollRun.month — an adjustment belongs to a month,
+  /// not to a run, so it survives the run being deleted and recalculated.
+  month          String
+  componentId    String
+  amount         Decimal  @db.Decimal(14, 2)
+  /// Why. Shows on nothing the employee sees; it is for whoever approves the run.
+  note           String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  component PayComponent @relation(fields: [componentId], references: [id])
+
+  /// One amount per component per person per month. Two "Bonus" rows would
+  /// produce two payslip lines with the same code and no way to tell them
+  /// apart; raising the single figure is the sane edit.
+  @@unique([employeeId, month, componentId])
+  @@index([organizationId, month])
 }
 
 enum SalaryCalcType {

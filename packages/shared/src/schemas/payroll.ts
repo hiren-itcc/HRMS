@@ -153,11 +153,25 @@ export const paymentUpdateSchema = z.object({
 
 export const ADJUSTMENT_KINDS = ['EARNING', 'DEDUCTION'] as const;
 
+/**
+ * A one-off amount for one employee in one month — bonus, incentive, loan
+ * instalment. The month is the run's month rather than a run id: an adjustment
+ * belongs to a period, so deleting and recalculating a run must not lose it.
+ *
+ * The amount is always positive. Whether it adds or subtracts comes from the
+ * component's `kind`, so a "negative bonus" cannot be entered by accident.
+ */
 export const payrollAdjustmentSchema = z.object({
   employeeId: z.string().min(1),
+  month: monthKeySchema,
   componentId: z.string().min(1),
   amount: money.refine((n) => n > 0, 'Amount must be greater than zero'),
   note: z.string().trim().max(300).optional().nullable(),
+});
+
+export const payrollAdjustmentQuerySchema = z.object({
+  month: monthKeySchema,
+  employeeId: z.string().optional(),
 });
 
 // ── Reports ───────────────────────────────────────────────────────────
@@ -187,6 +201,8 @@ export type PayrollRunQuery = z.infer<typeof payrollRunQuerySchema>;
 export type PayslipQuery = z.infer<typeof payslipQuerySchema>;
 export type PaymentUpdateInput = z.infer<typeof paymentUpdateSchema>;
 export type SalaryQuery = z.infer<typeof salaryQuerySchema>;
+export type PayrollAdjustmentInput = z.infer<typeof payrollAdjustmentSchema>;
+export type PayrollAdjustmentQuery = z.infer<typeof payrollAdjustmentQuerySchema>;
 export type SalaryStructureQuery = z.infer<typeof salaryStructureQuerySchema>;
 export type PayrollReportQuery = z.infer<typeof payrollReportQuerySchema>;
 export type PayrollReportKind = (typeof PAYROLL_REPORTS)[number];

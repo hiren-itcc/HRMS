@@ -84,15 +84,32 @@ the identifier appears nowhere outside generated Prisma output.
 Code that exists, passes tests, and cannot be invoked by a user. Cheaper to
 finish than to build, and each is currently paying maintenance for nothing.
 
-### Payroll adjustments — the largest one
+### ~~Payroll adjustments — the largest one~~ ✅ **built**
 
-`payroll.calc.ts` fully implements one-off bonuses, incentives and loan
-recovery, with 12 dedicated passing tests at `payroll.calc.spec.ts:211-240`.
-`payroll-runs.service.ts:262` hardcodes `adjustments: []`.
+`payroll.calc.ts` fully implemented one-off bonuses, incentives and loan
+recovery, with 12 dedicated passing tests, and `payroll-runs.service.ts`
+hardcoded `adjustments: []`. There was no endpoint, no DTO and no table to enter
+one, so the whole feature was finished and unreachable.
 
-There is no endpoint, no DTO and no table to enter one. `11:82-86` lists loans,
-bonuses and reimbursements as deferred "plugs in as an adjustment" work — the
-engine side is already done.
+Now a `PayrollAdjustment` table, three endpoints and a panel on the run screen.
+Notes worth keeping:
+
+- An adjustment belongs to the **month**, not the run, so deleting and
+  recalculating a run keeps it. Calculation is destructive by design.
+- Unique per `(employee, month, component)`. Two "Bonus" rows would print two
+  payslip lines with the same code and no way to tell them apart, so entering
+  the same one twice raises the figure instead of failing.
+- The amount is always positive; whether it adds or subtracts comes from the
+  component's kind, so a negative bonus cannot be typed by accident.
+- Statutory and employer-cost components are refused — PF is computed from
+  settings, and a hand-entered PF line would disagree with the rules that
+  produced it.
+- Refused once the month is locked or published, the same rule salary revisions
+  follow.
+
+This also unblocked most of `11:82-86`: bonuses and incentives are done, and
+loans and reimbursements can be entered per month — what is still missing is the
+EMI *schedule* and the reimbursement approval flow, not the payslip line.
 
 ### Everything else
 
@@ -324,22 +341,26 @@ which other documents were citing.
 
 ### P1 — promised, small, and mostly already half-built
 
-6. **Session list and revoke** + `/profile/sessions`. `RefreshSession` holds
-   everything needed. — new routes in `auth.controller.ts`, one page
-7. **Prune expired refresh sessions.** Nothing deletes them today.
-8. **Offboarding** — endpoint, `ON_NOTICE`, exit date, consequences dialog.
-   Retires a dead permission and a dead enum member at the same time.
-9. **Wire the four orphaned endpoints** — folder rename, unassign salary,
-   employee attendance tab, announcement permalink. Client methods already
-   exist; each needs a button.
-10. **Structure deactivation** — the UI already tells users to do it.
-11. **Emergency contacts** on the profile screen — table and seed data exist,
+6. ~~**Session list and revoke** + `/profile/sessions`.~~ ✅ `fb392ed`
+7. ~~**Prune expired refresh sessions.**~~ ✅ `fb392ed` — done where the growth
+   happens rather than on a timer, so the no-scheduler design holds.
+8. ~~**Wire the four orphaned endpoints**~~ ✅ `1efa22b` — folder rename,
+   salary-revision delete, employee attendance card, announcement permalink.
+9. ~~**Structure deactivation**~~ ✅ `1efa22b`
+10. ~~**Payroll adjustments**~~ ✅ — the engine was already written and tested;
+    it needed a table, three endpoints and a panel.
+
+**Still open:**
+
+11. **Offboarding** — endpoint, `ON_NOTICE`, exit date, consequences dialog.
+    Retires a dead permission and a dead enum member at the same time.
+12. **Emergency contacts** on the profile screen — table and seed data exist,
     nothing reads them.
-12. **Payroll adjustments** — expose the engine that is already written and
-    tested. Unblocks bonuses, loans and reimbursements from `11:82-86`.
 13. **Org chart** — `managerId` is populated and cycle-checked.
 14. **Frontend tests.** Zero exist. Start with the five golden flows in `09:64`
     rather than chasing coverage.
+15. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
+    sent by anything.
 
 ### P2 — market table stakes
 

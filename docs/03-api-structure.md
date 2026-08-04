@@ -208,6 +208,9 @@ endpoint — it is the same query surface.
 | GET | `/payroll/salaries/me` · `/payroll/salaries/:employeeId` — revision timeline | `payroll.read.own` (+ scope) |
 | POST | `/payroll/salaries` — assign or revise | `payroll.salary.manage` |
 | DELETE | `/payroll/salaries/:id` — only if no settled payroll depends on it | `payroll.salary.manage` |
+| GET | `/payroll/adjustments?month=&employeeId=` — one-offs for a month | `payroll.read` \| `payroll.process` |
+| POST | `/payroll/adjustments` — set a bonus, incentive or recovery | `payroll.process` |
+| DELETE | `/payroll/adjustments/:id` — before the month is settled | `payroll.process` |
 | GET / POST | `/payroll/runs` · GET `/payroll/runs/:id` | `payroll.read` / `payroll.process` |
 | GET | `/payroll/runs/:id/preflight` — what would block calculation | `payroll.process` |
 | POST | `/payroll/runs/:id/actions` — every state transition | per action (below) |

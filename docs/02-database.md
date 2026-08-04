@@ -674,6 +674,33 @@ model Notification {
   @@index([userId, readAt])
 }
 
+// A one-off amount for one employee in one month: bonus, incentive, loan
+// instalment. Belongs to the month rather than the run, because calculation is
+// destructive — deleting and rebuilding a run must not lose them.
+//
+// Unique per (employee, month, component): two "Bonus" rows would print two
+// payslip lines with the same code and no way to tell them apart, so setting
+// the same one twice raises the figure. The amount is always positive; the
+// component's kind decides whether it adds or subtracts.
+model PayrollAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  employeeId     String
+  month          String                   // yyyy-MM, matching PayrollRun.month
+  componentId    String
+  amount         Decimal  @db.Decimal(14, 2)
+  note           String?                  // for whoever approves the run
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  component PayComponent @relation(fields: [componentId], references: [id])
+
+  @@unique([employeeId, month, componentId])
+  @@index([organizationId, month])
+}
+
 // ─── Onboarding ───────────────────────────────────────────────────────
 // The path a new hire takes: invited by email, fills in their own details,
 // HR reviews, account becomes usable. Doc 03 has the endpoints, doc 07 the

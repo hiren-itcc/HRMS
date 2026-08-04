@@ -81,9 +81,9 @@ scoped and unblocked, since the calculation engine already accepts an
 
 | Deferred | Why it can wait |
 |---|---|
-| Loans & advances (EMI schedules, outstanding balance) | Plugs in as a deduction adjustment; the negative-net guard already handles the month an EMI exceeds pay |
-| Bonuses & incentives (fixed or percentage) | Plugs in as an earning adjustment, already deliberately not prorated |
-| Reimbursements (requested → approved → paid) | An earning adjustment with its own approval flow; the component exists and is marked non-taxable |
+| ~~Bonuses & incentives~~ | ✅ **Shipped.** Entered per employee per month on the run screen; not prorated, because a bonus is a bonus however much of the month was worked. |
+| Loans & advances (EMI schedules, outstanding balance) | **Half shipped.** A single instalment can be entered as a deduction adjustment and the negative-net guard handles the month an EMI exceeds pay. What is missing is the *schedule*: an outstanding balance that draws down by itself rather than being typed in each month. |
+| Reimbursements (requested → approved → paid) | **Half shipped.** The amount can be entered as a non-taxable earning adjustment. Missing is the request-and-approve flow in front of it. |
 | **Arrears** from a back-dated revision after a locked month | Genuinely hard: needs a recalculation diff against a settled run. Today a revision into a locked month is refused rather than silently wrong |
 | **Full-and-final settlement** on exit | Leave encashment + notice recovery + gratuity; a module-sized problem of its own |
 | TDS projection (regimes, declarations, Form 16) | A tax engine, not a payroll feature. Monthly TDS is entered per employee until then |

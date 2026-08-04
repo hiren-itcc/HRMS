@@ -25,6 +25,7 @@ import { type Column, DataTable } from '@/components/data-table';
 import { ErrorState } from '@/components/error-state';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, formatMonth, payrollApi, payrollKeys } from '@/features/payroll/api';
+import { AdjustmentsPanel } from '@/features/payroll/components/adjustments-panel';
 import { PaymentStatusBadge, RunStatusBadge } from '@/features/payroll/components/status-badge';
 import type { PayslipRow, RunStatus } from '@/features/payroll/types';
 import { useListParams } from '@/hooks/use-list-params';
@@ -342,6 +343,17 @@ export default function PayrollRunPage() {
             cannot be included in a bank transfer file.
           </AlertDescription>
         </Alert>
+      )}
+
+      {can('payroll.read') && (
+        <AdjustmentsPanel
+          month={current.month}
+          // Mirrors the API rather than replacing it: a settled month refuses
+          // the write, so the panel does not offer a button that would 400.
+          editable={
+            can('payroll.process') && current.status !== 'LOCKED' && current.status !== 'PUBLISHED'
+          }
+        />
       )}
 
       {selected.size > 0 && (
