@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import type { Env } from '../../config/env';
-import { StorageService } from '../documents/storage.service';
 import { AnnouncementsController } from './announcements.controller';
 import { AnnouncementsService } from './announcements.service';
 
@@ -17,6 +16,6 @@ import { AnnouncementsService } from './announcements.service';
     }),
   ],
   controllers: [AnnouncementsController],
-  providers: [AnnouncementsService, StorageService],
+  providers: [AnnouncementsService],
 })
 export class AnnouncementsModule {}

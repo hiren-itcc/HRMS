@@ -12,7 +12,7 @@ import type { Env } from '../../config/env';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { ALLOWED_MIME } from '../documents/documents.service';
-import { StorageService } from '../documents/storage.service';
+import { StorageService } from '../storage/storage.service';
 import { isVisibleTo } from './announcements.util';
 
 const INCLUDE = {
@@ -342,7 +342,12 @@ export class AnnouncementsService {
         `File is too large — the limit is ${Math.round(this.maxBytes / 1024 / 1024)} MB`,
       );
     }
-    const fileKey = await this.storage.put(claims.orgId, file.originalname, file.buffer);
+    const fileKey = await this.storage.put(
+      claims.orgId,
+      file.originalname,
+      file.buffer,
+      file.mimetype,
+    );
     const row = await this.prisma.announcementAttachment.create({
       data: {
         announcementId: id,
@@ -386,7 +391,7 @@ export class AnnouncementsService {
     });
     if (!attachment) throw new NotFoundException('Attachment not found');
     await this.detail(claims, attachment.announcementId);
-    return { attachment, stream: this.storage.stream(attachment.fileKey) };
+    return { attachment, stream: await this.storage.stream(attachment.fileKey) };
   }
 
   // ── helpers ───────────────────────────────────────────────────────────

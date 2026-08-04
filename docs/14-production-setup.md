@@ -300,19 +300,35 @@ deploy job itself is a placeholder that prints a message. It needs
 `DEPLOY_HOST`/`DEPLOY_KEY` secrets and a real step. **Deployment is currently
 manual.**
 
-### MinIO is provisioned but unused
+### File storage — resolved, and how to configure it
 
-`docker/compose.yaml` starts MinIO, but the application has no S3 client — file
-storage writes to local disk at `UPLOAD_DIR`. The container is a placeholder for
-future work. Consequence: **`UPLOAD_DIR` must be on persistent storage**, or
-every uploaded document is lost on redeploy.
+Uploaded documents used to go to local disk only, which meant `UPLOAD_DIR` had
+to be persistent or every document vanished on redeploy. That is fixed: the
+storage port now has two adapters and picks between them from configuration
+(`apps/api/src/modules/storage/`).
+
+| | when | notes |
+|---|---|---|
+| Supabase Storage | `SUPABASE_URL` **and** `SUPABASE_SERVICE_ROLE_KEY` are both set | the production path — the API is stateless, so no persistent disk |
+| Local disk | otherwise | development and CI, which have no credentials and no network |
+
+Two rules for the Supabase side:
+
+- **The bucket must be private.** Files are streamed through the API so
+  `ensureEmployeeAccess` still decides who may read a document. A public or
+  signed URL handed to the browser would route around it.
+- **It is the `service_role` key, not the anon key**, and it bypasses row-level
+  security — so it belongs to the API's environment only and must never be
+  built into the web app.
+
+MinIO in `docker/compose.yaml` is now genuinely unused and can be removed from
+the compose file whenever someone is tidying.
 
 ### `.env.example` is inaccurate
 
 - It documents `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. **No code reads
   either.** They are left over from an earlier design; the working variables are
   the `BOOTSTRAP_*` ones in section 4.
-- It omits `UPLOAD_DIR` and `MAX_UPLOAD_MB`, which the app does read.
 
 ### No `docker/.env.example`
 

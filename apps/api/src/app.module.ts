@@ -26,6 +26,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     ReportsModule,
     PayrollModule,
     SettingsModule,
+    StorageModule,
     AuditModule,
     RbacModule,
   ],

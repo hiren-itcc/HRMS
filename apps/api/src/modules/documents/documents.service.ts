@@ -12,8 +12,8 @@ import { toPaginated } from '../../common/utils/list-query';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { StorageService } from '../storage/storage.service';
 import { DocumentCategoriesService } from './document-categories.service';
-import { StorageService } from './storage.service';
 
 /** Whitelist per the module spec: PDF, DOCX, images. */
 export const ALLOWED_MIME: Record<string, string> = {
@@ -123,7 +123,12 @@ export class DocumentsService {
       );
     }
 
-    const fileKey = await this.storage.put(claims.orgId, file.originalname, file.buffer);
+    const fileKey = await this.storage.put(
+      claims.orgId,
+      file.originalname,
+      file.buffer,
+      file.mimetype,
+    );
     const doc = await this.prisma.document.create({
       data: {
         organizationId: claims.orgId,
@@ -154,7 +159,9 @@ export class DocumentsService {
     });
     if (!doc?.employeeId) throw new NotFoundException('Document not found');
     await this.ensureEmployeeAccess(claims, doc.employeeId, 'read');
-    return { doc, stream: this.storage.stream(doc.fileKey) };
+    // Awaited now that reading may be a network call; the controller still
+    // just hands this to StreamableFile.
+    return { doc, stream: await this.storage.stream(doc.fileKey) };
   }
 
   /** Refiles a document into another folder (or out of all folders). */
