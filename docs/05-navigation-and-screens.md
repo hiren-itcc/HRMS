@@ -87,7 +87,7 @@ Rows struck through or marked **not built** are the gap between this list and
 | 9 | Add employee | `/employees/new` | Single form, not a stepper. Creates the record and, by default, a login on the shared default password (doc 07) |
 | 10 | Employee detail | `/employees/:id` | Contact, job, role, invite state, bank, documents, letters, direct reports. **No attendance or leave tab** — the endpoint for it exists and nothing calls it |
 | 11 | Edit employee | `/employees/:id/edit` | HR fields; audit note on save |
-| 12 | ~~Offboard dialog~~ | — | **Not built.** Deleting an employee is a soft delete with a confirmation |
+| 12 | Offboard dialog | (modal on screen 10) | On notice / exited / withdraw a resignation, with an exit date and the consequences listed. Distinct from Delete, which archives the record |
 | 13 | My profile | `/profile` | Self-editable subset: phone, personal email, address. **Emergency contacts are not built** |
 | 14 | My sessions | `/profile/sessions` | Devices still able to refresh, newest first, with the current one marked; sign out any of them. Reached from the avatar menu |
 

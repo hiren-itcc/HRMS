@@ -56,11 +56,23 @@ allowed and clears the cookie with it.
 | DELETE | `/employees/:id` — soft delete (Admin only) |
 | GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, personal email, address) |
 
-**Not built:** `POST /employees/:id/offboard` and `GET /employees/:id/reports`
-were specified here and never implemented. Offboarding today is the soft delete
-above; direct reports come back on the employee detail response. Emergency
-contacts are not on `/me/profile` — the table exists and nothing reads it
-([15-feature-audit.md](./15-feature-audit.md)).
+| POST | `/employees/:id/offboard` — put on notice, mark exited, or withdraw a resignation; `employee.offboard` |
+
+**Offboarding is not deletion.** `DELETE` archives a record that should not have
+existed; offboarding records that somebody left, and keeps everything. Only
+`EXITED` touches the sign-in (suspended, sessions revoked) — `ON_NOTICE` leaves
+it alone, because somebody working their notice is still an employee.
+`ACTIVE` withdraws a resignation and revives a login **only** from `SUSPENDED`,
+never from `INVITED`.
+
+`exitDate` is the mechanism; `status` is the label. Attendance, payroll and
+reports all filter on the date, which is why an employee who leaves mid-month
+still gets their final part-month payslip.
+
+**Not built:** `GET /employees/:id/reports` was specified here and never
+implemented — direct reports come back on the employee detail response.
+Emergency contacts are not on `/me/profile`; the table exists and nothing reads
+it ([15-feature-audit.md](./15-feature-audit.md)).
 
 ### Onboarding (`/employees/onboard`, `/onboarding`, `/me/onboarding`)
 

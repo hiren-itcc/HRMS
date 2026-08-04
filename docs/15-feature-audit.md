@@ -3,11 +3,10 @@
 Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
 web pages, the 54-permission catalogue and docs 00–14.
 
-> **Status:** every **P0** item is done — the documentation no longer describes
-> features that do not exist, and the onboarding module is specified. **P1 is in
-> progress**: session pruning and session management are built; payroll
-> adjustments, offboarding and the org chart are still open. Items struck
-> through below are fixed.
+> **Status:** every **P0** item is done, and **6 of 9 P1 items**. Built so far:
+> session pruning, session management, the four orphaned endpoints, structure
+> deactivation, payroll adjustments and offboarding. Still open: emergency
+> contacts, the org chart, frontend tests. Items struck through below are fixed.
 
 ## How to read this
 
@@ -67,7 +66,7 @@ the identifier appears nowhere outside generated Prisma output.
 | **Domain events / `EventEmitter2`, `events.ts` per module** | `08:36`, `08:53-59` | **Verified absent.** `@nestjs/event-emitter` is not a dependency. |
 | **Frontend tests** — Vitest, Testing Library, MSW, and 5 golden Playwright flows | `09:60-66`; a sprint-exit criterion five times in `11` | **Verified absent.** Zero test files under `apps/web` or `packages/ui`. All 468 tests are API unit tests. |
 | ~~**Session management**~~ | `03:26`, `07:41`, `05:66` | ✅ **Built.** `GET /auth/sessions`, `DELETE /auth/sessions/:id` and `/profile/sessions`, linked from the avatar menu. |
-| **Offboarding** — endpoint, dialog listing consequences, `ON_NOTICE` transition | `03:46`, `05:64`, `12:118-120` | **Verified absent.** `employee.offboard` is granted to HR and **enforced nowhere**. `DELETE /employees/:id` uses `employee.delete` instead. |
+| ~~**Offboarding**~~ | `03:46`, `05:64`, `12:118-120` | ✅ **Built.** `POST /employees/:id/offboard` plus the screen-12 dialog. Retires the dead `employee.offboard` permission and gives `EmployeeStatus.ON_NOTICE` its first meaning. |
 | **Org chart** — `GET /organization/chart`, screen 16 collapsible tree | `03:36`, `05:72` | Found nothing. The data exists (`managerId`, and a flat direct-reports list renders at `employees/[id]/page.tsx:499`). |
 | `GET /employees/:id/reports` | `03:47` | Found nothing. Manager scoping exists via the list filter; the named endpoint does not. |
 | **Company-wide documents** and `Document.visibility` | `02:500-514` | **Verified absent.** The enum is dead. Doc 02 self-declares this at `:512-514`. |
@@ -130,7 +129,7 @@ as though it describes enforcement, when for these three rows it does not.
 
 | Permission | Granted to | Reality |
 |---|---|---|
-| `employee.offboard` | Admin, HR | No offboarding feature exists. |
+| ~~`employee.offboard`~~ | Admin, HR | ✅ Now enforced on `POST /employees/:id/offboard`. |
 | `attendance.manage` | Admin, HR | Shifts CRUD lives under `organization/shifts` and is gated by `org.manage`. |
 | `employee.update.own` | everyone | `PATCH /me/profile` has no `@RequirePermissions` and never checks it; self-scoping comes from the JWT subject. |
 
@@ -144,7 +143,7 @@ as though it describes enforcement, when for these three rows it does not.
 | `Department.headId` | `:146` | Read by the department report, **never written** — no create/update schema accepts it. In any non-seeded tenant the report's "Head" column is permanently `—`. |
 | `LocationVerification.OUTSIDE` / `.NOT_APPLICABLE` | `:441`, `:445` | Never produced. `NOT_APPLICABLE` is still the column default, so the default writes a value nothing generates. |
 | `AttendanceSource.MOBILE` / `.IMPORT` | `:356-357` | Never written. |
-| `EmployeeStatus.ON_NOTICE` | `:242` | Settable, but no logic branches on it — behaves identically to `ACTIVE`. |
+| ~~`EmployeeStatus.ON_NOTICE`~~ | `:242` | ✅ Now set by offboarding. It still behaves like `ACTIVE` in every filter, and that is correct — somebody serving notice is still an employee. `exitDate` is what changes behaviour. |
 
 ---
 
@@ -350,10 +349,12 @@ which other documents were citing.
 10. ~~**Payroll adjustments**~~ ✅ — the engine was already written and tested;
     it needed a table, three endpoints and a panel.
 
+11. ~~**Offboarding**~~ ✅ — `POST /employees/:id/offboard` and the screen-12
+    dialog. Retired the dead `employee.offboard` permission and gave
+    `ON_NOTICE` its first meaning.
+
 **Still open:**
 
-11. **Offboarding** — endpoint, `ON_NOTICE`, exit date, consequences dialog.
-    Retires a dead permission and a dead enum member at the same time.
 12. **Emergency contacts** on the profile screen — table and seed data exist,
     nothing reads them.
 13. **Org chart** — `managerId` is populated and cycle-checked.

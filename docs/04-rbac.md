@@ -126,7 +126,7 @@ is *enforced*, but three are granted to somebody and read by nothing:
 
 | Code | Why it is inert |
 |---|---|
-| `employee.offboard` | There is no offboarding endpoint. `DELETE /employees/:id` — a soft delete — is gated on `employee.delete` instead. |
+| ~~`employee.offboard`~~ | ✅ Now enforced on `POST /employees/:id/offboard`. |
 | `attendance.manage` | Shifts turned out to belong to company setup, not attendance: they live at `organization/shifts` behind `org.manage`. Nothing else claimed the code. |
 | `employee.update.own` | `PATCH /me/profile` carries no `@RequirePermissions`. Self-scope comes from the JWT subject, which is stronger — there is no id to tamper with. |
 

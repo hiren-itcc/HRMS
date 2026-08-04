@@ -328,8 +328,14 @@ model Employee {
 enum Gender { MALE FEMALE OTHER PREFER_NOT_TO_SAY }
 
 // ONBOARDING sorts first on purpose: "not yet started" before "working".
-// ON_NOTICE is settable but nothing branches on it — every scope filter treats
-// it exactly like ACTIVE, because offboarding was never built (doc 15).
+//
+// ON_NOTICE deliberately behaves exactly like ACTIVE everywhere: somebody
+// working their notice period still clocks in, books leave and is paid. It is
+// exitDate, not status, that changes what the system does — attendance asks
+// isEmployedOn(date, window), payroll includes anyone whose exit falls inside
+// the month so the final part-month is paid, and reports span anyone employed
+// for part of the range. Excluding EXITED from those filters would lose people
+// exactly the history they exist to show.
 enum EmployeeStatus { ONBOARDING ACTIVE ON_NOTICE EXITED }
 
 // EmploymentType is a TABLE, above — full-time, contract and intern are things
