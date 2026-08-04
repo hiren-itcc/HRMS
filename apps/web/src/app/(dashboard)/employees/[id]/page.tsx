@@ -38,7 +38,7 @@ import {
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Landmark, Pencil, ShieldAlert, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Landmark, Pencil, Phone, ShieldAlert, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -503,6 +503,40 @@ function EmployeeDetailView() {
               </CardHeader>
               <CardContent>
                 <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+              </CardContent>
+            </Card>
+          </FadeInItem>
+        )}
+
+        {/*
+          Shown to anyone who can open this record, not gated further. An
+          emergency contact that only HR can reach is not much use on the day it
+          is needed, and it is three fields the person volunteered for exactly
+          this purpose.
+        */}
+        {e.emergencyContacts.length > 0 && (
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="size-4 text-muted-foreground" aria-hidden /> Emergency contacts
+                </CardTitle>
+                <CardDescription>Who to call if something happens at work</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="divide-y">
+                  {e.emergencyContacts.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-sm">{c.name}</p>
+                        <p className="truncate text-muted-foreground text-xs">{c.relation}</p>
+                      </div>
+                      <a href={`tel:${c.phone}`} className="shrink-0 text-sm hover:underline">
+                        {c.phone}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           </FadeInItem>

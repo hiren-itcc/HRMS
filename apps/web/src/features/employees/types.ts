@@ -58,6 +58,8 @@ export interface EmployeeDetail extends EmployeeListItem {
     employeeCode: string;
     designation: { title: string } | null;
   }[];
+  /** Who to call if something happens at work. Visible to the employee and HR. */
+  emergencyContacts: { id: string; name: string; relation: string; phone: string }[];
   user: {
     id: string;
     email: string;

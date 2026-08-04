@@ -199,6 +199,21 @@ export const bankDetailSchema = z.object({
 });
 export type BankDetailInput = z.infer<typeof bankDetailSchema>;
 
+/**
+ * Who to call if something happens to this person at work.
+ *
+ * Deliberately three loose fields. "Relation" is free text rather than an enum
+ * because the list that covers everybody is not a list — partner, neighbour,
+ * the friend with the spare key — and an enum here would force somebody to
+ * misfile the person they actually want called.
+ */
+export const emergencyContactSchema = z.object({
+  name: trimmed(80).min(1, 'Name is required'),
+  relation: trimmed(40).min(1, 'Relation is required'),
+  phone: trimmed(20).min(1, 'Phone is required'),
+});
+export type EmergencyContactInput = z.infer<typeof emergencyContactSchema>;
+
 /** Subset an employee may edit about themselves (docs/03 — /me/profile). */
 export const selfProfileUpdateSchema = z.object({
   phone: optionalStr(20),
@@ -206,5 +221,14 @@ export const selfProfileUpdateSchema = z.object({
   addressLine: optionalStr(200),
   city: optionalStr(80),
   country: optionalStr(80),
+  /**
+   * Replace-all, and omitting the key leaves the existing contacts alone.
+   *
+   * A list this short (two or three rows, edited once a year) is not worth
+   * three more endpoints and a per-row id the client has to track. Sending the
+   * whole set makes "I removed my ex-partner" a single atomic write rather than
+   * a delete that can half-succeed.
+   */
+  emergencyContacts: z.array(emergencyContactSchema).max(5).optional(),
 });
 export type SelfProfileUpdateInput = z.infer<typeof selfProfileUpdateSchema>;

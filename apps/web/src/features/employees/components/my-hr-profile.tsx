@@ -13,9 +13,9 @@ import {
 import { Input } from '@hrms/ui/components/input';
 import { Separator } from '@hrms/ui/components/separator';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BriefcaseBusiness, Loader2 } from 'lucide-react';
+import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Field } from '@/components/field';
 import { meApi } from '@/features/employees/api';
@@ -60,15 +60,22 @@ export function MyHrProfile() {
         addressLine: e.addressLine ?? '',
         city: e.city ?? '',
         country: e.country ?? '',
+        emergencyContacts: e.emergencyContacts?.map((c) => ({
+          name: c.name,
+          relation: c.relation,
+          phone: c.phone,
+        })),
       });
     }
   }, [profile.data, form]);
+
+  const contacts = useFieldArray({ control: form.control, name: 'emergencyContacts' });
 
   const save = useMutation({
     mutationFn: meApi.updateProfile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me-profile'] });
-      toast.success('Contact details saved');
+      toast.success('Profile saved');
     },
     onError: () => toast.error('Could not save. Try again.'),
   });
@@ -127,9 +134,90 @@ export function MyHrProfile() {
               </Field>
             </div>
             <Separator />
+
+            {/*
+              In the same form, and saved by the same button, because the API
+              takes the whole set in one patch. Two Save buttons on one card
+              invites saving one half and walking away from the other.
+            */}
+            <div>
+              <h3 className="font-medium text-sm">Emergency contacts</h3>
+              <p className="mt-0.5 text-muted-foreground text-sm">
+                Who we call if something happens to you at work. HR can see these — that is the
+                point of them.
+              </p>
+
+              <div className="mt-3 space-y-3">
+                {contacts.fields.map((field, i) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    <div className="grid flex-1 gap-2 sm:grid-cols-3">
+                      <Field
+                        label="Name"
+                        error={form.formState.errors.emergencyContacts?.[i]?.name?.message}
+                      >
+                        {(a11y) => (
+                          <Input {...a11y} {...form.register(`emergencyContacts.${i}.name`)} />
+                        )}
+                      </Field>
+                      <Field
+                        label="Relation"
+                        error={form.formState.errors.emergencyContacts?.[i]?.relation?.message}
+                      >
+                        {(a11y) => (
+                          <Input
+                            {...a11y}
+                            placeholder="Spouse, parent, friend…"
+                            {...form.register(`emergencyContacts.${i}.relation`)}
+                          />
+                        )}
+                      </Field>
+                      <Field
+                        label="Phone"
+                        error={form.formState.errors.emergencyContacts?.[i]?.phone?.message}
+                      >
+                        {(a11y) => (
+                          <Input
+                            {...a11y}
+                            type="tel"
+                            {...form.register(`emergencyContacts.${i}.phone`)}
+                          />
+                        )}
+                      </Field>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="mb-1 text-destructive hover:text-destructive"
+                      aria-label={`Remove emergency contact ${i + 1}`}
+                      onClick={() => contacts.remove(i)}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  </div>
+                ))}
+
+                {contacts.fields.length === 0 && (
+                  <p className="text-muted-foreground text-sm">None recorded yet.</p>
+                )}
+
+                {contacts.fields.length < 5 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => contacts.append({ name: '', relation: '', phone: '' })}
+                  >
+                    <Plus className="size-4" aria-hidden /> Add a contact
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Separator />
             <Button type="submit" size="sm" disabled={save.isPending || !form.formState.isDirty}>
               {save.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-              Save contact details
+              Save changes
             </Button>
           </form>
         </div>

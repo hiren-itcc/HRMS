@@ -402,3 +402,58 @@ describe('EmployeesService.offboard', () => {
     ).rejects.toThrow(/only active administrator/i);
   });
 });
+
+describe('EmployeesService.updateMyProfile — emergency contacts', () => {
+  const self = claims({ sub: 'u1', employeeId: 'e1', perms: [] });
+
+  function arrange() {
+    const { service, prisma } = makeService();
+    const tx = {
+      employee: { update: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      emergencyContact: { deleteMany: jest.fn(), createMany: jest.fn() },
+    };
+    (prisma.$transaction as Mock).mockImplementation(async (arg: unknown) =>
+      typeof arg === 'function' ? (arg as (t: unknown) => unknown)(tx) : Promise.all(arg as []),
+    );
+    return { service, prisma, tx };
+  }
+
+  it('replaces the whole set when contacts are sent', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, {
+      emergencyContacts: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002' }],
+    } as never);
+
+    expect(tx.emergencyContact.deleteMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' } });
+    expect(tx.emergencyContact.createMany).toHaveBeenCalledWith({
+      data: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002', employeeId: 'e1' }],
+    });
+  });
+
+  it('leaves existing contacts alone when the key is omitted', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, { phone: '+91 90000 00000' } as never);
+
+    // A patch that only changes a phone number must not wipe next of kin.
+    expect(tx.emergencyContact.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('an explicit empty list clears them, without a pointless createMany', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, { emergencyContacts: [] } as never);
+
+    expect(tx.emergencyContact.deleteMany).toHaveBeenCalled();
+    expect(tx.emergencyContact.createMany).not.toHaveBeenCalled();
+  });
+
+  it('never writes the contacts themselves into the audit row', async () => {
+    const { service, prisma } = arrange();
+    await service.updateMyProfile(self, {
+      emergencyContacts: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002' }],
+    } as never);
+
+    const logged = JSON.stringify((prisma.auditLog.create as Mock).mock.calls[0]?.[0] ?? {});
+    expect(logged).not.toContain('Nisha');
+    expect(logged).not.toContain('98250');
+  });
+});

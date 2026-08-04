@@ -49,6 +49,15 @@ const DETAIL_INCLUDE = {
   user: {
     select: { id: true, email: true, status: true, role: { select: { id: true, code: true } } },
   },
+  /*
+   * Visible to HR on the employee record, not only to the person themselves.
+   * That is the entire point of the data: somebody has to be able to find it
+   * on the day it is needed, and that day is not one where the employee is
+   * available to look it up.
+   */
+  emergencyContacts: {
+    select: { id: true, name: true, relation: true, phone: true },
+  },
 } as const;
 
 type Ctx = { orgId: string; userId: string; employeeId?: string; perms: Set<string> };
@@ -521,16 +530,39 @@ export class EmployeesService {
   async updateMyProfile(claims: AccessTokenClaims, input: SelfProfileUpdateInput) {
     if (!claims.employeeId)
       throw new NotFoundException('No employee record linked to this account');
-    const employee = await this.prisma.employee.update({
-      where: { id: claims.employeeId },
-      data: input,
+    const { emergencyContacts, ...fields } = input;
+    const employeeId = claims.employeeId;
+
+    /*
+     * Replace-all, inside a transaction. Deleting then recreating outside one
+     * would leave somebody with no emergency contact at all if the second half
+     * failed — the one state this data exists to prevent.
+     *
+     * Omitting the key entirely leaves the existing rows alone, so a patch that
+     * only changes a phone number does not silently wipe them.
+     */
+    const employee = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.employee.update({ where: { id: employeeId }, data: fields });
+      if (emergencyContacts) {
+        await tx.emergencyContact.deleteMany({ where: { employeeId } });
+        if (emergencyContacts.length > 0) {
+          await tx.emergencyContact.createMany({
+            data: emergencyContacts.map((c) => ({ ...c, employeeId })),
+          });
+        }
+      }
+      return updated;
     });
+
     await auditMutation(
       this.prisma,
       ctxOf(claims),
       'employee.profile.self_update',
       'Employee',
       employee.id,
+      // The contacts themselves are not logged — an audit row is not the place
+      // to keep a copy of somebody's next of kin. The count says enough.
+      emergencyContacts ? { after: { emergencyContacts: emergencyContacts.length } } : undefined,
     );
     return employee;
   }
