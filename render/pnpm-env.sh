@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
 #
-# Puts the pnpm pinned by package.json's `packageManager` on PATH.
+# Puts the pnpm named by package.json's `packageManager` on PATH.
 #
-# `corepack enable` on its own fails on Render:
+# Two things ruled out corepack, in order:
 #
 #   Internal Error: EROFS: read-only file system, unlink '/usr/bin/pnpm'
 #
-# The image already ships a pnpm there and corepack's default is to replace the
-# shim next to its own binary, which is on a read-only layer. Installing the
-# shims into the build workspace instead sidesteps it, and has the better
-# property anyway: the pnpm that runs is the one the lockfile was written by,
-# rather than whichever version the base image happens to carry. That matters
-# because --frozen-lockfile fails outright on a lockfileVersion it does not
-# recognise.
+# Render's image ships a pnpm there and corepack installs its shims beside its
+# own binary, on a read-only layer. Redirecting the shims to a writable
+# directory fixed that and produced the next one:
+#
+#   Error: EEXIST: rename '.corepack/v1/corepack-73-…' -> '.corepack/v1/pnpm/11.14.0'
+#
+# corepack unpacks to a temporary path and renames it into place, which fails
+# when the destination survives from an earlier build in Render's restored
+# cache. So corepack needs its cache to be either always warm or always cold,
+# and Render guarantees neither.
+#
+# npm into a project-local prefix has no such state: it is the same operation
+# whether the directory is empty or already populated.
 #
 set -euo pipefail
 
-# Non-interactive: without this corepack prompts before downloading, and a
-# prompt in a build with no tty is a hang, not an error.
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-export COREPACK_HOME="${PWD}/.corepack"
+# One source of truth — `packageManager` is what the lockfile was written by,
+# and --frozen-lockfile fails on a lockfileVersion pnpm does not recognise.
+PNPM_VERSION="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+PNPM_PREFIX="${PWD}/.render-pnpm"
 
-mkdir -p "${PWD}/.pnpm-bin"
-corepack enable --install-directory "${PWD}/.pnpm-bin"
-export PATH="${PWD}/.pnpm-bin:${PATH}"
+npm install --global --no-fund --no-audit --prefix "${PNPM_PREFIX}" "pnpm@${PNPM_VERSION}"
+export PATH="${PNPM_PREFIX}/bin:${PATH}"
 
 echo "==> node $(node --version), pnpm $(pnpm --version)"
