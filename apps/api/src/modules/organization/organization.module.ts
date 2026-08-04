@@ -12,6 +12,7 @@ import { DesignationsService } from './services/designations.service';
 import { EmploymentTypesService } from './services/employment-types.service';
 import { HolidaysService } from './services/holidays.service';
 import { LocationsService } from './services/locations.service';
+import { OrgChartService } from './services/org-chart.service';
 import { ShiftsService } from './services/shifts.service';
 
 /**
@@ -31,6 +32,7 @@ import { ShiftsService } from './services/shifts.service';
   ],
   providers: [
     CompanyService,
+    OrgChartService,
     DepartmentsService,
     DesignationsService,
     EmploymentTypesService,

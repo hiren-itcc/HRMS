@@ -54,8 +54,23 @@ function crudApi<TRow, TCreate, TUpdate>(base: string): CrudApi<TRow, TCreate, T
   };
 }
 
+export interface OrgChartNode {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  designation: string | null;
+  department: string | null;
+  avatarUrl: string | null;
+  /** Everybody below them, not just direct reports. */
+  totalReports: number;
+  reports: OrgChartNode[];
+}
+
 export const companyApi = {
   get: () => api<Company>('/organization'),
+  /** The reporting tree. Several roots are normal — see the service. */
+  chart: () => api<{ roots: OrgChartNode[]; total: number }>('/organization/chart'),
   update: (input: CompanyUpdateInput) =>
     api<Company>('/organization', { method: 'PATCH', body: JSON.stringify(input) }),
 };
