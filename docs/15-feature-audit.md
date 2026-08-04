@@ -3,6 +3,12 @@
 Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
 web pages, the 54-permission catalogue and docs 00–14.
 
+> **Status:** every **P0** item is done — the documentation no longer describes
+> features that do not exist, and the onboarding module is specified. Items
+> struck through below are fixed, with the commit. **P1 and beyond are open**,
+> and P1 is where the real code work is: `auth.session-prune`, payroll
+> adjustments, session revoke, offboarding.
+
 ## How to read this
 
 Two different claims appear below and they are not equally strong:
@@ -129,56 +135,75 @@ as though it describes enforcement, when for these three rows it does not.
 
 Grouped by which side needs to change, because that decides the fix.
 
-### 4a. The docs are behind — update the doc
+### 4a. The docs are behind — update the doc — ✅ **fixed**
 
-**An entire shipped module appears in no document.** Onboarding ships two tables
-(`EmployeeInvite`, `Onboarding`), 11 endpoints, three route trees, a new
-`EmployeeStatus.ONBOARDING`, a dedicated guard, and the permission
-`employee.onboarding.approve`. Docs 02, 03, 04 and 05 mention none of it. Doc
-04's catalogue is short by exactly that one permission.
+**~~An entire shipped module appears in no document.~~** ✅ *Resolved.*
+Onboarding ships two tables (`EmployeeInvite`, `Onboarding`), 11 endpoints,
+three route trees, a new `EmployeeStatus.ONBOARDING`, a dedicated guard, and the
+permission `employee.onboarding.approve`. Docs 02, 03, 04 and 05 mentioned none
+of it; all four now carry it.
 
-**The invite flow is documented two incompatible ways, and both code paths
-exist.** `07:70-73` and `12:107-109` say an account is created in the same
-transaction on a shared `DEFAULT_USER_PASSWORD` with `mustChangePassword`.
-`mail.service.ts:41-45` describes the opposite: a single-use link to the hire's
-**personal** address, and "no password is ever put in it".
-`employees.service.ts:217` still reads `DEFAULT_USER_PASSWORD`, so both are
-live — which one runs depends on whether HR used *Add employee* or *Onboard*.
-This is the most confusing thing in the repo for a newcomer.
+**~~The invite flow is documented two incompatible ways.~~** ✅ *Resolved — and
+the answer was that nothing was broken.* Both paths are live and both are
+deliberate. *Add employee* creates an ACTIVE login on `DEFAULT_USER_PASSWORD`
+with `mustChangePassword`, which is right when HR can say the password out loud
+— backfilling existing staff. *Onboard* creates no password at all (argon2 over
+32 random bytes) and emails a single-use link to the hire's **personal**
+address, because the work mailbox does not exist on day one. A third path,
+`createLogin: false`, creates no login at all, and no document mentioned it.
 
-**Doc 02 claims at `:68-69` to be "the narrative form" of the applied schema and
-has drifted on eight-plus models**, including declaring `EmploymentType` twice
-and incompatibly — as a table at `:223-230` and as an enum at `:302`. Also
-missing: `User.mustChangePassword`, `LeaveRequest.leaveYear` (which `13:141-146`
-insists is stored), `Location.type`, announcement category and priority, and the
-two onboarding tables.
+Docs 07 and 12 now describe all three and say which to use when. The defect was
+never the code — it was that the docs presented one of three as the only one,
+so the natural move with a new hire was the wrong one.
 
-### 4b. The docs are ahead — either build it or retract it
+**~~Doc 02 had drifted on eight-plus models.~~** ✅ *Resolved.* It declared
+`EmploymentType` twice and incompatibly — a table and an enum, with
+`Employee.employmentType` typed as the enum — so anyone following it would write
+a column the database does not have. Also missing were
+`User.mustChangePassword`, `LeaveRequest.leaveYear` (which `13:141-146` insists
+is stored, and is right), `Location.type`, announcement category and priority,
+and both onboarding tables. Model and enum names now diff clean both ways, and
+the page states that the schema wins where they disagree.
 
-**"Nothing is calculated overnight" (`12:174`) versus four nightly jobs
-(`08:65-68`).** The code sides with doc 12: there is no scheduler. Doc 08's jobs
-table describes a superseded design that nobody retracted. One of the four —
-`attendance.day-close` — was genuinely replaced by derive-on-read. The other
-three were not replaced by anything:
+One comment there was wrong rather than merely incomplete, and worth knowing:
+`NOT_APPLICABLE` in `LocationVerification` is **not** vestigial like `OUTSIDE`.
+It is the column default, and check-in writes only the `in*` columns — so it is
+exactly what `outVerification` holds on a session opened and not yet closed.
 
-- `leave.year-end` — balances are provisioned lazily per leave year, so this is
-  arguably covered. Worth confirming rather than assuming.
-- `auth.session-prune` — **nothing deletes expired refresh sessions.** The table
-  grows without bound.
-- `announcement.expire` — expiry is enforced in the query `where`, so the
-  behaviour is right and only the job is missing.
+### 4b. The docs are ahead — either build it or retract it — ✅ **retracted**
 
-**Notifications** (§2) is the largest example: four documents describe a feature
-with a database table and no code.
+**~~"Nothing is calculated overnight" versus four nightly jobs.~~** ✅ *Resolved,
+and the useful finding is that only one of the four is a gap.* The code sides
+with doc 12 — there is no scheduler at all. Checking each rather than retracting
+the table wholesale:
+
+- `attendance.day-close` — **superseded** by derive-on-read.
+- `announcement.expire` — **superseded**, and improved on: `publishAt`/`expiresAt`
+  are enforced in the query `where`, so an expired post is invisible the moment
+  it expires rather than up to an hour later.
+- `leave.year-end` — **superseded** by lazy per-year balance provisioning, which
+  also handles an employee joining mid-year.
+- `auth.session-prune` — **still a real gap.** Nothing deletes `RefreshSession`
+  rows. Expired sessions are refused at use, so this is unbounded storage growth
+  rather than a security hole. It is P1 below.
+
+Retracting all four would have been as wrong as leaving them: three would have
+pointed maintainers at work that duplicates the read path.
+
+**~~Notifications.~~** ✅ *Retracted* from docs 03, 05, 08, 09, the doc 01 tree
+and doc 11's "behind existing NotificationsModule". The dead table is marked as
+such in doc 02 and removed from the ER diagram. Building it is P2.
 
 ### 4c. Both are defensible; the docs describe a design that was superseded
 
-**The sidebar is specified grouped and built flat.** `05:20-39` wants
-collapsible *My Space* / *My Team* / *People* groups; `nav-items.ts:28` is a
-flat array of 11 items. Routes differ too: `/attendance/team` vs the specified
-`/team/attendance`, `/leave/settings` vs `/leave/admin`, and `/attendance/admin`
-does not exist at all. `05:81` also specifies a **unified** approvals inbox —
-leave and regularisation on one screen — where the code ships two.
+**~~The sidebar is specified grouped and built flat.~~** ✅ *Doc 05 rewritten to
+what shipped.* The nav is a flat array of 11 items from one file, and team and
+admin views are tabs inside their section. The routes mattered most: doc 05
+named `/team/attendance`, `/team/approvals`, `/leave/admin` and
+`/attendance/admin`, and **other documents were citing those names**, so
+following them landed nowhere. The real ones are `/attendance/team`,
+`/attendance/approvals` and `/leave/settings`; `/attendance/admin` does not
+exist at all. The approvals inbox was specified unified and shipped as two.
 
 **The web route guard.** Docs 01, 07 and 09 all describe `middleware.ts`
 checking refresh-cookie presence. The file is `proxy.ts` (Next 16 renamed the
@@ -201,7 +226,7 @@ the reasoning, not the original plan.
 | | |
 |---|---|
 | Fonts | `06:61` says Inter + Geist Mono via `@fontsource-variable`, explicitly not `next/font`. `09:56` says `next/font` with Plus Jakarta Sans. `packages/ui/package.json` confirms doc 06; Plus Jakarta Sans appears nowhere. |
-| Screen count | `05:44` says 47 screens; `11:49` says 38. |
+| ~~Screen count~~ | ✅ Doc 05 said 47, doc 11 said 38, and 57 page files exist. The count is gone from doc 05's heading — the two lists do not describe the same set, so no single number was right. |
 | Settings groups | `03:206` says "the three groups" and then lists four. |
 | PDF export | `README:16` claims CSV/Excel/**PDF**. No PDF path exists; `12:383` agrees with the code. |
 | Component count | `06:115` says 56 primitives; there are 57 (`time-picker.tsx` is undocumented). |
@@ -268,20 +293,32 @@ it has to answer this.
 
 ## 6. Prioritised TODO
 
-### P0 — the docs actively mislead
+### P0 — the docs actively mislead — ✅ **all done**
 
-1. **Document the onboarding module** in docs 02, 03, 04, 05. It ships and is in
-   no specification. — *docs only*
-2. **Resolve the two invite flows.** Decide whether `DEFAULT_USER_PASSWORD`
-   creation survives now that invites exist, then make docs 07 and 12 describe
-   the one that does. — `employees.service.ts:217`, docs 07, 12
-3. **Retract or build doc 08's async infrastructure.** Events, `EventEmitter2`
-   and four jobs, none of which exist. At minimum mark the table superseded and
-   keep `auth.session-prune` as a real item. — `docs/08`
-4. **Retract or build notifications.** Four docs describe it; a table exists;
-   nothing else does. — `docs/03`, `05`, `08`, `09`
-5. **Reconcile doc 02 with the schema** — eight-plus divergences including the
-   duplicate `EmploymentType`. — `docs/02`
+1. ~~Document the onboarding module.~~ Added to docs 03, 04 and 05, and both
+   tables to doc 02. `f615009`, `c64026f`
+2. ~~Resolve the two invite flows.~~ **Both are deliberate and both stay** —
+   *Add employee* for staff who already work here, *Onboard* for a new hire with
+   no work mailbox. There is also a third path, `createLogin: false`, that
+   neither doc mentioned. Docs 07 and 12 now describe all three and say which to
+   use when. No code changed. `5335657`
+3. ~~Retract or build doc 08's async infrastructure.~~ Retracted. Three of the
+   four jobs were **superseded, not skipped** — day-close by derive-on-read,
+   announcement expiry by the query `where`, leave year-end by lazy
+   provisioning — so each row now says what happens instead. `auth.session-prune`
+   is the real gap and is P1 below. `46a2c95`
+4. ~~Retract or build notifications.~~ Retracted from docs 03, 05, 08, 09 and
+   the doc 01 tree, plus the stale "behind existing NotificationsModule" in doc
+   11. The dead table is marked as such in doc 02. `46a2c95`, `c64026f`
+5. ~~Reconcile doc 02 with the schema.~~ Model and enum names now diff clean
+   both ways. `c64026f`
+
+Two things were found while doing them. Doc 08's module map listed a
+`UsersModule` and a `NotificationsModule` that do not exist while omitting
+Letters, Onboarding, Payroll, Storage and Health — doc 01's tree had the same
+drift. And doc 05's sidebar named four routes that do not exist
+(`/team/attendance`, `/team/approvals`, `/leave/admin`, `/attendance/admin`),
+which other documents were citing.
 
 ### P1 — promised, small, and mostly already half-built
 
