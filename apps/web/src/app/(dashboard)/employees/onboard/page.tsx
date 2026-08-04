@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2, Mail } from 'lucide-react';
@@ -111,7 +112,16 @@ function OnboardForm() {
               </Field>
 
               <Field label="Joining date" error={errors.joinDate?.message}>
-                {(a11y) => <Input {...a11y} type="date" {...form.register('joinDate')} />}
+                {(a11y) => (
+                  <DatePicker
+                    {...a11y}
+                    value={form.watch('joinDate')}
+                    onValueChange={(value) =>
+                      form.setValue('joinDate', value, { shouldDirty: true })
+                    }
+                    placeholder="Select joining date"
+                  />
+                )}
               </Field>
               <Field label="Employee code" hint="Left blank, one is generated">
                 {(a11y) => (

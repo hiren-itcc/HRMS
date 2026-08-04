@@ -49,13 +49,21 @@ export function LoginForm() {
     }
   });
 
+  /*
+   * On mobile this card used to be `border-0 bg-transparent shadow-none`,
+   * which was fine over a flat background and is not over the illustration now
+   * behind it. `.glass` is the utility for exactly that — a translucent card
+   * surface with a blur — so the form keeps its contrast without hiding the
+   * art. Desktop is unchanged: the panel beside it is the decoration there, so
+   * the card stays a plain card.
+   */
   return (
-    <Card className="border-0 bg-transparent shadow-none lg:border lg:bg-card lg:shadow-xs">
-      <CardHeader className="px-0 lg:px-6">
+    <Card className="rounded-2xl border-border/55 bg-card/75 shadow-sm backdrop-blur-md lg:rounded-xl lg:border-border lg:bg-card lg:shadow-xs lg:backdrop-blur-none">
+      <CardHeader>
         <CardTitle className="text-xl">Welcome back</CardTitle>
         <CardDescription>Sign in with your work account to continue</CardDescription>
       </CardHeader>
-      <CardContent className="px-0 lg:px-6">
+      <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <Field label="Email" required error={errors.email?.message}>
             {(a11y) => (

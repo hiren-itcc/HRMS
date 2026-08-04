@@ -16,6 +16,7 @@ import { displayName, userInitials } from '@/components/user-menu';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
+import { ROLE_LABEL } from '@/features/employees/role-options';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -54,7 +55,12 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               <dl className="space-y-3">
-                <Row label="Role" value={<Badge variant="secondary">{user.roleCode}</Badge>} />
+                <Row
+                  label="Role"
+                  value={
+                    <Badge variant="secondary">{ROLE_LABEL[user.roleCode] ?? user.roleCode}</Badge>
+                  }
+                />
                 <Row
                   label="Status"
                   value={

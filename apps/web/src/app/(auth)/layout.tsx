@@ -76,20 +76,34 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </aside>
 
       {/* Form panel */}
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
+      <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-10 sm:px-8">
+        {/*
+         * Mobile background. The brand panel is hidden below lg, which left a
+         * phone looking at a flat colour with a form floating on it — so the
+         * same art appears here instead, heavily dimmed and behind everything.
+         *
+         * aria-hidden and no label: the desktop copy is the one that carries
+         * the description, and two of them would announce it twice.
+         */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 lg:hidden">
+          <div className="-top-24 -left-20 absolute size-72 animate-float rounded-full bg-primary/20 blur-3xl" />
+          <div className="-right-20 -bottom-28 absolute size-72 animate-float-delayed rounded-full bg-info/15 blur-3xl" />
+          <AuthIllustration className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 w-[130%] max-w-none text-foreground opacity-[0.07] dark:opacity-[0.10]" />
+        </div>
+
         {/* Mobile brand — the panel carrying it is hidden at this width */}
-        <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+        <div className="relative mb-8 flex items-center gap-2.5 lg:hidden">
           <span className="gradient-primary flex size-10 items-center justify-center rounded-xl text-white shadow-lg">
             <ShieldCheck className="size-5" aria-hidden />
           </span>
           <span className="font-bold text-xl tracking-tight">HRMS</span>
         </div>
 
-        <div className="w-full max-w-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="relative w-full max-w-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
           {children}
         </div>
 
-        <p className="mt-10 text-center text-muted-foreground text-xs lg:hidden">
+        <p className="relative mt-10 text-center text-muted-foreground text-xs lg:hidden">
           © {new Date().getFullYear()} HRMS
         </p>
       </main>

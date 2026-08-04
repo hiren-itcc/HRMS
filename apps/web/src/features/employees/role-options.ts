@@ -22,3 +22,23 @@ export const ROLE_LABEL: Record<RoleCodeInput, string> = {
   FINANCE: 'Finance',
   ADMIN: 'Admin',
 };
+
+/**
+ * What to call an *account* that has no employee record behind it.
+ *
+ * The bootstrapped administrator is deliberately not a member of staff, so it
+ * has no first or last name and every name slot fell back to showing the raw
+ * email. This names the account by what it is instead.
+ *
+ * Separate from ROLE_LABEL rather than a rename of it: that map is what the
+ * role picker and the employee record call the role, and "Super Admin" there
+ * would change the product's vocabulary for a role that is called Admin
+ * everywhere else, including in the permission matrix.
+ */
+export const ACCOUNT_LABEL: Record<RoleCodeInput, string> = {
+  EMPLOYEE: 'Employee Account',
+  MANAGER: 'Manager Account',
+  HR: 'HR Account',
+  FINANCE: 'Finance Account',
+  ADMIN: 'Super Admin',
+};

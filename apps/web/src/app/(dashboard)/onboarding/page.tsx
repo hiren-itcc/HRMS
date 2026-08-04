@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
+import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
   Select,
@@ -186,11 +187,14 @@ export default function OnboardingPage() {
                 error={profileForm.formState.errors.dateOfBirth?.message}
               >
                 {(a11y) => (
-                  <Input
+                  <DatePicker
                     {...a11y}
-                    type="date"
                     disabled={!open}
-                    {...profileForm.register('dateOfBirth')}
+                    value={profileForm.watch('dateOfBirth')}
+                    onValueChange={(value) =>
+                      profileForm.setValue('dateOfBirth', value, { shouldDirty: true })
+                    }
+                    placeholder="Select date of birth"
                   />
                 )}
               </Field>

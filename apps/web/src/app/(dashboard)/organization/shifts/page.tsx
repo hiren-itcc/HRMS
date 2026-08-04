@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { shiftCreateSchema } from '@hrms/shared';
 import { Input } from '@hrms/ui/components/input';
+import { TimePicker } from '@hrms/ui/components/time-picker';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
@@ -133,10 +134,22 @@ function ShiftsView() {
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Start time" error={form.formState.errors.startTime?.message}>
-            {(a11y) => <Input {...a11y} type="time" {...form.register('startTime')} />}
+            {(a11y) => (
+              <TimePicker
+                {...a11y}
+                value={form.watch('startTime')}
+                onValueChange={(value) => form.setValue('startTime', value, { shouldDirty: true })}
+              />
+            )}
           </Field>
           <Field label="End time" error={form.formState.errors.endTime?.message}>
-            {(a11y) => <Input {...a11y} type="time" {...form.register('endTime')} />}
+            {(a11y) => (
+              <TimePicker
+                {...a11y}
+                value={form.watch('endTime')}
+                onValueChange={(value) => form.setValue('endTime', value, { shouldDirty: true })}
+              />
+            )}
           </Field>
         </div>
         <Field

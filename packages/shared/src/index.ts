@@ -1,5 +1,6 @@
 export * from './constants/email-templates';
 export * from './constants/letter-templates';
+export * from './constants/org-defaults';
 export * from './constants/pay-components';
 export * from './constants/permissions';
 export * from './schemas/announcement';

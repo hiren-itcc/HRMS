@@ -1,7 +1,15 @@
 import 'dotenv/config';
 import {
+  DEFAULT_DEPARTMENTS,
+  DEFAULT_DESIGNATIONS,
   DEFAULT_DOCUMENT_CATEGORIES,
+  DEFAULT_EMPLOYMENT_TYPES,
+  DEFAULT_FIXED_HOLIDAYS,
+  DEFAULT_LOCATIONS,
   DEFAULT_PAY_COMPONENTS,
+  DEFAULT_SALARY_STRUCTURES,
+  DEFAULT_SHIFTS,
+  MOVABLE_HOLIDAY_EXAMPLES,
   ROLE_PERMISSIONS,
   SYSTEM_ROLES,
 } from '@hrms/shared';
@@ -127,6 +135,90 @@ async function main() {
       `${permissionCount} permissions, ${grantCount} grants`,
   );
 
+  // ── Organization reference data ──────────────────────────────────────────
+  // Onboarding refuses to approve a hire without a department, designation,
+  // location, shift and employment type — so on a fresh install the very first
+  // action hits a wall the product itself put there. Every upsert below uses
+  // `update: {}`, so anything renamed or deleted since stays that way.
+  for (const dept of DEFAULT_DEPARTMENTS) {
+    await prisma.department.upsert({
+      where: { organizationId_name: { organizationId: org.id, name: dept.name } },
+      update: {},
+      create: { organizationId: org.id, ...dept },
+    });
+  }
+  for (const designation of DEFAULT_DESIGNATIONS) {
+    await prisma.designation.upsert({
+      where: { organizationId_title: { organizationId: org.id, title: designation.title } },
+      update: {},
+      create: { organizationId: org.id, ...designation },
+    });
+  }
+  for (const type of DEFAULT_EMPLOYMENT_TYPES) {
+    await prisma.employmentType.upsert({
+      where: { organizationId_name: { organizationId: org.id, name: type.name } },
+      update: {},
+      create: { organizationId: org.id, ...type },
+    });
+  }
+  for (const shift of DEFAULT_SHIFTS) {
+    await prisma.shift.upsert({
+      where: { organizationId_name: { organizationId: org.id, name: shift.name } },
+      update: {},
+      create: { organizationId: org.id, ...shift },
+    });
+  }
+  for (const location of DEFAULT_LOCATIONS) {
+    await prisma.location.upsert({
+      where: { organizationId_name: { organizationId: org.id, name: location.name } },
+      update: {},
+      create: { organizationId: org.id, ...location },
+    });
+  }
+  /*
+   * Counted one after another, not with Promise.all. A pooled connection —
+   * Supabase's is the case in hand — hands out far fewer sockets than a direct
+   * one, and five simultaneous counts is enough to be refused mid-bootstrap.
+   * This is a setup script; sequential costs nothing.
+   */
+  const where = { organizationId: org.id };
+  const deptCount = await prisma.department.count({ where });
+  const desigCount = await prisma.designation.count({ where });
+  const typeCount = await prisma.employmentType.count({ where });
+  const shiftCount = await prisma.shift.count({ where });
+  const locCount = await prisma.location.count({ where });
+  console.log(
+    `Structure: ${deptCount} departments, ${desigCount} designations, ` +
+      `${typeCount} employment types, ${shiftCount} shifts, ${locCount} locations`,
+  );
+
+  // ── Holidays ─────────────────────────────────────────────────────────────
+  // This year and next, so a company set up in December does not begin with an
+  // empty calendar. Fixed-date only — see DEFAULT_FIXED_HOLIDAYS for why the
+  // lunar festivals are deliberately absent.
+  const thisYear = new Date().getUTCFullYear();
+  for (const year of [thisYear, thisYear + 1]) {
+    for (const holiday of DEFAULT_FIXED_HOLIDAYS) {
+      const date = new Date(Date.UTC(year, holiday.month - 1, holiday.day));
+      /*
+       * Find-then-create rather than upsert. These are org-wide, so
+       * `locationId` is null, and Prisma refuses a null inside the compound
+       * unique `where` — the index allows it, the generated client does not.
+       */
+      const exists = await prisma.holiday.findFirst({
+        where: { organizationId: org.id, locationId: null, date, name: holiday.name },
+        select: { id: true },
+      });
+      if (!exists) {
+        await prisma.holiday.create({
+          data: { organizationId: org.id, name: holiday.name, date },
+        });
+      }
+    }
+  }
+  const holidayCount = await prisma.holiday.count({ where: { organizationId: org.id } });
+  console.log(`Holidays: ${holidayCount} fixed-date, ${thisYear}–${thisYear + 1}`);
+
   // ── Pay component catalogue ──────────────────────────────────────────────
   // Without these, payroll is unreachable: a salary structure is built out of
   // components, so no components means no structure, no salary and nothing for
@@ -162,6 +254,48 @@ async function main() {
   const folderCount = await prisma.documentCategory.count({ where: { organizationId: org.id } });
   console.log(`Document folders: ${folderCount}`);
 
+  // ── Default salary structure ─────────────────────────────────────────────
+  // Must run after the pay components: the lines point at them by id.
+  //
+  // Only created when absent. Re-running must never rewrite the lines of a
+  // structure somebody is already paying people on — that would silently
+  // change next month's payslips.
+  const components = await prisma.payComponent.findMany({
+    where: { organizationId: org.id },
+    select: { id: true, code: true },
+  });
+  const componentId = (code: string) => components.find((c) => c.code === code)?.id;
+
+  for (const seed of DEFAULT_SALARY_STRUCTURES) {
+    const existing = await prisma.salaryStructure.findUnique({
+      where: { organizationId_code: { organizationId: org.id, code: seed.code } },
+    });
+    if (existing) continue;
+
+    const lines = seed.lines
+      .map((line) => ({ ...line, componentId: componentId(line.componentCode) }))
+      .filter((line): line is typeof line & { componentId: string } => Boolean(line.componentId));
+
+    await prisma.salaryStructure.create({
+      data: {
+        organizationId: org.id,
+        code: seed.code,
+        name: seed.name,
+        description: seed.description,
+        lines: {
+          create: lines.map((line) => ({
+            componentId: line.componentId,
+            calcType: line.calcType,
+            value: line.value,
+            order: line.order,
+          })),
+        },
+      },
+    });
+  }
+  const structureCount = await prisma.salaryStructure.count({ where: { organizationId: org.id } });
+  console.log(`Salary structures: ${structureCount}`);
+
   const adminRoleId = roles.ADMIN;
   if (!adminRoleId) throw new Error('ADMIN role missing from ROLE_PERMISSIONS.');
 
@@ -193,6 +327,16 @@ async function main() {
   // set the company up; the real people get created through the app, where
   // employee codes, reporting lines and org placement are validated.
   console.log('\nBootstrap complete. Sign in and change the password immediately.');
+
+  /*
+   * Said out loud rather than left to be discovered. Every festival below
+   * moves with a lunar calendar, so seeding a guess would put a holiday on the
+   * wrong day — which decides who is marked absent and whose pay is docked.
+   */
+  console.log(
+    `\nStill to add under Organization → Holidays: ${MOVABLE_HOLIDAY_EXAMPLES.join(', ')}.` +
+      '\nThese follow lunar calendars, so their dates change every year and cannot be seeded.',
+  );
 }
 
 main()
