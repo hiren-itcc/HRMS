@@ -43,14 +43,20 @@ function describeDevice(userAgent: string | null): { label: string; mobile: bool
           : /Safari\//.test(userAgent)
             ? 'Safari'
             : 'Browser';
+  /*
+   * iOS is tested BEFORE macOS, and that order is the whole trick: every
+   * iPhone and iPad user-agent contains the literal "like Mac OS X", so the
+   * obvious ordering labels every phone as a Mac. Android likewise goes before
+   * Linux, which its user-agent also contains.
+   */
   const os = /Windows/.test(userAgent)
     ? 'Windows'
-    : /Mac OS X|Macintosh/.test(userAgent)
-      ? 'macOS'
+    : /iPhone|iPad|iPod/.test(userAgent)
+      ? 'iOS'
       : /Android/.test(userAgent)
         ? 'Android'
-        : /iPhone|iPad|iOS/.test(userAgent)
-          ? 'iOS'
+        : /Mac OS X|Macintosh/.test(userAgent)
+          ? 'macOS'
           : /Linux/.test(userAgent)
             ? 'Linux'
             : null;
