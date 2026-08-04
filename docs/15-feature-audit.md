@@ -5,8 +5,8 @@ web pages, the 54-permission catalogue and docs 00–14.
 
 > **Status:** every **P0** item is done, and **6 of 9 P1 items**. Built so far:
 > session pruning, session management, the four orphaned endpoints, structure
-> deactivation, payroll adjustments and offboarding. Still open: emergency
-> contacts, the org chart, frontend tests. Items struck through below are fixed.
+> deactivation, payroll adjustments, offboarding and emergency contacts. Still
+> open: the org chart and frontend tests. Items struck through below are fixed.
 
 ## How to read this
 
@@ -138,7 +138,7 @@ as though it describes enforcement, when for these three rows it does not.
 | Object | Line | State |
 |---|---|---|
 | `Notification` | `schema.prisma:643` | Zero reads, zero writes. Only reference is a `deleteMany` in the seed. |
-| `EmergencyContact` | `:318` | Written by the seed, never read. Not in `DETAIL_INCLUDE`, so seeded rows are unreachable — while `03:48` and `05:65` both promise emergency contacts on the profile screen. |
+| ~~`EmergencyContact`~~ | `:318` | ✅ **Alive.** Editable on `/profile` as a replace-all array and shown on the employee record. It was written by the seed and read by nothing — not even in `DETAIL_INCLUDE`, so the seeded rows were unreachable. |
 | `Document.visibility`, `enum DocVisibility` | `:550`, `:564` | Seed writes the literal `'PRIVATE'`; no API code reads or filters it. |
 | `Department.headId` | `:146` | Read by the department report, **never written** — no create/update schema accepts it. In any non-seeded tenant the report's "Head" column is permanently `—`. |
 | `LocationVerification.OUTSIDE` / `.NOT_APPLICABLE` | `:441`, `:445` | Never produced. `NOT_APPLICABLE` is still the column default, so the default writes a value nothing generates. |
@@ -353,10 +353,11 @@ which other documents were citing.
     dialog. Retired the dead `employee.offboard` permission and gave
     `ON_NOTICE` its first meaning.
 
+12. ~~**Emergency contacts**~~ ✅ — editable on `/profile`, visible on the
+    employee record.
+
 **Still open:**
 
-12. **Emergency contacts** on the profile screen — table and seed data exist,
-    nothing reads them.
 13. **Org chart** — `managerId` is populated and cycle-checked.
 14. **Frontend tests.** Zero exist. Start with the five golden flows in `09:64`
     rather than chasing coverage.

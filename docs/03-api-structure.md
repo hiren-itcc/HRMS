@@ -69,10 +69,17 @@ never from `INVITED`.
 reports all filter on the date, which is why an employee who leaves mid-month
 still gets their final part-month payslip.
 
+`PATCH /me/profile` takes **`emergencyContacts` as a replace-all array**, capped
+at five. Omitting the key leaves the existing rows alone — a patch that only
+changes a phone number must not wipe somebody's next of kin. Sending `[]` clears
+them. The replace runs in a transaction, so there is no window where a person
+has no emergency contact at all. They are returned on the employee detail
+response too: an emergency contact only HR can reach is no use on the day it is
+needed.
+
 **Not built:** `GET /employees/:id/reports` was specified here and never
-implemented — direct reports come back on the employee detail response.
-Emergency contacts are not on `/me/profile`; the table exists and nothing reads
-it ([15-feature-audit.md](./15-feature-audit.md)).
+implemented — direct reports come back on the employee detail response
+([15-feature-audit.md](./15-feature-audit.md)).
 
 ### Onboarding (`/employees/onboard`, `/onboarding`, `/me/onboarding`)
 
