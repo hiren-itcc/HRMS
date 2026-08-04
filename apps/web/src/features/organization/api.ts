@@ -13,8 +13,8 @@ import type {
   ShiftCreateInput,
   ShiftUpdateInput,
 } from '@hrms/shared';
-import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
+import { crudApi } from '@/lib/crud';
 import type {
   Company,
   Department,
@@ -26,33 +26,12 @@ import type {
   Shift,
 } from './types';
 
-export type ListRequest = Record<string, string | number | undefined>;
-
-function qs(params: ListRequest): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
-}
-
-export interface CrudApi<TRow, TCreate, TUpdate> {
-  list: (params: ListRequest) => Promise<Paginated<TRow>>;
-  create: (input: TCreate) => Promise<TRow>;
-  update: (id: string, input: TUpdate) => Promise<TRow>;
-  remove: (id: string) => Promise<void>;
-}
-
-function crudApi<TRow, TCreate, TUpdate>(base: string): CrudApi<TRow, TCreate, TUpdate> {
-  return {
-    list: (params) => api<Paginated<TRow>>(`${base}${qs(params)}`),
-    create: (input) => api<TRow>(base, { method: 'POST', body: JSON.stringify(input) }),
-    update: (id, input) =>
-      api<TRow>(`${base}/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-    remove: (id) => api<void>(`${base}/${id}`, { method: 'DELETE' }),
-  };
-}
+/**
+ * Re-exported so the many `import type { ListRequest } from '@/features/organization/api'`
+ * lines keep working. New code should import from `@/lib/crud` directly —
+ * none of this is organizational.
+ */
+export type { CrudApi, ListRequest } from '@/lib/crud';
 
 export interface OrgChartNode {
   id: string;

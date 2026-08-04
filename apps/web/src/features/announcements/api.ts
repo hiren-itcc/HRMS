@@ -1,6 +1,7 @@
 import type { AnnouncementCreateInput, AnnouncementUpdateInput } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api, fetchBlob, uploadFile } from '@/lib/api-client';
+import { type ListRequest, qs } from '@/lib/crud';
 
 export type AnnouncementCategory = 'GENERAL' | 'HOLIDAY' | 'BIRTHDAY' | 'POLICY';
 export type AnnouncementPriority = 'NORMAL' | 'HIGH' | 'URGENT';
@@ -42,19 +43,8 @@ export interface ReadReceipt {
   email: string | null;
 }
 
-type Params = Record<string, string | number | undefined>;
-
-function qs(params: Params): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
-}
-
 export const announcementsApi = {
-  list: (params: Params) => api<Paginated<Announcement>>(`/announcements${qs(params)}`),
+  list: (params: ListRequest) => api<Paginated<Announcement>>(`/announcements${qs(params)}`),
   unreadCount: () => api<{ unread: number }>('/announcements/unread-count'),
   detail: (id: string) => api<Announcement>(`/announcements/${id}`),
   create: (input: AnnouncementCreateInput) =>

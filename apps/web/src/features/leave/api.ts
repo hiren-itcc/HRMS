@@ -7,6 +7,7 @@ import type {
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
+import { type ListRequest, qs } from '@/lib/crud';
 
 export interface LeaveType {
   id: string;
@@ -59,19 +60,8 @@ export interface LeavePreview {
   skipped: string[];
 }
 
-type Params = Record<string, string | number | undefined>;
-
-function qs(params: Params): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
-}
-
 export const leaveApi = {
-  types: (params: Params = {}) => api<Paginated<LeaveType>>(`/leave/types${qs(params)}`),
+  types: (params: ListRequest = {}) => api<Paginated<LeaveType>>(`/leave/types${qs(params)}`),
   typeOptions: () => api<LeaveType[]>('/leave/types/options'),
   createType: (input: LeaveTypeCreateInput) =>
     api<LeaveType>('/leave/types', { method: 'POST', body: JSON.stringify(input) }),
@@ -81,15 +71,15 @@ export const leaveApi = {
 
   myBalances: (year?: number) =>
     api<{ year: number; balances: LeaveBalance[] }>(`/leave/balances/me${qs({ year })}`),
-  balances: (params: Params) =>
+  balances: (params: ListRequest) =>
     api<Paginated<LeaveBalance> & { year: number }>(`/leave/balances${qs(params)}`),
   adjustBalance: (input: LeaveBalanceAdjustInput) =>
     api<LeaveBalance>('/leave/balances/adjust', { method: 'POST', body: JSON.stringify(input) }),
 
-  preview: (params: Params) => api<LeavePreview>(`/leave/requests/preview${qs(params)}`),
+  preview: (params: ListRequest) => api<LeavePreview>(`/leave/requests/preview${qs(params)}`),
   apply: (input: LeaveApplyInput) =>
     api<LeaveRequest>('/leave/requests', { method: 'POST', body: JSON.stringify(input) }),
-  requests: (params: Params) => api<Paginated<LeaveRequest>>(`/leave/requests${qs(params)}`),
+  requests: (params: ListRequest) => api<Paginated<LeaveRequest>>(`/leave/requests${qs(params)}`),
   calendar: (month: string) =>
     api<{ month: string; requests: LeaveRequest[] }>(`/leave/calendar${qs({ month })}`),
   approve: (id: string, input: LeaveDecisionInput) =>

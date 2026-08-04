@@ -6,6 +6,7 @@ import type {
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
+import { qs } from '@/lib/crud';
 
 export type DerivedStatus =
   | 'PRESENT'
@@ -118,15 +119,6 @@ export interface AttendanceRequestRow {
   actedAt: string | null;
   createdAt: string;
   employee: { id: string; firstName: string; lastName: string; employeeCode: string };
-}
-
-function qs(params: Record<string, string | number | undefined>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
 }
 
 export const attendanceApi = {

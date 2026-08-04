@@ -1,6 +1,7 @@
 import type { DocumentCategoryCreateInput } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api, fetchBlob, uploadFile } from '@/lib/api-client';
+import { qs } from '@/lib/crud';
 
 export interface DocumentFolder {
   id: string;
@@ -28,15 +29,6 @@ export interface AdminDocument extends EmployeeDocument {
     lastName: string;
     employeeCode: string;
   } | null;
-}
-
-function qs(params: Record<string, string | undefined>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, value);
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
 }
 
 export const documentsApi = {

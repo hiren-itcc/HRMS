@@ -51,7 +51,7 @@ function HolidaysView() {
     locationId: locationFilter,
   });
   const { create, update, remove } = useCrudMutations(KEY, holidaysApi, 'Holiday');
-  const locations = useOptions('org-locations', locationsApi.options);
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
 
   const [editing, setEditing] = useState<Holiday | 'new' | null>(null);
   const form = useForm<FormValues>({ resolver: zodResolver(holidayCreateSchema) });
@@ -110,9 +110,9 @@ function HolidaysView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All locations</SelectItem>
-              {locations.data?.map((l) => (
+              {locations.options?.map((l) => (
                 <SelectItem key={l.id} value={l.id}>
-                  {l.name}
+                  {l.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -200,9 +200,9 @@ function HolidaysView() {
           emptyLabel="Entire organization"
           busy={locations.isPending}
         >
-          {locations.data?.map((l) => (
+          {locations.options?.map((l) => (
             <SelectItem key={l.id} value={l.id}>
-              {l.name}
+              {l.label}
             </SelectItem>
           ))}
         </FormSelect>

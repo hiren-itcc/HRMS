@@ -27,7 +27,7 @@ function DepartmentsView() {
     order: params.order,
   });
   const { create, update, remove } = useCrudMutations(KEY, departmentsApi, 'Department');
-  const options = useOptions(KEY, departmentsApi.options);
+  const options = useOptions(KEY, departmentsApi.options, (d) => d.name);
 
   const [editing, setEditing] = useState<Department | 'new' | null>(null);
   const form = useForm<DepartmentCreateInput>({
@@ -137,11 +137,11 @@ function DepartmentsView() {
           busy={options.isPending}
         >
           {/* A department cannot be its own parent. */}
-          {options.data
+          {options.options
             ?.filter((o) => editing === 'new' || o.id !== (editing as Department)?.id)
             .map((o) => (
               <SelectItem key={o.id} value={o.id}>
-                {o.name}
+                {o.label}
               </SelectItem>
             ))}
         </FormSelect>

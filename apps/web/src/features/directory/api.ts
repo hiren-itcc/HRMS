@@ -1,6 +1,6 @@
 import type { Paginated } from '@hrms/types';
-import type { ListRequest } from '@/features/organization/api';
 import { api } from '@/lib/api-client';
+import { type ListRequest, qs } from '@/lib/crud';
 
 /**
  * The company directory. These types mirror the API's whitelist exactly — if a
@@ -28,15 +28,6 @@ export interface DirectoryProfile extends DirectoryCard {
     employeeCode: string;
     avatarUrl: string | null;
   } | null;
-}
-
-function qs(params: ListRequest): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
 }
 
 export const directoryApi = {

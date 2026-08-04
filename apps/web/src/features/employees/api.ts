@@ -8,18 +8,9 @@ import type {
   SelfProfileUpdateInput,
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
-import type { ListRequest } from '@/features/organization/api';
 import { api } from '@/lib/api-client';
+import { type ListRequest, qs } from '@/lib/crud';
 import type { BankDetail, EmployeeDetail, EmployeeListItem, EmployeeOption } from './types';
-
-function qs(params: ListRequest): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
-}
 
 export const employeesApi = {
   list: (params: ListRequest) => api<Paginated<EmployeeListItem>>(`/employees${qs(params)}`),
