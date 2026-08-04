@@ -137,6 +137,7 @@ Start here depending on what you need:
 | [`12-how-it-works.md`](docs/12-how-it-works.md) | What the system does, in plain language. No technical knowledge assumed. |
 | [`13-data-map.md`](docs/13-data-map.md) | How the modules connect, with diagrams. What happens on delete. |
 | [`14-production-setup.md`](docs/14-production-setup.md) | **Deploying to a server.** Env vars, migrations, creating the first admin. |
+| [`15-feature-audit.md`](docs/15-feature-audit.md) | What is missing, what is built but unreachable, where these docs disagree with the code, and how it compares to Keka/greytHR/Zoho. |
 
 The full design package lives in [`docs/`](docs/) — start with [`00-architecture-decisions.md`](docs/00-architecture-decisions.md). It covers the database schema & ER diagram, API conventions, auth architecture (token rotation, reuse detection), NestJS/Next.js structure, coding standards, git strategy, CI/CD, and the sprint roadmap.
 
