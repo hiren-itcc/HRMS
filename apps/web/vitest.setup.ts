@@ -21,6 +21,14 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 };
 
+/*
+ * Base UI's popups call `getAnimations()` when tearing down, to wait for exit
+ * animations. jsdom has no Web Animations API, so without this a Select test
+ * passes its assertions and then fails the run with an unhandled
+ * "viewport.getAnimations is not a function" after the component unmounts.
+ */
+Element.prototype.getAnimations ??= () => [];
+
 if (!window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({
