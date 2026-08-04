@@ -278,6 +278,62 @@ docker compose run api npx prisma migrate deploy
 
 ---
 
+## 8. The live deployment (Render)
+
+Both applications run on Render, in `singapore` — the region closest to the
+Supabase project in `ap-northeast-2`, which every request touches.
+
+| | Service | URL |
+|---|---|---|
+| API | `hrms-api-prod` (`srv-d9oo5jbl550s73f2omig`) | `https://hrms-api-prod-jrul.onrender.com` |
+| Web | `hrms-web-prod` (`srv-d9oo61flk1mc739lcdh0`) | `https://hrms-web-prod-cwy3.onrender.com` |
+
+Neither uses the Dockerfiles in `docker/`; both use Render's Node runtime with
+the build scripts in `render/`. That directory exists because **Render's API
+cannot edit a service's Build Command after creation** — a one-character fix
+there means recreating the service and losing its URL and environment. As
+scripts, build changes are an ordinary commit.
+
+### The two hosts are cross-site, and that is not a Render detail
+
+`onrender.com` is on the Public Suffix List, exactly as `vercel.app` is, so one
+customer cannot set cookies for another. The consequence is that
+`hrms-web-prod-…` and `hrms-api-prod-…` are cross-site to each other even
+though both end in `onrender.com`.
+
+So the refresh cookie is `SameSite=None; Secure` in production
+(`auth.controller.ts`). A `Lax` cookie is withheld from cross-site XHR, and
+`POST /auth/refresh` is one — login would work and every session would then end
+silently at the 15-minute access-token expiry.
+
+Splitting the front end onto Vercel instead would change nothing here. The
+boundary is the suffix list, not the vendor. What *would* remove it is serving
+both from one hostname — either two custom subdomains of a domain you own, or
+proxying `/api/v1` through Next. The proxy costs real client IPs, which the
+login rate limit and the audit log both record, so it is the worse trade unless
+something else forces it.
+
+### Things about the free plan that are not bugs
+
+- **Services sleep after ~15 minutes idle.** The first request afterwards takes
+  roughly 50 seconds while the instance wakes. Both services sleep
+  independently, so a cold web app and a cold API can stack.
+- The Supabase project pauses after about a week of inactivity too, and the
+  database is on it. Same constraint, not an additional one.
+- Instances have 512 MB RAM; builds run on a larger builder.
+
+### Deploying a change
+
+Auto-deploy is off — see *Deploys are triggered by hand* under Known gaps.
+Push to `master`, then Manual Deploy in the dashboard.
+
+`NEXT_PUBLIC_API_URL` is a **build-time** value: Next inlines `NEXT_PUBLIC_*`
+into the client bundle, so changing it requires rebuilding the web service, not
+restarting it. `render/build-web.sh` fails the build when it is unset rather
+than letting a deployment come up calling `localhost:4000`.
+
+---
+
 ## Known gaps
 
 Verified against the code at the time of writing. Each of these will surprise
@@ -293,12 +349,18 @@ the user is told to check their email, but **no email is ever delivered.**
 Until a mail provider is connected, an administrator must reset passwords
 manually. Plan for that, or connect SMTP before go-live.
 
-### The automated deploy step is unimplemented
+### Deploys are triggered by hand
 
 `.github/workflows/deploy.yml` builds and pushes images correctly, but the
-deploy job itself is a placeholder that prints a message. It needs
-`DEPLOY_HOST`/`DEPLOY_KEY` secrets and a real step. **Deployment is currently
-manual.**
+deploy job itself is a placeholder that prints a message.
+
+The live deployment (§8) does not use it. Render is set to **auto-deploy off**,
+because Render reports no GitHub authorisation for this repository — it can
+clone it, since the repository is public, but it receives no push webhook, so
+"auto-deploy on" would be a setting that quietly never fires. Connecting the
+GitHub account in Render's dashboard is what turns that into a real option.
+
+Until then a deploy is: push to `master`, then Manual Deploy in the dashboard.
 
 ### File storage — resolved, and how to configure it
 
