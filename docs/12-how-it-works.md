@@ -104,8 +104,30 @@ A few things happen automatically:
 - They get an **employee code** (like `EMP-0007`), taking the next free number.
 - If they are given a login, it is created **at the same moment** as the
   employee record — the system will never end up with one and not the other.
-- Their first password is a shared default, and they **must change it** the
-  first time they sign in.
+
+### Two ways in, and the difference matters
+
+HR chooses between **Add employee** and **Onboard**, and they hand over the
+first password very differently.
+
+**Add employee** is for somebody who already works here — backfilling the
+existing team. Their login starts on a shared default password and they must
+change it the first time they sign in. This only works if **somebody tells them
+that password**, so it suits a room where HR can say it out loud.
+
+**Onboard** is for somebody joining. No password is ever created — the account
+is deliberately given one nobody can reproduce, and it cannot be signed into at
+all. Instead the hire gets an email at their **personal** address, because the
+work mailbox usually does not exist on their first day. The link is single-use,
+and re-sending an invitation kills the previous one so only ever one link works.
+
+They then fill in their own details, bank account and documents, and HR reviews
+the submission before the account becomes usable. Until it is approved they can
+reach the onboarding form and nothing else — not attendance, not the directory.
+
+If the invitation email fails to send, the hire is still created and the
+invitation can be resent. Losing the record because a mail server was down would
+be the worse outcome.
 
 The system refuses to create a **circular reporting line** — you cannot make
 someone their own manager, directly or through a chain. Without that check an

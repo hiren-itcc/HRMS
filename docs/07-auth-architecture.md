@@ -65,20 +65,63 @@ Same endpoints; refresh token returned in body when client sends `X-Client: mobi
 - [ ] 2FA (TOTP) — future expansion (doc 11), `User` table extends cleanly
 - [ ] SSO (OIDC/SAML) — future; Passport strategy slot already isolated in `auth/strategies/`
 
-## Accounts created with an employee
+## How an employee gets a sign-in
 
-Creating an employee creates their sign-in in the same transaction, using
-their work email. Half of that succeeding is the failure mode it exists to
+There are **three** ways, and which one runs is a choice HR makes on screen.
+They differ in who sets the first password, so mixing them up is the difference
+between a password read out over the phone and one nobody ever knows.
+
+Whichever path is used, the sign-in is created in the same transaction as the
+employee. Half of that succeeding is the failure mode the transaction exists to
 prevent: an employee row nobody can log in as.
 
-The account starts on `DEFAULT_USER_PASSWORD` and carries
-`User.mustChangePassword`. That flag is what makes a shared default
-acceptable — sign-in succeeds, but the app sends them to change it before
-anything else, and any password change clears it. It is not a lockout: the
-guard is in the dashboard layout, so the API is unchanged and a client that
-ignores the flag simply keeps a guessable password, which is the user's
-own risk rather than a hole.
+### 1. No login at all
 
-Creating a sign-in needs `employee.invite`, separately from
-`employee.create` — issuing credentials is not the same act as recording a
-person.
+`POST /employees` with `createLogin: false`
+(`packages/shared/src/schemas/employee.ts:112`).
+
+An employee record and nothing else — for someone who will never use the
+product, or whose access comes later. `employee.invite` can grant it afterwards.
+
+### 2. Shared default password — for staff who already work here
+
+`POST /employees` with `createLogin: true`, the default.
+
+The account is created **ACTIVE** on `DEFAULT_USER_PASSWORD` carrying
+`User.mustChangePassword`. That flag is what makes a shared default acceptable:
+sign-in succeeds, but the app sends them to change it before anything else, and
+any password change clears it. It is not a lockout — the guard is in the
+dashboard layout, so the API is unchanged and a client that ignores the flag
+simply keeps a guessable password, which is the user's own risk rather than a
+hole.
+
+This path assumes **somebody tells them the password**. It suits backfilling
+existing staff, where HR is in the room. It is the wrong path for a hire who has
+not started, because the work mailbox usually does not exist yet.
+
+### 3. Emailed invite — for a new hire (`POST /employees/onboard`)
+
+The path added with the onboarding module, and the one to use for anybody
+joining.
+
+The employee is created with status `ONBOARDING` and the user with status
+`INVITED`, holding a **deliberately unusable password hash** — argon2 over 32
+random bytes that nothing can reproduce (`invite.service.ts:47`). There is no
+default password to leak, because there is no password. `login()` refuses
+anything but `ACTIVE`, so the account gates itself until onboarding is approved.
+
+An `EmployeeInvite` token is minted in the same transaction and emailed to the
+hire's **personal** address — they have no access to the work mailbox yet. The
+mail names the work email as the login ID and carries a single-use link; no
+password is ever put in it. Re-inviting revokes the outstanding token, so only
+one live link exists at a time.
+
+Mail is sent **after** the transaction commits, and a send failure is returned
+in the response rather than thrown — the hire exists and the invite can be
+resent, so losing the record to a mail outage would be worse.
+
+### Which permission
+
+Creating a sign-in needs `employee.invite`, separately from `employee.create` —
+issuing credentials is not the same act as recording a person. `/employees/onboard`
+checks both.
