@@ -102,7 +102,7 @@ export default function LetterPage() {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground [background-image:none] hover:bg-destructive/90"
+                    variant="destructive"
                     disabled={reason.trim() === '' || voidLetter.isPending}
                     onClick={() => voidLetter.mutate()}
                   >

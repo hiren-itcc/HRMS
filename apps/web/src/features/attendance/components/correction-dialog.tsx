@@ -3,8 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceRequestCreateSchema } from '@hrms/shared';
 import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
 import { Textarea } from '@hrms/ui/components/textarea';
+import { TimePicker } from '@hrms/ui/components/time-picker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -67,10 +67,26 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Clock in" error={form.formState.errors.requestedIn?.message}>
-          {(a11y) => <Input {...a11y} type="time" {...form.register('requestedIn')} />}
+          {(a11y) => (
+            <TimePicker
+              {...a11y}
+              // Five, not fifteen: a correction states the minute somebody
+              // actually arrived, which is rarely on a quarter hour.
+              step={5}
+              value={form.watch('requestedIn')}
+              onValueChange={(value) => form.setValue('requestedIn', value, { shouldDirty: true })}
+            />
+          )}
         </Field>
         <Field label="Clock out" error={form.formState.errors.requestedOut?.message}>
-          {(a11y) => <Input {...a11y} type="time" {...form.register('requestedOut')} />}
+          {(a11y) => (
+            <TimePicker
+              {...a11y}
+              step={5}
+              value={form.watch('requestedOut')}
+              onValueChange={(value) => form.setValue('requestedOut', value, { shouldDirty: true })}
+            />
+          )}
         </Field>
       </div>
       <Field

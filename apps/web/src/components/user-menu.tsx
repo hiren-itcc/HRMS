@@ -1,5 +1,6 @@
 'use client';
 
+import type { RoleCodeInput } from '@hrms/shared';
 import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -14,22 +15,35 @@ import { LogOut, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/components/session-provider';
+import { ACCOUNT_LABEL } from '@/features/employees/role-options';
 
-export function userInitials(user: {
+/**
+ * Not every account is a person. The bootstrapped administrator has no
+ * employee record on purpose — it exists to set the company up — so there is
+ * no first or last name to show, and falling back to the raw email put
+ * `hiren1573@gmail.com` where a name belongs, twice over in the menu that
+ * already prints the email underneath.
+ *
+ * Such an account is named by what it is instead: Super Admin.
+ */
+interface NameableUser {
   email: string;
+  roleCode: RoleCodeInput;
   employee?: { firstName: string; lastName: string } | null;
-}): string {
-  if (user.employee) {
-    return `${user.employee.firstName[0] ?? ''}${user.employee.lastName[0] ?? ''}`.toUpperCase();
-  }
-  return user.email.slice(0, 2).toUpperCase();
 }
 
-export function displayName(user: {
-  email: string;
-  employee?: { firstName: string; lastName: string } | null;
-}): string {
-  return user.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user.email;
+export function displayName(user: NameableUser): string {
+  if (user.employee) return `${user.employee.firstName} ${user.employee.lastName}`;
+  return ACCOUNT_LABEL[user.roleCode] ?? user.email;
+}
+
+export function userInitials(user: NameableUser): string {
+  // Initials of whatever displayName settled on, so the avatar and the name
+  // can never disagree — "SA" beside "Super Admin", not "HI".
+  const words = displayName(user).split(/\s+/).filter(Boolean);
+  const letters =
+    words.length > 1 ? `${words[0]?.[0] ?? ''}${words[1]?.[0] ?? ''}` : (words[0] ?? '');
+  return letters.slice(0, 2).toUpperCase();
 }
 
 export function UserMenu() {

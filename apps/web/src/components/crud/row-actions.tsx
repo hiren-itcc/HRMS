@@ -70,11 +70,7 @@ export function RowActions({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground [background-image:none] hover:bg-destructive/90"
-                disabled={deleting}
-                onClick={onDelete}
-              >
+              <AlertDialogAction variant="destructive" disabled={deleting} onClick={onDelete}>
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>

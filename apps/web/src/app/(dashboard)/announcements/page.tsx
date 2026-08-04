@@ -310,7 +310,7 @@ function AnnouncementsView() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground [background-image:none] hover:bg-destructive/90"
+              variant="destructive"
               disabled={remove.isPending}
               onClick={() => deleting && remove.mutate(deleting.id)}
             >

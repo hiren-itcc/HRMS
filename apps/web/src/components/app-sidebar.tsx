@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { useSession } from '@/components/session-provider';
+import { displayName } from '@/components/user-menu';
+import { ROLE_LABEL } from '@/features/employees/role-options';
 import { useOrgSettings } from '@/features/settings/api';
 import { useUiStore } from '@/stores/ui-store';
 
@@ -148,11 +150,13 @@ export function AppSidebar() {
 
       {user && !collapsed && (
         <div className="border-sidebar-border border-t px-5 py-4">
+          {/* Name first, email second — this footer used to lead with the
+              email and print the raw enum under it. */}
           <p className="truncate font-medium text-sidebar-accent-foreground text-sm">
-            {user.email}
+            {displayName(user)}
           </p>
-          <p className="truncate text-sidebar-foreground/60 text-xs capitalize">
-            {user.roleCode.toLowerCase()}
+          <p className="truncate text-sidebar-foreground/60 text-xs">
+            {ROLE_LABEL[user.roleCode] ?? user.roleCode} · {user.email}
           </p>
         </div>
       )}
