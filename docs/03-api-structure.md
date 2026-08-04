@@ -39,13 +39,53 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 | Method | Path |
 |---|---|
 | GET | `/employees` — list (filters: department, location, status, type, search) |
-| POST | `/employees` — create record (optionally `sendInvite: true`) |
+| GET | `/employees/options` — id + label pairs for pickers |
+| POST | `/employees` — create record; `createLogin` (default true) and `loginRole` decide whether a sign-in comes with it (doc 07) |
 | GET / PATCH | `/employees/:id` |
+| PATCH | `/employees/:id/role` — change the role on their login; `role.manage` |
+| PUT | `/employees/:id/bank` — bank details; `employee.update` |
 | DELETE | `/employees/:id` — soft delete (Admin only) |
-| POST | `/employees/:id/invite` — (re)send login invite |
-| POST | `/employees/:id/offboard` — set ON_NOTICE/EXITED + exitDate |
-| GET | `/employees/:id/reports` — direct reports |
-| GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, address, emergency contacts) |
+| GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, personal email, address) |
+
+**Not built:** `POST /employees/:id/offboard` and `GET /employees/:id/reports`
+were specified here and never implemented. Offboarding today is the soft delete
+above; direct reports come back on the employee detail response. Emergency
+contacts are not on `/me/profile` — the table exists and nothing reads it
+([15-feature-audit.md](./15-feature-audit.md)).
+
+### Onboarding (`/employees/onboard`, `/onboarding`, `/me/onboarding`)
+
+Invite a new hire, let them fill in their own details, and have HR review it
+before the account works. The alternative to creating them on a shared default
+password — doc 07 covers when to use which.
+
+**HR side**
+
+| Method | Path |
+|---|---|
+| POST | `/employees/onboard` — create the hire + an INVITED login, mint a token, email the hire's *personal* address; `employee.create` **and** `employee.invite` |
+| GET / POST | `/employees/:id/invite` — read invite state / resend, revoking the outstanding link |
+| GET | `/onboarding` — review queue, filterable by status |
+| GET | `/onboarding/:id` — one submission with its documents |
+| POST | `/onboarding/:id/approve` — validate deferred job fields, flip the employee to ACTIVE, revoke sessions so the stale `onboarding` claim dies; `employee.onboarding.approve` |
+| POST | `/onboarding/:id/request-changes` — send it back with a note; same permission |
+
+**Hire side** — all carry `@AllowDuringOnboarding()`, because `OnboardingGuard`
+otherwise refuses every route to an account in this state.
+
+| Method | Path |
+|---|---|
+| GET | `/me/onboarding` — checklist and current state |
+| PATCH | `/me/onboarding/profile` |
+| PUT | `/me/onboarding/bank` |
+| POST | `/me/onboarding/documents` — upload against a checklist item |
+| POST | `/me/onboarding/submit` — hand to HR |
+
+`Onboarding.status` runs `IN_PROGRESS → SUBMITTED → APPROVED`, with
+request-changes returning it to `IN_PROGRESS`. Submit and both review actions
+use optimistic `updateMany` guards, so two reviewers acting at once cannot both
+win. The employee sits at `EmployeeStatus.ONBOARDING` until approval and the
+user at `INVITED`, which `login()` refuses — the account gates itself.
 
 ### Directory (`/directory`)
 

@@ -27,7 +27,7 @@ Format `resource.action`. Scope suffixes: `.own` (self), `.team` (direct reports
 employee.read.own      employee.update.own
 employee.read.team
 employee.read          employee.create      employee.update      employee.delete
-employee.invite        employee.offboard
+employee.invite        employee.offboard    employee.onboarding.approve
 
 directory.read         (work contact details for everyone — not the HR record)
 
@@ -36,7 +36,7 @@ org.manage rather than any attendance permission.
 
 attendance.read.own    attendance.mark.own      attendance.request.own
 attendance.read.team   attendance.approve.team
-attendance.read        attendance.approve       attendance.manage   (shifts, admin edits)
+attendance.read        attendance.approve       attendance.manage   (unused — see below)
 
 leave.read.own         leave.request.own
 leave.read.team        leave.approve.team
@@ -74,6 +74,7 @@ settings.manage        role.manage              audit.read
 | `employee.read.team` | ✅ | ✅ | — | ✅ | — |
 | `employee.read` (all) | ✅ | ✅ | ✅ | — | — |
 | `employee.create` / `update` / `invite` / `offboard` | ✅ | ✅ | — | — | — |
+| `employee.onboarding.approve` | ✅ | ✅ | — | — | — |
 | `employee.delete` | ✅ | — | — | — | — |
 | `directory.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -117,6 +118,22 @@ Request → JwtAuthGuard (identity) → PermissionsGuard (matrix) → Service (s
 2. **`PermissionsGuard`** reads `@RequirePermissions(...codes)` metadata; any-of semantics, e.g. leave inbox declares `leave.approve.team | leave.approve`.
 3. **Service-level scoping** is the part guards can't do: `.team` queries add `WHERE employee.managerId = callerEmployeeId`; `.own` routes derive the employee from the JWT and ignore any client-sent id. **Rule: scope is never taken from request params.**
 4. **UI mirrors, never replaces:** the web app hides what `GET /auth/me` says you can't do — cosmetic only; the API is the boundary.
+
+### Three codes in the table are seeded but never checked
+
+The matrix above lists what a role is *granted*. For most rows that is also what
+is *enforced*, but three are granted to somebody and read by nothing:
+
+| Code | Why it is inert |
+|---|---|
+| `employee.offboard` | There is no offboarding endpoint. `DELETE /employees/:id` — a soft delete — is gated on `employee.delete` instead. |
+| `attendance.manage` | Shifts turned out to belong to company setup, not attendance: they live at `organization/shifts` behind `org.manage`. Nothing else claimed the code. |
+| `employee.update.own` | `PATCH /me/profile` carries no `@RequirePermissions`. Self-scope comes from the JWT subject, which is stronger — there is no id to tamper with. |
+
+Revoking any of the three changes nothing, which is the problem: the table reads
+as though it describes enforcement. They are listed in
+[15-feature-audit.md](./15-feature-audit.md) with the endpoints that would give
+them meaning.
 
 ## Beyond the guard: content as a second gate
 

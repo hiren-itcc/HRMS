@@ -23,31 +23,52 @@ search boxes do that work.
 
 Finance sees the Employee column plus Payroll (org-wide) and Reports.
 
-| Item | Route | EMPLOYEE | MANAGER | HR | ADMIN |
-|---|---|:-:|:-:|:-:|:-:|
-| Dashboard | `/dashboard` | ✅ | ✅ | ✅ | ✅ |
-| My Space ▾ | | ✅ | ✅ | ✅ | ✅ |
-| — Attendance | `/attendance` | ✅ | ✅ | ✅ | ✅ |
-| — Leave | `/leave` | ✅ | ✅ | ✅ | ✅ |
-| — Documents | `/documents` | ✅ | ✅ | ✅ | ✅ |
-| My Team ▾ | | — | ✅ | — | — |
-| — Team attendance | `/team/attendance` | — | ✅ | — | — |
-| — Approvals | `/team/approvals` | — | ✅ | — | — |
-| People ▾ | | — | — | ✅ | ✅ |
-| — Employees | `/employees` | — | — | ✅ | ✅ |
-| — Attendance admin | `/attendance/admin` | — | — | ✅ | ✅ |
-| — Leave admin | `/leave/admin` | — | — | ✅ | ✅ |
-| Directory | `/directory` | ✅ | ✅ | ✅ | ✅ |
-| Announcements | `/announcements` | ✅ | ✅ | ✅ | ✅ |
-| Organization | `/organization` | — | — | ✅ | ✅ |
-| Payroll | `/payroll` | ✅ (own) | ✅ (team) | ✅ | ✅ |
-| Reports | `/reports` | — | ✅ (team) | ✅ | ✅ |
-| Settings | `/settings` | — | — | ⚠ partial | ✅ |
+**As built** — a flat list, defined once in `apps/web/src/components/nav-items.ts`
+and consumed by both the sidebar and the ⌘K palette. An item appears when the
+caller holds **any** of its permissions *and* the organization has that module
+switched on in Settings.
 
-Avatar menu: My profile · My sessions · Theme (light/dark/system) · Logout.
-Global search (⌘K): employees, announcements, quick actions ("Apply leave", "Check in").
+| Item | Route | Shown when |
+|---|---|---|
+| Dashboard | `/dashboard` | always |
+| Employees | `/employees` | `employee.read` \| `employee.read.team` |
+| Directory | `/directory` | `directory.read` — everyone |
+| Organization | `/organization` | `org.read` |
+| Attendance | `/attendance` | module on |
+| Leave | `/leave` | module on |
+| Documents | `/documents` | module on |
+| Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
+| Announcements | `/announcements` | module on |
+| Reports | `/reports` | `report.view` \| `report.view.team` |
+| Settings | `/settings` | `settings.manage` \| `role.manage` \| `audit.read` \| `org.manage` |
 
-## UI screen list (47 screens)
+Team and admin views are reached as **tabs inside their section**, not as
+separate nav entries: `/attendance/team`, `/attendance/approvals`,
+`/leave/approvals`, `/leave/settings`. The tab strip only renders when more than
+one tab is permitted, so an employee sees no chrome for views they cannot open.
+
+This differs from the original design in three ways worth recording, because the
+routes in it were cited elsewhere:
+
+- **No collapsible groups.** *My Space ▾ / My Team ▾ / People ▾* were specified;
+  the list is flat. With 11 items and permission filtering already cutting it to
+  4–6 for most roles, the groups earned nothing.
+- **No `/team/*` routes.** They are `/attendance/team` and
+  `/attendance/approvals`, which keeps every attendance screen under one prefix.
+  `/leave/admin` is `/leave/settings`, and **`/attendance/admin` does not exist** —
+  there is no admin attendance editor, only the team view.
+- **Approvals are two inboxes, not one.** A unified leave + regularisation inbox
+  was specified; leave and attendance each have their own.
+
+Avatar menu: My profile · Theme (light/dark/system) · Logout. (My sessions is
+specified as screen 14 and not built.)
+
+## UI screen list
+
+Numbered as originally specified, so references from other docs still resolve.
+Rows struck through or marked **not built** are the gap between this list and
+`apps/web/src/app` — 57 page files exist, but they are not the same 57.
+[15-feature-audit.md](./15-feature-audit.md) is the reconciled view.
 
 ### Auth (4)
 | # | Screen | Route | Notes |
@@ -63,35 +84,47 @@ Global search (⌘K): employees, announcements, quick actions ("Apply leave", "C
 | 7 | HR/Admin add-ons | ″ | + headcount stat tiles, today's absence/late list, joiners this month |
 
 ### Employees & profile (7)
-| 8 | Employee list | `/employees` | Table: filter dept/location/status, saved views, CSV export |
-| 9 | Add employee | `/employees/new` | Multi-step form: personal → job → invite |
-| 10 | Employee detail | `/employees/:id` | Tabs: Overview · Job · Attendance · Leave · Documents |
+| 8 | Employee list | `/employees` | Table: filter dept/location/status. **Saved views and CSV export are not built.** |
+| 9 | Add employee | `/employees/new` | Single form, not a stepper. Creates the record and, by default, a login on the shared default password (doc 07) |
+| 10 | Employee detail | `/employees/:id` | Contact, job, role, invite state, bank, documents, letters, direct reports. **No attendance or leave tab** — the endpoint for it exists and nothing calls it |
 | 11 | Edit employee | `/employees/:id/edit` | HR fields; audit note on save |
-| 12 | Offboard dialog | (modal) | Status, exit date, confirmation with consequences listed |
-| 13 | My profile | `/profile` | Self-editable subset; emergency contacts |
-| 14 | My sessions | `/profile/sessions` | Device list; revoke |
+| 12 | ~~Offboard dialog~~ | — | **Not built.** Deleting an employee is a soft delete with a confirmation |
+| 13 | My profile | `/profile` | Self-editable subset: phone, personal email, address. **Emergency contacts are not built** |
+| 14 | ~~My sessions~~ | `/profile/sessions` | **Not built.** No session list, no revoke |
+
+### Onboarding (4)
+
+The path for a new hire. Screen 9 is for staff who already work here; these are
+for somebody joining, who has no work mailbox yet.
+
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 8a | Invite a hire | `/employees/onboard` | Name, personal email, work email, join date, job details. Sends the invitation; a send failure is shown with the reason and the invite can be resent |
+| 8b | Review queue | `/employees/onboarding` | Submissions with status chips. Note: the search box on this screen is inert |
+| 8c | Review one | `/employees/onboarding/[id]` | Profile, bank and documents submitted by the hire, plus editable job details. Approve or send back with a note. The reviewer cannot edit what the hire submitted — only ask for changes |
+| 8d | Hire's own intake | `/onboarding` | Profile → bank → required documents → submit. **Not in the sidebar**: the dashboard layout redirects any account with `EmployeeStatus.ONBOARDING` here, and `OnboardingGuard` refuses everything else |
 
 ### Directory & org (5)
 | 15 | Directory | `/directory` | Card grid, search-first; every role. Work contact details only — the HR record stays on screen 10 behind `employee.read` |
 | 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
-| 16 | Org chart | `/organization/chart` | Collapsible tree |
-| 17 | Departments & designations | `/organization/departments` | Two-pane CRUD |
+| 16 | ~~Org chart~~ | `/organization/chart` | **Not built.** `managerId` is populated and cycle-checked; the employee detail page shows a flat direct-reports list |
+| 17 | Departments & designations | `/organization/departments`, `/organization/designations` | Separate tabs, one CRUD table each — not two-pane. Employment types and shifts have their own tabs |
 | 18 | Locations | `/organization/locations` | Includes the attendance geofence: coordinates and a radius, both optional |
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |
 
 ### Attendance (5)
 | 20 | My attendance | `/attendance` | Month calendar + day drawer listing that day's sessions with where each was worked; regularize action; open sessions on a past day flagged |
-| 21 | Team attendance | `/team/attendance` | Day/week matrix of reports |
-| 22 | Attendance admin | `/attendance/admin` | Org day view; edit (audited); shifts CRUD |
+| 21 | Team attendance | `/attendance/team` | Day view + monthly summary, department filter. Route sits under `/attendance`, not `/team` |
+| 22 | ~~Attendance admin~~ | `/attendance/admin` | **Not built.** Screen 21 is view-only and the API has no edit endpoint. Shifts CRUD lives at `/organization/shifts` |
 | 23 | Regularization form | (drawer) | Date, in/out, reason |
-| 24 | Approvals inbox | `/team/approvals` | Unified: leave + regularization; approve/reject with note |
+| 24 | Approvals inbox | `/attendance/approvals`, `/leave/approvals` | **Two inboxes, not one.** Unified was specified; each module got its own |
 
 ### Leave (5)
 | 25 | My leave | `/leave` | Balance cards + request history |
 | 26 | Apply leave | (drawer) | Type→dates→days auto-calc (holidays/week-offs excluded), balance preview |
 | 27 | Leave calendar | `/leave/calendar` | Month grid of who's out (scope-filtered) |
-| 28 | Leave admin | `/leave/admin` | All requests, types CRUD, balance adjust (audited) |
-| 29 | Leave types config | `/leave/admin/types` | |
+| 28 | Leave admin | `/leave/settings` | Types CRUD + per-employee balances with an audited adjust dialog. Route is `/leave/settings`, not `/leave/admin` |
+| 29 | Leave types config | — | Folded into screen 28 rather than its own route |
 
 ### Documents & letters (6)
 
@@ -102,16 +135,16 @@ places rather than one screen that quietly shows you less.
 | 30 | My documents | `/documents` | Own files only, every role; upload |
 | 30a | My letters | `/documents/letters` | Own issued letters; `letter.read.own` |
 | 31 | Document admin | `/documents/admin` | Across every employee, filter by person/folder; `document.read` |
-| 32 | Folders | `/documents/folders` | Org-wide folder CRUD; `document.manage` |
+| 32 | Folders | `/documents/folders` | Create and delete only — **rename is not wired**, though the endpoint and client method both exist; `document.manage` |
 | 32a | Letter | `/letters/:id` | The issued document — print to PDF, void with a reason |
 | 32b | Letter templates | `/settings/letters` | Edit the four shipped templates; `letter.template.manage` |
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |
-| 34 | Compose/edit | `/announcements/new` | Markdown editor, audience picker, schedule, read receipts view |
+| 34 | Compose/edit | (dialog on the feed) | Markdown editor, audience picker, schedule, read receipts view. No `/announcements/new` route and no permalink for a single post |
 
 ### Reports (1 hub + 4 views)
-| 35 | Reports hub | `/reports` | Headcount · Attendance summary · Leave summary · Attrition; each: filters, chart + table, CSV export |
+| 35 | Reports hub | `/reports` | Four tabs: Employees · Attendance · Leave · **Departments**. Each has date-range presets, a department filter, KPIs, chart, paged table and CSV/Excel export behind `report.export`. **Attrition** was specified as the fourth and is folded into the employees report rather than standing alone; the departments rollup took its place |
 
 ### Payroll (9)
 | # | Screen | Route | Notes |
