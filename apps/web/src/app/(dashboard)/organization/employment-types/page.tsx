@@ -2,14 +2,13 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type EmploymentTypeCreateInput, employmentTypeCreateSchema } from '@hrms/shared';
-import { Input } from '@hrms/ui/components/input';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormInput } from '@/components/form';
 import { employmentTypesApi } from '@/features/organization/api';
 import type { EmploymentTypeRow } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
@@ -104,12 +103,8 @@ function EmploymentTypesView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Name" error={form.formState.errors.name?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
-        </Field>
-        <Field label="Code" error={form.formState.errors.code?.message} hint="Optional, e.g. FT">
-          {(a11y) => <Input {...a11y} {...form.register('code')} />}
-        </Field>
+        <FormInput control={form.control} name="name" label="Name" autoFocus />
+        <FormInput control={form.control} name="code" label="Code" hint="Optional, e.g. FT" />
       </FormDialog>
     </CrudShell>
   );

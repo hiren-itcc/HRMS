@@ -10,14 +10,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { FormField, FormInput } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { TimezoneField } from '@/components/timezone-field';
 import { companyApi } from '@/features/organization/api';
@@ -33,7 +32,7 @@ export default function CompanyPage() {
     resolver: zodResolver(companyUpdateSchema),
     defaultValues: { name: '', timezone: 'UTC', logoUrl: null },
   });
-  const { errors, isSubmitting, isDirty } = form.formState;
+  const { isSubmitting, isDirty } = form.formState;
 
   useEffect(() => {
     if (company.data) {
@@ -77,36 +76,39 @@ export default function CompanyPage() {
           className="space-y-4"
           noValidate
         >
-          <Field label="Company name" error={errors.name?.message}>
-            {(a11y) => <Input {...a11y} disabled={!canManage} {...form.register('name')} />}
-          </Field>
+          <FormInput
+            control={form.control}
+            name="name"
+            label="Company name"
+            disabled={!canManage}
+          />
 
-          <Field
+          {/* TimezoneField is a local composite, so it uses the escape hatch. */}
+          <FormField
+            control={form.control}
+            name="timezone"
             label="Default timezone"
-            error={errors.timezone?.message}
             hint="Used wherever an office or employee has no specific timezone"
           >
-            {(a11y) => (
+            {({ field, a11y }) => (
               <TimezoneField
                 {...a11y}
-                value={form.watch('timezone')}
-                onValueChange={(value) => form.setValue('timezone', value, { shouldDirty: true })}
+                value={field.value}
+                onValueChange={field.onChange}
                 disabled={!canManage}
               />
             )}
-          </Field>
+          </FormField>
 
-          <Field label="Logo URL" error={errors.logoUrl?.message} hint="Optional — https://…">
-            {(a11y) => (
-              <Input
-                {...a11y}
-                type="url"
-                placeholder="https://company.com/logo.png"
-                disabled={!canManage}
-                {...form.register('logoUrl')}
-              />
-            )}
-          </Field>
+          <FormInput
+            control={form.control}
+            name="logoUrl"
+            label="Logo URL"
+            hint="Optional — https://…"
+            type="url"
+            placeholder="https://company.com/logo.png"
+            disabled={!canManage}
+          />
 
           {canManage && (
             <Button type="submit" disabled={isSubmitting || save.isPending || !isDirty}>
