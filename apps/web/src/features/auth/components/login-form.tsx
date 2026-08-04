@@ -10,13 +10,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Field } from '@/components/field';
+import { FormField, FormInput } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { ApiError } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
@@ -31,7 +30,7 @@ export function LoginForm() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
 
   const onSubmit = form.handleSubmit(async (input) => {
     setServerError(null);
@@ -65,28 +64,27 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="Email" required error={errors.email?.message}>
-            {(a11y) => (
-              <Input
-                {...a11y}
-                type="email"
-                autoComplete="email"
-                placeholder="you@company.com"
-                autoFocus
-                {...form.register('email')}
-              />
-            )}
-          </Field>
+          <FormInput
+            control={form.control}
+            name="email"
+            label="Email"
+            required
+            type="email"
+            autoComplete="email"
+            placeholder="you@company.com"
+            autoFocus
+          />
 
-          <Field label="Password" required error={errors.password?.message}>
-            {(a11y) => (
+          <FormField control={form.control} name="password" label="Password" required>
+            {({ field, a11y }) => (
               <PasswordInput
                 {...a11y}
+                {...field}
+                value={field.value ?? ''}
                 autoComplete="current-password"
-                {...form.register('password')}
               />
             )}
-          </Field>
+          </FormField>
 
           {serverError && (
             <p

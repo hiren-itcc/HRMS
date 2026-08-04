@@ -28,14 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
+import { SelectItem } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Landmark, Pencil, Phone, ShieldAlert, Trash2, Users } from 'lucide-react';
@@ -45,7 +38,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
@@ -142,27 +135,13 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
         submitting={save.isPending}
         submitLabel="Change role"
       >
-        <Field label="Role" error={form.formState.errors.roleCode?.message}>
-          {(a11y) => (
-            <Select
-              value={form.watch('roleCode')}
-              onValueChange={(value) =>
-                form.setValue('roleCode', value as EmployeeRoleChangeInput['roleCode'])
-              }
-            >
-              <SelectTrigger id={a11y.id} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </Field>
+        <FormSelect control={form.control} name="roleCode" label="Role">
+          {ROLE_OPTIONS.map(({ value, label }) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </FormSelect>
         {form.watch('roleCode') === 'ADMIN' && (
           <Alert variant="info">
             <ShieldAlert aria-hidden />
@@ -256,22 +235,17 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
         submitting={save.isPending}
         submitLabel="Save"
       >
-        <Field label="Account holder" error={form.formState.errors.accountHolderName?.message}>
-          {(a11y) => <Input {...a11y} {...form.register('accountHolderName')} />}
-        </Field>
-        <Field label="Bank name" error={form.formState.errors.bankName?.message}>
-          {(a11y) => <Input {...a11y} {...form.register('bankName')} />}
-        </Field>
-        <Field label="Account number" error={form.formState.errors.accountNumber?.message}>
-          {(a11y) => <Input {...a11y} inputMode="numeric" {...form.register('accountNumber')} />}
-        </Field>
+        <FormInput control={form.control} name="accountHolderName" label="Account holder" />
+        <FormInput control={form.control} name="bankName" label="Bank name" />
+        <FormInput
+          control={form.control}
+          name="accountNumber"
+          label="Account number"
+          inputMode="numeric"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="IFSC code" error={form.formState.errors.ifscCode?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('ifscCode')} />}
-          </Field>
-          <Field label="Branch" error={form.formState.errors.branch?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('branch')} />}
-          </Field>
+          <FormInput control={form.control} name="ifscCode" label="IFSC code" />
+          <FormInput control={form.control} name="branch" label="Branch" />
         </div>
       </FormDialog>
     </Card>

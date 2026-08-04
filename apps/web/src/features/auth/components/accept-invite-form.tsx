@@ -18,7 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Field } from '@/components/field';
+import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
 import { ApiError } from '@/lib/api-client';
@@ -71,7 +71,7 @@ export function AcceptInviteForm() {
     resolver: zodResolver(formSchema),
     defaultValues: { password: '', confirmPassword: '' },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
 
   if (!token) {
     return (
@@ -126,12 +126,27 @@ export function AcceptInviteForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="Password" error={errors.password?.message}>
-            {(a11y) => <PasswordInput {...a11y} autoFocus {...form.register('password')} />}
-          </Field>
-          <Field label="Confirm password" error={errors.confirmPassword?.message}>
-            {(a11y) => <PasswordInput {...a11y} {...form.register('confirmPassword')} />}
-          </Field>
+          <FormField control={form.control} name="password" label="Password">
+            {({ field, a11y }) => (
+              <PasswordInput
+                {...a11y}
+                {...field}
+                value={field.value ?? ''}
+                autoComplete="new-password"
+                autoFocus
+              />
+            )}
+          </FormField>
+          <FormField control={form.control} name="confirmPassword" label="Confirm password">
+            {({ field, a11y }) => (
+              <PasswordInput
+                {...a11y}
+                {...field}
+                value={field.value ?? ''}
+                autoComplete="new-password"
+              />
+            )}
+          </FormField>
 
           {serverError && <p className="text-destructive text-sm">{serverError}</p>}
 

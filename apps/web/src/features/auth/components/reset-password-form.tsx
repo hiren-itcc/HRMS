@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Field } from '@/components/field';
+import { FormField } from '@/components/form';
 import { authApi } from '@/features/auth/api';
 import { ApiError } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
@@ -39,7 +39,7 @@ export function ResetPasswordForm() {
     resolver: zodResolver(formSchema),
     defaultValues: { password: '', confirmPassword: '' },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
 
   if (!token) {
     return (
@@ -84,26 +84,28 @@ export function ResetPasswordForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="New password" error={errors.password?.message}>
-            {(a11y) => (
+          <FormField control={form.control} name="password" label="New password">
+            {({ field, a11y }) => (
               <PasswordInput
                 {...a11y}
+                {...field}
+                value={field.value ?? ''}
                 autoComplete="new-password"
                 autoFocus
-                {...form.register('password')}
               />
             )}
-          </Field>
+          </FormField>
 
-          <Field label="Confirm new password" error={errors.confirmPassword?.message}>
-            {(a11y) => (
+          <FormField control={form.control} name="confirmPassword" label="Confirm new password">
+            {({ field, a11y }) => (
               <PasswordInput
                 {...a11y}
+                {...field}
+                value={field.value ?? ''}
                 autoComplete="new-password"
-                {...form.register('confirmPassword')}
               />
             )}
-          </Field>
+          </FormField>
 
           {serverError && (
             <p

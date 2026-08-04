@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,7 +17,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
@@ -165,11 +164,13 @@ export default function DocumentFoldersPage() {
         submitting={createFolder.isPending}
         submitLabel="Create folder"
       >
-        <Field label="Folder name" error={form.formState.errors.name?.message}>
-          {(a11y) => (
-            <Input {...a11y} autoFocus placeholder="Certificates" {...form.register('name')} />
-          )}
-        </Field>
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Folder name"
+          autoFocus
+          placeholder="Certificates"
+        />
       </FormDialog>
 
       <FormDialog
@@ -183,9 +184,7 @@ export default function DocumentFoldersPage() {
         submitting={renameFolder.isPending}
         submitLabel="Save name"
       >
-        <Field label="Folder name" error={renameForm.formState.errors.name?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...renameForm.register('name')} />}
-        </Field>
+        <FormInput control={renameForm.control} name="name" label="Folder name" autoFocus />
       </FormDialog>
     </Stagger>
   );

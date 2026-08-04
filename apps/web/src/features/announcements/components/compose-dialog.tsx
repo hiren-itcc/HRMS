@@ -7,24 +7,16 @@ import {
   announcementCreateSchema,
 } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
-import { Checkbox } from '@hrms/ui/components/checkbox';
-import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
+import { SelectItem } from '@hrms/ui/components/select';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Paperclip, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/form';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
 import { ApiError } from '@/lib/api-client';
 import { type Announcement, announcementsApi } from '../api';
@@ -49,13 +41,11 @@ interface ComposeProps {
 
 export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
   const queryClient = useQueryClient();
-  const pinnedId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
 
   const form = useForm<FormValues>({ resolver: zodResolver(announcementCreateSchema) });
   const audience = form.watch('audience') ?? 'ALL';
-  const body = form.watch('body') ?? '';
 
   const departments = useQuery({
     queryKey: ['org-departments', 'options'],
@@ -149,177 +139,120 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
       submitting={save.isPending}
       submitLabel={editing ? 'Save changes' : 'Publish'}
     >
-      <Field label="Title" error={form.formState.errors.title?.message}>
-        {(a11y) => (
-          <Input
-            {...a11y}
-            autoFocus
-            placeholder="Diwali holiday schedule"
-            {...form.register('title')}
+      <FormInput
+        control={form.control}
+        name="title"
+        label="Title"
+        autoFocus
+        placeholder="Diwali holiday schedule"
+      />
+
+      {/* RichTextEditor is feature-local, so it uses the escape hatch. */}
+      <FormField control={form.control} name="body" label="Message">
+        {({ field, a11y }) => (
+          <RichTextEditor
+            id={a11y.id}
+            aria-invalid={a11y['aria-invalid']}
+            aria-describedby={a11y['aria-describedby']}
+            value={field.value ?? ''}
+            onChange={field.onChange}
           />
         )}
-      </Field>
-
-      <div className="space-y-2">
-        <Label htmlFor="ann-message">Message</Label>
-        <RichTextEditor
-          id="ann-message"
-          value={body}
-          onChange={(v) => form.setValue('body', v, { shouldDirty: true, shouldValidate: true })}
-          aria-invalid={Boolean(form.formState.errors.body)}
-        />
-        {form.formState.errors.body && (
-          <p role="alert" className="text-destructive-text text-sm">
-            {form.formState.errors.body.message}
-          </p>
-        )}
-      </div>
+      </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="ann-category">Category</Label>
-          <Select
-            value={form.watch('category') ?? 'GENERAL'}
-            onValueChange={(v) =>
-              form.setValue('category', v as FormValues['category'], { shouldDirty: true })
-            }
-          >
-            <SelectTrigger id="ann-category" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(ANNOUNCEMENT_CATEGORY_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ann-priority">Priority</Label>
-          <Select
-            value={form.watch('priority') ?? 'NORMAL'}
-            onValueChange={(v) =>
-              form.setValue('priority', v as FormValues['priority'], { shouldDirty: true })
-            }
-          >
-            <SelectTrigger id="ann-priority" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(ANNOUNCEMENT_PRIORITY_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <FormSelect control={form.control} name="category" label="Category">
+          {Object.entries(ANNOUNCEMENT_CATEGORY_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </FormSelect>
+        <FormSelect control={form.control} name="priority" label="Priority">
+          {Object.entries(ANNOUNCEMENT_PRIORITY_LABELS).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </FormSelect>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="ann-audience">Audience</Label>
-        <Select
-          value={audience}
-          onValueChange={(v) =>
-            form.setValue('audience', v as FormValues['audience'], { shouldDirty: true })
-          }
-        >
-          <SelectTrigger id="ann-audience" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Everyone</SelectItem>
-            <SelectItem value="DEPARTMENT">A department</SelectItem>
-            <SelectItem value="LOCATION">A location</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/*
+       * Narrowing the audience hides the other select but did not clear what it
+       * held, so an announcement aimed at a location was still submitted with
+       * the department somebody picked a moment earlier. Whichever id the new
+       * audience does not use is dropped.
+       */}
+      <FormSelect
+        control={form.control}
+        name="audience"
+        label="Audience"
+        onValueChange={(next) => {
+          if (next !== 'DEPARTMENT') form.setValue('departmentId', null, { shouldDirty: true });
+          if (next !== 'LOCATION') form.setValue('locationId', null, { shouldDirty: true });
+        }}
+      >
+        <SelectItem value="ALL">Everyone</SelectItem>
+        <SelectItem value="DEPARTMENT">A department</SelectItem>
+        <SelectItem value="LOCATION">A location</SelectItem>
+      </FormSelect>
 
       {audience === 'DEPARTMENT' && (
-        <div className="space-y-2">
-          <Label htmlFor="ann-department">Department</Label>
-          <Select
-            value={form.watch('departmentId') ?? null}
-            onValueChange={(v) => form.setValue('departmentId', v, { shouldDirty: true })}
-          >
-            <SelectTrigger
-              id="ann-department"
-              className="w-full"
-              aria-invalid={Boolean(form.formState.errors.departmentId)}
-            >
-              <SelectValue placeholder="Choose a department" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.data?.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {form.formState.errors.departmentId && (
-            <p role="alert" className="text-destructive-text text-sm">
-              {form.formState.errors.departmentId.message}
-            </p>
-          )}
-        </div>
+        <FormSelect
+          control={form.control}
+          name="departmentId"
+          label="Department"
+          required
+          busy={departments.data === undefined}
+          placeholder="Choose a department"
+        >
+          {departments.data?.map((d) => (
+            <SelectItem key={d.id} value={d.id}>
+              {d.name}
+            </SelectItem>
+          ))}
+        </FormSelect>
       )}
 
       {audience === 'LOCATION' && (
-        <div className="space-y-2">
-          <Label htmlFor="ann-location">Location</Label>
-          <Select
-            value={form.watch('locationId') ?? null}
-            onValueChange={(v) => form.setValue('locationId', v, { shouldDirty: true })}
-          >
-            <SelectTrigger
-              id="ann-location"
-              className="w-full"
-              aria-invalid={Boolean(form.formState.errors.locationId)}
-            >
-              <SelectValue placeholder="Choose a location" />
-            </SelectTrigger>
-            <SelectContent>
-              {locations.data?.map((l) => (
-                <SelectItem key={l.id} value={l.id}>
-                  {l.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {form.formState.errors.locationId && (
-            <p role="alert" className="text-destructive-text text-sm">
-              {form.formState.errors.locationId.message}
-            </p>
-          )}
-        </div>
+        <FormSelect
+          control={form.control}
+          name="locationId"
+          label="Location"
+          required
+          busy={locations.data === undefined}
+          placeholder="Choose a location"
+        >
+          {locations.data?.map((l) => (
+            <SelectItem key={l.id} value={l.id}>
+              {l.name}
+            </SelectItem>
+          ))}
+        </FormSelect>
       )}
 
+      {/*
+       * datetime-local rather than FormDatePicker: these carry a time as well
+       * as a date, and the picker is date-only.
+       */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field
+        <FormInput
+          control={form.control}
+          name="publishAt"
           label="Publish at"
-          error={form.formState.errors.publishAt?.message}
           hint="Leave empty to post now"
-        >
-          {(a11y) => <Input {...a11y} type="datetime-local" {...form.register('publishAt')} />}
-        </Field>
-        <Field label="Expires at" error={form.formState.errors.expiresAt?.message} hint="Optional">
-          {(a11y) => <Input {...a11y} type="datetime-local" {...form.register('expiresAt')} />}
-        </Field>
+          type="datetime-local"
+        />
+        <FormInput
+          control={form.control}
+          name="expiresAt"
+          label="Expires at"
+          hint="Optional"
+          type="datetime-local"
+        />
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={pinnedId}
-          checked={form.watch('isPinned') ?? false}
-          onCheckedChange={(v) => form.setValue('isPinned', v === true, { shouldDirty: true })}
-        />
-        <Label htmlFor={pinnedId} className="font-normal">
-          Pin to the top of the feed
-        </Label>
-      </div>
+      <FormCheckbox control={form.control} name="isPinned" label="Pin to the top of the feed" />
 
       {/* Attachments need an announcement id, so they appear once it exists */}
       {editing ? (

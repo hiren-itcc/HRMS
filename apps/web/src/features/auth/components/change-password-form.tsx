@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Field } from '@/components/field';
+import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
 import { ApiError, setAccessToken } from '@/lib/api-client';
@@ -29,7 +29,7 @@ export function ChangePasswordForm() {
     resolver: zodResolver(formSchema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
 
   const onSubmit = form.handleSubmit(async ({ currentPassword, newPassword }) => {
     setServerError(null);
@@ -57,35 +57,43 @@ export function ChangePasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      <Field label="Current password" error={errors.currentPassword?.message}>
-        {(a11y) => (
+      <FormField control={form.control} name="currentPassword" label="Current password">
+        {({ field, a11y }) => (
           <PasswordInput
             {...a11y}
+            {...field}
+            value={field.value ?? ''}
             autoComplete="current-password"
-            {...form.register('currentPassword')}
           />
         )}
-      </Field>
+      </FormField>
 
-      <Field
+      <FormField
+        control={form.control}
+        name="newPassword"
         label="New password"
-        error={errors.newPassword?.message}
         hint="At least 10 characters with an uppercase letter, a lowercase letter and a digit"
       >
-        {(a11y) => (
-          <PasswordInput {...a11y} autoComplete="new-password" {...form.register('newPassword')} />
-        )}
-      </Field>
-
-      <Field label="Confirm new password" error={errors.confirmPassword?.message}>
-        {(a11y) => (
+        {({ field, a11y }) => (
           <PasswordInput
             {...a11y}
+            {...field}
+            value={field.value ?? ''}
             autoComplete="new-password"
-            {...form.register('confirmPassword')}
           />
         )}
-      </Field>
+      </FormField>
+
+      <FormField control={form.control} name="confirmPassword" label="Confirm new password">
+        {({ field, a11y }) => (
+          <PasswordInput
+            {...a11y}
+            {...field}
+            value={field.value ?? ''}
+            autoComplete="new-password"
+          />
+        )}
+      </FormField>
 
       {serverError && (
         <p
