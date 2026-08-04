@@ -49,6 +49,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useSession } from '@/components/session-provider';
+import { errorMessage } from '@/hooks/use-crud';
 import { ApiError } from '@/lib/api-client';
 import {
   ACCEPTED_TYPES,
@@ -142,7 +143,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
           );
           toast.success(`${file.name} uploaded`);
         } catch (err) {
-          toast.error(err instanceof ApiError ? err.message : `Could not upload ${file.name}`);
+          toast.error(errorMessage(err, `Could not upload ${file.name}`));
         }
       }
       setUploading(null);
@@ -157,7 +158,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
       invalidate();
       toast.success('Document deleted');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not delete')),
   });
 
   const move = useMutation({
@@ -167,7 +168,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
       invalidate();
       toast.success('Document moved');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not move'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not move')),
   });
 
   const download = async (doc: EmployeeDocument) => {

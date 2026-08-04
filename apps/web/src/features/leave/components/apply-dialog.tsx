@@ -3,16 +3,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { leaveApplySchema } from '@hrms/shared';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, Info } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormSelect, FormTextarea } from '@/components/form';
-import { useOptions } from '@/hooks/use-crud';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
 import { formatDays, type LeaveBalance, leaveApi } from '../api';
 
 type FormValues = z.input<typeof leaveApplySchema>;
@@ -26,7 +24,7 @@ interface ApplyDialogProps {
 }
 
 export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogProps) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   // Keyed under ['leave'] so that editing a leave type invalidates this too.
   const types = useOptions(['leave', 'types'], leaveApi.typeOptions, (t) => t.name, {
     enabled: open,
@@ -76,20 +74,17 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
   const balance = balances.find((b) => b.leaveTypeId === leaveTypeId);
   const shortfall = balance && preview.data ? preview.data.days > balance.available : false;
 
-  const apply = useMutation({
+  const apply = useApiMutation({
     mutationFn: leaveApi.apply,
-    onSuccess: (req) => {
-      queryClient.invalidateQueries({ queryKey: ['leave'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success(
-        req.status === 'APPROVED'
-          ? `Leave booked — ${formatDays(req.days)}`
-          : `Leave requested — ${formatDays(req.days)} pending approval`,
-      );
+    invalidate: [['leave'], ['attendance']],
+    success: (req) =>
+      req.status === 'APPROVED'
+        ? `Leave booked — ${formatDays(req.days)}`
+        : `Leave requested — ${formatDays(req.days)} pending approval`,
+    error: 'Could not submit the request',
+    onSuccess: (_req) => {
       onOpenChange(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not submit the request'),
   });
 
   return (

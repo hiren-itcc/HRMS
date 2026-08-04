@@ -19,12 +19,11 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { Field } from '@/components/field';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 import { type LetterListItem, letterKeys, lettersApi } from '../api';
 import { LetterFrame } from './letter-frame';
 
@@ -52,7 +51,7 @@ export function GenerateLetterDialog({
   open,
   onOpenChange,
 }: Props) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [templateKey, setTemplateKey] = useState(LETTER_TEMPLATES[0]?.key ?? '');
 
   const preview = useQuery({
@@ -61,15 +60,14 @@ export function GenerateLetterDialog({
     enabled: open && templateKey !== '',
   });
 
-  const issue = useMutation({
+  const issue = useApiMutation({
     mutationFn: () => lettersApi.issue(employeeId, templateKey),
-    onSuccess: (letter) => {
-      queryClient.invalidateQueries({ queryKey: letterKeys.all() });
-      toast.success(`${letter.title} issued — ${letter.letterNumber}`);
+    invalidate: [letterKeys.all()],
+    success: (letter) => `${letter.title} issued — ${letter.letterNumber}`,
+    error: 'Could not issue the letter',
+    onSuccess: (_letter) => {
       onOpenChange(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not issue the letter'),
   });
 
   const priorOfThisKind = existing.filter((l) => l.templateKey === templateKey);

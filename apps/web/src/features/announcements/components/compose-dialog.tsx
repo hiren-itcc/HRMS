@@ -9,7 +9,7 @@ import {
 import { Button } from '@hrms/ui/components/button';
 import { Label } from '@hrms/ui/components/label';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Paperclip, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -18,8 +18,7 @@ import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/form';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
-import { useOptions } from '@/hooks/use-crud';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage, useApiMutation, useOptions } from '@/hooks/use-crud';
 import { type Announcement, announcementsApi } from '../api';
 import { RichTextEditor } from './rich-text-editor';
 
@@ -71,7 +70,7 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
     });
   }, [open, editing, form]);
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: (values: FormValues) => {
       const parsed = announcementCreateSchema.parse(values);
       // datetime-local gives local wall time — send a real instant
@@ -84,19 +83,17 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
         ? announcementsApi.update(editing.id, payload)
         : announcementsApi.create(payload);
     },
-    onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      toast.success(
-        editing
-          ? 'Announcement updated'
-          : saved.isScheduled
-            ? 'Announcement scheduled'
-            : 'Announcement published',
-      );
+    invalidate: [['announcements']],
+    success: (saved) =>
+      editing
+        ? 'Announcement updated'
+        : saved.isScheduled
+          ? 'Announcement scheduled'
+          : 'Announcement published',
+    error: 'Could not save the announcement',
+    onSuccess: (_saved) => {
       onOpenChange(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not save the announcement'),
   });
 
   const attach = async (files: FileList) => {
@@ -109,19 +106,17 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
         );
         toast.success(`${file.name} attached`);
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : `Could not attach ${file.name}`);
+        toast.error(errorMessage(err, `Could not attach ${file.name}`));
       }
     }
     setUploading(null);
     queryClient.invalidateQueries({ queryKey: ['announcements'] });
   };
 
-  const detach = useMutation({
+  const detach = useApiMutation({
     mutationFn: announcementsApi.removeAttachment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      toast.success('Attachment removed');
-    },
+    invalidate: [['announcements']],
+    success: 'Attachment removed',
   });
 
   return (

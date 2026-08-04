@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useSession } from '@/components/session-provider';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -57,8 +57,7 @@ export function InviteCard({ employeeId }: { employeeId: string }) {
         toast.error('The invitation still did not go out');
       }
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not resend the invitation'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not resend the invitation')),
   });
 
   // Not onboarding — nothing to show.

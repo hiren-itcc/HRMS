@@ -5,7 +5,7 @@ import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@hrms/ui/components/card';
 import { Checkbox } from '@hrms/ui/components/checkbox';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -20,7 +20,6 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { type Column, DataTable } from '@/components/data-table';
 import { ErrorState } from '@/components/error-state';
 import { useSession } from '@/components/session-provider';
@@ -28,6 +27,7 @@ import { formatMoney, formatMonth, payrollApi, payrollKeys } from '@/features/pa
 import { AdjustmentsPanel } from '@/features/payroll/components/adjustments-panel';
 import { PaymentStatusBadge, RunStatusBadge } from '@/features/payroll/components/status-badge';
 import type { PayslipRow, RunStatus } from '@/features/payroll/types';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 /**
@@ -121,28 +121,28 @@ export default function PayrollRunPage() {
     setSelected(new Set());
   };
 
-  const act = useMutation({
+  const act = useApiMutation({
     mutationFn: (action: (typeof ACTIONS)[number]['action']) =>
       payrollApi.actOnRun(runId, { action }),
-    onSuccess: (updated) => {
-      toast.success(`Payroll is now ${updated.status.toLowerCase().replace('_', ' ')}`);
+    error: 'Could not run that step',
+    success: (updated) => `Payroll is now ${updated.status.toLowerCase().replace('_', ' ')}`,
+    onSuccess: (_updated) => {
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
-  const pay = useMutation({
+  const pay = useApiMutation({
     mutationFn: (status: 'PROCESSING' | 'PAID' | 'FAILED') =>
       payrollApi.updatePayment({
         payslipIds: [...selected],
         status,
         failureReason: status === 'FAILED' ? 'Bank transfer rejected' : null,
       }),
-    onSuccess: (result) => {
-      toast.success(`${result.updated} payslip(s) marked ${result.status.toLowerCase()}`);
+    error: 'Could not update the payment status',
+    success: (result) => `${result.updated} payslip(s) marked ${result.status.toLowerCase()}`,
+    onSuccess: (_result) => {
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   if (run.isError) return <ErrorState onRetry={() => run.refetch()} />;

@@ -3,21 +3,21 @@
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
+import { useApiMutation } from '@/hooks/use-crud';
 
 /** One employee's salary revision timeline, newest first. */
 export default function SalaryTimelinePage() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const { can } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const timeline = useQuery({
     queryKey: [...payrollKeys.salaries(), employeeId],
     queryFn: () => payrollApi.salaryTimeline(employeeId),
@@ -33,13 +33,11 @@ export default function SalaryTimelinePage() {
    * The endpoint has existed since payroll shipped with no way to call it, so
    * a mistyped revision could only be buried under a corrective one.
    */
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: (id: string) => payrollApi.deleteSalary(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: payrollKeys.salaries() });
-      toast.success('Revision removed');
-    },
-    onError: (error: Error) => toast.error(error.message),
+    error: 'Could not remove the revision',
+    invalidate: [payrollKeys.salaries()],
+    success: 'Revision removed',
   });
 
   if (timeline.isError) return <ErrorState onRetry={() => timeline.refetch()} />;

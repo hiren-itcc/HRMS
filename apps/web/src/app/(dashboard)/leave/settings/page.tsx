@@ -5,11 +5,10 @@ import { leaveBalanceAdjustSchema, leaveTypeCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
@@ -17,14 +16,14 @@ import { DataTable } from '@/components/data-table';
 import { FormCheckbox, FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { type LeaveBalance, type LeaveType, leaveApi } from '@/features/leave/api';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
-import { ApiError } from '@/lib/api-client';
 
 type TypeValues = z.input<typeof leaveTypeCreateSchema>;
 type AdjustValues = z.input<typeof leaveBalanceAdjustSchema>;
 
 function LeaveSettingsView() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const params = useListParams('name');
   // Left undefined so the API applies the organization's leave-year policy.
   // Sending the calendar year here made merely opening the page provision a
@@ -47,41 +46,37 @@ function LeaveSettingsView() {
   const typeForm = useForm<TypeValues>({ resolver: zodResolver(leaveTypeCreateSchema) });
   const adjustForm = useForm<AdjustValues>({ resolver: zodResolver(leaveBalanceAdjustSchema) });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['leave'] });
-
-  const saveType = useMutation({
+  const saveType = useApiMutation({
     mutationFn: (input: TypeValues) => {
       const parsed = leaveTypeCreateSchema.parse(input);
       return editing === 'new'
         ? leaveApi.createType(parsed)
         : leaveApi.updateType((editing as LeaveType).id, parsed);
     },
+    invalidate: [['leave']],
+    success: () => (editing === 'new' ? 'Leave type created' : 'Leave type updated'),
+    error: 'Could not save',
     onSuccess: () => {
-      invalidate();
-      toast.success(editing === 'new' ? 'Leave type created' : 'Leave type updated');
       setEditing(null);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not save'),
   });
 
-  const removeType = useMutation({
+  const removeType = useApiMutation({
     mutationFn: leaveApi.removeType,
-    onSuccess: () => {
-      invalidate();
-      toast.success('Leave type deleted');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
+    invalidate: [['leave']],
+    success: 'Leave type deleted',
+    error: 'Could not delete',
   });
 
-  const adjust = useMutation({
+  const adjust = useApiMutation({
     mutationFn: (input: AdjustValues) =>
       leaveApi.adjustBalance(leaveBalanceAdjustSchema.parse(input)),
+    invalidate: [['leave']],
+    success: 'Balance updated',
+    error: 'Could not adjust',
     onSuccess: () => {
-      invalidate();
-      toast.success('Balance updated');
       setAdjusting(null);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not adjust'),
   });
 
   const openNewType = () => {

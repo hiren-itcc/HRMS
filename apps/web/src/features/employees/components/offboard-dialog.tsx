@@ -11,13 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
+import { useApiMutation } from '@/hooks/use-crud';
 
 type Destination = EmployeeOffboardInput['status'];
 
@@ -70,30 +70,29 @@ export function OffboardDialog({
   employeeName: string;
   currentStatus: string;
 }) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const leaving = currentStatus === 'ON_NOTICE' || currentStatus === 'EXITED';
   const [status, setStatus] = useState<Destination>(leaving ? 'EXITED' : 'ON_NOTICE');
   const [exitDate, setExitDate] = useState('');
   const [reason, setReason] = useState('');
 
-  const offboard = useMutation({
+  const offboard = useApiMutation({
+    error: 'Could not record the exit',
     mutationFn: () =>
       employeesApi.offboard(employeeId, {
         status,
         exitDate: status === 'ACTIVE' ? null : exitDate,
         reason: reason.trim() || null,
       }),
+    invalidate: [['employees']],
+    success: (_data) =>
+      status === 'ACTIVE'
+        ? `${employeeName} is back to active`
+        : `${employeeName} is now ${status === 'EXITED' ? 'marked as left' : 'on notice'}`,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success(
-        status === 'ACTIVE'
-          ? `${employeeName} is back to active`
-          : `${employeeName} is now ${status === 'EXITED' ? 'marked as left' : 'on notice'}`,
-      );
       setOpen(false);
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const consequences = CONSEQUENCES[status];

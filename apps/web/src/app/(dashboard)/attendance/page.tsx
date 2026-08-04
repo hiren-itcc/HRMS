@@ -9,10 +9,9 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, ChevronLeft, ChevronRight, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import {
   attendanceApi,
@@ -30,6 +29,7 @@ import { CorrectionDialog } from '@/features/attendance/components/correction-di
 import { RequestStatusChip } from '@/features/attendance/components/request-status-chip';
 import { AttendanceStatusBadge } from '@/features/attendance/components/status-badge';
 import { VerificationChip, WorkModeChip } from '@/features/attendance/components/work-mode-chip';
+import { useApiMutation } from '@/hooks/use-crud';
 import { ApiError } from '@/lib/api-client';
 
 const monthLabel = (month: string) =>
@@ -129,7 +129,7 @@ function DayPanel({
 }
 
 export default function MyAttendancePage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [month, setMonth] = useState(currentMonth);
   // The date, not the entry: a day's sessions change while it is open, so the
   // panel has to re-read the day rather than hold a snapshot of it.
@@ -148,13 +148,11 @@ export default function MyAttendancePage() {
     retry: false,
   });
 
-  const cancel = useMutation({
+  const cancel = useApiMutation({
     mutationFn: attendanceApi.cancelRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success('Request withdrawn');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not withdraw'),
+    invalidate: [['attendance']],
+    success: 'Request withdrawn',
+    error: 'Could not withdraw',
   });
 
   const noEmployeeRecord = data.isError && data.error instanceof ApiError;

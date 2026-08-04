@@ -2,14 +2,13 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceRequestCreateSchema } from '@hrms/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormTextarea, FormTimePicker } from '@/components/form';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 import { attendanceApi } from '../api';
 
 type FormValues = z.input<typeof attendanceRequestCreateSchema>;
@@ -22,7 +21,7 @@ interface CorrectionDialogProps {
 }
 
 export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogProps) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const form = useForm<FormValues>({
     resolver: zodResolver(attendanceRequestCreateSchema),
     defaultValues: { date, requestedIn: '', requestedOut: '', reason: '' },
@@ -32,15 +31,14 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
     if (open) form.reset({ date, requestedIn: '', requestedOut: '', reason: '' });
   }, [open, date, form]);
 
-  const create = useMutation({
+  const create = useApiMutation({
     mutationFn: attendanceApi.createRequest,
+    invalidate: [['attendance']],
+    success: 'Correction request sent for approval',
+    error: 'Could not send the request',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success('Correction request sent for approval');
       onOpenChange(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not send the request'),
   });
 
   return (

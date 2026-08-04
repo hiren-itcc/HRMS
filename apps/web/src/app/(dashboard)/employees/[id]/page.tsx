@@ -30,7 +30,7 @@ import {
 } from '@hrms/ui/components/card';
 import { SelectItem } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Landmark, Pencil, Phone, ShieldAlert, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -50,7 +50,7 @@ import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
 import { LettersPanel } from '@/features/letters/components/letters-panel';
 import { InviteCard } from '@/features/onboarding/components/invite-card';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -78,16 +78,17 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  */
 function RoleRow({ employee }: { employee: EmployeeDetail }) {
   const { can, user: me } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const form = useForm<EmployeeRoleChangeInput>({
     resolver: zodResolver(employeeRoleChangeSchema),
   });
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: (input: EmployeeRoleChangeInput) => employeesApi.setRole(employee.id, input),
+    invalidate: [['employees']],
+    error: 'Could not change role',
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success(`Role changed to ${ROLE_LABEL[result.roleCode]}`, {
         description: result.sessionsRevoked
           ? 'They have been signed out and pick up the new role next time they sign in.'
@@ -95,7 +96,6 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
       });
       setOpen(false);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not change role'),
   });
 
   const current = employee.user?.role?.code;
@@ -161,20 +161,19 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
 
 function BankCard({ employee }: { employee: EmployeeDetail }) {
   const { can } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const form = useForm<BankDetailInput>({ resolver: zodResolver(bankDetailSchema) });
   const bank = employee.bankDetail;
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: (input: BankDetailInput) => employeesApi.upsertBank(employee.id, input),
+    invalidate: [['employees']],
+    success: 'Bank details saved',
+    error: 'Could not save bank details',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Bank details saved');
       setOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not save bank details'),
   });
 
   // undefined = hidden by the API (no permission); null = none stored yet
@@ -256,7 +255,7 @@ function EmployeeDetailView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   const employee = useQuery({
     queryKey: ['employees', 'detail', id],
@@ -264,14 +263,14 @@ function EmployeeDetailView() {
     retry: false,
   });
 
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: () => employeesApi.remove(id),
+    invalidate: [['employees']],
+    success: 'Employee removed',
+    error: 'Could not delete',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Employee removed');
       router.replace('/employees');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
   });
 
   if (employee.isLoading) {

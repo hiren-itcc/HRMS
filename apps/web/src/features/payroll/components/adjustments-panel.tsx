@@ -18,15 +18,14 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
 import { employeesApi } from '@/features/employees/api';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
-import { useOptions } from '@/hooks/use-crud';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
 
 /**
  * One-off amounts for this month: bonuses, incentives, loan instalments.
@@ -77,7 +76,8 @@ export function AdjustmentsPanel({
     queryClient.invalidateQueries({ queryKey: payrollKeys.adjustments(month) });
   };
 
-  const save = useMutation({
+  const save = useApiMutation({
+    error: 'Could not save the adjustment',
     mutationFn: () =>
       payrollApi.setAdjustment({
         employeeId,
@@ -86,8 +86,8 @@ export function AdjustmentsPanel({
         amount: Number(amount),
         note: note.trim() || null,
       }),
+    success: 'Saved — it applies the next time the run is calculated',
     onSuccess: () => {
-      toast.success('Saved — it applies the next time the run is calculated');
       invalidate();
       setOpen(false);
       setEmployeeId('');
@@ -95,16 +95,15 @@ export function AdjustmentsPanel({
       setAmount('');
       setNote('');
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: (id: string) => payrollApi.deleteAdjustment(id),
+    error: 'Could not remove the adjustment',
+    success: 'Adjustment removed — recalculate to apply it',
     onSuccess: () => {
-      toast.success('Adjustment removed — recalculate to apply it');
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   /*

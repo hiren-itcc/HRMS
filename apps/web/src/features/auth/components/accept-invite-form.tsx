@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 import { PasswordInput } from './password-input';
 
 const formSchema = z
@@ -109,7 +109,7 @@ export function AcceptInviteForm() {
       // Straight into the wizard — they are signed in already.
       router.replace('/onboarding');
     } catch (err) {
-      setServerError(err instanceof ApiError ? err.message : 'Could not set your password');
+      setServerError(errorMessage(err, 'Could not set your password'));
     }
   });
 

@@ -14,7 +14,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { LogIn, LogOut, MapPinOff, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 import {
   attendanceApi,
   formatDuration,
@@ -96,7 +96,7 @@ export function ClockCard() {
       setRefused(true);
       return;
     }
-    toast.error(err instanceof ApiError ? err.message : fallback);
+    toast.error(errorMessage(err, fallback));
   };
 
   const clockIn = useMutation({

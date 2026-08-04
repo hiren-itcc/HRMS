@@ -17,19 +17,18 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
 import { leaveApi } from '@/features/leave/api';
 import { LeaveRequestRow } from '@/features/leave/components/request-row';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
-import { ApiError } from '@/lib/api-client';
 
 function LeaveApprovalsView() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const params = useListParams('startDate');
   const reduceMotion = useReducedMotion();
   const status = params.get('status') ?? 'PENDING';
@@ -40,18 +39,14 @@ function LeaveApprovalsView() {
     queryFn: () => leaveApi.requests({ scope: 'inbox', status, page: params.page, limit: 10 }),
   });
 
-  const decide = useMutation({
+  const decide = useApiMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
       action === 'approve'
         ? leaveApi.approve(id, { note: notes[id] })
         : leaveApi.reject(id, { note: notes[id] }),
-    onSuccess: (_d, { action }) => {
-      queryClient.invalidateQueries({ queryKey: ['leave'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success(action === 'approve' ? 'Leave approved' : 'Leave rejected');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not record the decision'),
+    invalidate: [['leave'], ['attendance']],
+    success: (_d, { action }) => (action === 'approve' ? 'Leave approved' : 'Leave rejected'),
+    error: 'Could not record the decision',
   });
 
   const rows = requests.data?.data ?? [];

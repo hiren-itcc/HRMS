@@ -16,21 +16,20 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Inbox } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { leaveApi } from '@/features/leave/api';
 import { ApplyLeaveDialog } from '@/features/leave/components/apply-dialog';
 import { BalanceCard } from '@/features/leave/components/balance-card';
 import { LeaveRequestRow } from '@/features/leave/components/request-row';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const ALL = 'all';
 
 export default function MyLeavePage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [applyOpen, setApplyOpen] = useState(false);
   const [status, setStatus] = useState<string>(ALL);
 
@@ -47,15 +46,11 @@ export default function MyLeavePage() {
     retry: false,
   });
 
-  const cancel = useMutation({
+  const cancel = useApiMutation({
     mutationFn: leaveApi.cancel,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leave'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success('Leave request cancelled');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not cancel the request'),
+    invalidate: [['leave'], ['attendance']],
+    success: 'Leave request cancelled',
+    error: 'Could not cancel the request',
   });
 
   const rows = requests.data?.data ?? [];

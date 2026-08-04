@@ -14,17 +14,16 @@ import {
 import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Ban, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { ErrorState } from '@/components/error-state';
 import { useSession } from '@/components/session-provider';
 import { formatLetterDate, letterKeys, lettersApi } from '@/features/letters/api';
 import { LetterFrame } from '@/features/letters/components/letter-frame';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 /**
  * The letter document.
@@ -39,7 +38,7 @@ import { ApiError } from '@/lib/api-client';
 export default function LetterPage() {
   const { id } = useParams<{ id: string }>();
   const { can } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [reason, setReason] = useState('');
 
   const letter = useQuery({
@@ -47,15 +46,14 @@ export default function LetterPage() {
     queryFn: () => lettersApi.get(id),
   });
 
-  const voidLetter = useMutation({
+  const voidLetter = useApiMutation({
     mutationFn: () => lettersApi.void(id, reason),
+    invalidate: [letterKeys.all()],
+    success: 'Letter voided',
+    error: 'Could not void the letter',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: letterKeys.all() });
-      toast.success('Letter voided');
       setReason('');
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not void the letter'),
   });
 
   if (letter.isError) return <ErrorState onRetry={() => letter.refetch()} />;

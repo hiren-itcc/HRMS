@@ -1,11 +1,10 @@
 'use client';
 
 import { Button } from '@hrms/ui/components/button';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
 import { Field } from '@/components/field';
@@ -14,6 +13,7 @@ import { StatCard } from '@/components/stat-card';
 import { formatMoney, formatMonth, payrollApi, payrollKeys } from '@/features/payroll/api';
 import { RunStatusBadge } from '@/features/payroll/components/status-badge';
 import type { PayrollRun } from '@/features/payroll/types';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 /** Default to last month: payroll is run after the month it pays for. */
@@ -59,15 +59,15 @@ export default function PayrollRunsPage() {
     enabled: canReadRuns,
   });
 
-  const create = useMutation({
+  const create = useApiMutation({
     mutationFn: () => payrollApi.createRun({ month }),
+    error: 'Could not open the payroll run',
+    success: (run) => `Payroll opened for ${formatMonth(run.month)}`,
     onSuccess: (run) => {
-      toast.success(`Payroll opened for ${formatMonth(run.month)}`);
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: payrollKeys.runs() });
       router.push(`/payroll/${run.id}`);
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const latest = runs.data?.data[0];

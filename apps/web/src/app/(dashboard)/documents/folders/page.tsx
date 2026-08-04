@@ -10,11 +10,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormInput } from '@/components/form';
@@ -22,14 +21,14 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { documentsApi } from '@/features/documents/api';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 type FolderValues = z.input<typeof documentCategoryCreateSchema>;
 
 /** Folder administration — the org-wide taxonomy every employee files into. */
 export default function DocumentFoldersPage() {
   const { can, status } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [folderOpen, setFolderOpen] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const canManage = can('document.manage');
@@ -43,25 +42,21 @@ export default function DocumentFoldersPage() {
   const form = useForm<FolderValues>({ resolver: zodResolver(documentCategoryCreateSchema) });
   const renameForm = useForm<FolderValues>({ resolver: zodResolver(documentCategoryCreateSchema) });
 
-  const createFolder = useMutation({
+  const createFolder = useApiMutation({
     mutationFn: documentsApi.createFolder,
+    invalidate: [['documents']],
+    success: 'Folder created',
+    error: 'Could not create the folder',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Folder created');
       setFolderOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not create the folder'),
   });
 
-  const removeFolder = useMutation({
+  const removeFolder = useApiMutation({
     mutationFn: documentsApi.removeFolder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Folder deleted');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete the folder'),
+    invalidate: [['documents']],
+    success: 'Folder deleted',
+    error: 'Could not delete the folder',
   });
 
   /*
@@ -72,16 +67,15 @@ export default function DocumentFoldersPage() {
    *
    * Documents point at the folder by id, so a rename moves nothing.
    */
-  const renameFolder = useMutation({
+  const renameFolder = useApiMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       documentsApi.renameFolder(id, { name }),
+    invalidate: [['documents']],
+    success: 'Folder renamed',
+    error: 'Could not rename the folder',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Folder renamed');
       setRenaming(null);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not rename the folder'),
   });
 
   if (status === 'authenticated' && !canManage) return <NoAccess what="document folders" />;

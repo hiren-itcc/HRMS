@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { type ActiveSession, authApi } from '@/features/auth/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 
 /**
  * The devices that can still refresh this account (screen 14, docs/05).
@@ -130,8 +130,7 @@ export default function SessionsPage() {
       queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
       toast.success('That device has been signed out');
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not sign that device out'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not sign that device out')),
   });
 
   if (!user) return null;

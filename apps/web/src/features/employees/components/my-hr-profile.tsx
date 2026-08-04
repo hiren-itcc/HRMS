@@ -11,14 +11,14 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Separator } from '@hrms/ui/components/separator';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import { FormInput } from '@/components/form';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -42,7 +42,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  * when no employee record is linked to the account.
  */
 export function MyHrProfile() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ['me-profile'], queryFn: meApi.profile, retry: false });
 
   const form = useForm<SelfProfileUpdateInput>({
@@ -70,13 +70,11 @@ export function MyHrProfile() {
 
   const contacts = useFieldArray({ control: form.control, name: 'emergencyContacts' });
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: meApi.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me-profile'] });
-      toast.success('Profile saved');
-    },
-    onError: () => toast.error('Could not save. Try again.'),
+    invalidate: [['me-profile']],
+    success: 'Profile saved',
+    error: 'Could not save. Try again.',
   });
 
   if (profile.isLoading || !profile.data) return null;

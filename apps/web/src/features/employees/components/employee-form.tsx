@@ -30,8 +30,7 @@ import {
   locationsApi,
   shiftsApi,
 } from '@/features/organization/api';
-import { type Option, useOptions } from '@/hooks/use-crud';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage, type Option, useOptions } from '@/hooks/use-crud';
 
 type FormValues = z.input<typeof employeeCreateSchema>;
 
@@ -134,7 +133,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
         onSaved(created.id);
       }
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save. Try again.');
+      toast.error(errorMessage(err, 'Could not save. Try again.'));
     }
   });
 

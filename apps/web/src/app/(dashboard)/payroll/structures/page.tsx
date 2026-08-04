@@ -2,15 +2,15 @@
 
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Pencil, Power, PowerOff, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { type Column, DataTable } from '@/components/data-table';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryStructure } from '@/features/payroll/types';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const CALC_LABEL: Record<string, string> = {
@@ -24,7 +24,7 @@ const CALC_LABEL: Record<string, string> = {
 export default function StructuresPage() {
   const params = useListParams('name');
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { can } = useSession();
 
   const listQuery = {
@@ -39,24 +39,18 @@ export default function StructuresPage() {
     queryFn: () => payrollApi.structures(listQuery),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: payrollKeys.structures() });
-
-  const clone = useMutation({
+  const clone = useApiMutation({
     mutationFn: (id: string) => payrollApi.cloneStructure(id),
-    onSuccess: (created) => {
-      toast.success(`Cloned as ${created.name} — it starts inactive`);
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
+    error: 'Could not clone the structure',
+    success: (created) => `Cloned as ${created.name} — it starts inactive`,
+    invalidate: [payrollKeys.structures()],
   });
 
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: (id: string) => payrollApi.deleteStructure(id),
-    onSuccess: () => {
-      toast.success('Structure deleted');
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
+    error: 'Could not delete the structure',
+    success: 'Structure deleted',
+    invalidate: [payrollKeys.structures()],
   });
 
   /*
@@ -68,18 +62,15 @@ export default function StructuresPage() {
    * structure being picked for the next one, which is the point: the employees
    * on it keep being paid from it.
    */
-  const setActive = useMutation({
+  const setActive = useApiMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       payrollApi.updateStructure(id, { isActive }),
-    onSuccess: (_result, { isActive }) => {
-      toast.success(
-        isActive
-          ? 'Structure reactivated'
-          : 'Structure deactivated — existing assignments are unchanged',
-      );
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
+    error: 'Could not change whether it is active',
+    success: (_result, { isActive }) =>
+      isActive
+        ? 'Structure reactivated'
+        : 'Structure deactivated — existing assignments are unchanged',
+    invalidate: [payrollKeys.structures()],
   });
 
   const columns: Column<SalaryStructure>[] = [

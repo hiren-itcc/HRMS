@@ -10,10 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
@@ -21,7 +20,7 @@ import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryRow } from '@/features/payroll/types';
-import { useOptions } from '@/hooks/use-crud';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const REVISION_TYPES = [
@@ -69,7 +68,8 @@ export default function SalariesPage() {
     (s) => s.name,
   );
 
-  const assign = useMutation({
+  const assign = useApiMutation({
+    error: 'Could not save the salary',
     mutationFn: () =>
       payrollApi.assignSalary({
         employeeId: editing?.employeeId as string,
@@ -81,12 +81,11 @@ export default function SalariesPage() {
         reason: form.reason || null,
         paymentMethod: 'BANK_TRANSFER',
       }),
+    success: 'Salary saved',
     onSuccess: () => {
-      toast.success('Salary saved');
       setEditing(null);
       queryClient.invalidateQueries({ queryKey: payrollKeys.salaries() });
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const openFor = (row: SalaryRow) => {

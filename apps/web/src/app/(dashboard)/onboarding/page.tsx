@@ -24,11 +24,10 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Info, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import { FormDatePicker, FormField, FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { PageHeader } from '@/components/page-header';
@@ -36,7 +35,7 @@ import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
 import { OnboardingDocuments } from '@/features/onboarding/components/onboarding-documents';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 /**
  * The new hire's own intake.
@@ -46,7 +45,7 @@ import { ApiError } from '@/lib/api-client';
  * outstanding list comes from the server rather than being re-derived here.
  */
 export default function OnboardingPage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { user, reload } = useSession();
 
   const record = useQuery({ queryKey: onboardingKeys.mine(), queryFn: onboardingApi.mine });
@@ -77,32 +76,25 @@ export default function OnboardingPage() {
     }
   }, [employee, record.data?.hasPreviousEmployment, profileForm, bankForm]);
 
-  const saveProfile = useMutation({
+  const saveProfile = useApiMutation({
     mutationFn: onboardingApi.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Details saved');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not save'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Details saved',
+    error: 'Could not save',
   });
 
-  const saveBank = useMutation({
+  const saveBank = useApiMutation({
     mutationFn: onboardingApi.setBank,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Bank details saved');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not save'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Bank details saved',
+    error: 'Could not save',
   });
 
-  const submit = useMutation({
+  const submit = useApiMutation({
     mutationFn: onboardingApi.submit,
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Sent to HR for review');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not submit — check the list'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Sent to HR for review',
+    error: 'Could not submit — check the list',
   });
 
   const approvedJustNow = record.data?.status === 'APPROVED';

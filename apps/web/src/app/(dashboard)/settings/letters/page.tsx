@@ -13,16 +13,15 @@ import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { Textarea } from '@hrms/ui/components/textarea';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Loader2, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { type LetterTemplate, letterKeys, letterTemplatesApi } from '@/features/letters/api';
 import { LetterFrame } from '@/features/letters/components/letter-frame';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 /** Stand-ins for the preview, so the editor shows a letter rather than braces. */
 const SAMPLE_VALUES: Record<string, string> = {
@@ -51,7 +50,7 @@ function fillSample(template: string): string {
 }
 
 function TemplateEditor({ template }: { template: LetterTemplate }) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [title, setTitle] = useState(template.title);
   const [body, setBody] = useState(template.bodyHtml);
   const [showPreview, setShowPreview] = useState(false);
@@ -63,24 +62,18 @@ function TemplateEditor({ template }: { template: LetterTemplate }) {
 
   const dirty = title !== template.title || body !== template.bodyHtml;
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: () => letterTemplatesApi.update(template.key, { title, bodyHtml: body }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: letterKeys.templates() });
-      toast.success(`${template.name} saved`);
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not save the template'),
+    invalidate: [letterKeys.templates()],
+    success: (_data) => `${template.name} saved`,
+    error: 'Could not save the template',
   });
 
-  const reset = useMutation({
+  const reset = useApiMutation({
     mutationFn: () => letterTemplatesApi.reset(template.key),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: letterKeys.templates() });
-      toast.success(`${template.name} reset to the default`);
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not reset the template'),
+    invalidate: [letterKeys.templates()],
+    success: (_data) => `${template.name} reset to the default`,
+    error: 'Could not reset the template',
   });
 
   const insert = (variable: string) => setBody((b) => `${b}{{${variable}}}`);

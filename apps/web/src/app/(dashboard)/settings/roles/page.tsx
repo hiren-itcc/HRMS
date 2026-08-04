@@ -10,17 +10,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@hrms/ui/components/tooltip';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3, Info, Loader2, Lock } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { actionTitle, type Role, rbacApi } from '@/features/settings/rbac-api';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const ROLES_KEY = ['rbac-roles'] as const;
 
 export default function RolesPage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const roles = useQuery({ queryKey: ROLES_KEY, queryFn: rbacApi.roles });
   const groups = useQuery({
     queryKey: ['rbac-permissions'],
@@ -36,11 +37,12 @@ export default function RolesPage() {
     setDraft(Object.fromEntries(roles.data.map((r) => [r.id, new Set(r.permissions)])));
   }, [roles.data]);
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: ({ role, permissions }: { role: Role; permissions: string[] }) =>
       rbacApi.setPermissions(role.id, permissions),
+    invalidate: [ROLES_KEY],
+    error: 'Could not save permissions. Try again.',
     onSuccess: (result, { role }) => {
-      queryClient.invalidateQueries({ queryKey: ROLES_KEY });
       if (result.blocked.length > 0) {
         toast.warning(`${role.name} saved, but some permissions are protected`, {
           description: `${result.blocked.join(', ')} cannot be removed from ${role.name}.`,
@@ -51,7 +53,6 @@ export default function RolesPage() {
         });
       }
     },
-    onError: () => toast.error('Could not save permissions. Try again.'),
   });
 
   if (roles.isLoading || groups.isLoading || !roles.data || !groups.data) {
