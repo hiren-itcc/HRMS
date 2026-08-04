@@ -107,7 +107,7 @@ path, or reintroduce staleness the current design does not have.
 
 | Layer | Tool | Status |
 |---|---|---|
-| Unit | Jest (Nest default) | **Built.** 34 suites, 468 tests — balance math, rotation/reuse, scope filters, payroll calculation, geofencing. |
+| Unit | Jest (Nest default) | **Built.** 36 suites, 509 tests — balance math, rotation/reuse, scope filters, payroll calculation, geofencing, offboarding, the org tree. The web app has its own Vitest layer (doc 09); `pnpm turbo run test` runs both. |
 | Integration | Jest + Testcontainers (Postgres) | **Not built.** No Testcontainers dependency; nothing runs against a real database. |
 | E2E (API) | Supertest | **Not built.** `supertest` is installed and imported by no spec. |
 

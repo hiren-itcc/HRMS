@@ -3,12 +3,17 @@
 Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
 web pages, the 54-permission catalogue and docs 00–14.
 
-> **Status:** every **P0** item is done, and **8 of 9 P1 items** — session
-> pruning, session management, the four orphaned endpoints, structure
-> deactivation, payroll adjustments, offboarding, emergency contacts and the org
-> chart. **Frontend tests are the one P1 still open**, and they are the reason
-> everything above was verified by hand against a running API. Items struck
-> through below are fixed.
+> **Status:** every **P0** and every **P1** item is done — session pruning,
+> session management, the four orphaned endpoints, structure deactivation,
+> payroll adjustments, offboarding, emergency contacts, the org chart and a
+> frontend test layer that CI gates on.
+>
+> **The one piece deliberately not built is Playwright and the five golden
+> flows.** They need a seeded database and a running API in CI, which does not
+> exist yet; a suite that cannot run in CI is not a gate. That is the next
+> infrastructure job, and it is tracked in §6.
+>
+> P2 and P3 below are untouched. Items struck through are fixed.
 
 ## How to read this
 
@@ -66,7 +71,7 @@ the identifier appears nowhere outside generated Prisma output.
 | **Notifications** — `GET /notifications`, mark-read, bell in the topbar, 30 s polling, event fan-out | `03:119-120`, `05:10`, `08:23`, `09:34` | **Verified absent.** `Notification` exists at `schema.prisma:643` with **zero reads and zero writes**. No module, no UI, no bell. |
 | **All four scheduled jobs** — `attendance.day-close`, `leave.year-end`, `auth.session-prune`, `announcement.expire` | `08:61-70` | **Verified absent.** `@nestjs/schedule` is not a dependency. Zero `@Cron` decorators. |
 | **Domain events / `EventEmitter2`, `events.ts` per module** | `08:36`, `08:53-59` | **Verified absent.** `@nestjs/event-emitter` is not a dependency. |
-| **Frontend tests** — Vitest, Testing Library, MSW, and 5 golden Playwright flows | `09:60-66`; a sprint-exit criterion five times in `11` | **Verified absent.** Zero test files under `apps/web` or `packages/ui`. All 468 tests are API unit tests. |
+| ~~**Frontend tests**~~ | `09:60-66`; a sprint-exit criterion five times in `11` | ✅ **Started.** Vitest + Testing Library wired into turbo; the api client and the two newest screens are covered. **Playwright and the five golden flows are still absent** — they need a seeded database and a running API that CI cannot provide. |
 | ~~**Session management**~~ | `03:26`, `07:41`, `05:66` | ✅ **Built.** `GET /auth/sessions`, `DELETE /auth/sessions/:id` and `/profile/sessions`, linked from the avatar menu. |
 | ~~**Offboarding**~~ | `03:46`, `05:64`, `12:118-120` | ✅ **Built.** `POST /employees/:id/offboard` plus the screen-12 dialog. Retires the dead `employee.offboard` permission and gives `EmployeeStatus.ON_NOTICE` its first meaning. |
 | ~~**Org chart**~~ | `03:36`, `05:72` | ✅ **Built.** `GET /organization/chart` plus screen 16. Somebody whose manager has left becomes a root rather than vanishing from the tree. |
@@ -359,12 +364,15 @@ which other documents were citing.
     employee record.
 
 13. ~~**Org chart**~~ ✅ — collapsible tree at `/organization/chart`.
+14. ~~**Frontend tests**~~ ✅ — Vitest + Testing Library, wired into turbo so CI
+    gates on them.
 
 **Still open:**
 
-14. **Frontend tests.** Zero exist. Start with the five golden flows in `09:64`
-    rather than chasing coverage.
-15. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
+15. **Playwright and the five golden flows.** Blocked on CI infrastructure — a
+    Postgres service container, a seeded database and a running API — not on
+    effort. This is the next infrastructure job.
+16. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
     sent by anything.
 
 ### P2 — market table stakes
