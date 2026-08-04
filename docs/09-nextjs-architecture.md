@@ -31,7 +31,7 @@ someone cannot link to is a table they will screenshot instead.
 ## TanStack Query conventions
 
 - **Key factory per feature:** `employeeKeys.list(filters)`, `employeeKeys.detail(id)` — no ad-hoc string keys.
-- Defaults: `staleTime` 30 s; the dashboard "today" card 10 s; notifications polled at 30 s (SSE is a future upgrade, doc 11).
+- Defaults: `staleTime` 30 s; the dashboard "today" card 10 s. (There is no notification poll — notifications were never built, doc 03.)
 - **Mutations invalidate by key prefix** (`invalidateQueries(employeeKeys.all)`); optimistic updates only for instant-feel actions: check-in/out, mark-read, cancel-own-request.
 - All hooks live in `features/<x>/hooks/`; components never call the api client directly.
 

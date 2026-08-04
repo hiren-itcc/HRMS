@@ -116,8 +116,16 @@ rewrite a letter someone is already holding.
 | POST | `/announcements/:id/read` — mark read |
 | GET | `/announcements/:id/reads` — read receipts (author/HR) |
 
-### Notifications (`/notifications`)
-| GET `/notifications?unread=` · POST `/notifications/read-all` · POST `/notifications/:id/read` |
+### Notifications — **not built**
+
+No `/notifications` endpoints exist. A `Notification` table is in the schema
+with zero reads and zero writes, and there is no module, service or bell.
+
+The unread/mark-read capability this section once specified was absorbed by
+Announcements, which is the only thing that ever needed it:
+`GET /announcements/unread-count`, `POST /announcements/:id/read` and
+`POST /announcements/read-all`. A general notification feed would be a new
+module — see [15-feature-audit.md](./15-feature-audit.md).
 
 ### Reports (`/reports`) — read-only aggregates
 All four take `?from=&to=` (an arbitrary range, capped at 366 days) plus an

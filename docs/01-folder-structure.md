@@ -42,19 +42,22 @@ hrms/
 │       │   ├── database/             # PrismaService + prisma/ (schema, migrations, seed)
 │       │   └── modules/
 │       │       ├── auth/
-│       │       ├── users/
 │       │       ├── rbac/             # Roles, permissions, PermissionsGuard
-│       │       ├── organization/     # Org, departments, designations, locations, holidays
-│       │       ├── employees/
+│       │       ├── organization/     # Org, departments, designations, employment types, locations, shifts, holidays
+│       │       ├── employees/        # + directory, /me profile
+│       │       ├── onboarding/       # Invite a hire, self-serve intake, HR review
 │       │       ├── attendance/
 │       │       ├── leave/
-│       │       ├── documents/        # + storage/ port (S3 | local adapter)
+│       │       ├── documents/
+│       │       ├── storage/          # StorageAdapter port (Supabase | local disk), @Global
+│       │       ├── letters/
 │       │       ├── announcements/
-│       │       ├── notifications/
 │       │       ├── reports/
 │       │       ├── payroll/          # + payroll.calc/statutory/workflow (pure, tested)
 │       │       ├── settings/
-│       │       └── audit/            # AuditLog writer (interceptor-driven)
+│       │       ├── mail/             # MailTransport port (Resend | logging)
+│       │       ├── health/
+│       │       └── audit/            # Query + facets; writes go through auditMutation
 │       └── package.json
 │
 ├── packages/

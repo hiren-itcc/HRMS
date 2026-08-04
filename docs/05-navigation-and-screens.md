@@ -6,12 +6,18 @@ Navigation is **role-aware**: one shell, items filtered by permissions from `GET
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│ Topbar:  [Org logo]  [Global search ⌘K]   [🔔 Notifications]   │
+│ Topbar:  [Org logo]  [Command palette ⌘K]  [Theme]             │
 │                                            [Avatar ▾ menu]     │
 ├──────────────┬─────────────────────────────────────────────────┤
 │ Sidebar      │  Content area (breadcrumb + page)               │
 └──────────────┴─────────────────────────────────────────────────┘
 ```
+
+Two things this wireframe used to show are not there. **There is no
+notifications bell** — notifications were never built (doc 03). And ⌘K is a
+*command palette*, not global search: it matches the sidebar entries and two
+actions, and does not search employees, documents or announcements. Per-list
+search boxes do that work.
 
 ### Sidebar by role
 

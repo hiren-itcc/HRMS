@@ -61,7 +61,7 @@ The architecture reserves an explicit seam for each planned module — adding on
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
 | **Assets** | own module (Asset, AssetAssignment FK Employee); joins offboarding checklist via `employee.offboarded` event | none | none |
 | **AI features** | `modules/ai` behind AI Gateway (leave-policy Q&A over docs, attrition signals from Reports read-models) | none | LLM provider key; pgvector if RAG |
-| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) behind existing NotificationsModule |
+| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) — **and the NotificationsModule they would sit behind, which was never built** (doc 03) |
 | **Multi-tenant SaaS** | activate the dormant `organizationId` scoping: org signup flow + Postgres RLS + per-org subdomain | none (already scoped) | RLS policies, billing |
 
 **Platform upgrades, triggered not scheduled:** SSE/WebSocket notifications when polling chafes · RS256 + JWKS when a second service consumes JWTs · read replicas when reports strain OLTP · Redis cache when p95 > 300 ms on hot lists.
