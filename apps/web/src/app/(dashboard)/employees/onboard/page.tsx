@@ -11,15 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { FormDatePicker, FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { PageHeader } from '@/components/page-header';
@@ -65,8 +63,6 @@ function OnboardForm() {
       toast.error(err instanceof ApiError ? err.message : 'Could not create the record'),
   });
 
-  const { errors } = form.formState;
-
   return (
     <Stagger className="mx-auto max-w-2xl space-y-6">
       <FadeInItem>
@@ -89,45 +85,37 @@ function OnboardForm() {
               className="grid gap-4 sm:grid-cols-2"
               onSubmit={form.handleSubmit((v) => onboard.mutate(v))}
             >
-              <Field label="First name" error={errors.firstName?.message}>
-                {(a11y) => <Input {...a11y} autoFocus {...form.register('firstName')} />}
-              </Field>
-              <Field label="Last name" error={errors.lastName?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('lastName')} />}
-              </Field>
+              <FormInput control={form.control} name="firstName" label="First name" autoFocus />
+              <FormInput control={form.control} name="lastName" label="Last name" />
 
-              <Field
+              <FormInput
+                control={form.control}
+                name="personalEmail"
                 label="Personal email"
-                error={errors.personalEmail?.message}
                 hint="Where the invitation goes — they cannot read the work mailbox yet"
-              >
-                {(a11y) => <Input {...a11y} type="email" {...form.register('personalEmail')} />}
-              </Field>
-              <Field
+                type="email"
+              />
+              <FormInput
+                control={form.control}
+                name="workEmail"
                 label="Work email"
-                error={errors.workEmail?.message}
                 hint="Becomes their sign-in"
-              >
-                {(a11y) => <Input {...a11y} type="email" {...form.register('workEmail')} />}
-              </Field>
+                type="email"
+              />
 
-              <Field label="Joining date" error={errors.joinDate?.message}>
-                {(a11y) => (
-                  <DatePicker
-                    {...a11y}
-                    value={form.watch('joinDate')}
-                    onValueChange={(value) =>
-                      form.setValue('joinDate', value, { shouldDirty: true })
-                    }
-                    placeholder="Select joining date"
-                  />
-                )}
-              </Field>
-              <Field label="Employee code" hint="Left blank, one is generated">
-                {(a11y) => (
-                  <Input {...a11y} placeholder="EMP-0007" {...form.register('employeeCode')} />
-                )}
-              </Field>
+              <FormDatePicker
+                control={form.control}
+                name="joinDate"
+                label="Joining date"
+                placeholder="Select joining date"
+              />
+              <FormInput
+                control={form.control}
+                name="employeeCode"
+                label="Employee code"
+                hint="Left blank, one is generated"
+                placeholder="EMP-0007"
+              />
 
               <div className="sm:col-span-2">
                 <Alert variant="info">

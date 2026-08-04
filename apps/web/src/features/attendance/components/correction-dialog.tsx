@@ -2,16 +2,13 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceRequestCreateSchema } from '@hrms/shared';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Textarea } from '@hrms/ui/components/textarea';
-import { TimePicker } from '@hrms/ui/components/time-picker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormDatePicker, FormTextarea, FormTimePicker } from '@/components/form';
 import { ApiError } from '@/lib/api-client';
 import { attendanceApi } from '../api';
 
@@ -56,53 +53,23 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
       submitting={create.isPending}
       submitLabel="Send request"
     >
-      <Field label="Date" error={form.formState.errors.date?.message}>
-        {(a11y) => (
-          <DatePicker
-            {...a11y}
-            value={form.watch('date')}
-            onValueChange={(value) => form.setValue('date', value, { shouldDirty: true })}
-          />
-        )}
-      </Field>
+      <FormDatePicker control={form.control} name="date" label="Date" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Clock in" error={form.formState.errors.requestedIn?.message}>
-          {(a11y) => (
-            <TimePicker
-              {...a11y}
-              // Five, not fifteen: a correction states the minute somebody
-              // actually arrived, which is rarely on a quarter hour.
-              step={5}
-              value={form.watch('requestedIn')}
-              onValueChange={(value) => form.setValue('requestedIn', value, { shouldDirty: true })}
-            />
-          )}
-        </Field>
-        <Field label="Clock out" error={form.formState.errors.requestedOut?.message}>
-          {(a11y) => (
-            <TimePicker
-              {...a11y}
-              step={5}
-              value={form.watch('requestedOut')}
-              onValueChange={(value) => form.setValue('requestedOut', value, { shouldDirty: true })}
-            />
-          )}
-        </Field>
+        {/*
+         * Five, not fifteen: a correction states the minute somebody actually
+         * arrived, which is rarely on a quarter hour.
+         */}
+        <FormTimePicker control={form.control} name="requestedIn" label="Clock in" step={5} />
+        <FormTimePicker control={form.control} name="requestedOut" label="Clock out" step={5} />
       </div>
-      <Field
+      <FormTextarea
+        control={form.control}
+        name="reason"
         label="Reason"
-        error={form.formState.errors.reason?.message}
         hint="Why the recorded times need correcting"
-      >
-        {(a11y) => (
-          <Textarea
-            {...a11y}
-            rows={3}
-            placeholder="Forgot to clock out after the client visit"
-            {...form.register('reason')}
-          />
-        )}
-      </Field>
+        rows={3}
+        placeholder="Forgot to clock out after the client visit"
+      />
     </FormDialog>
   );
 }

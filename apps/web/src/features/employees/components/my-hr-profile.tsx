@@ -10,14 +10,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
 import { Separator } from '@hrms/ui/components/separator';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { FormInput } from '@/components/form';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 
@@ -116,22 +115,17 @@ export function MyHrProfile() {
             className="space-y-3"
             noValidate
           >
-            <Field label="Phone" error={form.formState.errors.phone?.message}>
-              {(a11y) => <Input {...a11y} type="tel" {...form.register('phone')} />}
-            </Field>
-            <Field label="Personal email" error={form.formState.errors.personalEmail?.message}>
-              {(a11y) => <Input {...a11y} type="email" {...form.register('personalEmail')} />}
-            </Field>
-            <Field label="Address" error={form.formState.errors.addressLine?.message}>
-              {(a11y) => <Input {...a11y} {...form.register('addressLine')} />}
-            </Field>
+            <FormInput control={form.control} name="phone" label="Phone" type="tel" />
+            <FormInput
+              control={form.control}
+              name="personalEmail"
+              label="Personal email"
+              type="email"
+            />
+            <FormInput control={form.control} name="addressLine" label="Address" />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="City" error={form.formState.errors.city?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('city')} />}
-              </Field>
-              <Field label="Country" error={form.formState.errors.country?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('country')} />}
-              </Field>
+              <FormInput control={form.control} name="city" label="City" />
+              <FormInput control={form.control} name="country" label="Country" />
             </div>
             <Separator />
 
@@ -150,39 +144,30 @@ export function MyHrProfile() {
               <div className="mt-3 space-y-3">
                 {contacts.fields.map((field, i) => (
                   <div key={field.id} className="flex items-end gap-2">
+                    {/*
+                      The array paths carry their own errors now. These were the
+                      three worst expressions in the app —
+                      errors.emergencyContacts?.[i]?.name?.message, three
+                      optional chains with nothing checking the path.
+                    */}
                     <div className="grid flex-1 gap-2 sm:grid-cols-3">
-                      <Field
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.name`}
                         label="Name"
-                        error={form.formState.errors.emergencyContacts?.[i]?.name?.message}
-                      >
-                        {(a11y) => (
-                          <Input {...a11y} {...form.register(`emergencyContacts.${i}.name`)} />
-                        )}
-                      </Field>
-                      <Field
+                      />
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.relation`}
                         label="Relation"
-                        error={form.formState.errors.emergencyContacts?.[i]?.relation?.message}
-                      >
-                        {(a11y) => (
-                          <Input
-                            {...a11y}
-                            placeholder="Spouse, parent, friend…"
-                            {...form.register(`emergencyContacts.${i}.relation`)}
-                          />
-                        )}
-                      </Field>
-                      <Field
+                        placeholder="Spouse, parent, friend…"
+                      />
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.phone`}
                         label="Phone"
-                        error={form.formState.errors.emergencyContacts?.[i]?.phone?.message}
-                      >
-                        {(a11y) => (
-                          <Input
-                            {...a11y}
-                            type="tel"
-                            {...form.register(`emergencyContacts.${i}.phone`)}
-                          />
-                        )}
-                      </Field>
+                        type="tel"
+                      />
                     </div>
                     <Button
                       type="button"
