@@ -28,6 +28,12 @@ interface ToggleProps<TValues extends FieldValues, TName extends FieldPath<TValu
   /** Sits under the label, for the "what does this actually do" sentence. */
   hint?: string;
   disabled?: boolean;
+  /**
+   * Runs after the value is stored, for a toggle that governs another field.
+   * Turning carry-forward off has to clear its cap, or the schema refuses a
+   * limit on a feature that is switched off.
+   */
+  onValueChange?: (checked: boolean) => void;
 }
 
 function Toggle<TValues extends FieldValues, TName extends FieldPath<TValues>>({
@@ -36,6 +42,7 @@ function Toggle<TValues extends FieldValues, TName extends FieldPath<TValues>>({
   label,
   hint,
   disabled,
+  onValueChange,
   variant,
 }: ToggleProps<TValues, TName> & { variant: 'checkbox' | 'switch' }) {
   const id = useId();
@@ -57,7 +64,10 @@ function Toggle<TValues extends FieldValues, TName extends FieldPath<TValues>>({
                 id={id}
                 checked={Boolean(field.value)}
                 // The wrap is the point — see the note above.
-                onCheckedChange={(checked) => field.onChange(checked)}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked);
+                  onValueChange?.(checked);
+                }}
                 onBlur={field.onBlur}
                 disabled={disabled}
                 aria-invalid={Boolean(fieldState.error)}

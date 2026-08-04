@@ -91,3 +91,32 @@ describe('FormCheckbox / FormSwitch', () => {
     expect((box.getAttribute('aria-describedby') ?? '').split(' ')).toContain(message.id);
   });
 });
+
+describe('FormCheckbox cascade', () => {
+  it('fires onValueChange after storing, so a dependent field can be cleared', async () => {
+    const seen: unknown[] = [];
+
+    function Cascade() {
+      const form = useForm({
+        defaultValues: { carryForward: true, maxCarryForward: 5 as number | null },
+      });
+      return (
+        <FormCheckbox
+          control={form.control}
+          name="carryForward"
+          label="Carry forward unused leave"
+          onValueChange={(checked) => {
+            // The real rule: a cap on a switched-off feature fails validation.
+            if (!checked) form.setValue('maxCarryForward', null);
+            seen.push([checked, form.getValues('maxCarryForward')]);
+          }}
+        />
+      );
+    }
+
+    render(<Cascade />);
+    await userEvent.click(screen.getByRole('checkbox', { name: /Carry forward/ }));
+
+    expect(seen).toEqual([[false, null]]);
+  });
+});

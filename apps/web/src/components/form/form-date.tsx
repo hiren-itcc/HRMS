@@ -2,7 +2,7 @@
 
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { TimePicker } from '@hrms/ui/components/time-picker';
-import type { FieldPath, FieldValues } from 'react-hook-form';
+import type { FieldPath, FieldValues, PathValue } from 'react-hook-form';
 import { FormField, type FormFieldProps } from './form-base';
 
 /**
@@ -23,9 +23,14 @@ import { FormField, type FormFieldProps } from './form-base';
  * schema should expect that.
  */
 
-interface PickerProps {
+interface PickerProps<TValues extends FieldValues, TName extends FieldPath<TValues>> {
   disabled?: boolean;
   className?: string;
+  /**
+   * Runs after the value is stored, for a date that has to move another one —
+   * pushing a start date past the end date drags the end date with it.
+   */
+  onValueChange?: (value: PathValue<TValues, TName>) => void;
 }
 
 export function FormDatePicker<
@@ -42,8 +47,9 @@ export function FormDatePicker<
   placeholder,
   disabled,
   className,
+  onValueChange,
 }: FormFieldProps<TValues, TName> &
-  PickerProps & {
+  PickerProps<TValues, TName> & {
     /** ISO `yyyy-mm-dd`. */
     min?: string | null;
     max?: string | null;
@@ -55,7 +61,10 @@ export function FormDatePicker<
         <DatePicker
           {...a11y}
           value={field.value ?? ''}
-          onValueChange={field.onChange}
+          onValueChange={(next) => {
+            field.onChange(next);
+            onValueChange?.(next as PathValue<TValues, TName>);
+          }}
           min={min}
           max={max}
           placeholder={placeholder}
@@ -80,8 +89,9 @@ export function FormTimePicker<
   placeholder,
   disabled,
   className,
+  onValueChange,
 }: FormFieldProps<TValues, TName> &
-  PickerProps & {
+  PickerProps<TValues, TName> & {
     /** Minutes between offered times. 15 suits shifts; 5 suits corrections. */
     step?: number;
     placeholder?: string;
@@ -92,7 +102,10 @@ export function FormTimePicker<
         <TimePicker
           {...a11y}
           value={field.value ?? ''}
-          onValueChange={field.onChange}
+          onValueChange={(next) => {
+            field.onChange(next);
+            onValueChange?.(next as PathValue<TValues, TName>);
+          }}
           step={step}
           placeholder={placeholder}
           disabled={disabled}

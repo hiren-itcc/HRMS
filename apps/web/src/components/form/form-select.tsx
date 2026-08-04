@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import type { ReactNode } from 'react';
-import type { FieldPath, FieldValues } from 'react-hook-form';
+import type { FieldPath, FieldValues, PathValue } from 'react-hook-form';
 import { FormField, type FormFieldProps } from './form-base';
 
 /**
@@ -30,7 +30,7 @@ import { FormField, type FormFieldProps } from './form-base';
 
 const EMPTY = '__empty__';
 
-interface FormSelectProps {
+interface FormSelectProps<TValues extends FieldValues, TName extends FieldPath<TValues>> {
   /** Shown on the trigger before anything is chosen. */
   placeholder?: string;
   /** Renders a "none" option. Without it the select cannot be cleared. */
@@ -38,6 +38,18 @@ interface FormSelectProps {
   /** What `emptyLabel` resolves to — your schema wants one or the other. */
   emptyValue?: null | undefined;
   disabled?: boolean;
+  /**
+   * Options are still loading. Sets `aria-busy` on the trigger, so somebody on
+   * a screen reader is told the empty list is temporary rather than the answer.
+   */
+  busy?: boolean;
+  /**
+   * Runs *after* the value is stored, for a field that has to move another one.
+   * Choosing a start date past the end date drags the end date with it; turning
+   * carry-forward off has to clear its cap. Deliberately not a replacement for
+   * the write — the form is updated either way.
+   */
+  onValueChange?: (value: PathValue<TValues, TName>) => void;
   /** `SelectItem`s. */
   children: ReactNode;
   className?: string;
@@ -56,15 +68,21 @@ export function FormSelect<
   emptyLabel,
   emptyValue = null,
   disabled,
+  busy,
+  onValueChange,
   className,
   children,
-}: FormFieldProps<TValues, TName> & FormSelectProps) {
+}: FormFieldProps<TValues, TName> & FormSelectProps<TValues, TName>) {
   return (
     <FormField control={control} name={name} label={label} hint={hint} required={required}>
       {({ field, a11y }) => (
         <Select
           value={field.value ?? (emptyLabel ? EMPTY : null)}
-          onValueChange={(value) => field.onChange(value === EMPTY ? emptyValue : value)}
+          onValueChange={(raw) => {
+            const next = (raw === EMPTY ? emptyValue : raw) as PathValue<TValues, TName>;
+            field.onChange(next);
+            onValueChange?.(next);
+          }}
           disabled={disabled}
         >
           {/*
@@ -72,7 +90,12 @@ export function FormSelect<
            * field never becomes touched, and a form validating on blur stays
            * silent about a select the user opened and closed empty.
            */}
-          <SelectTrigger {...a11y} onBlur={field.onBlur} className={className ?? 'w-full'}>
+          <SelectTrigger
+            {...a11y}
+            onBlur={field.onBlur}
+            aria-busy={busy || undefined}
+            className={className ?? 'w-full'}
+          >
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent>

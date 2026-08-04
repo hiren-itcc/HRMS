@@ -113,3 +113,91 @@ describe('FormSelect', () => {
     expect(triggerFor(/Parent department/)).toHaveTextContent('No parent');
   });
 });
+
+describe('FormSelect cascades and loading state', () => {
+  it('fires onValueChange AFTER storing, so a cascade sees the new value', async () => {
+    const seen: unknown[] = [];
+    const onSubmit = vi.fn();
+
+    function Cascade() {
+      const form = useForm({
+        resolver: zodResolver(schema),
+        defaultValues: { leaveTypeId: '', parentId: null },
+      });
+      return (
+        <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          <FormSelect
+            control={form.control}
+            name="leaveTypeId"
+            label="Leave type"
+            onValueChange={(v) => {
+              seen.push(v);
+              // A cascade reads the form, so the write must already have landed.
+              seen.push(form.getValues('leaveTypeId'));
+            }}
+          >
+            <SelectItem value="casual">Casual</SelectItem>
+          </FormSelect>
+          <button type="submit">Save</button>
+        </form>
+      );
+    }
+
+    render(<Cascade />);
+    await userEvent.click(screen.getByRole('combobox', { name: /Leave type/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Casual' }));
+
+    expect(seen).toEqual(['casual', 'casual']);
+  });
+
+  it('hands the cascade the mapped empty value, not the sentinel', async () => {
+    const seen: unknown[] = [];
+
+    function Cascade() {
+      const form = useForm({
+        resolver: zodResolver(schema),
+        defaultValues: { leaveTypeId: 'casual', parentId: 'dept-1' },
+      });
+      return (
+        <FormSelect
+          control={form.control}
+          name="parentId"
+          label="Parent department"
+          emptyLabel="No parent"
+          onValueChange={(v) => seen.push(v)}
+        >
+          <SelectItem value="dept-1">Engineering</SelectItem>
+        </FormSelect>
+      );
+    }
+
+    render(<Cascade />);
+    await userEvent.click(screen.getByRole('combobox', { name: /Parent department/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'No parent' }));
+
+    expect(seen).toEqual([null]);
+  });
+
+  it('marks the trigger busy while options load', () => {
+    function Loading() {
+      const form = useForm({ defaultValues: { leaveTypeId: '' } });
+      return (
+        <FormSelect control={form.control} name="leaveTypeId" label="Leave type" busy>
+          <SelectItem value="casual">Casual</SelectItem>
+        </FormSelect>
+      );
+    }
+
+    render(<Loading />);
+    // Otherwise an empty list reads as "there are none" rather than "not yet".
+    expect(screen.getByRole('combobox', { name: /Leave type/ })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+  });
+
+  it('omits aria-busy entirely when not loading', () => {
+    render(<Harness />);
+    expect(screen.getByRole('combobox', { name: /Leave type/ })).not.toHaveAttribute('aria-busy');
+  });
+});
