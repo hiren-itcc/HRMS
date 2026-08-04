@@ -1,6 +1,7 @@
 import type {
   BankDetailInput,
   EmployeeCreateInput,
+  EmployeeOffboardInput,
   EmployeeRoleChangeInput,
   EmployeeUpdateInput,
   RoleCodeInput,
@@ -24,6 +25,16 @@ export const employeesApi = {
   list: (params: ListRequest) => api<Paginated<EmployeeListItem>>(`/employees${qs(params)}`),
   detail: (id: string) => api<EmployeeDetail>(`/employees/${id}`),
   options: () => api<EmployeeOption[]>('/employees/options'),
+
+  /**
+   * Records somebody leaving, or withdraws a resignation. Not a delete — the
+   * record and all its history stay, which is why it is a separate action.
+   */
+  offboard: (id: string, input: EmployeeOffboardInput) =>
+    api<{ id: string; status: string; exitDate: string | null }>(`/employees/${id}/offboard`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   create: (input: EmployeeCreateInput) =>
     api<EmployeeListItem & { loginCreated: boolean; loginEmail: string | null }>('/employees', {
       method: 'POST',

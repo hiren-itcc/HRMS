@@ -132,6 +132,40 @@ export type EmployeeUpdateInput = z.infer<typeof employeeUpdateSchema>;
 export const employeeRoleChangeSchema = z.object({ roleCode: roleCodeSchema });
 export type EmployeeRoleChangeInput = z.infer<typeof employeeRoleChangeSchema>;
 
+/**
+ * Body of POST /employees/:id/offboard — somebody leaving, or unleaving.
+ *
+ * Three destinations, and the difference is what happens to their sign-in:
+ *
+ * - `ON_NOTICE` — resigned, still working the notice period. `exitDate` is the
+ *   planned last day. The login is untouched: they still clock in, book leave
+ *   and get paid, because they are still an employee.
+ * - `EXITED` — gone. The login is suspended and every session revoked. The
+ *   record stays: their payslips and attendance are last year's accounts.
+ * - `ACTIVE` — a resignation withdrawn. Clears `exitDate` and restores the
+ *   sign-in if offboarding is what suspended it.
+ *
+ * `exitDate` is required for the first two and refused for the third, because
+ * "active with a leaving date" is the state that quietly excludes somebody from
+ * next month's payroll.
+ */
+export const employeeOffboardSchema = z
+  .object({
+    status: employeeStatusSchema,
+    exitDate: dateOnlySchema.optional().nullable(),
+    /** Recorded on the audit row; not shown to the employee. */
+    reason: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine((v) => v.status === 'ACTIVE' || Boolean(v.exitDate), {
+    message: 'An exit date is required',
+    path: ['exitDate'],
+  })
+  .refine((v) => v.status !== 'ACTIVE' || !v.exitDate, {
+    message: 'Reinstating someone clears their exit date',
+    path: ['exitDate'],
+  });
+export type EmployeeOffboardInput = z.infer<typeof employeeOffboardSchema>;
+
 export const employeeQuerySchema = paginationQuerySchema.extend({
   departmentId: z.string().optional(),
   designationId: z.string().optional(),

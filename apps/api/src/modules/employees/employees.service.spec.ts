@@ -16,6 +16,8 @@ function makeService() {
     },
     user: {
       update: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       groupBy: jest.fn().mockResolvedValue([]),
@@ -304,5 +306,99 @@ describe('EmployeesService.changeRole session and status handling', () => {
       expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeesService.offboard', () => {
+  const hr = claims({ sub: 'hr-user', roleCode: 'HR', perms: ['employee.offboard'] });
+  const employee: {
+    id: string;
+    userId: string | null;
+    status: string;
+    joinDate: Date;
+    exitDate: Date | null;
+  } = {
+    id: 'e1',
+    userId: 'u-target',
+    status: 'ACTIVE',
+    joinDate: new Date('2024-01-15'),
+    exitDate: null,
+  };
+
+  function arrange(over: Partial<typeof employee> = {}) {
+    const { service, prisma } = makeService();
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ ...employee, ...over });
+    (prisma.user.findUnique as Mock).mockResolvedValue({ role: { code: 'EMPLOYEE' } });
+    return { service, prisma };
+  }
+
+  it('putting somebody on notice leaves their sign-in alone', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'ON_NOTICE', exitDate: '2026-09-30', reason: null });
+
+    // They still work the notice period: clock in, book leave, get paid.
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.refreshSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('marking somebody exited suspends the login and revokes every session', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'SUSPENDED' } }),
+    );
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalled();
+  });
+
+  it('never soft-deletes — a leaver’s payslips are last year’s accounts', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null });
+
+    const update = (prisma.employee.update as Mock).mock.calls[0][0];
+    expect(update.data).not.toHaveProperty('deletedAt');
+    expect(update.data.status).toBe('EXITED');
+  });
+
+  it('withdrawing a resignation clears the exit date', async () => {
+    const { service, prisma } = arrange({ status: 'ON_NOTICE', exitDate: new Date('2026-09-30') });
+    await service.offboard(hr, 'e1', { status: 'ACTIVE', exitDate: null, reason: null });
+
+    const update = (prisma.employee.update as Mock).mock.calls[0][0];
+    expect(update.data.exitDate).toBeNull();
+  });
+
+  it('reinstating only revives a SUSPENDED login, never an INVITED one', async () => {
+    const { service, prisma } = arrange({ status: 'EXITED' });
+    await service.offboard(hr, 'e1', { status: 'ACTIVE', exitDate: null, reason: null });
+
+    // An INVITED account has never had a password set; flipping it to ACTIVE
+    // would hand out a sign-in nobody can use but everybody can try.
+    const call = (prisma.user.updateMany as Mock).mock.calls[0][0];
+    expect(call.where).toMatchObject({ status: 'SUSPENDED' });
+  });
+
+  it('refuses an exit date before the join date', async () => {
+    const { service } = arrange();
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2023-01-01', reason: null }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses to offboard your own account', async () => {
+    const { service } = arrange({ userId: 'hr-user' });
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null }),
+    ).rejects.toThrow(/your own account/i);
+  });
+
+  it('refuses to exit the last active administrator', async () => {
+    const { service, prisma } = arrange();
+    (prisma.user.findUnique as Mock).mockResolvedValue({ role: { code: 'ADMIN' } });
+    (prisma.user.count as Mock).mockResolvedValue(0);
+
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null }),
+    ).rejects.toThrow(/only active administrator/i);
   });
 });

@@ -51,6 +51,7 @@ import { useSession } from '@/components/session-provider';
 import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
+import { OffboardDialog } from '@/features/employees/components/offboard-dialog';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
@@ -366,6 +367,9 @@ function EmployeeDetailView() {
             <Button variant="outline" render={<Link href={`/employees/${e.id}/edit`} />}>
               <Pencil className="size-4" aria-hidden /> Edit
             </Button>
+          )}
+          {can('employee.offboard') && (
+            <OffboardDialog employeeId={e.id} employeeName={fullName(e)} currentStatus={e.status} />
           )}
           {can('employee.delete') && (
             <AlertDialog>

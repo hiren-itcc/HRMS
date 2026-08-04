@@ -1,6 +1,7 @@
 import type {
   BankDetailInput,
   EmployeeCreateInput,
+  EmployeeOffboardInput,
   EmployeeQuery,
   EmployeeUpdateInput,
   RoleCodeInput,
@@ -100,8 +101,15 @@ export class EmployeesService {
   /** Flat list for manager pickers — org-wide, needs full read. */
   options(orgId: string) {
     return this.prisma.employee.findMany({
-      // Somebody who has not accepted their invite cannot be a manager.
-      where: { organizationId: orgId, ...EMPLOYED_AND_LIVE },
+      // Somebody who has not accepted their invite cannot be a manager, and
+      // neither can somebody who has left. EXITED is excluded here rather than
+      // in EMPLOYED_AND_LIVE because payroll and reports deliberately keep
+      // leavers — a final part-month still has to be paid.
+      where: {
+        organizationId: orgId,
+        ...EMPLOYED_AND_LIVE,
+        status: { notIn: ['ONBOARDING', 'EXITED'] },
+      },
       select: { id: true, firstName: true, lastName: true, employeeCode: true },
       orderBy: { firstName: 'asc' },
     });
@@ -359,6 +367,130 @@ export class EmployeesService {
         : []),
     ]);
     await auditMutation(this.prisma, ctx, 'employee.delete', 'Employee', id);
+  }
+
+  /**
+   * Somebody leaving — or a resignation withdrawn.
+   *
+   * Distinct from `softDelete`, which is the Admin-only "this record should
+   * not have existed" action. Offboarding is the ordinary HR event: the person
+   * did work here, and everything they did stays exactly where it is. Nothing
+   * is soft-deleted, because a leaver's payslips and attendance are last year's
+   * accounts and the reports that read them must keep finding them
+   * (`reports.service.ts` says so at its `where`).
+   *
+   * `exitDate` does the work, not `status`. Attendance already asks
+   * `isEmployedOn(date, { joinDate, exitDate })`, payroll already includes
+   * somebody whose exit falls inside the month so their final part-month is
+   * paid, and reports already span anyone employed for part of the range. The
+   * status is the label a human reads; the date is the mechanism.
+   */
+  async offboard(claims: AccessTokenClaims, id: string, input: EmployeeOffboardInput) {
+    const ctx = ctxOf(claims);
+    const employee = await this.ensureExists(ctx.orgId, id);
+
+    const dateKey = (d: Date | null) => d?.toISOString().slice(0, 10) ?? null;
+    const joinKey = dateKey(employee.joinDate);
+    if (input.exitDate && joinKey && joinKey > input.exitDate) {
+      throw new BadRequestException('The exit date cannot be before the join date');
+    }
+
+    /*
+     * Offboarding yourself is refused outright rather than guarded by the
+     * admin floor. Even where it would not lock the organization out, the
+     * next thing it does is revoke your own sessions mid-request — and
+     * somebody who means to leave has a colleague who can press it.
+     */
+    if (employee.userId && employee.userId === claims.sub) {
+      throw new BadRequestException('You cannot offboard your own account');
+    }
+
+    const exiting = input.status === 'EXITED';
+    const reinstating = input.status === 'ACTIVE';
+
+    if (exiting) await this.assertNotLastAdmin(ctx.orgId, employee.userId);
+
+    await this.prisma.$transaction([
+      this.prisma.employee.update({
+        where: { id },
+        data: {
+          status: input.status,
+          exitDate: input.exitDate ? new Date(input.exitDate) : null,
+        },
+      }),
+      /*
+       * Only EXITED touches the sign-in. Somebody on notice is still an
+       * employee: they work the notice period, clock in, book leave and are
+       * paid, and suspending them would be the surest way to make HR avoid
+       * recording notice at all.
+       */
+      ...(employee.userId && exiting
+        ? [
+            this.prisma.user.update({
+              where: { id: employee.userId },
+              data: { status: 'SUSPENDED' },
+            }),
+            this.prisma.refreshSession.updateMany({
+              where: { userId: employee.userId, revokedAt: null },
+              data: { revokedAt: new Date() },
+            }),
+          ]
+        : []),
+      /*
+       * Reinstating restores the login only from SUSPENDED. An INVITED account
+       * has never been used and must stay that way — flipping it to ACTIVE
+       * would hand out a working sign-in whose password nobody ever set.
+       */
+      ...(employee.userId && reinstating
+        ? [
+            this.prisma.user.updateMany({
+              where: { id: employee.userId, status: 'SUSPENDED' },
+              data: { status: 'ACTIVE' },
+            }),
+          ]
+        : []),
+    ]);
+
+    await auditMutation(this.prisma, ctx, 'employee.offboard', 'Employee', id, {
+      before: { status: employee.status, exitDate: dateKey(employee.exitDate) },
+      after: {
+        status: input.status,
+        exitDate: input.exitDate ?? null,
+        reason: input.reason ?? null,
+      },
+    });
+
+    return { id, status: input.status, exitDate: input.exitDate ?? null };
+  }
+
+  /**
+   * Refuses to suspend the last sign-in that can administer the organization.
+   *
+   * Counted over ACTIVE users, for the same reason the role-change guard does:
+   * a suspended admin cannot sign in, so counting them would let an already
+   * offboarded one satisfy the floor and leave nobody able to get back in.
+   */
+  private async assertNotLastAdmin(orgId: string, userId: string | null) {
+    if (!userId) return;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: { select: { code: true } } },
+    });
+    if (user?.role.code !== 'ADMIN') return;
+
+    const remaining = await this.prisma.user.count({
+      where: {
+        organizationId: orgId,
+        status: 'ACTIVE',
+        role: { code: 'ADMIN' },
+        id: { not: userId },
+      },
+    });
+    if (remaining === 0) {
+      throw new BadRequestException(
+        'This is the only active administrator — give somebody else the Admin role first',
+      );
+    }
   }
 
   async upsertBank(claims: AccessTokenClaims, id: string, input: BankDetailInput) {

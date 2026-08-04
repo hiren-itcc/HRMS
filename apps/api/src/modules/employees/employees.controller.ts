@@ -18,6 +18,7 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 import {
   BankDetailDto,
   EmployeeCreateDto,
+  EmployeeOffboardDto,
   EmployeeQueryDto,
   EmployeeRoleChangeDto,
   EmployeeUpdateDto,
@@ -79,6 +80,20 @@ export class EmployeesController {
     @Body() dto: EmployeeRoleChangeDto,
   ) {
     return this.employees.changeRole(user, id, dto.roleCode);
+  }
+
+  @Post(':id/offboard')
+  @RequirePermissions('employee.offboard')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Put somebody on notice, mark them exited, or withdraw a resignation',
+  })
+  offboard(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: EmployeeOffboardDto,
+  ) {
+    return this.employees.offboard(user, id, dto);
   }
 
   @Delete(':id')
