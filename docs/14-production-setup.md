@@ -188,7 +188,7 @@ Expected output:
 
 ```
 Organization: created "Your Company Ltd" (default)
-Roles: 5 system roles, 48 permissions, 140 grants
+Roles: 5 system roles, 54 permissions, 158 grants
 Administrator: created admin@yourcompany.com (must change password at first sign-in)
 
 Bootstrap complete. Sign in and change the password immediately.
@@ -197,9 +197,14 @@ Bootstrap complete. Sign in and change the password immediately.
 What it creates — and nothing else:
 
 - 1 organization
-- 5 roles (Admin, HR, Finance, Manager, Employee) with 48 permissions and 140 grants
+- 5 roles (Admin, HR, Finance, Manager, Employee) with 54 permissions and 158 grants
 - 1 administrator, flagged to change password at first sign-in
 - **0** employees, attendance, leave, documents, payslips
+
+The two counts are not constants — bootstrap derives them from `PERMISSIONS` and
+`ROLE_PERMISSIONS` in `packages/shared`, so adding a permission moves them. If
+the run prints different numbers than this page, trust the run and correct the
+page; the grants total is the sum of the per-role lists (54 + 48 + 20 + 22 + 14).
 
 It is **additive**: re-running it never deletes anything, never resets an
 existing administrator's password, and never renames a company you have since
