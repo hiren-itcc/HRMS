@@ -3,7 +3,7 @@
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Power, PowerOff, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
@@ -54,6 +54,29 @@ export default function StructuresPage() {
     mutationFn: (id: string) => payrollApi.deleteStructure(id),
     onSuccess: () => {
       toast.success('Structure deleted');
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  /*
+   * The delete button on an assigned structure says "deactivate it instead".
+   * Doing that meant opening the editor and finding a switch, which is a poor
+   * answer to advice given right here — so the advice is now the click.
+   *
+   * Deactivating leaves every existing assignment alone. It only stops the
+   * structure being picked for the next one, which is the point: the employees
+   * on it keep being paid from it.
+   */
+  const setActive = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      payrollApi.updateStructure(id, { isActive }),
+    onSuccess: (_result, { isActive }) => {
+      toast.success(
+        isActive
+          ? 'Structure reactivated'
+          : 'Structure deactivated — existing assignments are unchanged',
+      );
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -159,6 +182,24 @@ export default function StructuresPage() {
                     onClick={() => clone.mutate(row.id)}
                   >
                     <Copy className="size-4" aria-hidden />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`${row.isActive ? 'Deactivate' : 'Reactivate'} ${row.name}`}
+                    disabled={setActive.isPending}
+                    title={
+                      row.isActive
+                        ? 'Deactivate — stops it being assigned; existing assignments are unchanged'
+                        : 'Reactivate'
+                    }
+                    onClick={() => setActive.mutate({ id: row.id, isActive: !row.isActive })}
+                  >
+                    {row.isActive ? (
+                      <PowerOff className="size-4" aria-hidden />
+                    ) : (
+                      <Power className="size-4" aria-hidden />
+                    )}
                   </Button>
                   <Button
                     variant="ghost"

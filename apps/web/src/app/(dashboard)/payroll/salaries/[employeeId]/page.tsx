@@ -3,20 +3,43 @@
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
+import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 
 /** One employee's salary revision timeline, newest first. */
 export default function SalaryTimelinePage() {
   const { employeeId } = useParams<{ employeeId: string }>();
+  const { can } = useSession();
+  const queryClient = useQueryClient();
   const timeline = useQuery({
     queryKey: [...payrollKeys.salaries(), employeeId],
     queryFn: () => payrollApi.salaryTimeline(employeeId),
+  });
+
+  /*
+   * Deleting a revision is for correcting a mistake — a wrong figure or a
+   * wrong effective date typed yesterday — not for rewriting history. The API
+   * refuses once payroll for that month or any later one is locked or
+   * published, because by then the revision is part of what somebody was
+   * actually paid.
+   *
+   * The endpoint has existed since payroll shipped with no way to call it, so
+   * a mistyped revision could only be buried under a corrective one.
+   */
+  const remove = useMutation({
+    mutationFn: (id: string) => payrollApi.deleteSalary(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: payrollKeys.salaries() });
+      toast.success('Revision removed');
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   if (timeline.isError) return <ErrorState onRetry={() => timeline.refetch()} />;
@@ -66,7 +89,22 @@ export default function SalaryTimelinePage() {
                     </Badge>
                   )}
                 </div>
-                <span className="text-muted-foreground text-sm">{revision.effectiveFrom}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">{revision.effectiveFrom}</span>
+                  {can('payroll.salary.manage') && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`Remove the revision effective ${revision.effectiveFrom}`}
+                      title="Remove this revision — refused once its month's payroll is settled"
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(revision.id)}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  )}
+                </div>
               </div>
               <p className="mt-1 text-muted-foreground text-sm">
                 {revision.revisionType.toLowerCase()} · {revision.structureName}

@@ -96,15 +96,15 @@ engine side is already done.
 
 ### Everything else
 
-| Thing | Where | Why nobody reaches it |
+| Thing | Where | Status |
 |---|---|---|
-| `leave_approved`, `leave_rejected` emails | `email-templates.service.ts:24` | Editable in Settings; no sender. Approving leave notifies nobody. |
-| Folder rename | `documents.controller.ts:68` | API and client method exist; `/documents/folders` renders only Create and Delete. |
-| Unassign a salary | `payroll.controller.ts:150` | `payrollApi.deleteSalary` is written and never called. |
-| One employee's attendance month | `attendance.controller.ts:85` | `attendanceApi.employeeMonth` is written and never called; the employee detail page has no attendance tab, though `05:62` specifies one. |
-| Announcement permalink | `announcements.controller.ts:88` | `announcementsApi.detail` is written and never called. |
-| "Deactivate it instead" | `structures/page.tsx:169` | Delete is blocked with a tooltip recommending deactivation. **No deactivate control exists anywhere.** |
-| `unknownVariables()` ×2, `isRunEditable()`, `editBlockedReason()`, `currentLeaveYear()` | letters, settings, payroll, rbac, leave | Implemented, zero callers outside their own specs. |
+| `leave_approved`, `leave_rejected` emails | `email-templates.service.ts:24` | **Open.** Editable in Settings; no sender. Approving leave notifies nobody. |
+| ~~Folder rename~~ | `documents.controller.ts:68` | ✅ **Wired.** Matters more than it looks: a folder cannot be deleted while documents are in it, so a badly-named folder people had already filed into could only be fixed by emptying it first. |
+| ~~Delete a salary revision~~ | `payroll.controller.ts:150` | ✅ **Wired** onto the revision timeline. This audit first called it "unassign a salary", which was **wrong** — it deletes one revision, and the API refuses once that month's payroll is settled. |
+| ~~One employee's attendance month~~ | `attendance.controller.ts:85` | ✅ **Wired** as a card on the employee record — the tab `05:62` specifies. Read-only: there is no admin attendance editor and no endpoint for one. |
+| ~~Announcement permalink~~ | `announcements.controller.ts:88` | ✅ **Wired.** `/announcements/[id]`, linked from each card title. |
+| ~~"Deactivate it instead"~~ | `structures/page.tsx:169` | ✅ **One click now.** This audit said no deactivate control existed anywhere. That was **overstated** — the structure editor has always had an active switch. What was missing was a control where the advice is given, so acting on it meant opening the editor to hunt for a toggle. |
+| `unknownVariables()` ×2, `isRunEditable()`, `editBlockedReason()`, `currentLeaveYear()` | letters, settings, payroll, rbac, leave | **Open.** Implemented, zero callers outside their own specs. |
 
 ### Dead permissions
 

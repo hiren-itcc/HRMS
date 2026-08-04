@@ -48,6 +48,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
+import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
@@ -467,6 +468,13 @@ function EmployeeDetailView() {
         <FadeInItem>
           <BankCard employee={e} />
         </FadeInItem>
+
+        {/* Same permissions the endpoint requires, so the card is never a 403. */}
+        {(can('attendance.read') || can('attendance.read.team')) && (
+          <FadeInItem>
+            <EmployeeAttendanceCard employeeId={e.id} />
+          </FadeInItem>
+        )}
 
         <FadeInItem>
           <Card>

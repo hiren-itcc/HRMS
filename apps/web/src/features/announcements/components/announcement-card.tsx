@@ -6,6 +6,7 @@ import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent } from '@hrms/ui/components/card';
 import { cn } from '@hrms/ui/lib/utils';
 import { CalendarClock, Download, Eye, Paperclip, Pencil, Pin, Trash2, Users } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { type Announcement, announcementsApi, CATEGORY_STYLE, PRIORITY_STYLE } from '../api';
 import { Markdown } from './markdown';
@@ -112,7 +113,12 @@ export function AnnouncementCard({
                 />
               )}
             </div>
-            <h3 className="font-semibold text-base leading-snug">{a.title}</h3>
+            {/* Linked so a post can be pointed at — the feed was the only way in. */}
+            <h3 className="font-semibold text-base leading-snug">
+              <Link href={`/announcements/${a.id}`} className="hover:underline">
+                {a.title}
+              </Link>
+            </h3>
           </div>
 
           {canManage && (onEdit || onDelete || onViewReads) && (
