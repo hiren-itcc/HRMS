@@ -162,18 +162,42 @@ export class AuthController {
 
   // ── cookie helpers ───────────────────────────────────────────────────
 
+  /*
+   * `sameSite` is a deployment fact, not a preference.
+   *
+   * In development both apps are on localhost, so they are same-site and `lax`
+   * is the stricter, better choice. In production the web app and the API sit
+   * on different hosts — and `onrender.com`, like `vercel.app`, is on the
+   * Public Suffix List, so two subdomains of it are cross-site to each other
+   * exactly as if they were unrelated domains. A `lax` cookie is withheld from
+   * cross-site XHR, which is precisely what `POST /auth/refresh` is: the login
+   * would work, and then every session would end silently at the 15-minute
+   * access-token expiry with no error the user could act on.
+   *
+   * `none` requires `secure`, which is why they move together. What keeps this
+   * safe is not the cookie flag but CORS: another origin can cause a refresh to
+   * fire, but `enableCors({ origin: WEB_ORIGIN, credentials: true })` stops it
+   * reading the response, so the rotated access token never leaves this app.
+   * The worst it can do is rotate a token early.
+   */
   private setRefreshCookie(res: Response, token: string): void {
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: this.isProd,
-      sameSite: 'lax',
+      sameSite: this.isProd ? 'none' : 'lax',
       path: '/api/v1/auth',
       maxAge: this.refreshTtlDays * 24 * 60 * 60 * 1000,
     });
   }
 
+  /** Must mirror the attributes above — a cookie only clears on an exact match. */
   private clearRefreshCookie(res: Response): void {
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: this.isProd ? 'none' : 'lax',
+      path: '/api/v1/auth',
+    });
   }
 }
 
