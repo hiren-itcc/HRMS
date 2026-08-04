@@ -4,10 +4,10 @@ Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
 web pages, the 54-permission catalogue and docs 00–14.
 
 > **Status:** every **P0** item is done — the documentation no longer describes
-> features that do not exist, and the onboarding module is specified. Items
-> struck through below are fixed, with the commit. **P1 and beyond are open**,
-> and P1 is where the real code work is: `auth.session-prune`, payroll
-> adjustments, session revoke, offboarding.
+> features that do not exist, and the onboarding module is specified. **P1 is in
+> progress**: session pruning and session management are built; payroll
+> adjustments, offboarding and the org chart are still open. Items struck
+> through below are fixed.
 
 ## How to read this
 
@@ -66,7 +66,7 @@ the identifier appears nowhere outside generated Prisma output.
 | **All four scheduled jobs** — `attendance.day-close`, `leave.year-end`, `auth.session-prune`, `announcement.expire` | `08:61-70` | **Verified absent.** `@nestjs/schedule` is not a dependency. Zero `@Cron` decorators. |
 | **Domain events / `EventEmitter2`, `events.ts` per module** | `08:36`, `08:53-59` | **Verified absent.** `@nestjs/event-emitter` is not a dependency. |
 | **Frontend tests** — Vitest, Testing Library, MSW, and 5 golden Playwright flows | `09:60-66`; a sprint-exit criterion five times in `11` | **Verified absent.** Zero test files under `apps/web` or `packages/ui`. All 468 tests are API unit tests. |
-| **Session management** — `GET /auth/sessions`, `DELETE /auth/sessions/:id`, screen 14 `/profile/sessions` | `03:26`, `07:41`, `05:66` | **Verified absent.** `/profile` contains only `page.tsx`; the avatar menu links only to `/profile`. |
+| ~~**Session management**~~ | `03:26`, `07:41`, `05:66` | ✅ **Built.** `GET /auth/sessions`, `DELETE /auth/sessions/:id` and `/profile/sessions`, linked from the avatar menu. |
 | **Offboarding** — endpoint, dialog listing consequences, `ON_NOTICE` transition | `03:46`, `05:64`, `12:118-120` | **Verified absent.** `employee.offboard` is granted to HR and **enforced nowhere**. `DELETE /employees/:id` uses `employee.delete` instead. |
 | **Org chart** — `GET /organization/chart`, screen 16 collapsible tree | `03:36`, `05:72` | Found nothing. The data exists (`managerId`, and a flat direct-reports list renders at `employees/[id]/page.tsx:499`). |
 | `GET /employees/:id/reports` | `03:47` | Found nothing. Manager scoping exists via the list filter; the named endpoint does not. |
@@ -183,9 +183,11 @@ the table wholesale:
   it expires rather than up to an hour later.
 - `leave.year-end` — **superseded** by lazy per-year balance provisioning, which
   also handles an employee joining mid-year.
-- `auth.session-prune` — **still a real gap.** Nothing deletes `RefreshSession`
-  rows. Expired sessions are refused at use, so this is unbounded storage growth
-  rather than a security hole. It is P1 below.
+- `auth.session-prune` — ✅ **now handled without a scheduler.**
+  `TokenService.pruneExpired` deletes a user's expired rows whenever that user
+  creates one, so the cleanup happens where the growth does. Revoked-but-
+  unexpired rows survive, because reuse detection has to find the session to
+  know a replay was a replay rather than a forgery.
 
 Retracting all four would have been as wrong as leaving them: three would have
 pointed maintainers at work that duplicates the read path.

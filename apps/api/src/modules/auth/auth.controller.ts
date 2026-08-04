@@ -1,5 +1,17 @@
 import type { AccessTokenClaims } from '@hrms/types';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -17,6 +29,7 @@ import {
   ResetPasswordDto,
 } from './dto/auth.dto';
 import { InviteService } from './invite.service';
+import { TokenService } from './token.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -30,6 +43,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly invites: InviteService,
+    private readonly tokens: TokenService,
     config: ConfigService<Env, true>,
   ) {
     this.isProd = config.get('NODE_ENV', { infer: true }) === 'production';
@@ -158,6 +172,49 @@ export class AuthController {
   @ApiOperation({ summary: 'Current user with role, permissions and employee summary' })
   me(@CurrentUser() user: AccessTokenClaims) {
     return this.auth.getMe(user.sub);
+  }
+
+  /*
+   * Sessions are the caller's own, so there is no permission on either route —
+   * the subject comes from the JWT and is never read from a parameter. This is
+   * the same rule /me/profile follows (docs/04 §Enforcement).
+   *
+   * They live under /auth rather than /me because the refresh cookie is scoped
+   * to `Path=/api/v1/auth`. Anywhere else the browser would not send it, and
+   * the list could not say which device is the one you are reading it on.
+   */
+  @Get('sessions')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Devices currently able to refresh this account' })
+  sessions(@CurrentUser() user: AccessTokenClaims, @Req() req: Request) {
+    return this.tokens.listSessions(user.sub, req.cookies?.[REFRESH_COOKIE]);
+  }
+
+  @Delete('sessions/:id')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Sign one device out' })
+  async revokeSession(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { revoked, wasCurrent } = await this.tokens.revokeSession(
+      user.sub,
+      id,
+      req.cookies?.[REFRESH_COOKIE],
+    );
+    if (!revoked) throw new NotFoundException('Session not found');
+
+    /*
+     * Revoking the session you are signed in with is allowed — "sign out
+     * everywhere, including here" is a reasonable thing to want and refusing it
+     * would be surprising. But the cookie has to go with it, or the browser
+     * keeps presenting a revoked token until the access token expires and then
+     * fails a refresh it cannot explain.
+     */
+    if (wasCurrent) this.clearRefreshCookie(res);
   }
 
   // ── cookie helpers ───────────────────────────────────────────────────

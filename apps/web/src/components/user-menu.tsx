@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@hrms/ui/components/dropdown-menu';
-import { LogOut, UserRound } from 'lucide-react';
+import { LogOut, MonitorSmartphone, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/components/session-provider';
@@ -71,6 +71,9 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/profile" />}>
           <UserRound aria-hidden /> My profile
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/profile/sessions" />}>
+          <MonitorSmartphone aria-hidden /> Active sessions
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

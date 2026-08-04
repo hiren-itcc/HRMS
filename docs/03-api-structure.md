@@ -21,9 +21,18 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 | POST | `/auth/logout` | Revoke current session (authed) |
 | POST | `/auth/forgot-password` | Send reset email (always 200) |
 | POST | `/auth/reset-password` | Token + new password |
+| GET | `/auth/invite/:token` | Is this invitation still usable, and whose is it? |
 | POST | `/auth/accept-invite` | Invite token + password → activates user |
+| POST | `/auth/change-password` | Returns a **fresh** access token — the old one still asserts `mustChangePassword` (authed) |
 | GET | `/auth/me` | Current user + role + permissions + employee summary (authed) |
 | GET | `/auth/sessions` · DELETE `/auth/sessions/:id` | List / revoke own sessions (authed) |
+
+Sessions carry no permission: the subject comes from the JWT and is never read
+from a parameter, so another user's session id matches nothing. They sit under
+`/auth` rather than `/me` because the refresh cookie is scoped to
+`Path=/api/v1/auth` — anywhere else the browser would not send it, and the list
+could not mark which device you are reading it on. Revoking your own session is
+allowed and clears the cookie with it.
 
 ### Organization (`/organization`)
 | Method | Path |

@@ -91,7 +91,7 @@ is a source of wrong answers at 00:05; a derivation cannot be stale.
 | `attendance.day-close` — nightly, marks ABSENT/HOLIDAY/WEEK_OFF | **Superseded.** Day status is derived on read, in a defined precedence order. No job needed. |
 | `announcement.expire` — hourly, hides expired posts | **Superseded.** `publishAt`/`expiresAt` are enforced in the query `where`, so an expired post is invisible the moment it expires rather than up to an hour later. |
 | `leave.year-end` — writes next-year balances | **Superseded.** Balances are provisioned lazily the first time a leave year is touched, which also handles an employee joining mid-year. |
-| `auth.session-prune` — deletes expired sessions | **Still a real gap.** Nothing deletes rows from `RefreshSession`; the table grows without bound. Expired sessions are refused at use, so this is storage growth rather than a security hole — but it is the one item here that was not replaced by anything. |
+| `auth.session-prune` — deletes expired sessions | **Replaced, not skipped.** `TokenService.pruneExpired` deletes a user's expired rows whenever that user creates a session, so the work happens where the growth does and a dormant account costs nothing. Revoked-but-unexpired rows survive — reuse detection has to find the session to know a replay was a replay. |
 
 The first three are not missing work. Retaining them as a to-do list would keep
 pointing maintainers at jobs that would duplicate logic already in the read
