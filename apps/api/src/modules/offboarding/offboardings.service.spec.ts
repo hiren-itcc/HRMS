@@ -61,6 +61,9 @@ function makeService(
   const transitions = { apply: jest.fn().mockResolvedValue({ id: 'e1' }) };
   const resignations = { markCompleted: jest.fn(), reopen: jest.fn() };
   const notifications = notificationsDouble();
+  // Owns the ASSET_RETURN item's status; this module only ever asks it to
+  // settle one once, when an exit starts.
+  const assetClearance = { sync: jest.fn(), outstandingCount: jest.fn().mockResolvedValue(0) };
   const service = new OffboardingsService(
     prisma,
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
@@ -71,9 +74,11 @@ function makeService(
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     { forEntity: jest.fn().mockResolvedValue([]) } as any,
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    assetClearance as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
     resignations as any,
   );
-  return { service, prisma, transitions, resignations, notifications };
+  return { service, prisma, transitions, resignations, notifications, assetClearance };
 }
 
 const hr: AccessTokenClaims = {
@@ -370,6 +375,7 @@ describe('the checklist', () => {
       label: string;
       owner: string;
       required: boolean;
+      kind: string;
       order: number;
       description: string | null;
     }[];
@@ -402,7 +408,11 @@ describe('the checklist', () => {
   it('takes the template as it was, not as it later becomes', async () => {
     const { service, prisma } = makeService(
       {},
-      { exitChecklist: { items: [{ label: 'Only this', owner: 'HR', required: false }] } },
+      {
+        exitChecklist: {
+          items: [{ label: 'Only this', owner: 'HR', required: false, kind: 'MANUAL' }],
+        },
+      },
     );
     await service.startFromResignation(ctx, {
       resignationId: 'r1',
@@ -425,6 +435,43 @@ describe('the checklist', () => {
     });
     expect(tasksOf(prisma)).toEqual([]);
   });
+
+  /* The kind travels with the copy, like every other field on the item. */
+  it('carries each item kind onto the exit', async () => {
+    const { service, prisma } = makeService(
+      {},
+      {
+        exitChecklist: {
+          items: [
+            { label: 'Assets', owner: 'IT_ADMIN', required: true, kind: 'ASSET_RETURN' },
+            { label: 'Handover', owner: 'MANAGER', required: true, kind: 'MANUAL' },
+          ],
+        },
+      },
+    );
+    await service.create(hr, {
+      employeeId: 'e1',
+      reason: 'TERMINATION',
+      reasonNote: null,
+      lastWorkingDate: '2026-09-30',
+    });
+    expect(tasksOf(prisma).map((t) => t.kind)).toEqual(['ASSET_RETURN', 'MANUAL']);
+  });
+
+  /*
+   * Without this a leaver who was never issued anything is blocked forever by
+   * an item nobody can tick — it is computed, so only the register settles it.
+   */
+  it('settles the asset item against what they actually hold, at the start', async () => {
+    const { service, assetClearance } = makeService();
+    await service.create(hr, {
+      employeeId: 'e1',
+      reason: 'TERMINATION',
+      reasonNote: null,
+      lastWorkingDate: '2026-09-30',
+    });
+    expect(assetClearance.sync).toHaveBeenCalledWith('org1', 'e1');
+  });
 });
 
 describe('clearance', () => {
@@ -443,7 +490,9 @@ describe('clearance', () => {
     employeeId: 'e-fin',
   };
 
-  function withTask(over: { owner?: string; status?: string; managerId?: string | null } = {}) {
+  function withTask(
+    over: { owner?: string; status?: string; managerId?: string | null; kind?: string } = {},
+  ) {
     const made = makeService();
     made.prisma.offboardingTask = {
       findFirst: jest.fn().mockResolvedValue({
@@ -451,6 +500,7 @@ describe('clearance', () => {
         offboardingId: 'off1',
         label: 'Return company assets',
         owner: over.owner ?? 'IT_ADMIN',
+        kind: over.kind ?? 'MANUAL',
         status: 'PENDING',
         offboarding: {
           id: 'off1',
@@ -463,6 +513,36 @@ describe('clearance', () => {
     };
     return made;
   }
+
+  /*
+   * An asset item is settled by the register, not by a person. Ticking it DONE
+   * by hand would assert the laptops came back while the register says they
+   * did not — the two disagreeing is exactly what making it computed prevents.
+   */
+  it('refuses to let an asset item be ticked off by hand', async () => {
+    const { service, prisma } = withTask({ kind: 'ASSET_RETURN' });
+    await expect(service.updateTask(hr, 't1', { status: 'DONE' })).rejects.toThrow(
+      /settles itself when their assets come back/,
+    );
+    expect(prisma.offboardingTask.update).not.toHaveBeenCalled();
+  });
+
+  /* The escape hatch, and it already demands a reason. */
+  it('still lets an asset item be waived with a reason', async () => {
+    const { service, prisma } = withTask({ kind: 'ASSET_RETURN' });
+    await service.updateTask(hr, 't1', {
+      status: 'NOT_APPLICABLE',
+      note: 'Posted back, written off',
+    });
+    expect(prisma.offboardingTask.update).toHaveBeenCalled();
+  });
+
+  /* And reopening it is untouched: the register may say so tomorrow. */
+  it('still lets an asset item be put back to pending', async () => {
+    const { service, prisma } = withTask({ kind: 'ASSET_RETURN' });
+    await service.updateTask(hr, 't1', { status: 'PENDING' });
+    expect(prisma.offboardingTask.update).toHaveBeenCalled();
+  });
 
   it('signs an item off and stamps who and when', async () => {
     const { service, prisma } = withTask();

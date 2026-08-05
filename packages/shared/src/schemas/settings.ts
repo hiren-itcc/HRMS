@@ -160,12 +160,36 @@ export const CLEARANCE_OWNER_LABELS: Record<ClearanceOwnerCode, string> = {
   IT_ADMIN: 'IT / Admin',
 };
 
+/**
+ * What settles an item.
+ *
+ * `MANUAL` is somebody signing it off. `ASSET_RETURN` reads the asset register
+ * instead: it lists what the leaver still holds, settles itself when the last
+ * thing comes back, and cannot be ticked to DONE by hand. Waiving it as
+ * NOT_APPLICABLE with a reason still works, which is the answer for "they
+ * posted it back" and for a laptop written off.
+ *
+ * Defaults to `MANUAL` on purpose. An organization that saved a checklist
+ * before assets existed keeps hand-signing until it switches this on —
+ * turning a *completion gate* on underneath an exit already in flight is the
+ * one change here that could strand somebody.
+ */
+export const CLEARANCE_KINDS = ['MANUAL', 'ASSET_RETURN'] as const;
+export const clearanceKindSchema = z.enum(CLEARANCE_KINDS);
+export type ClearanceKindCode = (typeof CLEARANCE_KINDS)[number];
+
+export const CLEARANCE_KIND_LABELS: Record<ClearanceKindCode, string> = {
+  MANUAL: 'Signed off by hand',
+  ASSET_RETURN: 'Read from the asset register',
+};
+
 export const clearanceItemSchema = z.object({
   label: z.string().trim().min(1, 'Give the item a name').max(120),
   description: z.string().trim().max(300).optional().nullable(),
   owner: clearanceOwnerSchema,
   /** Completion is blocked while any required item is outstanding. */
   required: z.boolean().default(true),
+  kind: clearanceKindSchema.default('MANUAL'),
 });
 export type ClearanceItem = z.infer<typeof clearanceItemSchema>;
 
@@ -178,9 +202,9 @@ export type ClearanceItem = z.infer<typeof clearanceItemSchema>;
  * has already returned their laptop has returned it whatever the list says
  * next week.
  *
- * "Return company assets" is one item signed off by hand today. When asset
- * management exists it becomes a computed item reading real assignments; the
- * row does not move.
+ * "Return company assets" now carries `kind: 'ASSET_RETURN'` and reads real
+ * assignments, which is what an earlier version of this comment promised would
+ * happen once asset management existed. The row did not move.
  */
 export const exitChecklistSchema = z.object({
   items: z
@@ -192,32 +216,40 @@ export const exitChecklistSchema = z.object({
         description: 'Open work, passwords and anything only they know.',
         owner: 'MANAGER',
         required: true,
+        kind: 'MANUAL',
       },
       {
         label: 'Return company assets',
         description: 'Laptop, access card, phone, SIM and anything else issued.',
         owner: 'IT_ADMIN',
         required: true,
+        // The row this whole module was written for. New organizations get the
+        // computed version; existing ones keep MANUAL until they switch it on.
+        kind: 'ASSET_RETURN',
       },
       {
         label: 'Revoke system and email access',
         owner: 'IT_ADMIN',
         required: true,
+        kind: 'MANUAL',
       },
       {
         label: 'Clear outstanding dues and advances',
         owner: 'FINANCE',
         required: true,
+        kind: 'MANUAL',
       },
       {
         label: 'Exit interview',
         owner: 'HR',
         required: false,
+        kind: 'MANUAL',
       },
       {
         label: 'Issue relieving and experience letters',
         owner: 'HR',
         required: false,
+        kind: 'MANUAL',
       },
     ]),
 });

@@ -20,7 +20,13 @@ import {
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import { useId } from 'react';
 
-const BLANK: ClearanceItem = { label: '', description: null, owner: 'HR', required: true };
+const BLANK: ClearanceItem = {
+  label: '',
+  description: null,
+  owner: 'HR',
+  required: true,
+  kind: 'MANUAL',
+};
 
 /**
  * The exit checklist template.
@@ -150,7 +156,29 @@ export function ExitChecklistEditor({
                   Blocks completion
                 </Label>
               </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`${id}-assets-${index}`}
+                  checked={item.kind === 'ASSET_RETURN'}
+                  disabled={disabled}
+                  onCheckedChange={(v) =>
+                    patch(index, { kind: v === true ? 'ASSET_RETURN' : 'MANUAL' })
+                  }
+                />
+                <Label htmlFor={`${id}-assets-${index}`} className="text-xs">
+                  Read from the asset register
+                </Label>
+              </div>
             </div>
+
+            {item.kind === 'ASSET_RETURN' && (
+              <p className="text-muted-foreground text-xs">
+                This item lists what the leaver still holds and settles itself when the last thing
+                comes back. Nobody can tick it off by hand — but it can still be waived with a
+                reason.
+              </p>
+            )}
           </li>
         ))}
       </ul>

@@ -22,6 +22,7 @@ import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { ClearanceOwner, Prisma } from '../../generated/prisma/client';
+import { AssetClearanceService } from '../assets/asset-clearance.service';
 import { AuditService } from '../audit/audit.service';
 import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
@@ -76,6 +77,12 @@ export class OffboardingsService {
     private readonly notifications: NotificationsService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
+    /*
+     * One direction only: this module knows about assets, assets does not know
+     * about this one. The clearance service reads Offboarding through Prisma,
+     * exactly as SettlementsService does, so there is no cycle to guard.
+     */
+    private readonly assetClearance: AssetClearanceService,
     /*
      * The one cycle in this feature, and it is real rather than accidental:
      * approving a resignation opens an offboarding, and completing an
@@ -191,6 +198,7 @@ export class OffboardingsService {
               description: item.description ?? null,
               owner: item.owner,
               required: item.required,
+              kind: item.kind,
               order: index,
             })),
           },
@@ -198,6 +206,15 @@ export class OffboardingsService {
         include: LIST_INCLUDE,
       })
       .catch(this.rethrowDuplicate);
+
+    /*
+     * Settle the asset item once, now, against what they actually hold.
+     *
+     * Without this a leaver who was never issued anything is blocked forever
+     * by an item nobody can tick — it is `ASSET_RETURN`, so signing it off by
+     * hand is refused, and only the register can settle it.
+     */
+    await this.assetClearance.sync(ctx.orgId, employee.id);
 
     // Serving notice, not gone: the login is untouched and they keep clocking
     // in, booking leave and being paid until the date arrives.
@@ -391,6 +408,22 @@ export class OffboardingsService {
       );
     }
     this.assertMaySignOff(claims, task.owner, task.offboarding.employee.managerId);
+
+    /*
+     * An asset item is settled by the register, not by a person. Ticking it
+     * DONE by hand would be asserting the laptops came back while the register
+     * says they did not, and the two disagreeing is exactly what this item was
+     * made computed to stop.
+     *
+     * Waiving it is still allowed, and is the escape hatch: NOT_APPLICABLE
+     * already demands a reason, so "they posted it back" and "written off"
+     * both have somewhere honest to go.
+     */
+    if (task.kind === 'ASSET_RETURN' && input.status === 'DONE') {
+      throw new BadRequestException(
+        'This settles itself when their assets come back. Take them back on the asset record, or waive it with a reason',
+      );
+    }
 
     const done = input.status !== 'PENDING';
     const updated = await this.prisma.offboardingTask.update({
