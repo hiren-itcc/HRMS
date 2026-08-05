@@ -69,6 +69,8 @@ function makeService(
     notifications,
     settingsDouble(settings),
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    { forEntity: jest.fn().mockResolvedValue([]) } as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
     resignations as any,
   );
   return { service, prisma, transitions, resignations, notifications };

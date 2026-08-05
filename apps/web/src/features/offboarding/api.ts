@@ -11,6 +11,7 @@ import type {
   OffboardingUpdateInput,
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
+import type { ActivityEntry } from '@/features/resignations/types';
 import { api } from '@/lib/api-client';
 import { type ListRequest, qs } from '@/lib/crud';
 
@@ -105,6 +106,7 @@ export const offboardingsApi = {
       body: JSON.stringify(input),
     }),
 
+  activity: (id: string) => api<ActivityEntry[]>(`/offboardings/${id}/activity`),
   interview: (id: string) => api<ExitInterview | null>(`/offboardings/${id}/interview`),
   saveInterview: (id: string, input: ExitInterviewInput) =>
     api<ExitInterview>(`/offboardings/${id}/interview`, {

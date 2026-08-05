@@ -670,11 +670,16 @@ model AnnouncementRead {
   @@id([announcementId, userId])
 }
 
-// DEAD TABLE. Nothing in the API reads or writes a Notification — there is no
-// notifications module, endpoint or bell, and the feature was retracted from
-// doc 03. The table and its index exist only because the migration created
-// them. Left in place because dropping it is a migration nobody needs yet;
-// treat it as reserved for the module if it is ever built (doc 15).
+// The in-app notification. Written by NotificationsService, read by the bell
+// in the header. Carries no organizationId, deliberately: it belongs to one
+// user, and the two other user-owned tables here (RefreshSession,
+// PasswordResetToken) carry none either. Scoping on the JWT subject is
+// tighter than scoping on the org.
+//
+// `type` is dot-namespaced like an audit action — "resignation.submitted" —
+// so a family can be filtered without a second column and a new one needs no
+// migration. Retention is a 90-day bound applied on read; there is no
+// scheduler to prune with.
 model Notification {
   id        String    @id @default(cuid())
   userId    String
@@ -851,6 +856,44 @@ enum OffboardingReason {
 }
 
 enum OffboardingStatus { IN_PROGRESS COMPLETED CANCELLED }
+
+/// One line of the exit checklist. Copied from the organization's template in
+/// Settings when the exit starts, and never joined back to it.
+model OffboardingTask {
+  id            String                @id @default(cuid())
+  offboardingId String
+  label         String
+  description   String?
+  owner         ClearanceOwner
+  required      Boolean               @default(true)   // blocks completion
+  order         Int
+  status        OffboardingTaskStatus @default(PENDING)
+  note          String?               // what came back, or why it was waived
+  doneAt        DateTime?
+  doneById      String?
+
+  @@index([offboardingId, order])
+  @@index([offboardingId, status])
+}
+
+enum ClearanceOwner { MANAGER HR FINANCE IT_ADMIN }
+enum OffboardingTaskStatus { PENDING DONE NOT_APPLICABLE }
+
+/// The exit conversation. Read by employee.offboard holders only.
+model ExitInterview {
+  id            String    @id @default(cuid())
+  offboardingId String    @unique
+  conductedOn   DateTime? @db.Date
+  conductedById String?
+
+  /// [{ key, question, answer }] — the question text is frozen beside the
+  /// answer, so changing the questionnaire never rewrites what was said.
+  responses Json    @default("[]")
+  notes     String?
+
+  wouldRecommend Boolean?
+  rehireEligible Boolean?
+}
 
 // ─── Payroll ──────────────────────────────────────────────────────────
 // Money is Decimal(14,2) throughout. See "Notable design calls" below for
@@ -1038,6 +1081,22 @@ model AuditLog {
 - **`LeaveBalance` is per-year** — year-end carry-forward is a job that writes next year's rows; history stays queryable for reports.
 - **`Document.fileKey`** keeps storage private; downloads go through the API with a permission check and a short-lived signed URL.
 ### Exits and probation
+
+- **The exit checklist is copied, not joined.** `OffboardingTask` rows are
+  written from the `exitChecklist` settings group when the exit starts.
+  Editing the template must not rewrite an exit that is half signed off —
+  somebody who has already returned their laptop has returned it whatever the
+  list says next week. Same freezing rule as the `snapshot*` fields and
+  `Letter.variables`.
+- **`NOT_APPLICABLE` is a real state.** A contractor with no company laptop is
+  closed honestly rather than by ticking a box that says the laptop came back.
+- **`ExitInterview.responses` is JSON on purpose.** Each answer carries the
+  question it answered. Normalising it would make the question a joined row a
+  later release could rewrite, and an exit interview is evidence.
+- **`Notification` is no longer dead.** It carries no `organizationId` and
+  that is deliberate: a notification belongs to one user, and the schema's two
+  other user-owned tables, `RefreshSession` and `PasswordResetToken`, carry
+  none either. Scoping on the JWT subject is tighter than scoping on the org.
 
 - **Probation is not an `EmployeeStatus`.** It is `probationEndDate`,
   `probationExtendedTo` and `confirmedOn` on `Employee`, and the badge is

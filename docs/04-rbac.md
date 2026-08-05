@@ -34,6 +34,8 @@ resignation.request.own   resignation.read.own
 resignation.read.team     resignation.approve.team
 resignation.read          resignation.approve
 
+offboarding.clearance     (sign one exit clearance item off)
+
 Note: offboarding adds no code of its own. `employee.offboard` already means
 'may change whether this person works here' and is already held by exactly
 Admin and HR, so every /offboardings route uses it.
@@ -111,6 +113,7 @@ settings.manage        role.manage              audit.read
 | `resignation.request.own` / `read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `resignation.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
 | `resignation.read` / `approve` | ✅ | ✅ | — | — | — |
+| `offboarding.clearance` | ✅ | ✅ | ✅ | ✅ | — |
 | `audit.read` | ✅ | — | — | — | — |
 | `payroll.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `payroll.read.team` | ✅ | ✅ | — | ✅ | — |
@@ -188,6 +191,13 @@ approval — that is what unsticks a request whose reviewer has themselves left 
 and the audit row records `managerStepSkipped`.
 
 Nobody may decide on their own resignation, whatever they hold.
+
+The same gap appears once more in exit clearance. `offboarding.clearance` says
+"you may clear an exit item"; it cannot say *whose*. A `MANAGER`-owned item
+therefore demands the caller actually be that employee's manager — without it
+every manager in the organization could sign off every handover.
+`employee.offboard` holders may sign off anything, which is also what covers
+`IT_ADMIN` items until somebody composes an IT role in Settings → Roles.
 
 ## Beyond the guard: state as a second gate
 

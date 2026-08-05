@@ -86,7 +86,6 @@ export function ExitChecklistEditor({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
                   disabled={disabled || index === 0}
                   aria-label={`Move ${item.label || `item ${index + 1}`} up`}
                   onClick={() => move(index, -1)}
@@ -97,7 +96,6 @@ export function ExitChecklistEditor({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
                   disabled={disabled || index === items.length - 1}
                   aria-label={`Move ${item.label || `item ${index + 1}`} down`}
                   onClick={() => move(index, 1)}
@@ -108,7 +106,7 @@ export function ExitChecklistEditor({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:text-destructive"
+                  className="text-destructive hover:text-destructive"
                   disabled={disabled}
                   aria-label={`Remove ${item.label || `item ${index + 1}`}`}
                   onClick={() => onChange(items.filter((_, i) => i !== index))}

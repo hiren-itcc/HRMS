@@ -39,7 +39,7 @@ import {
   clearanceProgress,
 } from '@/features/offboarding/components/clearance-checklist';
 import { ExitInterviewCard } from '@/features/offboarding/components/exit-interview-card';
-import { resignationKeys, resignationsApi } from '@/features/resignations/api';
+import { resignationKeys } from '@/features/resignations/api';
 import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
@@ -82,11 +82,8 @@ export default function OffboardingDetailPage() {
 
   const record = query.data;
   const activity = useQuery({
-    queryKey: resignationKeys.activity(record?.resignationId ?? ''),
-    queryFn: () => resignationsApi.activity(record?.resignationId ?? ''),
-    // Only a resignation-born exit has a trail to show; an HR-initiated one
-    // has its own audit entity that no scoped read exposes yet.
-    enabled: Boolean(record?.resignationId),
+    queryKey: offboardingKeys.activity(id),
+    queryFn: () => offboardingsApi.activity(id),
   });
 
   const invalidate = [
@@ -288,24 +285,22 @@ export default function OffboardingDetailPage() {
           </FadeInItem>
         )}
 
-        {record.resignationId && (
-          <FadeInItem>
-            <Card>
-              <CardHeader>
-                <CardTitle>History</CardTitle>
-                <CardDescription>Everything recorded against this exit</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ActivityTimeline
-                  entries={activity.data}
-                  loading={activity.isPending}
-                  error={activity.isError}
-                  onRetry={() => activity.refetch()}
-                />
-              </CardContent>
-            </Card>
-          </FadeInItem>
-        )}
+        <FadeInItem>
+          <Card>
+            <CardHeader>
+              <CardTitle>History</CardTitle>
+              <CardDescription>Everything recorded against this exit</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ActivityTimeline
+                entries={activity.data}
+                loading={activity.isPending}
+                error={activity.isError}
+                onRetry={() => activity.refetch()}
+              />
+            </CardContent>
+          </Card>
+        </FadeInItem>
       </div>
 
       <FormDialog

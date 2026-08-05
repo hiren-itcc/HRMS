@@ -68,7 +68,7 @@ the identifier appears nowhere outside generated Prisma output.
 
 | Feature | Promised in | Status |
 |---|---|---|
-| **Notifications** — `GET /notifications`, mark-read, bell in the topbar, 30 s polling, event fan-out | `03:119-120`, `05:10`, `08:23`, `09:34` | **Verified absent.** `Notification` exists at `schema.prisma:643` with **zero reads and zero writes**. No module, no UI, no bell. |
+| ~~**Notifications**~~ — `GET /notifications`, mark-read, bell in the topbar, 30 s polling | `03:119-120`, `05:10`, `08:23`, `09:34` | ✅ **Built.** The table this audit called dead now has a module, four routes and a bell. In-app only — **email notifications are still absent**, and so is the event fan-out: senders call `notify()` directly, because `@nestjs/event-emitter` is still not a dependency. |
 | **All four scheduled jobs** — `attendance.day-close`, `leave.year-end`, `auth.session-prune`, `announcement.expire` | `08:61-70` | **Verified absent.** `@nestjs/schedule` is not a dependency. Zero `@Cron` decorators. |
 | **Domain events / `EventEmitter2`, `events.ts` per module** | `08:36`, `08:53-59` | **Verified absent.** `@nestjs/event-emitter` is not a dependency. |
 | ~~**Frontend tests**~~ | `09:60-66`; a sprint-exit criterion five times in `11` | ✅ **Started.** Vitest + Testing Library wired into turbo; the api client and the two newest screens are covered. **Playwright and the five golden flows are still absent** — they need a seeded database and a running API that CI cannot provide. |
@@ -144,7 +144,7 @@ as though it describes enforcement, when for these three rows it does not.
 
 | Object | Line | State |
 |---|---|---|
-| `Notification` | `schema.prisma:643` | Zero reads, zero writes. Only reference is a `deleteMany` in the seed. |
+| ~~`Notification`~~ | `schema.prisma:643` | ✅ **Alive.** Written by `NotificationsService`, read by the header bell. |
 | ~~`EmergencyContact`~~ | `:318` | ✅ **Alive.** Editable on `/profile` as a replace-all array and shown on the employee record. It was written by the seed and read by nothing — not even in `DETAIL_INCLUDE`, so the seeded rows were unreachable. |
 | `Document.visibility`, `enum DocVisibility` | `:550`, `:564` | Seed writes the literal `'PRIVATE'`; no API code reads or filters it. |
 | `Department.headId` | `:146` | Read by the department report, **never written** — no create/update schema accepts it. In any non-seeded tenant the report's "Head" column is permanently `—`. |
@@ -215,9 +215,11 @@ the table wholesale:
 Retracting all four would have been as wrong as leaving them: three would have
 pointed maintainers at work that duplicates the read path.
 
-**~~Notifications.~~** ✅ *Retracted* from docs 03, 05, 08, 09, the doc 01 tree
-and doc 11's "behind existing NotificationsModule". The dead table is marked as
-such in doc 02 and removed from the ER diagram. Building it is P2.
+**~~Notifications.~~** ✅ **Built**, after being retracted once. Docs 03 and 05
+carry it again and doc 02 no longer calls the table dead. In-app only: a bell,
+an unread count and mark-read. Email and a general event fan-out remain
+unbuilt, and `@nestjs/event-emitter` is still not a dependency — senders call
+`notify()` directly.
 
 ### 4c. Both are defensible; the docs describe a design that was superseded
 
@@ -288,7 +290,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ | ✅ all four |
-| **Notifications** | ❌ | ✅ all four |
+| ~~**Notifications**~~ ✅ in-app built · email ❌ | ⚠️ | ✅ all four |
 | **Bulk import / export** | ❌ (reports only) | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
 

@@ -138,7 +138,7 @@ places rather than one screen that quietly shows you less.
 | 32a | Letter | `/letters/:id` | The issued document — print to PDF, void with a reason |
 | 32b | Letter templates | `/settings/letters` | Edit the shipped templates; `letter.template.manage` |
 
-### Exits (4)
+### Exits (5)
 
 One nav entry, three tabs, plus a permalink. Resignations and offboardings are
 tabs rather than two sidebar items: the nav is a flat eleven-item list, and
@@ -151,6 +151,7 @@ they resigned or were let go.
 | 2 | Approvals inbox — defaults to "waiting on me" | `/resignations/approvals` | `resignation.approve` / `.approve.team` |
 | 3 | Offboarding — everybody leaving, whatever the reason | `/resignations/offboarding` | `employee.offboard` |
 | 4 | Resignation detail — stepper, decisions, offboarding, history | `/resignations/[id]` | read scope on the record |
+| 5 | Exit detail — frozen snapshot, clearance sign-off, exit interview, history | `/resignations/offboarding/[id]` | `employee.offboard` |
 
 Probation and notice period also appear as a **Lifecycle card** on the employee
 record (screen: Employees & profile), with Confirm and Extend behind
@@ -206,6 +207,18 @@ next run as the place to correct a mistake.
 | 45 | General settings | `/settings` | Org profile, timezone, attendance, leave & payroll policy values |
 | 46 | Roles & permissions | `/settings/roles` | Matrix editor; system-role guardrails |
 | 47 | Audit log | `/settings/audit` | Filterable trail |
+
+### Notifications
+
+Not a screen. A bell in the header beside the theme toggle, with an unread
+badge, a popover list and mark-read. The badge polls every 30 seconds; the list
+is only fetched while the popover is open, so a session that never opens it
+costs one count query per poll and nothing else.
+
+Senders so far: a resignation submitted (to the routed manager, or to everyone
+who can approve when it was routed to nobody), a decision (to the employee), an
+offboarding started (to the employee), and an offboarding completed (to HR —
+the employee's sign-in has just been suspended).
 
 ### System states (every screen)
 Loading = skeletons (no spinners on full pages) · Empty = illustration + primary action · Error = retry + support hint · Forbidden = 403 page with "request access" hint · Offline banner.

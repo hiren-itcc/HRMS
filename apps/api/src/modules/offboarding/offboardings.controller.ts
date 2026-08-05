@@ -99,6 +99,13 @@ export class OffboardingsController {
     return this.offboardings.updateTask(user, taskId, dto);
   }
 
+  @Get(':id/activity')
+  @RequirePermissions('employee.offboard')
+  @ApiOperation({ summary: 'The trail for this exit, scoped to it' })
+  activity(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
+    return this.offboardings.activity(user, id);
+  }
+
   /*
    * Both sides of the interview are `employee.offboard`, not
    * `offboarding.clearance` — and deliberately not readable by the leaver's

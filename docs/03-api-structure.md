@@ -68,6 +68,23 @@ it alone, because somebody working their notice is still an employee.
 `ACTIVE` withdraws a resignation and revives a login **only** from `SUSPENDED`,
 never from `INVITED`.
 
+### Notifications (`/notifications`)
+
+| Method | Path |
+|---|---|
+| GET | `/notifications` · `/notifications/unread-count` |
+| POST | `/notifications/:id/read` · `/notifications/read-all` |
+
+**No permission on any route**, and no endpoint that creates one. Every route is
+scoped to the JWT subject and never reads whose data it is from a parameter —
+the same rule `/auth/sessions` and `/me/profile` follow. A permission here
+would be weaker: it would be something an administrator could grant one person
+over another's notifications. A notification is a consequence of something else
+happening, never a thing anybody posts.
+
+Retention is a 90-day query bound rather than a pruning job, for the same reason
+the lifecycle tick hangs off a request: there is no scheduler.
+
 ### Exits (`/resignations`, `/offboardings`, `/lifecycle`)
 
 | Method | Path |
@@ -81,8 +98,25 @@ never from `INVITED`.
 | GET / POST | `/offboardings` — everyone leaving; start a termination or contract end; `employee.offboard` |
 | GET / PATCH | `/offboardings/:id` — detail; move the last working date |
 | POST | `/offboardings/:id/complete` · `/offboardings/:id/cancel` |
+| PATCH | `/offboardings/tasks/:taskId` — sign a clearance item off, waive it, reopen it; `offboarding.clearance` |
+| GET / PUT | `/offboardings/:id/interview` — the exit conversation; `employee.offboard` only |
+| GET | `/offboardings/:id/activity` — the trail for this exit |
 | GET | `/lifecycle/stats` — dashboard counts, each null when the caller may not see it |
 | GET / POST | `/lifecycle/status` · `/lifecycle/run`; `settings.manage` |
+
+**Completion is gated on clearance.** `complete` refuses while any *required*
+`OffboardingTask` is still `PENDING`, and names them. That one rule is
+"employees cannot complete an exit until required assets are returned" —
+generic, so it also covers the handover and the outstanding dues.
+
+**`offboarding.clearance` is not `employee.offboard`.** Finance and Managers
+sign items off without being able to schedule or complete anybody's exit. Which
+exit a Manager may touch is a question the guard cannot answer, so the service
+checks they are that employee's manager. `IT_ADMIN` items fall to
+`employee.offboard` holders until an IT role exists.
+
+**The exit interview is HR-only**, and deliberately not readable by the
+leaver's own manager — who is very often the subject of the answers.
 
 **Two entry points, one exit.** An employee resigning and HR recording a
 termination both produce an `Offboarding`; only the first has a `Resignation`

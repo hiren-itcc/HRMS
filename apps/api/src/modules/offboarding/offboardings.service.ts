@@ -22,6 +22,7 @@ import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { ClearanceOwner, Prisma } from '../../generated/prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -74,6 +75,7 @@ export class OffboardingsService {
     private readonly lifecycle: LifecyclePolicyService,
     private readonly notifications: NotificationsService,
     private readonly settings: SettingsService,
+    private readonly audit: AuditService,
     /*
      * The one cycle in this feature, and it is real rather than accidental:
      * approving a resignation opens an offboarding, and completing an
@@ -525,6 +527,20 @@ export class OffboardingsService {
     return this.prisma.exitInterview.findFirst({
       where: { offboardingId: id, offboarding: { organizationId: claims.orgId } },
     });
+  }
+
+  /**
+   * The trail for one exit: started, rescheduled, cleared, interviewed,
+   * completed or cancelled.
+   *
+   * Every one of those already wrote an `Offboarding` audit row; nothing
+   * exposed them. Without this an HR-initiated termination had no history at
+   * all on screen, because the only trail on the page was the resignation's —
+   * and a termination has no resignation.
+   */
+  async activity(claims: AccessTokenClaims, id: string) {
+    await this.detail(claims, id);
+    return this.audit.forEntity(claims.orgId, 'Offboarding', id);
   }
 
   // ── reads ─────────────────────────────────────────────────────────────
