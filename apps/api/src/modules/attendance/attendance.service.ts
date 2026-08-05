@@ -673,7 +673,7 @@ export class AttendanceService {
       this.prisma.employee.count({ where: scope }),
       this.prisma.attendanceRecord.findMany({
         where: { date: toDate(dateKey), employee: scope },
-        select: { status: true, isLate: true, checkOut: true },
+        select: { status: true, isLate: true, checkOut: true, employeeId: true },
       }),
       this.prisma.attendanceRequest.count({
         where: { status: 'PENDING', employee: scope },
@@ -682,6 +682,23 @@ export class AttendanceService {
 
     const present = records.filter((r) => r.status === 'PRESENT' || r.status === 'WFH').length;
     const halfDay = records.filter((r) => r.status === 'HALF_DAY').length;
+
+    /*
+     * Who is working from home today, and how many of them nobody agreed to.
+     *
+     * The remote count is a filter over rows already fetched. The unplanned
+     * count costs one more query — worth it, because this is where a manager
+     * meets the flag: the day view shows it per person, and until now nothing
+     * said "one of today's three was not planned" without opening that screen.
+     */
+    const remoteRecords = records.filter((r) => r.status === 'WFH');
+    const approved = await this.wfh.approvedDaysIn(
+      claims.orgId,
+      remoteRecords.map((r) => r.employeeId),
+      dateKey,
+      dateKey,
+    );
+
     return {
       date: dateKey,
       headcount,
@@ -691,6 +708,9 @@ export class AttendanceService {
       stillIn: records.filter((r) => !r.checkOut).length,
       notMarked: Math.max(0, headcount - records.length),
       pendingRequests,
+      remote: remoteRecords.length,
+      remoteUnplanned: remoteRecords.filter((r) => !approved.has(`${r.employeeId}|${dateKey}`))
+        .length,
     };
   }
 

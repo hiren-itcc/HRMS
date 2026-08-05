@@ -681,3 +681,52 @@ describe('AttendanceService remote-day flag', () => {
     expect(result.data[0]?.remoteApproved).toBeNull();
   });
 });
+
+describe('AttendanceService remote counts on the dashboard', () => {
+  /** Two people worked from home today; only one had it agreed. */
+  function makeStats(approved: Set<string>) {
+    const prisma = {
+      employee: { count: jest.fn().mockResolvedValue(5) },
+      organization: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'UTC' }) },
+      attendanceRecord: {
+        findMany: jest.fn().mockResolvedValue([
+          { status: 'WFH', isLate: false, checkOut: new Date(), employeeId: 'e1' },
+          { status: 'WFH', isLate: false, checkOut: new Date(), employeeId: 'e2' },
+          { status: 'PRESENT', isLate: false, checkOut: new Date(), employeeId: 'e3' },
+        ]),
+      },
+      attendanceRequest: { count: jest.fn().mockResolvedValue(0) },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    return new AttendanceService(prisma as any, settingsDouble(), wfhDouble(approved));
+  }
+
+  const hrClaims = claims({ perms: ['attendance.read'], employeeId: 'mgr' });
+  const todayKey = new Date().toISOString().slice(0, 10);
+
+  it('counts who is remote today', async () => {
+    const stats = await makeStats(new Set()).todayStats(hrClaims);
+    expect(stats.remote).toBe(2);
+  });
+
+  /*
+   * The number that makes the WFH flag visible without opening the day view:
+   * "3 remote · 1 unplanned".
+   */
+  it('counts how many of them nobody agreed to', async () => {
+    const stats = await makeStats(new Set([`e1|${todayKey}`])).todayStats(hrClaims);
+    expect(stats.remoteUnplanned).toBe(1);
+  });
+
+  it('is zero unplanned when every remote day was agreed', async () => {
+    const approved = new Set([`e1|${todayKey}`, `e2|${todayKey}`]);
+    expect((await makeStats(approved).todayStats(hrClaims)).remoteUnplanned).toBe(0);
+  });
+
+  /* An office day is not remote, agreed or otherwise. */
+  it('does not count somebody who came in', async () => {
+    const stats = await makeStats(new Set()).todayStats(hrClaims);
+    expect(stats.remote).toBe(2);
+    expect(stats.present).toBe(3);
+  });
+});

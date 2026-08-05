@@ -16,6 +16,7 @@ import { AssetsModule } from './modules/assets/assets.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
@@ -58,6 +59,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
     OffboardingModule,
     AssetsModule,
     LifecycleJobsModule,
+    DashboardModule,
     AttendanceModule,
     WfhModule,
     LeaveModule,
