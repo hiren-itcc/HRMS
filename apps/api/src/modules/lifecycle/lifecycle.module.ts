@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EmploymentTransitionService } from './employment-transition.service';
 import { LifecyclePolicyService } from './lifecycle-policy.service';
 
 /**
@@ -10,7 +11,7 @@ import { LifecyclePolicyService } from './lifecycle-policy.service';
  * SettingsModule is `@Global`, so there is nothing to import here.
  */
 @Module({
-  providers: [LifecyclePolicyService],
-  exports: [LifecyclePolicyService],
+  providers: [LifecyclePolicyService, EmploymentTransitionService],
+  exports: [LifecyclePolicyService, EmploymentTransitionService],
 })
 export class LifecycleModule {}

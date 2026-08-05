@@ -1,5 +1,6 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
 import { EmployeesService } from './employees.service';
 
@@ -32,8 +33,23 @@ function makeService() {
   const config = {
     get: (key: string) => (key === 'DEFAULT_USER_PASSWORD' ? 'Welcome@2026' : undefined),
   };
+  /*
+   * The real transition service, not a double. The offboard block below is a
+   * test *of* it — a stub would assert only that a method was called, and the
+   * whole point of extracting it was that the four things it does must keep
+   * happening together.
+   */
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new EmployeesService(prisma as any, config as any, lifecycleDouble()), prisma };
+  const transitions = new EmploymentTransitionService(prisma as any);
+  const service = new EmployeesService(
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    prisma as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    config as any,
+    lifecycleDouble(),
+    transitions,
+  );
+  return { service, prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({

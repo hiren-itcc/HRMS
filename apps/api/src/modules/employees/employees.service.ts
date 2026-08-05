@@ -23,6 +23,7 @@ import { dateKeyOf } from '../../common/utils/calendar';
 import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { effectiveProbationEnd } from '../lifecycle/lifecycle.rules';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { roleMoveLockoutReason } from '../rbac/rbac.guardrails';
@@ -94,6 +95,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly lifecycle: LifecyclePolicyService,
+    private readonly transitions: EmploymentTransitionService,
   ) {}
 
   /**
@@ -550,107 +552,26 @@ export class EmployeesService {
     const ctx = ctxOf(claims);
     const employee = await this.ensureExists(ctx.orgId, id);
 
-    const joinKey = dateKey(employee.joinDate);
-    if (input.exitDate && joinKey && joinKey > input.exitDate) {
-      throw new BadRequestException('The exit date cannot be before the join date');
-    }
-
     /*
      * Offboarding yourself is refused outright rather than guarded by the
      * admin floor. Even where it would not lock the organization out, the
      * next thing it does is revoke your own sessions mid-request — and
      * somebody who means to leave has a colleague who can press it.
+     *
+     * This guard belongs to *this* action, not to the transition: approving
+     * somebody's resignation and letting a notice period run out are both
+     * legitimate ways for an account to be closed by its own owner's request.
      */
     if (employee.userId && employee.userId === claims.sub) {
       throw new BadRequestException('You cannot offboard your own account');
     }
 
-    const exiting = input.status === 'EXITED';
-    const reinstating = input.status === 'ACTIVE';
-
-    if (exiting) await this.assertNotLastAdmin(ctx.orgId, employee.userId);
-
-    await this.prisma.$transaction([
-      this.prisma.employee.update({
-        where: { id },
-        data: {
-          status: input.status,
-          exitDate: input.exitDate ? new Date(input.exitDate) : null,
-        },
-      }),
-      /*
-       * Only EXITED touches the sign-in. Somebody on notice is still an
-       * employee: they work the notice period, clock in, book leave and are
-       * paid, and suspending them would be the surest way to make HR avoid
-       * recording notice at all.
-       */
-      ...(employee.userId && exiting
-        ? [
-            this.prisma.user.update({
-              where: { id: employee.userId },
-              data: { status: 'SUSPENDED' },
-            }),
-            this.prisma.refreshSession.updateMany({
-              where: { userId: employee.userId, revokedAt: null },
-              data: { revokedAt: new Date() },
-            }),
-          ]
-        : []),
-      /*
-       * Reinstating restores the login only from SUSPENDED. An INVITED account
-       * has never been used and must stay that way — flipping it to ACTIVE
-       * would hand out a working sign-in whose password nobody ever set.
-       */
-      ...(employee.userId && reinstating
-        ? [
-            this.prisma.user.updateMany({
-              where: { id: employee.userId, status: 'SUSPENDED' },
-              data: { status: 'ACTIVE' },
-            }),
-          ]
-        : []),
-    ]);
-
-    await auditMutation(this.prisma, ctx, 'employee.offboard', 'Employee', id, {
-      before: { status: employee.status, exitDate: dateKey(employee.exitDate) },
-      after: {
-        status: input.status,
-        exitDate: input.exitDate ?? null,
-        reason: input.reason ?? null,
-      },
+    return this.transitions.apply(ctx, id, {
+      status: input.status,
+      exitDate: input.exitDate ?? null,
+      reason: input.reason ?? null,
+      action: 'employee.offboard',
     });
-
-    return { id, status: input.status, exitDate: input.exitDate ?? null };
-  }
-
-  /**
-   * Refuses to suspend the last sign-in that can administer the organization.
-   *
-   * Counted over ACTIVE users, for the same reason the role-change guard does:
-   * a suspended admin cannot sign in, so counting them would let an already
-   * offboarded one satisfy the floor and leave nobody able to get back in.
-   */
-  private async assertNotLastAdmin(orgId: string, userId: string | null) {
-    if (!userId) return;
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: { select: { code: true } } },
-    });
-    if (user?.role.code !== 'ADMIN') return;
-
-    const remaining = await this.prisma.user.count({
-      where: {
-        organizationId: orgId,
-        status: 'ACTIVE',
-        role: { code: 'ADMIN' },
-        id: { not: userId },
-      },
-    });
-    if (remaining === 0) {
-      throw new BadRequestException(
-        'This is the only active administrator — give somebody else the Admin role first',
-      );
-    }
   }
 
   async upsertBank(claims: AccessTokenClaims, id: string, input: BankDetailInput) {
