@@ -138,6 +138,90 @@ export const lifecycleSchema = z.object({
   requireManagerApproval: z.boolean().default(true),
 });
 
+// ── Exit checklist ────────────────────────────────────────────────────
+
+/**
+ * Who signs a clearance item off.
+ *
+ * `IT_ADMIN` has no matching system role — the seeded five are Admin, HR,
+ * Finance, Manager and Employee. Those items fall to `employee.offboard`
+ * holders until somebody composes an IT role in Settings → Roles, which the
+ * RBAC editor already allows. Naming the owner anyway is what makes the list
+ * useful to a human, and what lets an IT role start working the day it exists.
+ */
+export const CLEARANCE_OWNERS = ['MANAGER', 'HR', 'FINANCE', 'IT_ADMIN'] as const;
+export const clearanceOwnerSchema = z.enum(CLEARANCE_OWNERS);
+export type ClearanceOwnerCode = (typeof CLEARANCE_OWNERS)[number];
+
+export const CLEARANCE_OWNER_LABELS: Record<ClearanceOwnerCode, string> = {
+  MANAGER: 'Reporting manager',
+  HR: 'HR',
+  FINANCE: 'Finance',
+  IT_ADMIN: 'IT / Admin',
+};
+
+export const clearanceItemSchema = z.object({
+  label: z.string().trim().min(1, 'Give the item a name').max(120),
+  description: z.string().trim().max(300).optional().nullable(),
+  owner: clearanceOwnerSchema,
+  /** Completion is blocked while any required item is outstanding. */
+  required: z.boolean().default(true),
+});
+export type ClearanceItem = z.infer<typeof clearanceItemSchema>;
+
+/**
+ * The exit checklist **template**.
+ *
+ * Copied onto each offboarding when it starts and never joined to afterwards,
+ * the way `Offboarding`'s snapshot fields and `Letter.variables` already work.
+ * Editing this must not rewrite an exit that is half signed off — somebody who
+ * has already returned their laptop has returned it whatever the list says
+ * next week.
+ *
+ * "Return company assets" is one item signed off by hand today. When asset
+ * management exists it becomes a computed item reading real assignments; the
+ * row does not move.
+ */
+export const exitChecklistSchema = z.object({
+  items: z
+    .array(clearanceItemSchema)
+    .max(30, 'That is more clearance steps than anybody will complete')
+    .default([
+      {
+        label: 'Handover of work and responsibilities',
+        description: 'Open work, passwords and anything only they know.',
+        owner: 'MANAGER',
+        required: true,
+      },
+      {
+        label: 'Return company assets',
+        description: 'Laptop, access card, phone, SIM and anything else issued.',
+        owner: 'IT_ADMIN',
+        required: true,
+      },
+      {
+        label: 'Revoke system and email access',
+        owner: 'IT_ADMIN',
+        required: true,
+      },
+      {
+        label: 'Clear outstanding dues and advances',
+        owner: 'FINANCE',
+        required: true,
+      },
+      {
+        label: 'Exit interview',
+        owner: 'HR',
+        required: false,
+      },
+      {
+        label: 'Issue relieving and experience letters',
+        owner: 'HR',
+        required: false,
+      },
+    ]),
+});
+
 // ── Modules ───────────────────────────────────────────────────────────
 
 /**
@@ -161,6 +245,7 @@ export const orgSettingsSchema = z.object({
   leave: leavePolicySchema,
   payroll: payrollSchema,
   lifecycle: lifecycleSchema,
+  exitChecklist: exitChecklistSchema,
   modules: modulesSchema,
 });
 
@@ -217,6 +302,7 @@ export const orgSettingsPatchSchema = z
     leave: asPatch(leavePolicySchema).optional(),
     payroll: asPatch(payrollSchema).optional(),
     lifecycle: asPatch(lifecycleSchema).optional(),
+    exitChecklist: asPatch(exitChecklistSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -227,7 +313,14 @@ export type OrgSettingsPatch = {
 };
 export type SettingsGroup = keyof OrgSettings;
 
-export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'payroll', 'lifecycle', 'modules'] as const;
+export const SETTINGS_GROUPS = [
+  'workingWeek',
+  'leave',
+  'payroll',
+  'lifecycle',
+  'exitChecklist',
+  'modules',
+] as const;
 
 /** Fully-defaulted settings — the shape a fresh organization reads. */
 export function defaultSettings(): OrgSettings {
@@ -236,6 +329,7 @@ export function defaultSettings(): OrgSettings {
     leave: {},
     payroll: {},
     lifecycle: {},
+    exitChecklist: {},
     modules: {},
   });
 }

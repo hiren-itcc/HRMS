@@ -2,6 +2,7 @@ import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
 import { notificationsDouble } from '../notifications/notifications.test-double';
+import { settingsDouble } from '../settings/settings.test-double';
 import { OffboardingsService } from './offboardings.service';
 
 type Mock = jest.Mock;
@@ -29,9 +30,13 @@ const offboarding = {
   // The real update() includes LIST_INCLUDE, so the completion notification
   // has a name to put in its title.
   employee: { id: 'e1', firstName: 'Ada', lastName: 'Lovelace' },
+  tasks: [],
 };
 
-function makeService(over: { employee?: object; offboarding?: object; openCount?: number } = {}) {
+function makeService(
+  over: { employee?: object; offboarding?: object; openCount?: number } = {},
+  settings: Parameters<typeof settingsDouble>[0] = {},
+) {
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
   const prisma: any = {
     employee: { findFirst: jest.fn().mockResolvedValue({ ...employee, ...over.employee }) },
@@ -59,6 +64,7 @@ function makeService(over: { employee?: object; offboarding?: object; openCount?
     transitions as any,
     lifecycleDouble(),
     notifications,
+    settingsDouble(settings),
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     resignations as any,
   );
@@ -350,5 +356,68 @@ describe('who gets told', () => {
       { except: 'u-hr' },
     );
     expect(notifications.notify).not.toHaveBeenCalled();
+  });
+});
+
+describe('the checklist', () => {
+  const tasksOf = (prisma: { offboarding: { create: Mock } }) =>
+    (prisma.offboarding.create as Mock).mock.calls[0][0].data.tasks.create as {
+      label: string;
+      owner: string;
+      required: boolean;
+      order: number;
+      description: string | null;
+    }[];
+
+  it('copies the organization’s template onto the exit, in order', async () => {
+    const { service, prisma } = makeService();
+    await service.startFromResignation(ctx, {
+      resignationId: 'r1',
+      employeeId: 'e1',
+      lastWorkingDate: '2026-09-30',
+    });
+
+    const tasks = tasksOf(prisma);
+    // The six shipped defaults, four of them required.
+    expect(tasks).toHaveLength(6);
+    expect(tasks.filter((t) => t.required)).toHaveLength(4);
+    expect(tasks.map((t) => t.order)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(tasks[0]).toMatchObject({ owner: 'MANAGER', required: true });
+    expect(tasks.find((t) => t.label.includes('assets'))).toMatchObject({
+      owner: 'IT_ADMIN',
+      required: true,
+    });
+  });
+
+  /*
+   * Copied, not joined. Editing the template next week must not rewrite an
+   * exit that is half signed off — somebody who has already returned their
+   * laptop has returned it whatever the list says afterwards.
+   */
+  it('takes the template as it was, not as it later becomes', async () => {
+    const { service, prisma } = makeService(
+      {},
+      { exitChecklist: { items: [{ label: 'Only this', owner: 'HR', required: false }] } },
+    );
+    await service.startFromResignation(ctx, {
+      resignationId: 'r1',
+      employeeId: 'e1',
+      lastWorkingDate: '2026-09-30',
+    });
+
+    const tasks = tasksOf(prisma);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({ label: 'Only this', owner: 'HR', required: false, order: 0 });
+  });
+
+  it('starts an exit with no checklist at all when the template is empty', async () => {
+    const { service, prisma } = makeService({}, { exitChecklist: { items: [] } });
+    await service.create(hr, {
+      employeeId: 'e1',
+      reason: 'TERMINATION',
+      reasonNote: null,
+      lastWorkingDate: '2026-09-30',
+    });
+    expect(tasksOf(prisma)).toEqual([]);
   });
 });

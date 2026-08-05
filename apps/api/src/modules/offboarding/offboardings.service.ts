@@ -23,6 +23,7 @@ import { EmploymentTransitionService } from '../lifecycle/employment-transition.
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ResignationsService } from '../resignations/resignations.service';
+import { SettingsService } from '../settings/settings.service';
 
 const SORTABLE = ['lastWorkingDate', 'startedAt', 'status'] as const;
 
@@ -40,6 +41,7 @@ const LIST_INCLUDE = {
     },
   },
   resignation: { select: { id: true, reason: true, status: true, submittedAt: true } },
+  tasks: { orderBy: { order: 'asc' } },
 } as const;
 
 export interface OffboardingCtx {
@@ -68,6 +70,7 @@ export class OffboardingsService {
     private readonly transitions: EmploymentTransitionService,
     private readonly lifecycle: LifecyclePolicyService,
     private readonly notifications: NotificationsService,
+    private readonly settings: SettingsService,
     /*
      * The one cycle in this feature, and it is real rather than accidental:
      * approving a resignation opens an offboarding, and completing an
@@ -170,6 +173,22 @@ export class OffboardingsService {
           snapshotManagerName: employee.manager
             ? `${employee.manager.firstName} ${employee.manager.lastName}`
             : null,
+          /*
+           * The checklist is copied from the organization's template, not
+           * joined to it. Editing the template next week must not rewrite an
+           * exit that is half signed off — somebody who has already returned
+           * their laptop has returned it whatever the list says afterwards.
+           * Same freezing rule as the snapshot fields above.
+           */
+          tasks: {
+            create: (await this.settings.get(ctx.orgId)).exitChecklist.items.map((item, index) => ({
+              label: item.label,
+              description: item.description ?? null,
+              owner: item.owner,
+              required: item.required,
+              order: index,
+            })),
+          },
         },
         include: LIST_INCLUDE,
       })

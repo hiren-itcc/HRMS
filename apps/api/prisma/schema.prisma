@@ -1298,10 +1298,63 @@ model Offboarding {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  resignation Resignation? @relation(fields: [resignationId], references: [id])
+  employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  resignation Resignation?      @relation(fields: [resignationId], references: [id])
+  tasks       OffboardingTask[]
 
   @@index([organizationId, status])
   @@index([employeeId])
   @@index([organizationId, lastWorkingDate])
+}
+
+/// Who signs a clearance item off.
+///
+/// IT_ADMIN has no matching system role — the seeded five are Admin, HR,
+/// Finance, Manager and Employee. Those items fall to `employee.offboard`
+/// holders until an organization composes an IT role in Settings → Roles.
+/// Naming the owner anyway is what makes the list mean something to a human,
+/// and what lets an IT role start working the day it exists.
+enum ClearanceOwner {
+  MANAGER
+  HR
+  FINANCE
+  IT_ADMIN
+}
+
+enum OffboardingTaskStatus {
+  PENDING
+  DONE
+  /// Waived with a reason. A contractor with no company laptop is closed
+  /// honestly rather than by ticking a box that says the laptop came back.
+  NOT_APPLICABLE
+}
+
+/// One line of the exit checklist.
+///
+/// Copied from the organization's template at start and never joined back to
+/// it — the same freezing rule `Offboarding`'s snapshot fields and
+/// `Letter.variables` follow. Editing the template must not rewrite an exit
+/// that is half signed off: somebody who has already returned their laptop has
+/// returned it whatever the list says next week.
+model OffboardingTask {
+  id            String                @id @default(cuid())
+  offboardingId String
+  label         String
+  description   String?
+  owner         ClearanceOwner
+  /// Completion is blocked while any required item is still PENDING.
+  required      Boolean               @default(true)
+  order         Int
+  status        OffboardingTaskStatus @default(PENDING)
+  /// What was handed back, or why it was waived. Shown on the exit record.
+  note          String?
+  doneAt        DateTime?
+  doneById      String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  offboarding Offboarding @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+
+  @@index([offboardingId, order])
+  @@index([offboardingId, status])
 }
