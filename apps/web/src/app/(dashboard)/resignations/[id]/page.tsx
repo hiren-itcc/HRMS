@@ -30,7 +30,8 @@ import { Field } from '@/components/field';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { initials } from '@/features/employees/types';
-import { offboardingsApi } from '@/features/offboarding/api';
+import { lifecycleKeys } from '@/features/lifecycle/api';
+import { offboardingKeys, offboardingsApi } from '@/features/offboarding/api';
 import { resignationKeys, resignationsApi } from '@/features/resignations/api';
 import {
   DecisionDialog,
@@ -102,7 +103,12 @@ function OffboardingPanel({ resignation }: { resignation: Resignation }) {
 
   const offboarding = resignation.offboarding;
   const canManage = can('employee.offboard');
-  const invalidate = [resignationKeys.all(), ['offboardings'], ['employees'], ['lifecycle']];
+  const invalidate = [
+    resignationKeys.all(),
+    offboardingKeys.all(),
+    ['employees'],
+    lifecycleKeys.all(),
+  ];
 
   const complete = useApiMutation({
     mutationFn: () =>

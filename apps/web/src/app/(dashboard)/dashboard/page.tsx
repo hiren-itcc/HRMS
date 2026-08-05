@@ -38,7 +38,7 @@ import { AnnouncementsWidget } from '@/features/announcements/components/announc
 import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
-import { lifecycleApi } from '@/features/lifecycle/api';
+import { lifecycleApi, lifecycleKeys } from '@/features/lifecycle/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
 import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
 
@@ -122,7 +122,7 @@ export default function DashboardPage() {
    * permission — the API decides once and the dashboard follows.
    */
   const lifecycle = useQuery({
-    queryKey: ['lifecycle', 'stats'],
+    queryKey: lifecycleKeys.stats(),
     queryFn: lifecycleApi.stats,
     staleTime: 60_000,
   });

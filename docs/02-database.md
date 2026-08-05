@@ -298,6 +298,14 @@ model Employee {
   status         EmployeeStatus @default(ACTIVE)
   joinDate       DateTime       @db.Date
   exitDate       DateTime?      @db.Date
+
+  // Null on all four = use the organization default from Settings.
+  noticePeriodDays    Int?
+  probationMonths     Int?
+  probationEndDate    DateTime? @db.Date   // computed at create, then fixed
+  probationExtendedTo DateTime? @db.Date   // supersedes it, without erasing it
+  confirmedOn         DateTime? @db.Date   // off probation for good
+
   deletedAt      DateTime?                      // soft delete (schema principle 3)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -768,6 +776,82 @@ model Onboarding {
 // two reviewers acting at once cannot both win.
 enum OnboardingStatus { IN_PROGRESS SUBMITTED APPROVED }
 
+// ─── Exits: resignation and offboarding ───────────────────────────────
+
+model Resignation {
+  id             String            @id @default(cuid())
+  organizationId String
+  employeeId     String
+  status         ResignationStatus @default(SUBMITTED)
+  reason         ResignationReason
+  remarks        String?           // the employee's own words
+
+  requestedLastWorkingDate DateTime  @db.Date
+  approvedLastWorkingDate  DateTime? @db.Date  // HR's, once approved
+  noticeDays               Int                 // frozen at submit
+  earliestLastWorkingDate  DateTime  @db.Date  // and the date it implied
+
+  submittedAt        DateTime  @default(now())
+  routedManagerId    String?    // captured at submit, never read live
+  managerDecidedAt   DateTime?
+  managerDecidedById String?
+  managerRemarks     String?
+  hrDecidedAt        DateTime?
+  hrDecidedById      String?
+  hrRemarks          String?
+  withdrawnAt        DateTime?
+
+  @@index([organizationId, status])
+  @@index([routedManagerId, status])
+  // Plus a partial unique index, hand-written in the migration because Prisma
+  // cannot express it: one open request per employee, where open means
+  // SUBMITTED | MANAGER_APPROVED | CHANGES_REQUESTED | APPROVED.
+}
+
+enum ResignationStatus {
+  SUBMITTED MANAGER_APPROVED CHANGES_REQUESTED APPROVED
+  REJECTED WITHDRAWN COMPLETED
+}
+
+enum ResignationReason {
+  BETTER_OPPORTUNITY COMPENSATION RELOCATION HIGHER_STUDIES HEALTH
+  PERSONAL WORK_ENVIRONMENT CAREER_CHANGE OTHER
+}
+
+model Offboarding {
+  id             String  @id @default(cuid())
+  organizationId String
+  employeeId     String
+  resignationId  String? @unique   // null = HR started it directly
+
+  reason          OffboardingReason
+  reasonNote      String?
+  lastWorkingDate DateTime          @db.Date
+  status          OffboardingStatus @default(IN_PROGRESS)
+
+  // Frozen at start, the way Letter freezes its variables.
+  snapshotDepartment  String?
+  snapshotDesignation String?
+  snapshotManagerName String?
+  snapshotJoinDate    DateTime @db.Date
+
+  startedAt     DateTime  @default(now())
+  startedById   String?           // null when the daily tick opened it
+  completedAt   DateTime?
+  completedById String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+
+  @@index([organizationId, lastWorkingDate])
+  // Partial unique index too: one IN_PROGRESS offboarding per employee.
+}
+
+enum OffboardingReason {
+  RESIGNATION TERMINATION CONTRACT_END RETIREMENT ABSCONDING OTHER
+}
+
+enum OffboardingStatus { IN_PROGRESS COMPLETED CANCELLED }
+
 // ─── Payroll ──────────────────────────────────────────────────────────
 // Money is Decimal(14,2) throughout. See "Notable design calls" below for
 // why payslips snapshot rather than join.
@@ -953,6 +1037,35 @@ model AuditLog {
 - **`AttendanceRecord @@unique([employeeId, date])`** makes "one row per employee per day" a DB invariant, not an application hope.
 - **`LeaveBalance` is per-year** — year-end carry-forward is a job that writes next year's rows; history stays queryable for reports.
 - **`Document.fileKey`** keeps storage private; downloads go through the API with a permission check and a short-lived signed URL.
+### Exits and probation
+
+- **Probation is not an `EmployeeStatus`.** It is `probationEndDate`,
+  `probationExtendedTo` and `confirmedOn` on `Employee`, and the badge is
+  derived on read. A status member would have rippled into every
+  `status: { notIn: [...] }` filter in attendance, payroll, reports and the
+  directory — and would have been wrong anyway, since somebody on probation is
+  ACTIVE and a leaver can be on notice while still unconfirmed. Same rule the
+  page already states for leaving: the date is the mechanism, the status is the
+  label.
+- **`probationExtendedTo` supersedes `probationEndDate` without overwriting it**,
+  so "extended from 1 Sep to 1 Dec" is still answerable afterwards.
+- **`noticePeriodDays` and `probationMonths` are nullable overrides.** Null means
+  the organization default from Settings, which is what almost every row carries
+  — so changing company policy actually moves everyone it should.
+- **Two tables for one exit.** A resignation is a request two people decide on;
+  an offboarding is the operational work of somebody leaving, which is identical
+  however it began. Keeping terminations in the same table means one list of
+  everybody leaving and one path to EXITED.
+- **`noticeDays` is frozen onto the resignation at submit.** Recomputing it would
+  let a later settings change rewrite what somebody was already told they owed.
+- **Two partial unique indexes are hand-written SQL**, because Prisma cannot
+  express them. The services check first so the user reads a sentence; the index
+  is what survives a double-clicked submit button.
+- **No employment-history table.** `AuditLog` is already indexed on
+  `[entity, entityId]` and already carries before/after for every lifecycle
+  action. A second history would be free to disagree with the live record — the
+  same reasoning that makes `EmployeeSalary` its own revision history.
+
 - **Reports need no tables** — they are read-model queries over attendance/leave/employees, exported server-side (doc 03).
 
 ### Payroll

@@ -28,6 +28,15 @@ employee.read.own      employee.update.own
 employee.read.team
 employee.read          employee.create      employee.update      employee.delete
 employee.invite        employee.offboard    employee.onboarding.approve
+ employee.confirm       (confirm off probation, extend probation)
+
+resignation.request.own   resignation.read.own
+resignation.read.team     resignation.approve.team
+resignation.read          resignation.approve
+
+Note: offboarding adds no code of its own. `employee.offboard` already means
+'may change whether this person works here' and is already held by exactly
+Admin and HR, so every /offboardings route uses it.
 
 directory.read         (work contact details for everyone — not the HR record)
 
@@ -75,6 +84,7 @@ settings.manage        role.manage              audit.read
 | `employee.read` (all) | ✅ | ✅ | ✅ | — | — |
 | `employee.create` / `update` / `invite` / `offboard` | ✅ | ✅ | — | — | — |
 | `employee.onboarding.approve` | ✅ | ✅ | — | — | — |
+| `employee.confirm` (off probation) | ✅ | ✅ | — | — | — |
 | `employee.delete` | ✅ | — | — | — | — |
 | `directory.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -98,6 +108,9 @@ settings.manage        role.manage              audit.read
 | `report.view` / `report.export` | ✅ | ✅ | ✅ | — | — |
 | `settings.manage` | ✅ | — | — | — | — |
 | `role.manage` | ✅ | — | — | — | — |
+| `resignation.request.own` / `read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `resignation.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
+| `resignation.read` / `approve` | ✅ | ✅ | — | — | — |
 | `audit.read` | ✅ | — | — | — | — |
 | `payroll.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `payroll.read.team` | ✅ | ✅ | — | ✅ | — |
@@ -158,6 +171,24 @@ a manager legitimately browses; a letter is a bilateral instrument between the
 company and one person. Adding the scope later is one code and one branch —
 removing it after tenants have granted it is a breaking change.
 
+## Beyond the guard: whose team, which desk
+
+Resignation approval needs something the matrix cannot express either.
+`resignation.approve.team` says "you may approve for your team" — the guard
+cannot tell *whose* team, so the service checks the caller is the manager the
+request was routed to at submit time. Routing is frozen on the row rather than
+read from `Employee.managerId` at decision time: a reorganisation mid-notice
+must not move a decision to somebody who knows nothing about it.
+
+Which desk a decision counts as is taken from the record, never from the
+request. A manager cannot claim to be giving final sign-off, and an HR user who
+happens to also be somebody's manager cannot skip the manager step by
+accident. HR acting on a request still at the manager's desk *does* give final
+approval — that is what unsticks a request whose reviewer has themselves left —
+and the audit row records `managerStepSkipped`.
+
+Nobody may decide on their own resignation, whatever they hold.
+
 ## Beyond the guard: state as a second gate
 
 Payroll needs something the matrix cannot express — *when* an action is legal,
@@ -171,6 +202,12 @@ PermissionsGuard (who)  →  payroll.workflow.ts (what state allows)  →  Servi
 The state machine also owns the permission each action demands
 (`RUN_ACTION_PERMISSION`), so "reopen needs the approver, not the processor"
 is written once rather than in both the routing table and the service.
+
+`resignation.workflow.ts` follows the same shape, with
+`RESIGNATION_ACTION_PERMISSION`. Most of the resignation validations are that
+table rather than an `if`: "cannot approve twice" is `hr_approve` having no
+`APPROVED` in its `from`, and "cannot start offboarding before approval" is
+`complete` accepting only `APPROVED`.
 
 ## Adding a future module
 

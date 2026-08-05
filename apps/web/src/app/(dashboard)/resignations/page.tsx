@@ -2,6 +2,17 @@
 
 import { RESIGNATION_REASON_LABELS } from '@hrms/shared';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@hrms/ui/components/alert-dialog';
 import { Button } from '@hrms/ui/components/button';
 import {
   Card,
@@ -12,7 +23,7 @@ import {
 } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
-import { Info, LogOut, Pencil, Undo2 } from 'lucide-react';
+import { Info, Loader2, LogOut, Pencil, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
@@ -127,14 +138,38 @@ function ResignationCard({ resignation }: { resignation: Resignation }) {
               <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" aria-hidden /> Change my request
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={withdraw.isPending}
-                onClick={() => withdraw.mutate()}
-              >
-                <Undo2 className="size-4" aria-hidden /> Withdraw
-              </Button>
+              {/*
+               * Confirmed, because it is one press and there is no undo: a
+               * withdrawn request is terminal, and getting back to where they
+               * were means filing a fresh one.
+               */}
+              <AlertDialog>
+                <AlertDialogTrigger render={<Button size="sm" variant="outline" />}>
+                  <Undo2 className="size-4" aria-hidden /> Withdraw
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Withdraw your resignation?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This closes the request for good. You stay an employee and nothing about your
+                      record changes — but if you change your mind again you will have to submit a
+                      new resignation.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep it open</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={withdraw.isPending}
+                      onClick={() => withdraw.mutate()}
+                    >
+                      {withdraw.isPending && (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      )}
+                      Withdraw
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </CardContent>

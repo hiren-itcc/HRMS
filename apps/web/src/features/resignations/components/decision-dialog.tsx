@@ -7,11 +7,25 @@ import { Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
+import { lifecycleKeys } from '@/features/lifecycle/api';
+import { offboardingKeys } from '@/features/offboarding/api';
 import { useApiMutation } from '@/hooks/use-crud';
 import { resignationKeys, resignationsApi } from '../api';
 import type { Resignation } from '../types';
 
 export type DecisionVerb = 'approve' | 'reject' | 'request_changes';
+
+/**
+ * Dates are rendered locale-aware, never as the raw YYYY-MM-DD the API
+ * speaks. `2026-09-04` is exactly the ambiguous format that makes somebody
+ * read a September date as April.
+ */
+const dateFmt = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+const showDate = (iso: string) => dateFmt.format(new Date(iso));
 
 /**
  * What each decision actually does, spelled out rather than summarised.
@@ -86,7 +100,7 @@ export function DecisionDialog({ resignation, verb, onClose, isHrDesk }: Decisio
         lastWorkingDate: verb === 'approve' && isHrDesk && lastWorkingDate ? lastWorkingDate : null,
       });
     },
-    invalidate: [resignationKeys.all(), ['offboardings'], ['employees'], ['lifecycle']],
+    invalidate: [resignationKeys.all(), offboardingKeys.all(), ['employees'], lifecycleKeys.all()],
     success: verb === 'approve' ? 'Resignation approved' : 'Decision recorded',
     error: 'Could not record the decision',
     onSuccess: onClose,
@@ -117,7 +131,7 @@ export function DecisionDialog({ resignation, verb, onClose, isHrDesk }: Decisio
         <Field
           label="Last working date"
           required
-          hint={`They asked for ${resignation.requestedLastWorkingDate.slice(0, 10)}. Change it here if a different date was agreed.`}
+          hint={`They asked for ${showDate(resignation.requestedLastWorkingDate)}. Change it here if a different date was agreed.`}
         >
           {(a11y) => (
             <DatePicker {...a11y} value={lastWorkingDate} onValueChange={setLastWorkingDate} />
@@ -131,7 +145,7 @@ export function DecisionDialog({ resignation, verb, onClose, isHrDesk }: Decisio
           <AlertTitle>This is short notice</AlertTitle>
           <AlertDescription>
             Their notice period is {resignation.noticeDays} days, which would make the earliest last
-            working day {resignation.earliestLastWorkingDate.slice(0, 10)}.
+            working day {showDate(resignation.earliestLastWorkingDate)}.
           </AlertDescription>
         </Alert>
       )}

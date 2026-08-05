@@ -1,7 +1,7 @@
 import { RESIGNATION_STATUS_LABELS, type ResignationStatusCode } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { cn } from '@hrms/ui/lib/utils';
-import { Check, Clock, RotateCcw, X } from 'lucide-react';
+import { Check, Circle, Clock, X } from 'lucide-react';
 
 /** Tone only reinforces the label; the words carry the meaning on their own. */
 const TONE: Record<ResignationStatusCode, string> = {
@@ -105,7 +105,7 @@ export function resignationSteps(input: {
 const ICON: Record<StepState, typeof Check> = {
   done: Check,
   current: Clock,
-  todo: Clock,
+  todo: Circle,
   failed: X,
 };
 
@@ -125,7 +125,7 @@ export function ResignationStepper({ steps }: { steps: Step[] }) {
   return (
     <ol className="flex flex-wrap gap-2">
       {steps.map((step) => {
-        const Icon = step.state === 'todo' ? RotateCcw : ICON[step.state];
+        const Icon = ICON[step.state];
         const stateWord =
           step.state === 'done'
             ? 'done'

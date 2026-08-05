@@ -20,6 +20,18 @@ import type { Resignation, ResignationEligibility } from '../types';
 
 type FormValues = z.input<typeof resignationCreateSchema>;
 
+/**
+ * Dates are rendered locale-aware, never as the raw YYYY-MM-DD the API
+ * speaks. `2026-09-04` is exactly the ambiguous format that makes somebody
+ * read a September date as April.
+ */
+const dateFmt = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+const showDate = (iso: string) => dateFmt.format(new Date(iso));
+
 interface ResignDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,7 +104,7 @@ export function ResignDialog({ open, onOpenChange, eligibility, editing }: Resig
         name="lastWorkingDate"
         label="Last working date"
         required
-        hint={`Your notice period is ${eligibility.noticeDays} days, so the earliest is ${eligibility.earliestLastWorkingDate}.`}
+        hint={`Your notice period is ${eligibility.noticeDays} days, so the earliest is ${showDate(eligibility.earliestLastWorkingDate)}.`}
         placeholder="Select your last working date"
       />
 

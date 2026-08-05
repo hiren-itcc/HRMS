@@ -282,7 +282,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **Performance / goals / OKR** | ❌ | ✅ all four |
 | **Expense & reimbursement** | ❌ | ✅ all four |
 | **Asset management** | ❌ | ✅ Keka, Darwinbox |
-| **Exit / offboarding + FNF** | ❌ | ✅ all four |
+| ~~**Exit / offboarding**~~ ✅ built · **FNF** still ❌ | ⚠️ | ✅ all four |
 | **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
@@ -377,7 +377,11 @@ which other documents were citing.
 
 ### P2 — market table stakes
 
-15. Exit & offboarding with full-and-final settlement (`11:88`)
+15. ~~Exit & offboarding~~ ✅ **built** — resignation workflow, notice periods,
+    probation lifecycle, an `Offboarding` record for every way of leaving, and a
+    daily check that needs no scheduler. **Full-and-final settlement is still
+    absent** (`11:88`): leave encashment, notice recovery and gratuity are a
+    module-sized problem of their own and were deliberately not attempted here.
 16. Expense & reimbursement
 17. Performance / goals / OKR (`11:61` reserves the seam)
 18. Asset management (`11:62` reserves the seam)

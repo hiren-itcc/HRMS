@@ -138,6 +138,42 @@ places rather than one screen that quietly shows you less.
 | 32a | Letter | `/letters/:id` | The issued document — print to PDF, void with a reason |
 | 32b | Letter templates | `/settings/letters` | Edit the four shipped templates; `letter.template.manage` |
 
+### Exits (4)
+
+One nav entry, three tabs, plus a permalink. Resignations and offboardings are
+tabs rather than two sidebar items: the nav is a flat eleven-item list, and
+somebody looking for "who is leaving" should not have to know first whether
+they resigned or were let go.
+
+| # | Screen | Route | Who |
+|---|---|---|---|
+| 1 | My resignation — notice owed, file, amend, withdraw | `/resignations` | everyone |
+| 2 | Approvals inbox — defaults to "waiting on me" | `/resignations/approvals` | `resignation.approve` / `.approve.team` |
+| 3 | Offboarding — everybody leaving, whatever the reason | `/resignations/offboarding` | `employee.offboard` |
+| 4 | Resignation detail — stepper, decisions, offboarding, history | `/resignations/[id]` | read scope on the record |
+
+Probation and notice period also appear as a **Lifecycle card** on the employee
+record (screen: Employees & profile), with Confirm and Extend behind
+`employee.confirm`, and as four tiles on the dashboard.
+
+### Exits (4)
+
+One nav entry, three tabs, plus a permalink. Resignations and offboardings are
+tabs rather than two sidebar items: the nav is a flat eleven-item list, and
+somebody looking for "who is leaving" should not have to know first whether
+they resigned or were let go.
+
+| # | Screen | Route | Who |
+|---|---|---|---|
+| 1 | My resignation — notice owed, file, amend, withdraw | `/resignations` | everyone |
+| 2 | Approvals inbox — defaults to "waiting on me" | `/resignations/approvals` | `resignation.approve` or `.approve.team` |
+| 3 | Offboarding — everybody leaving, whatever the reason | `/resignations/offboarding` | `employee.offboard` |
+| 4 | Resignation detail — stepper, decisions, offboarding, history | `/resignations/[id]` | read scope on the record |
+
+Probation and notice period also appear as a **Lifecycle card** on the employee
+record, with Confirm and Extend behind `employee.confirm`, and as four tiles on
+the dashboard.
+
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |
 | 34 | Compose/edit | (dialog on the feed) | Markdown editor, audience picker, schedule, read receipts view. No `/announcements/new` route and no permalink for a single post |

@@ -80,6 +80,20 @@ recorded here as a design note, not as something the code does.
 
 > **Not implemented.** `@nestjs/schedule` is not a dependency and there are zero
 > `@Cron` decorators. **Nothing in this system runs on a timer.**
+>
+> That is still true, and one piece of work now depends on it staying true.
+> `LifecycleService` confirms probations that have ended and closes notice
+> periods that have run out — writes no derivation can do. It runs off
+> `GET /auth/me`, at most once a day per organization, guarded by a
+> `lifecycle.lastRunAt` setting row; `POST /lifecycle/run` does the same on
+> demand and is the seam an external scheduler can be pointed at later.
+>
+> A `@Cron` was the obvious answer and is the wrong one here: the instance
+> sleeps after fifteen idle minutes, so a nightly job would silently not fire on
+> any night nobody used the product — no error, no log, just a day that did not
+> happen. Everything the tick writes is **also derived on read**, so no screen
+> depends on it having run; the worst a missed tick causes is a login that stays
+> live a few hours longer than it should.
 
 That is mostly deliberate. The system derives state when it is read rather than
 writing it overnight — see *Nothing is calculated overnight* in

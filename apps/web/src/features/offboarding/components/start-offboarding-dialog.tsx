@@ -9,6 +9,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormInput, FormSelect } from '@/components/form';
 import { employeesApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
+import { lifecycleKeys } from '@/features/lifecycle/api';
 import { useApiMutation, useOptions } from '@/hooks/use-crud';
 import { offboardingKeys, offboardingsApi } from '../api';
 
@@ -45,7 +46,7 @@ export function StartOffboardingDialog({
   const start = useApiMutation({
     mutationFn: (values: FormValues) =>
       offboardingsApi.create(offboardingCreateSchema.parse(values)),
-    invalidate: [offboardingKeys.all(), ['employees'], ['lifecycle']],
+    invalidate: [offboardingKeys.all(), ['employees'], lifecycleKeys.all()],
     success: 'Exit recorded — they are now on notice',
     error: 'Could not start the offboarding',
     onSuccess: () => {

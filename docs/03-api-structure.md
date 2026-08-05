@@ -57,6 +57,9 @@ allowed and clears the cookie with it.
 | GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, personal email, address) |
 
 | POST | `/employees/:id/offboard` — put on notice, mark exited, or withdraw a resignation; `employee.offboard` |
+| POST | `/employees/:id/confirm` — off probation; `employee.confirm` |
+| POST | `/employees/:id/extend-probation` — push the end date back, with a reason; `employee.confirm` |
+| GET | `/employees/:id/activity` — employment history, from the audit trail |
 
 **Offboarding is not deletion.** `DELETE` archives a record that should not have
 existed; offboarding records that somebody left, and keeps everything. Only
@@ -64,6 +67,35 @@ existed; offboarding records that somebody left, and keeps everything. Only
 it alone, because somebody working their notice is still an employee.
 `ACTIVE` withdraws a resignation and revives a login **only** from `SUSPENDED`,
 never from `INVITED`.
+
+### Exits (`/resignations`, `/offboardings`, `/lifecycle`)
+
+| Method | Path |
+|---|---|
+| GET | `/resignations/me` · `/resignations/me/eligibility` — own requests, and the notice owed |
+| POST | `/resignations` — file one for yourself; `resignation.request.own` |
+| PATCH | `/resignations/:id` · POST `/resignations/:id/withdraw` — own, while it is still with you |
+| GET | `/resignations` — org-wide or direct reports; `resignation.read` or `.read.team` |
+| GET | `/resignations/:id` · `/resignations/:id/activity` |
+| POST | `/resignations/:id/decision` — approve, reject or send back; `resignation.approve` or `.approve.team` |
+| GET / POST | `/offboardings` — everyone leaving; start a termination or contract end; `employee.offboard` |
+| GET / PATCH | `/offboardings/:id` — detail; move the last working date |
+| POST | `/offboardings/:id/complete` · `/offboardings/:id/cancel` |
+| GET | `/lifecycle/stats` — dashboard counts, each null when the caller may not see it |
+| GET / POST | `/lifecycle/status` · `/lifecycle/run`; `settings.manage` |
+
+**Two entry points, one exit.** An employee resigning and HR recording a
+termination both produce an `Offboarding`; only the first has a `Resignation`
+behind it. Neither writes `Employee.status` or `exitDate` — both go through
+`EmploymentTransitionService`, which is also what `POST /employees/:id/offboard`
+has always used. There is exactly one place employment state changes.
+
+**One decision endpoint, not three.** Which desk a caller is acting from comes
+from the record's own status and routing, never from the request body.
+
+**`/lifecycle/run` is idempotent** and carries no scheduler. The tick fires at
+most once a day off `GET /auth/me`, because the instance sleeps and a timer
+that silently does not fire is worse than none — see docs/08.
 
 `exitDate` is the mechanism; `status` is the label. Attendance, payroll and
 reports all filter on the date, which is why an employee who leaves mid-month
