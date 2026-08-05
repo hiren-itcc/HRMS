@@ -79,6 +79,13 @@ export default function EditEmployeePage() {
            */
           status: e.status === 'ONBOARDING' ? undefined : e.status,
           joinDate: e.joinDate.slice(0, 10),
+          /*
+           * The raw overrides, not the resolved values. Seeding these with
+           * `effectiveNoticeDays` would turn "follows the company default"
+           * into a fixed 30 the first time anybody opened the edit form.
+           */
+          noticePeriodDays: e.noticePeriodDays,
+          probationMonths: e.probationMonths,
         }}
         onSaved={(savedId) => {
           queryClient.invalidateQueries({ queryKey: ['employees'] });

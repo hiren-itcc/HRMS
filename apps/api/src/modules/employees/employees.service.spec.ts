@@ -1,5 +1,6 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
 import { EmployeesService } from './employees.service';
 
 type Mock = jest.Mock;
@@ -32,7 +33,7 @@ function makeService() {
     get: (key: string) => (key === 'DEFAULT_USER_PASSWORD' ? 'Welcome@2026' : undefined),
   };
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new EmployeesService(prisma as any, config as any), prisma };
+  return { service: new EmployeesService(prisma as any, config as any, lifecycleDouble()), prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({
@@ -455,5 +456,118 @@ describe('EmployeesService.updateMyProfile — emergency contacts', () => {
     const logged = JSON.stringify((prisma.auditLog.create as Mock).mock.calls[0]?.[0] ?? {});
     expect(logged).not.toContain('Nisha');
     expect(logged).not.toContain('98250');
+  });
+});
+
+describe('EmployeesService probation', () => {
+  const hr = claims({ sub: 'hr-user', roleCode: 'HR', perms: ['employee.confirm'] });
+
+  /** `lifecycleDouble` fixes today at 2026-08-05. */
+  function arrange(over: Record<string, unknown> = {}) {
+    const made = makeService();
+    (made.prisma.employee.findFirst as Mock).mockResolvedValue({
+      id: 'e1',
+      status: 'ACTIVE',
+      joinDate: new Date('2026-05-01'),
+      noticePeriodDays: null,
+      probationMonths: null,
+      probationEndDate: new Date('2026-08-01'),
+      probationExtendedTo: null,
+      confirmedOn: null,
+      ...over,
+    });
+    return made;
+  }
+
+  it('confirms as at today when no date is given', async () => {
+    const { service, prisma } = arrange();
+    await service.confirm(hr, 'e1', { confirmedOn: null, note: null });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { confirmedOn: new Date('2026-08-05T00:00:00.000Z') } }),
+    );
+  });
+
+  /*
+   * Back-dating is the normal case, not an edge one: the review happens on the
+   * 1st and somebody records it on the 9th.
+   */
+  it('accepts a back-dated confirmation', async () => {
+    const { service, prisma } = arrange();
+    await service.confirm(hr, 'e1', { confirmedOn: '2026-08-01', note: null });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { confirmedOn: new Date('2026-08-01T00:00:00.000Z') } }),
+    );
+  });
+
+  it('refuses a confirmation dated in the future', async () => {
+    const { service } = arrange();
+    await expect(
+      service.confirm(hr, 'e1', { confirmedOn: '2026-09-01', note: null }),
+    ).rejects.toThrow(/future/i);
+  });
+
+  it('refuses a confirmation before the join date', async () => {
+    const { service } = arrange();
+    await expect(
+      service.confirm(hr, 'e1', { confirmedOn: '2026-04-01', note: null }),
+    ).rejects.toThrow(/before they joined/i);
+  });
+
+  /* Quietly doing nothing would hide both a double-click and an attempt to
+     move the date, so the second press says so. */
+  it('refuses to confirm somebody already confirmed', async () => {
+    const { service } = arrange({ confirmedOn: new Date('2026-07-01') });
+    await expect(service.confirm(hr, 'e1', { confirmedOn: null, note: null })).rejects.toThrow(
+      /already confirmed/i,
+    );
+  });
+
+  it('refuses to confirm somebody who has not started', async () => {
+    const { service } = arrange({ status: 'ONBOARDING' });
+    await expect(service.confirm(hr, 'e1', { confirmedOn: null, note: null })).rejects.toThrow(
+      /not started yet/i,
+    );
+  });
+
+  it('extends without overwriting the original end date', async () => {
+    const { service, prisma } = arrange();
+    await service.extendProbation(hr, 'e1', { extendedTo: '2026-11-01', reason: 'Needs longer' });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { probationExtendedTo: new Date('2026-11-01T00:00:00.000Z') },
+      }),
+    );
+    // probationEndDate is untouched, so "extended from 1 Aug" stays answerable.
+    expect(prisma.employee.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ probationEndDate: undefined }) }),
+    );
+  });
+
+  it('measures a second extension against the first, not the original', async () => {
+    const { service } = arrange({ probationExtendedTo: new Date('2026-11-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-10-01', reason: 'x' }),
+    ).rejects.toThrow(/later than the current end date \(2026-11-01\)/);
+  });
+
+  it('refuses an extension that ends in the past', async () => {
+    const { service } = arrange({ probationEndDate: new Date('2026-06-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-07-01', reason: 'x' }),
+    ).rejects.toThrow(/in the future/i);
+  });
+
+  it('refuses to extend a confirmed employee', async () => {
+    const { service } = arrange({ confirmedOn: new Date('2026-07-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-12-01', reason: 'x' }),
+    ).rejects.toThrow(/already confirmed/i);
+  });
+
+  it('refuses to extend somebody who was never on probation', async () => {
+    const { service } = arrange({ probationEndDate: null });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-12-01', reason: 'x' }),
+    ).rejects.toThrow(/not on probation/i);
   });
 });

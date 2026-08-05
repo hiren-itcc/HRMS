@@ -1,6 +1,8 @@
 import type {
   BankDetailInput,
+  EmployeeConfirmInput,
   EmployeeCreateInput,
+  EmployeeExtendProbationInput,
   EmployeeOffboardInput,
   EmployeeQuery,
   EmployeeUpdateInput,
@@ -17,11 +19,26 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { auditMutation } from '../../common/utils/audit';
+import { dateKeyOf } from '../../common/utils/calendar';
 import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { effectiveProbationEnd } from '../lifecycle/lifecycle.rules';
+import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { roleMoveLockoutReason } from '../rbac/rbac.guardrails';
 import { EMPLOYED_AND_LIVE } from './employee-scopes';
+
+/** The lifecycle columns, selected together so the rules always get all of them. */
+const LIFECYCLE_SELECT = {
+  joinDate: true,
+  noticePeriodDays: true,
+  probationMonths: true,
+  probationEndDate: true,
+  probationExtendedTo: true,
+  confirmedOn: true,
+} as const;
+
+const dateKey = (date: Date | null | undefined): string | null => (date ? dateKeyOf(date) : null);
 
 const SORTABLE = ['firstName', 'employeeCode', 'joinDate', 'status'] as const;
 
@@ -76,6 +93,7 @@ export class EmployeesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly lifecycle: LifecyclePolicyService,
   ) {}
 
   /**
@@ -145,7 +163,20 @@ export class EmployeesService {
     // Bank details are sensitive: full-read holders (HR/Admin) and self only
     const { bankDetail, ...rest } = employee;
     const canSeeBank = isSelf || ctx.perms.has('employee.read');
-    return { ...rest, bankDetail: canSeeBank ? bankDetail : undefined };
+
+    /*
+     * Probation is derived here rather than stored as a status, so the answer
+     * is right the moment the page is opened — it never waits on the daily
+     * tick, which on this hosting plan may not have run.
+     */
+    const lifecycleCtx = await this.lifecycle.contextFor(ctx.orgId);
+    return {
+      ...rest,
+      bankDetail: canSeeBank ? bankDetail : undefined,
+      probation: this.lifecycle.probationOf(employee, lifecycleCtx),
+      /** The days in force, defaulted — the raw override stays on the row. */
+      effectiveNoticeDays: this.lifecycle.noticeFor(employee, lifecycleCtx).noticeDays,
+    };
   }
 
   async create(claims: AccessTokenClaims, input: EmployeeCreateInput) {
@@ -153,6 +184,21 @@ export class EmployeesService {
     await this.validateRefs(ctx.orgId, input);
 
     const { joinDate, dateOfBirth, employeeCode, createLogin, loginRole, ...rest } = input;
+
+    /*
+     * Probation is dated once, at create. Recomputing it on read would mean
+     * changing the company default silently re-dated everybody who had already
+     * joined — including people whose probation had already ended.
+     *
+     * Somebody added with a status of ON_NOTICE or EXITED is a backfill of
+     * historical staff, not a new hire, so they are confirmed as at their join
+     * date rather than started on a probation they finished years ago.
+     */
+    const lifecycleCtx = await this.lifecycle.contextFor(ctx.orgId);
+    const isBackfill = rest.status !== 'ACTIVE';
+    const probationEndDate = isBackfill
+      ? null
+      : this.lifecycle.probationEnd(joinDate, rest.probationMonths ?? null, lifecycleCtx);
 
     if (createLogin) {
       const taken = await this.prisma.user.findUnique({
@@ -184,6 +230,10 @@ export class EmployeesService {
               joinDate: new Date(joinDate),
               dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
               organizationId: ctx.orgId,
+              probationEndDate,
+              // No probation means confirmed from day one, rather than a state
+              // that reads as neither on probation nor confirmed.
+              confirmedOn: probationEndDate ? null : new Date(joinDate),
             },
             include: LIST_INCLUDE,
           });
@@ -353,6 +403,108 @@ export class EmployeesService {
   }
 
   /**
+   * Confirm somebody off probation.
+   *
+   * Its own action behind its own permission rather than a field on the
+   * employee update, for the reason `employee.onboarding.approve` gives: it
+   * decides whether a person keeps their job, and an organization may want the
+   * person who signs that off to differ from whoever edits phone numbers.
+   *
+   * Idempotent in spirit but not silently: confirming an already-confirmed
+   * employee is refused, because the second press is either a mistake or an
+   * attempt to move the date, and quietly doing nothing hides both.
+   */
+  async confirm(claims: AccessTokenClaims, id: string, input: EmployeeConfirmInput) {
+    const ctx = ctxOf(claims);
+    const employee = await this.ensureLifecycle(ctx.orgId, id);
+    const lifecycleCtx = await this.lifecycle.contextFor(ctx.orgId);
+
+    if (employee.confirmedOn) {
+      throw new BadRequestException('This employee is already confirmed');
+    }
+    if (employee.status === 'ONBOARDING') {
+      throw new BadRequestException('They have not started yet — approve their onboarding first');
+    }
+
+    const confirmedOn = input.confirmedOn ?? lifecycleCtx.todayKey;
+    if (confirmedOn > lifecycleCtx.todayKey) {
+      throw new BadRequestException('A confirmation date cannot be in the future');
+    }
+    if (confirmedOn < dateKeyOf(employee.joinDate)) {
+      throw new BadRequestException('Somebody cannot be confirmed before they joined');
+    }
+
+    await this.prisma.employee.update({
+      where: { id },
+      data: { confirmedOn: new Date(`${confirmedOn}T00:00:00.000Z`) },
+    });
+    await auditMutation(this.prisma, ctx, 'employee.confirm', 'Employee', id, {
+      before: { probationEndDate: dateKey(employee.probationEndDate) },
+      after: { confirmedOn },
+      note: input.note ?? null,
+    });
+    return { id, confirmedOn };
+  }
+
+  /**
+   * Push a probation end date back.
+   *
+   * Writes `probationExtendedTo` and leaves `probationEndDate` alone, so the
+   * record still answers "extended from when" rather than looking like a
+   * probation that always ran six months. A reason is required: an extension
+   * is a decision about somebody's employment, and "why" is the part they will
+   * ask about.
+   */
+  async extendProbation(
+    claims: AccessTokenClaims,
+    id: string,
+    input: EmployeeExtendProbationInput,
+  ) {
+    const ctx = ctxOf(claims);
+    const employee = await this.ensureLifecycle(ctx.orgId, id);
+    const lifecycleCtx = await this.lifecycle.contextFor(ctx.orgId);
+    const current = effectiveProbationEnd(employee);
+
+    if (employee.confirmedOn) {
+      throw new BadRequestException(
+        'This employee is already confirmed — there is nothing to extend',
+      );
+    }
+    if (!current) {
+      throw new BadRequestException('This employee is not on probation');
+    }
+    if (input.extendedTo <= current) {
+      throw new BadRequestException(
+        `An extension has to be later than the current end date (${current})`,
+      );
+    }
+    if (input.extendedTo <= lifecycleCtx.todayKey) {
+      throw new BadRequestException('An extension has to end in the future');
+    }
+
+    await this.prisma.employee.update({
+      where: { id },
+      data: { probationExtendedTo: new Date(`${input.extendedTo}T00:00:00.000Z`) },
+    });
+    await auditMutation(this.prisma, ctx, 'employee.probation.extend', 'Employee', id, {
+      before: { probationEndDate: current },
+      after: { probationExtendedTo: input.extendedTo },
+      note: input.reason,
+    });
+    return { id, probationExtendedTo: input.extendedTo };
+  }
+
+  /** `ensureExists`, plus the lifecycle columns the two actions above read. */
+  private async ensureLifecycle(orgId: string, id: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, organizationId: orgId, deletedAt: null },
+      select: { id: true, status: true, ...LIFECYCLE_SELECT },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
+    return employee;
+  }
+
+  /**
    * Soft delete (docs/02 §schema-principles): the row keeps history for
    * attendance/leave/audit. A linked login is suspended and its sessions
    * revoked in the same transaction.
@@ -398,7 +550,6 @@ export class EmployeesService {
     const ctx = ctxOf(claims);
     const employee = await this.ensureExists(ctx.orgId, id);
 
-    const dateKey = (d: Date | null) => d?.toISOString().slice(0, 10) ?? null;
     const joinKey = dateKey(employee.joinDate);
     if (input.exitDate && joinKey && joinKey > input.exitDate) {
       throw new BadRequestException('The exit date cannot be before the join date');

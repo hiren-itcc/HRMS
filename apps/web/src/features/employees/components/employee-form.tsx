@@ -99,6 +99,8 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       shiftId: '',
       employmentTypeId: '',
       managerId: null,
+      noticePeriodDays: null,
+      probationMonths: null,
       createLogin: true,
       loginRole: 'EMPLOYEE',
       ...initial,
@@ -290,6 +292,36 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
               </SelectItem>
             ))}
           </FormSelect>
+
+          {/*
+           * Both blank by default, and blank is the answer we want on almost
+           * every record: it means "whatever Settings says", so changing the
+           * company policy actually moves everyone it should.
+           */}
+          <FormInput
+            control={form.control}
+            name="noticePeriodDays"
+            label="Notice period (days)"
+            type="number"
+            min={0}
+            max={365}
+            placeholder="Company default"
+            hint="Leave blank to use the company default"
+          />
+          <FormInput
+            control={form.control}
+            name="probationMonths"
+            label="Probation (months)"
+            type="number"
+            min={0}
+            max={24}
+            placeholder="Company default"
+            hint={
+              isEdit
+                ? 'Changing this does not move an existing probation end date — extend it instead'
+                : 'Leave blank to use the company default'
+            }
+          />
         </CardContent>
       </Card>
 

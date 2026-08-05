@@ -40,6 +40,21 @@ const nullableId = z
   .nullish();
 
 /**
+ * An optional whole-number override where blank means "inherit the default".
+ *
+ * The empty-string branch is the same problem `nullableId` solves and matters
+ * more here: a number input posts "" when cleared, `z.coerce.number()` reads
+ * that as 0, and a cleared notice-period field would silently save "no notice"
+ * rather than "use the company default".
+ */
+const nullableInt = (min: number, max: number) =>
+  z
+    .literal('')
+    .transform(() => null)
+    .or(z.coerce.number().int().min(min).max(max))
+    .nullish();
+
+/**
  * A relation the employee must actually have.
  *
  * Same empty-string handling as `nullableId` — a form still posts "" for an
@@ -101,6 +116,19 @@ export const employeeCreateSchema = z.object({
   managerId: nullableId,
   status: employeeStatusSchema.default('ACTIVE'),
   joinDate: dateOnlySchema,
+
+  /*
+   * Both null for "use the company default from Settings → Preferences",
+   * which is what almost every record will carry. They are here rather than on
+   * EmploymentType because two full-time hires routinely differ: a senior
+   * joiner on three months' notice and a graduate on one is the normal case.
+   *
+   * `probationMonths` is read once, when the end date is first computed. After
+   * that `probationEndDate` on the row is what was agreed, and editing it is
+   * an explicit extension rather than a side effect of changing a default.
+   */
+  noticePeriodDays: nullableInt(0, 365),
+  probationMonths: nullableInt(0, 24),
 
   /**
    * Create a sign-in for this person, using their work email.
@@ -165,6 +193,35 @@ export const employeeOffboardSchema = z
     path: ['exitDate'],
   });
 export type EmployeeOffboardInput = z.infer<typeof employeeOffboardSchema>;
+
+/**
+ * Body of POST /employees/:id/confirm — off probation for good.
+ *
+ * `confirmedOn` is optional and defaults to today. It exists because
+ * confirmation is routinely recorded after the fact — the review happened on
+ * the 1st and somebody enters it on the 9th — and back-dating it is the honest
+ * record. It cannot be in the future: a confirmation that has not happened yet
+ * is a reminder, not a fact.
+ */
+export const employeeConfirmSchema = z.object({
+  confirmedOn: dateOnlySchema.optional().nullable(),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+export type EmployeeConfirmInput = z.infer<typeof employeeConfirmSchema>;
+
+/**
+ * Body of POST /employees/:id/extend-probation.
+ *
+ * The new end date is given outright rather than as "add N months", because
+ * what gets agreed in a probation review is a date. The original end date is
+ * kept on the row, so the extension is visible as an extension rather than as
+ * a probation that always ran that long.
+ */
+export const employeeExtendProbationSchema = z.object({
+  extendedTo: dateOnlySchema,
+  reason: z.string().trim().min(1, 'Say why it is being extended').max(500),
+});
+export type EmployeeExtendProbationInput = z.infer<typeof employeeExtendProbationSchema>;
 
 export const employeeQuerySchema = paginationQuerySchema.extend({
   departmentId: z.string().optional(),

@@ -268,9 +268,32 @@ model Employee {
   status           EmployeeStatus @default(ACTIVE)
   joinDate         DateTime       @db.Date
   exitDate         DateTime?      @db.Date
-  deletedAt        DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+
+  /// Notice this person owes, in calendar days. Null = the organization
+  /// default from Settings → Preferences. A per-person column rather than a
+  /// column on EmploymentType because two full-time hires routinely differ.
+  noticePeriodDays Int?
+
+  /// Probation, kept off EmployeeStatus on purpose: somebody on probation is
+  /// ACTIVE, and adding a status member would ripple into every
+  /// `status: { notIn: [...] }` filter in attendance, payroll, reports and the
+  /// directory. The dates are the mechanism; the badge is derived from them.
+  ///
+  /// `probationMonths` is null for the org default, and is read only when the
+  /// end date is first computed — after that `probationEndDate` is what was
+  /// agreed, and editing the company default must not silently re-date
+  /// everybody who already joined.
+  probationMonths     Int?
+  probationEndDate    DateTime? @db.Date
+  /// Set by an explicit extension. Supersedes `probationEndDate` without
+  /// overwriting it, so "extended from 1 Sep to 1 Dec" stays answerable.
+  probationExtendedTo DateTime? @db.Date
+  /// Off probation for good. Set by HR or by the daily tick.
+  confirmedOn         DateTime? @db.Date
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   organization   Organization    @relation(fields: [organizationId], references: [id])
   user           User?           @relation(fields: [userId], references: [id])
@@ -301,6 +324,10 @@ model Employee {
   @@index([organizationId, status])
   @@index([organizationId, departmentId])
   @@index([managerId])
+  /// Both scanned by the daily lifecycle tick and by the dashboard counts,
+  /// which ask "whose probation ends soon" and "who is leaving soon".
+  @@index([organizationId, probationEndDate])
+  @@index([organizationId, exitDate])
 }
 
 model BankDetail {

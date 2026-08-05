@@ -17,7 +17,9 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import {
   BankDetailDto,
+  EmployeeConfirmDto,
   EmployeeCreateDto,
+  EmployeeExtendProbationDto,
   EmployeeOffboardDto,
   EmployeeQueryDto,
   EmployeeRoleChangeDto,
@@ -94,6 +96,30 @@ export class EmployeesController {
     @Body() dto: EmployeeOffboardDto,
   ) {
     return this.employees.offboard(user, id, dto);
+  }
+
+  @Post(':id/confirm')
+  @RequirePermissions('employee.confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm somebody off probation' })
+  confirm(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: EmployeeConfirmDto,
+  ) {
+    return this.employees.confirm(user, id, dto);
+  }
+
+  @Post(':id/extend-probation')
+  @RequirePermissions('employee.confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Push a probation end date back, with a reason' })
+  extendProbation(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: EmployeeExtendProbationDto,
+  ) {
+    return this.employees.extendProbation(user, id, dto);
   }
 
   @Delete(':id')

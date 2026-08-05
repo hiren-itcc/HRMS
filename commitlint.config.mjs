@@ -23,6 +23,11 @@ export default {
         'payroll',
         'letters',
         'onboarding',
+        // The exit side: resignation, offboarding, and the probation/notice
+        // rules the two share.
+        'lifecycle',
+        'resignation',
+        'offboarding',
         'mail',
         'reports',
         'settings',

@@ -1,6 +1,8 @@
 import type {
   BankDetailInput,
+  EmployeeConfirmInput,
   EmployeeCreateInput,
+  EmployeeExtendProbationInput,
   EmployeeOffboardInput,
   EmployeeRoleChangeInput,
   EmployeeUpdateInput,
@@ -23,6 +25,16 @@ export const employeesApi = {
    */
   offboard: (id: string, input: EmployeeOffboardInput) =>
     api<{ id: string; status: string; exitDate: string | null }>(`/employees/${id}/offboard`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  confirm: (id: string, input: EmployeeConfirmInput) =>
+    api<{ id: string; confirmedOn: string }>(`/employees/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  extendProbation: (id: string, input: EmployeeExtendProbationInput) =>
+    api<{ id: string; probationExtendedTo: string }>(`/employees/${id}/extend-probation`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),

@@ -44,7 +44,9 @@ import { useSession } from '@/components/session-provider';
 import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
+import { LifecycleCard } from '@/features/employees/components/lifecycle-card';
 import { OffboardDialog } from '@/features/employees/components/offboard-dialog';
+import { ProbationBadge } from '@/features/employees/components/probation-badge';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
@@ -327,7 +329,8 @@ function EmployeeDetailView() {
           </Avatar>
           <div>
             <h1 className="flex flex-wrap items-center gap-2">
-              {fullName(e)} <EmployeeStatusBadge status={e.status} />
+              {fullName(e)} <EmployeeStatusBadge status={e.status} />{' '}
+              <ProbationBadge probation={e.probation} />
             </h1>
             <p className="text-muted-foreground text-sm">
               {e.designation?.title ?? 'No designation'} ·{' '}
@@ -435,6 +438,10 @@ function EmployeeDetailView() {
               </dl>
             </CardContent>
           </Card>
+        </FadeInItem>
+
+        <FadeInItem>
+          <LifecycleCard employee={e} />
         </FadeInItem>
 
         {/* Renders nothing unless this person is mid-onboarding. */}
