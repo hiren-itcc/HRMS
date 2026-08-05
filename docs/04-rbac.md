@@ -16,7 +16,7 @@ Notes:
 - Roles attach to **User**, not Employee — someone with no login has no role.
 - **Manager is scope-based:** the `MANAGER` role holds `*.team` permissions; the *set of people* it applies to is resolved from `Employee.managerId` at query time. A manager with zero reports effectively degrades to Employee.
 - One role per user in Phase 1 (simplicity first). The join table `RolePermission` already supports multi-role/custom roles later without schema change.
-- **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default.
+- **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default. The same three permissions carry the full & final settlement, which is why it has no codes of its own: HR prepares, Finance releases, and that is already the split.
 - Roles are **per organization** (migration `20260801050000_role_per_organization`): editing HR's grants in one tenant does not touch another's.
 
 ## Permission catalog
@@ -70,9 +70,9 @@ payroll.read.team      (a manager's direct reports)
 payroll.read           (org-wide, including runs still in review)
 payroll.structure.manage                         (salary structures)
 payroll.salary.manage                            (assign and revise salaries)
-payroll.process        (open a run, calculate, publish)
-payroll.approve        (approve, reopen, lock)
-payroll.pay            (record payment against payslips)
+payroll.process        (open a run, calculate, publish; prepare a settlement)
+payroll.approve        (approve, reopen, lock; approve or cancel a settlement)
+payroll.pay            (record payment against payslips and settlements)
 
 settings.manage        role.manage              audit.read
 ```
@@ -120,9 +120,9 @@ settings.manage        role.manage              audit.read
 | `payroll.read` (all runs, incl. in review) | ✅ | ✅ | ✅ | — | — |
 | `payroll.structure.manage` | ✅ | ✅ | — | — | — |
 | `payroll.salary.manage` (assign, revise) | ✅ | ✅ | — | — | — |
-| `payroll.process` (open, calculate, publish) | ✅ | ✅ | — | — | — |
-| `payroll.approve` (approve, reopen, lock) | ✅ | — | ✅ | — | — |
-| `payroll.pay` (record payment) | ✅ | — | ✅ | — | — |
+| `payroll.process` (open, calculate, publish; prepare a settlement) | ✅ | ✅ | — | — | — |
+| `payroll.approve` (approve, reopen, lock; approve a settlement) | ✅ | — | ✅ | — | — |
+| `payroll.pay` (record payment, incl. settlements) | ✅ | — | ✅ | — | — |
 
 ## Enforcement (single path, no exceptions)
 

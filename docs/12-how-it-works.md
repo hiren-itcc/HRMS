@@ -136,10 +136,33 @@ approval could have nowhere to go.
 **Bank details** are treated as more sensitive than the rest of the record. The
 employee can see their own, and HR can see them; a direct manager cannot.
 
-**When someone leaves**, their record is not erased. It is marked as removed and
-disappears from lists, but the history stays — their old payslips and attendance
-still exist, because deleting them would corrupt last year's accounts. Their
-login is disabled and they are signed out everywhere immediately.
+**When someone leaves**, their record is not erased — see
+[Somebody leaves](#somebody-leaves) below.
+
+### Probation, and being confirmed
+
+New hires normally start on probation. The company sets a default length (three
+months out of the box) and any individual can be given their own. Nobody is put
+on probation retrospectively: employees who were already here when this was
+switched on are treated as confirmed, because they are.
+
+Probation is worked out from dates on the record rather than being a status of
+its own. That sounds like a technicality and is not: it means somebody on
+probation is a perfectly ordinary employee everywhere else in the system. They
+appear in the directory, book leave, and are paid, exactly as anyone else. The
+only thing probation changes is that HR sees them on a **Probation ending** list
+as their date approaches.
+
+At the end of it, one of two things happens:
+
+- If the company has **automatic confirmation** on, they are confirmed the day
+  the date passes.
+- If not, they sit on that list until HR presses **Confirm** — which is the
+  right default for a company that wants a conversation first.
+
+HR can also **extend** probation, with a reason and a new date. Every
+confirmation and extension is recorded, so the employment history reads as a
+sequence somebody can follow rather than a single current value.
 
 ---
 
@@ -324,6 +347,120 @@ later renamed, promoted or transferred, old payslips still read correctly.
 
 ---
 
+## Somebody leaves
+
+Leaving has three parts, and they are deliberately separate: the **resignation**
+is the request and the decision, the **exit** is the work, and the
+**settlement** is the money.
+
+### The resignation
+
+An employee files it themselves: a reason, the date they would like to finish,
+and a note. The system works out the earliest date their notice period allows
+and says so on the form — so somebody asking to leave sooner is doing it
+knowingly rather than by accident. They can still ask; it just goes to whoever
+approves it as a request for a shorter notice.
+
+It goes to their **manager first**, then to **HR**, unless the company has
+turned manager approval off — or the person has no manager, in which case there
+would be nobody to review it and it goes straight to HR. Either desk can
+approve, reject, or **ask for changes**, which hands it back to the employee to
+edit and resubmit. Every step takes remarks, and every step is recorded.
+
+HR can approve a request still sitting on the manager's desk. That is a real
+decision rather than an oversight — sometimes the manager is the problem — and
+when it happens the history says the manager's step was skipped rather than
+quietly recording HR's approval as theirs.
+
+Until it is approved, the employee can **withdraw** it. After approval they
+cannot, because an exit is by then underway.
+
+### The exit
+
+Approving a resignation opens an **exit record** automatically. HR can also open
+one directly for a termination, a contract ending, a retirement — the work is
+identical whichever way it started, which is why there is one list rather than
+two.
+
+The exit freezes the person's department, job title and manager **as they were
+on the day it started**. Six months later the department may have been merged
+away and the manager may have left themselves; a record that reads "—" for both
+is no use to whoever is answering a reference request.
+
+Each exit carries a **clearance checklist**, copied from a template the company
+edits in Settings. Each item names who signs it off — the manager, HR, finance,
+or IT — and each can be cleared, or **waived with a reason**. A contractor with
+no company laptop is closed honestly rather than by ticking a box that says the
+laptop came back. An exit cannot be completed while a required item is still
+outstanding, and the refusal names which ones.
+
+HR can also record an **exit interview**: the questions, the answers, and
+whether the company would rehire the person. Only HR can read it — deliberately
+not the leaver's own manager, who is very often the subject of the answers.
+
+When the exit completes, the person's status becomes *exited*, their sign-in is
+disabled and every device they are signed in on is signed out immediately. Their
+record is not erased: old payslips and attendance still exist, because deleting
+them would corrupt last year's accounts.
+
+If the last working day passes and nobody has closed the exit, the system closes
+it — but only if the company has asked it to. Off means somebody who has left
+keeps working access until HR completes the exit by hand, which some companies
+want and should be their choice rather than the software's.
+
+An exit can be **cancelled**: they are staying after all. That restores their
+sign-in and reopens the resignation behind it.
+
+### The settlement
+
+What the company owes them, as one document. It is prepared on demand rather
+than the moment the exit starts — a settlement computed the day notice begins is
+priced off a leave balance with two months left to move.
+
+Three figures are worked out, and each prints the arithmetic underneath it,
+because a number nobody can check is a number nobody accepts:
+
+- **Leave encashment** — whatever is left of any leave type the company has
+  marked as encashable, at a day's pay each. Most leave is use-it-or-lose-it, so
+  nothing is encashable until somebody says it is.
+- **Notice recovery** — pay for notice they did not serve. **Only for a
+  resignation.** When the company ends the employment, the company owes notice
+  rather than collecting it, and nothing is recovered.
+- **Gratuity** — for people past a qualifying period, at the statutory rate and
+  under the statutory ceiling. Every one of those numbers is a setting, because
+  the law's figures have moved before.
+
+Every figure can be changed, and anything else added by hand — a retention
+bonus, tax withheld, an asset nobody returned. A real settlement is negotiated,
+and a system that computes an unarguable number is a system people work around
+in a spreadsheet. A figure somebody changed says so on the statement rather than
+being presented as the system's own.
+
+**HR prepares it; finance approves and pays it.** They are separate permissions
+and the same separation payroll already runs on. Once approved, nothing can be
+edited — the approval on record has to be an approval of the figures somebody
+can still see. Recording the payment needs a bank reference, because "paid" with
+nothing to check it against is a claim rather than a record.
+
+If the recovery comes to more than what is owed, the total is a **balance due
+back** rather than a payment out, and the statement says so in those words.
+
+The statement is a **printable document handed over**, not a screen the leaver
+logs in to read — by the time it is ready their sign-in has been suspended. That
+is also why it prints its own workings and stands alone on paper.
+
+**Completing the exit is not blocked on the settlement.** Settlement routinely
+lands weeks after the last working day, and blocking would mean somebody's
+access stays open until finance pays. A company that wants the two coupled can
+add a finance-owned "clear outstanding dues" item to the clearance checklist,
+which is on the default list already.
+
+Tax is not withheld on a settlement. The system does not project tax anywhere —
+monthly TDS is entered per employee, not computed — and a settlement is not
+where a tax engine should first appear. HR adds a deduction line for it.
+
+---
+
 ## Documents
 
 Personnel files — CVs, offer letters, ID documents — organised into folders that
@@ -387,6 +524,15 @@ Company-wide options:
   allowed.
 - **Payroll** — currency, pay day, statutory rates and thresholds, and how
   unpaid days are pro-rated.
+- **Employment lifecycle** — the default notice period and probation length,
+  whether confirmation and exits happen automatically, and whether resignations
+  go past the manager. Every number here is a default an individual employee can
+  override.
+- **Exit checklist** — the clearance template each exit is copied from. Editing
+  it changes what future exits carry, never one already underway.
+- **Full & final settlement** — what a day of pay is worth and whether it is
+  priced off basic or gross, whether short notice is recovered, and the gratuity
+  rate, qualifying period and ceiling.
 - **Modules** — which sections appear in the menu.
 
 One warning about that last one: **hiding a module only hides the menu entry.**
@@ -409,6 +555,15 @@ Being straight about this is more useful than a feature list:
   `leave_approved` and `leave_rejected` are never sent by anything — the screen
   marks them so. Approving leave notifies nobody.
 - **Payslips cannot be downloaded as PDFs** — data exports are spreadsheets.
+  Payslips and settlement statements print from the browser instead, which
+  produces a perfectly good file and keeps the document inspectable.
+- **Nothing is emailed when a resignation moves.** Approvals, clearance
+  sign-offs and settlement approvals all raise an in-app notification and
+  nothing else, so somebody who does not open the app does not hear about it.
+- **Tax is not computed on a settlement**, or projected anywhere else. Monthly
+  TDS is entered per employee, and settlement tax is a line HR adds by hand.
+- **Company assets are a checklist item, not a register.** "Return company
+  assets" is a line somebody ticks; the system does not know what was issued.
 - **There is no mobile app.**
 - **Companies cannot sign themselves up.** A new company has to be created on
   the server (see [14-production-setup.md](./14-production-setup.md)).

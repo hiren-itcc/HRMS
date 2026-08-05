@@ -895,6 +895,59 @@ model ExitInterview {
   rehireEligible Boolean?
 }
 
+/// What a leaver is owed. Not a PayrollRun — see "Notable design calls".
+model Settlement {
+  id             String @id @default(cuid())
+  organizationId String
+  /// One per exit, not per employee: somebody rehired and leaving again gets
+  /// a second one against a second offboarding.
+  offboardingId  String @unique
+  employeeId     String
+  status         SettlementStatus @default(DRAFT)
+
+  /// Frozen when computed. A salary revision or a leave adjustment afterwards
+  /// must not rewrite a settlement somebody has already been shown.
+  lastWorkingDate DateTime @db.Date
+  joinDate        DateTime @db.Date
+  /// Basic or gross, whichever the company prices settlements off. Named for
+  /// what it holds rather than for the setting that filled it.
+  monthlyPay      Decimal  @db.Decimal(14, 2)
+  perDayRate      Decimal  @db.Decimal(14, 2)
+
+  totalEarnings   Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal @default(0) @db.Decimal(14, 2)
+  /// Allowed to be negative, unlike a payslip's net.
+  netPayable      Decimal @default(0) @db.Decimal(14, 2)
+
+  notes      String?
+  computedAt DateTime?
+  approvedAt DateTime?  approvedById String?
+  paidAt     DateTime?  paidById     String?
+  paymentRef String?
+  cancelledAt DateTime? cancelReason String?
+
+  lines SettlementLine[]
+}
+
+enum SettlementStatus { DRAFT APPROVED PAID CANCELLED }
+enum SettlementLineKind { EARNING DEDUCTION }
+enum SettlementLineSource { LEAVE_ENCASHMENT NOTICE_RECOVERY GRATUITY MANUAL }
+
+model SettlementLine {
+  id           String @id @default(cuid())
+  settlementId String
+  kind         SettlementLineKind
+  source       SettlementLineSource
+  label        String
+  /// How the figure was reached — "12.5 days × ₹2,400". Printed under the
+  /// amount, because a number nobody can check is a number nobody accepts.
+  basis        String?
+  amount       Decimal @db.Decimal(14, 2)
+  order        Int
+  /// HR changed the computed figure. Kept so the statement can say so.
+  overridden   Boolean @default(false)
+}
+
 // ─── Payroll ──────────────────────────────────────────────────────────
 // Money is Decimal(14,2) throughout. See "Notable design calls" below for
 // why payslips snapshot rather than join.
@@ -1093,6 +1146,30 @@ model AuditLog {
 - **`ExitInterview.responses` is JSON on purpose.** Each answer carries the
   question it answered. Normalising it would make the question a joined row a
   later release could rewrite, and an exit interview is evidence.
+- **`Settlement` is its own entity, not a kind of `PayrollRun`.** Reusing the
+  run was the first design and it does not survive contact: `PayrollRun` is
+  `@@unique([organizationId, month])` and the month a settlement belongs to is
+  usually closed by the time it is prepared; `calculatePayslip` prorates by
+  working days and computes statutory on gross, both wrong here; and
+  `Payslip.structureName`, `workingDays` and `payableDays` are `NOT NULL` with
+  no defaults, none of which a settlement has. A new calculator was needed
+  either way, so the only thing the alternative bought was the payslip screen.
+- **Settlement amounts sit outside the statutory base**, deliberately.
+  `payroll.calc.ts` adds earning adjustments to gross and passes that gross to
+  `computeStatutory`, where ESI is a cliff rather than a taper — ₹18,000 of
+  encashment on a ₹20,000 salary would switch ESI off for the month. Tax on a
+  settlement is a line HR enters, exactly as monthly TDS already is. *This is a
+  modelling choice rather than a law being asserted.*
+- **`SettlementLine` carries its own id** rather than keying on a component
+  code. Two encashable leave types produce two lines that mean different
+  things; `PayslipLine` has no unique on `(payslipId, componentCode)` and the
+  payslip screen keys its rows on `line.code`, which would have collided.
+- **`Settlement.netPayable` is not clamped at zero**, unlike a payslip's net.
+  Somebody whose notice recovery exceeds their dues genuinely owes the company,
+  and a floor would make the total disagree with the lines above it.
+- **`LeaveType.encashable` defaults to false and was backfilled to false.**
+  Most leave is use-it-or-lose-it, and switching every existing type on would
+  have added a silent payout to every settlement computed afterwards.
 - **`Notification` is no longer dead.** It carries no `organizationId` and
   that is deliberate: a notification belongs to one user, and the schema's two
   other user-owned tables, `RefreshSession` and `PasswordResetToken`, carry

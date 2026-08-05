@@ -381,14 +381,20 @@ which other documents were citing.
 
 15. ~~Exit & offboarding~~ ✅ **built** — resignation workflow, notice periods,
     probation lifecycle, an `Offboarding` record for every way of leaving, and a
-    daily check that needs no scheduler. **Full-and-final settlement is still
-    absent** (`11:88`): leave encashment, notice recovery and gratuity are a
-    module-sized problem of their own and were deliberately not attempted here.
+    daily check that needs no scheduler. ~~Full-and-final settlement is still
+    absent~~ ✅ **also built**: leave encashment, notice recovery and gratuity,
+    every figure overridable, on its own `Settlement` entity rather than a
+    `PayrollRun`. **Tax on a settlement is still entered by hand** — the system
+    projects tax nowhere, and a settlement is not where a tax engine should
+    first appear.
 16. Expense & reimbursement
 17. Performance / goals / OKR (`11:61` reserves the seam)
-18. Asset management (`11:62` reserves the seam)
+18. Asset management (`11:62` reserves the seam) — and the exit checklist’s "return company assets" line stays a manual tick until it lands
 19. Bulk employee import/export
-20. Notifications, if P0 #4 resolves toward building
+20. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
+    resolved toward building after all. **Email notifications remain absent**,
+    so a resignation moving through approval reaches nobody who does not open
+    the app.
 21. Form 16, Form 24Q, ECR, ESIC challan
 
 ### P3 — differentiators, once the above is settled

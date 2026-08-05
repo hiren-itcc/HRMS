@@ -333,6 +333,52 @@ payslip it summarises can never disagree. The bank-transfer report excludes
 payslips with no account rather than emitting blank rows, and reports how many
 it dropped.
 
+### Settlements (`/payroll/settlements`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/settlements` — the queue | `payroll.read` |
+| GET | `/payroll/settlements/for-offboarding/:offboardingId` — null if none | `payroll.read` |
+| GET | `/payroll/settlements/:id` · `/payroll/settlements/:id/activity` | `payroll.read` |
+| POST | `/payroll/settlements` — prepare one for an exit | `payroll.process` |
+| POST | `/payroll/settlements/:id/recompute` — destructive, drafts only | `payroll.process` |
+| POST / PATCH / DELETE | `/payroll/settlements/:id/lines[/:lineId]` — add, override, remove | `payroll.process` |
+| POST | `/payroll/settlements/:id/approve` · `/cancel` | `payroll.approve` |
+| POST | `/payroll/settlements/:id/pay` — with a bank reference | `payroll.pay` |
+
+**Mounted under `/payroll`, not `/offboardings`, and that is the access
+decision.** Finance holds `payroll.approve` and `payroll.pay` but not
+`employee.offboard`; routing settlements through the exit record would have
+meant granting Finance read on every offboarding in the company to release one
+payment. `for-offboarding/:id` is declared before `:id` so the static segment
+is never read as a settlement id.
+
+**No new permission codes.** `payroll.process` prepares and edits,
+`payroll.approve` approves, `payroll.pay` releases — the separation of duties
+payroll already runs on, and it fits exactly: HR prepares, Finance releases.
+
+```
+DRAFT ──approve──> APPROVED ──pay──> PAID
+  └──────────── cancel ────────────> CANCELLED   (from DRAFT or APPROVED)
+```
+
+`PAID` and `CANCELLED` accept nothing. Lines can only be touched while `DRAFT`,
+the same bargain `calculate` makes: an approval on record has to be an approval
+of figures somebody can still see. Recompute drops and rebuilds the computed
+lines and **keeps manual ones** — a negotiated bonus cannot be derived twice.
+
+**A settlement is not a payroll run**, deliberately. A run is unique per company
+per month, prorates by working days, and computes statutory deductions on gross;
+a settlement lands weeks after the last working day and its amounts must stay
+outside that base, because ESI is a cliff rather than a taper and a payout added
+to monthly gross would switch it off for the month. Tax is entered by hand, as
+monthly TDS already is.
+
+**Completion is not gated on settlement.** It routinely lands weeks late, and
+blocking would keep somebody's access open until Finance pays. A company that
+wants the coupling uses the finance-owned "clear outstanding dues" clearance
+item, which is on the default checklist.
+
 ### Settings & Admin (`/settings`, `/roles`, `/audit`)
 | Method | Path | Permission |
 |---|---|---|

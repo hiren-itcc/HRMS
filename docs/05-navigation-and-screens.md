@@ -151,29 +151,16 @@ they resigned or were let go.
 | 2 | Approvals inbox — defaults to "waiting on me" | `/resignations/approvals` | `resignation.approve` / `.approve.team` |
 | 3 | Offboarding — everybody leaving, whatever the reason | `/resignations/offboarding` | `employee.offboard` |
 | 4 | Resignation detail — stepper, decisions, offboarding, history | `/resignations/[id]` | read scope on the record |
-| 5 | Exit detail — frozen snapshot, clearance sign-off, exit interview, history | `/resignations/offboarding/[id]` | `employee.offboard` |
+| 5 | Exit detail — frozen snapshot, clearance sign-off, exit interview, settlement card, history | `/resignations/offboarding/[id]` | `employee.offboard` |
+
+The **settlement card** on screen 5 gates itself on `payroll.read` and does not
+call the API without it — an exit page that shows a colleague's payout to every
+HR user is a leak. It is also where a settlement is started, because this is the
+screen with the last working day and the clearance in front of it.
 
 Probation and notice period also appear as a **Lifecycle card** on the employee
 record (screen: Employees & profile), with Confirm and Extend behind
 `employee.confirm`, and as four tiles on the dashboard.
-
-### Exits (4)
-
-One nav entry, three tabs, plus a permalink. Resignations and offboardings are
-tabs rather than two sidebar items: the nav is a flat eleven-item list, and
-somebody looking for "who is leaving" should not have to know first whether
-they resigned or were let go.
-
-| # | Screen | Route | Who |
-|---|---|---|---|
-| 1 | My resignation — notice owed, file, amend, withdraw | `/resignations` | everyone |
-| 2 | Approvals inbox — defaults to "waiting on me" | `/resignations/approvals` | `resignation.approve` or `.approve.team` |
-| 3 | Offboarding — everybody leaving, whatever the reason | `/resignations/offboarding` | `employee.offboard` |
-| 4 | Resignation detail — stepper, decisions, offboarding, history | `/resignations/[id]` | read scope on the record |
-
-Probation and notice period also appear as a **Lifecycle card** on the employee
-record, with Confirm and Extend behind `employee.confirm`, and as four tiles on
-the dashboard.
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |
@@ -182,7 +169,7 @@ the dashboard.
 ### Reports (1 hub + 4 views)
 | 35 | Reports hub | `/reports` | Four tabs: Employees · Attendance · Leave · **Departments**. Each has date-range presets, a department filter, KPIs, chart, paged table and CSV/Excel export behind `report.export`. **Attrition** was specified as the fourth and is folded into the employees report rather than standing alone; the departments rollup took its place |
 
-### Payroll (9)
+### Payroll (11)
 | # | Screen | Route | Notes |
 |---|---|---|---|
 | 36 | Runs | `/payroll` | KPI tiles + one row per month; open a month from here |
@@ -194,7 +181,9 @@ the dashboard.
 | 41 | Payroll reports | `/payroll/reports` | Register · bank transfer · PF · ESI · tax · department, with CSV/Excel export |
 | 42 | Payslip | `/payroll/payslips/[id]` | The document — earnings vs deductions, employer cost set apart, print to PDF |
 | 43 | My salary | `/payroll/me` | Employee self-service: current CTC, revision history, own published payslips |
-| 44 | Payroll preferences | `/settings/preferences` | Currency, pay day, LOP basis, PF/ESI/PT rules (part of the settings screen) |
+| 44 | Payroll preferences | `/settings/preferences` | Currency, pay day, LOP basis, PF/ESI/PT rules, and the settlement basis, gratuity rate and ceiling (part of the settings screen) |
+| 45 | Settlements | `/payroll/settlements` | Finance’s queue: employee, last working day, earnings, deductions, net payable, status. Defaults to Draft — the only state anybody is waiting on |
+| 46 | Settlement statement | `/payroll/settlements/[id]` | The document — earnings vs deductions with the working printed under each figure, editable while draft, approve/pay/recompute, print to PDF |
 
 The run detail screen is the one worth describing precisely: it renders only
 the actions legal from the current state **and** permitted to the signed-in
