@@ -1,4 +1,12 @@
-import { addDays, addMonths, daysBetween, isWeekend, leaveYearOf, WEEKEND_DAYS } from './calendar';
+import {
+  addDays,
+  addMonths,
+  daysBetween,
+  displayDate,
+  isWeekend,
+  leaveYearOf,
+  WEEKEND_DAYS,
+} from './calendar';
 
 // August 2026: 1st is a Saturday, 2nd a Sunday, 3rd a Monday.
 const SAT = '2026-08-01';
@@ -100,5 +108,19 @@ describe('daysBetween', () => {
     expect(daysBetween('2026-08-05', '2026-09-04')).toBe(30);
     expect(daysBetween('2026-09-04', '2026-08-05')).toBe(-30);
     expect(daysBetween('2026-08-05', '2026-08-05')).toBe(0);
+  });
+});
+
+describe('displayDate', () => {
+  it('renders the way the web does', () => {
+    // "Sept", not "Sep" — that is CLDR's short form for en, and the web takes
+    // its month names from the same data. Pinned because the point of the
+    // helper is that the two agree.
+    expect(displayDate('2026-09-30')).toBe('30 Sept 2026');
+    expect(displayDate('2026-01-01')).toBe('1 Jan 2026');
+  });
+
+  it('does not drift a day on a machine behind UTC', () => {
+    expect(displayDate('2026-03-01')).toBe('1 Mar 2026');
   });
 });

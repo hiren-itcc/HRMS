@@ -41,6 +41,27 @@ export function dateKeyOf(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * A date key as a person would read it — "30 Sep 2026".
+ *
+ * Everything the API *transports* is `YYYY-MM-DD`, and it should stay that
+ * way. This is for the few places the server writes prose a user reads
+ * directly — a notification body, an error message — where the raw key is the
+ * ambiguous format that gets a September date read as April.
+ */
+export function displayDate(dateKey: string): string {
+  // `en-IN`, which is what every date formatter in the web app uses. Both
+  // sides then take their month names from the same CLDR data, so a date in a
+  // notification cannot be spelled differently from the same date on the
+  // record beside it.
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(toDate(dateKey));
+}
+
 /** Every YYYY-MM-DD in a month, given "YYYY-MM". */
 export function daysInMonth(month: string): string[] {
   const [y = '1970', m = '01'] = month.split('-');

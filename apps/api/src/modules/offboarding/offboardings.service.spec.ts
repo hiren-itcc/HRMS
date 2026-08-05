@@ -1,6 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
+import { notificationsDouble } from '../notifications/notifications.test-double';
 import { OffboardingsService } from './offboardings.service';
 
 type Mock = jest.Mock;
@@ -8,6 +9,7 @@ type Mock = jest.Mock;
 /** `lifecycleDouble` fixes today at 2026-08-05. */
 const employee = {
   id: 'e1',
+  userId: 'u-emp',
   joinDate: new Date('2024-01-01'),
   status: 'ACTIVE' as string,
   department: { name: 'Engineering' },
@@ -24,6 +26,9 @@ const offboarding = {
   reason: 'RESIGNATION',
   reasonNote: null as string | null,
   lastWorkingDate: new Date('2026-09-30'),
+  // The real update() includes LIST_INCLUDE, so the completion notification
+  // has a name to put in its title.
+  employee: { id: 'e1', firstName: 'Ada', lastName: 'Lovelace' },
 };
 
 function makeService(over: { employee?: object; offboarding?: object; openCount?: number } = {}) {
@@ -47,15 +52,17 @@ function makeService(over: { employee?: object; offboarding?: object; openCount?
   };
   const transitions = { apply: jest.fn().mockResolvedValue({ id: 'e1' }) };
   const resignations = { markCompleted: jest.fn(), reopen: jest.fn() };
+  const notifications = notificationsDouble();
   const service = new OffboardingsService(
     prisma,
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     transitions as any,
     lifecycleDouble(),
+    notifications,
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     resignations as any,
   );
-  return { service, prisma, transitions, resignations };
+  return { service, prisma, transitions, resignations, notifications };
 }
 
 const hr: AccessTokenClaims = {
@@ -288,5 +295,60 @@ describe('cancelling', () => {
   it('refuses once the exit has already happened', async () => {
     const { service } = makeService({ offboarding: { status: 'COMPLETED' } });
     await expect(service.cancel(hr, 'off1', { reason: 'x' })).rejects.toThrow(/already complete/i);
+  });
+});
+
+describe('who gets told', () => {
+  /*
+   * Including the exits nobody asked for. Somebody whose contract is ending
+   * should not find out by noticing their access stopped.
+   */
+  it('tells the employee their exit is scheduled, however it began', async () => {
+    const { service, notifications } = makeService();
+    await service.create(hr, {
+      employeeId: 'e1',
+      reason: 'CONTRACT_END',
+      reasonNote: null,
+      lastWorkingDate: '2026-09-30',
+    });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      ['u-emp'],
+      expect.objectContaining({
+        type: 'offboarding.started',
+        title: 'Your exit has been scheduled',
+        body: expect.stringContaining('30 Sept 2026'),
+      }),
+    );
+  });
+
+  it('says nothing to an employee with no sign-in', async () => {
+    const { service, notifications } = makeService({ employee: { userId: null } });
+    await service.startFromResignation(ctx, {
+      resignationId: 'r1',
+      employeeId: 'e1',
+      lastWorkingDate: '2026-09-30',
+    });
+    expect(notifications.notify).toHaveBeenCalledWith([], expect.anything());
+  });
+
+  /*
+   * HR, not the employee: completion suspends the sign-in and revokes every
+   * session, so a notification for them would land in an account nobody can
+   * open. It also matters most when the daily tick closed the exit overnight
+   * and no human was there to see it.
+   */
+  it('tells HR on completion, not the person who has left', async () => {
+    const { service, notifications } = makeService();
+    await service.complete(ctx, 'off1', {});
+    expect(notifications.notifyPermission).toHaveBeenCalledWith(
+      'org1',
+      'employee.offboard',
+      expect.objectContaining({
+        type: 'offboarding.completed',
+        title: 'Ada Lovelace has left',
+      }),
+      { except: 'u-hr' },
+    );
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 });

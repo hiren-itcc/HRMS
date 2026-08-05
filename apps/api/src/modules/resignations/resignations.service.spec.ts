@@ -1,6 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
+import { notificationsDouble } from '../notifications/notifications.test-double';
 import { ResignationsService } from './resignations.service';
 
 type Mock = jest.Mock;
@@ -38,6 +39,8 @@ function makeService(over: { employee?: object; resignation?: object; openCount?
   const prisma: any = {
     employee: {
       findFirst: jest.fn().mockResolvedValue({ ...employee, ...over.employee }),
+      // Senders resolve employee ids to the sign-ins behind them.
+      findMany: jest.fn().mockResolvedValue([{ userId: 'u-mgr' }]),
     },
     resignation: {
       findFirst: jest.fn().mockResolvedValue({ ...resignation, ...over.resignation }),
@@ -55,15 +58,17 @@ function makeService(over: { employee?: object; resignation?: object; openCount?
     ),
   };
   const offboardings = { startFromResignation: jest.fn().mockResolvedValue({ id: 'off1' }) };
+  const notifications = notificationsDouble();
   const service = new ResignationsService(
     prisma,
     lifecycleDouble(),
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     { forEntity: jest.fn().mockResolvedValue([]) } as any,
+    notifications,
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     offboardings as any,
   );
-  return { service, prisma, offboardings };
+  return { service, prisma, offboardings, notifications };
 }
 
 const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({
@@ -131,6 +136,7 @@ describe('submitting', () => {
       lifecycleDouble({ requireManagerApproval: false }),
       // biome-ignore lint/suspicious/noExplicitAny: structural test double
       { forEntity: jest.fn() } as any,
+      notificationsDouble(),
       // biome-ignore lint/suspicious/noExplicitAny: structural test double
       { startFromResignation: jest.fn() } as any,
     );
@@ -400,5 +406,93 @@ describe('scoping', () => {
       { status: 'MANAGER_APPROVED' },
       { status: 'SUBMITTED', routedManagerId: null },
     ]);
+  });
+});
+
+describe('who gets told', () => {
+  it('tells the routed manager, and nobody else', async () => {
+    const { service, notifications } = makeService();
+    await service.submit(self, {
+      lastWorkingDate: '2026-10-01',
+      reason: 'PERSONAL',
+      remarks: null,
+    });
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      ['u-mgr'],
+      expect.objectContaining({
+        type: 'resignation.submitted',
+        title: 'Ada Lovelace has resigned',
+        linkPath: '/resignations/r1',
+      }),
+    );
+    expect(notifications.notifyPermission).not.toHaveBeenCalled();
+  });
+
+  /* A date in prose must not be the raw YYYY-MM-DD the API transports. */
+  it('writes the date the way a person reads it', async () => {
+    const { service, notifications } = makeService();
+    await service.submit(self, {
+      lastWorkingDate: '2026-10-01',
+      reason: 'PERSONAL',
+      remarks: null,
+    });
+    expect((notifications.notify as jest.Mock).mock.calls[0][1].body).toContain('1 Oct 2026');
+  });
+
+  /*
+   * Routed to nobody — the top of the org chart, or the manager step turned
+   * off. Without this the request sits on a desk nobody was told about.
+   */
+  it('falls back to everyone who can approve when it was routed to nobody', async () => {
+    const { service, notifications } = makeService({ resignation: { routedManagerId: null } });
+    await service.submit(self, {
+      lastWorkingDate: '2026-10-01',
+      reason: 'PERSONAL',
+      remarks: null,
+    });
+
+    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(notifications.notifyPermission).toHaveBeenCalledWith(
+      'org1',
+      'resignation.approve',
+      expect.objectContaining({ type: 'resignation.submitted' }),
+      { except: 'u1' },
+    );
+  });
+
+  it('tells the employee when HR approves', async () => {
+    const { service, notifications } = makeService({ resignation: { status: 'MANAGER_APPROVED' } });
+    await service.decide(hr, 'r1', { action: 'approve', remarks: null });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      ['u-mgr'],
+      expect.objectContaining({
+        type: 'resignation.approved',
+        title: 'Your resignation has been approved',
+      }),
+    );
+  });
+
+  it('carries the remarks on a rejection — it is the only explanation they get', async () => {
+    const { service, notifications } = makeService({ resignation: { status: 'MANAGER_APPROVED' } });
+    await service.decide(hr, 'r1', { action: 'reject', remarks: 'Counter-offer accepted' });
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: 'resignation.rejected',
+        body: 'Counter-offer accepted',
+      }),
+    );
+  });
+
+  /*
+   * A manager approval is a step, not an outcome. Telling the employee
+   * "approved" halfway would be wrong, and "your manager agreed" is noise
+   * before the decision that actually decides it.
+   */
+  it('says nothing to the employee when only the manager has agreed', async () => {
+    const { service, notifications } = makeService();
+    await service.decide(manager, 'r1', { action: 'approve', remarks: null });
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 });

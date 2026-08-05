@@ -15,12 +15,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
-import { dateKeyOf, toDate } from '../../common/utils/calendar';
+import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ResignationsService } from '../resignations/resignations.service';
 
 const SORTABLE = ['lastWorkingDate', 'startedAt', 'status'] as const;
@@ -66,6 +67,7 @@ export class OffboardingsService {
     private readonly prisma: PrismaService,
     private readonly transitions: EmploymentTransitionService,
     private readonly lifecycle: LifecyclePolicyService,
+    private readonly notifications: NotificationsService,
     /*
      * The one cycle in this feature, and it is real rather than accidental:
      * approving a resignation opens an offboarding, and completing an
@@ -125,6 +127,7 @@ export class OffboardingsService {
       where: { id: input.employeeId, organizationId: ctx.orgId, deletedAt: null },
       select: {
         id: true,
+        userId: true,
         joinDate: true,
         status: true,
         department: { select: { name: true } },
@@ -188,6 +191,18 @@ export class OffboardingsService {
         lastWorkingDate: input.lastWorkingDate,
         resignationId: input.resignationId,
       },
+    });
+
+    /*
+     * The employee is told their exit is scheduled whichever way it began —
+     * including the ones they did not ask for. Somebody whose contract is
+     * ending should not find out by noticing their access stopped.
+     */
+    await this.notifications.notify(employee.userId ? [employee.userId] : [], {
+      type: 'offboarding.started',
+      title: 'Your exit has been scheduled',
+      body: `Your last working day is ${displayDate(input.lastWorkingDate)}. Your sign-in keeps working until then.`,
+      linkPath: '/resignations',
     });
     return created;
   }
@@ -273,6 +288,25 @@ export class OffboardingsService {
       after: { status: 'COMPLETED', lastWorkingDate },
       note: input.note ?? null,
     });
+
+    /*
+     * HR, not the employee: their sign-in was just suspended and every session
+     * revoked, so a notification for them would land in an account nobody can
+     * open. This is also the one that matters when the daily tick closed it —
+     * somebody has to know an exit completed itself overnight.
+     */
+    const who = `${updated.employee.firstName} ${updated.employee.lastName}`;
+    await this.notifications.notifyPermission(
+      ctx.orgId,
+      'employee.offboard',
+      {
+        type: 'offboarding.completed',
+        title: `${who} has left`,
+        body: `Last working day ${displayDate(lastWorkingDate)}. Their sign-in has been suspended.`,
+        linkPath: '/resignations/offboarding',
+      },
+      { except: ctx.userId },
+    );
     return updated;
   }
 

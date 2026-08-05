@@ -15,12 +15,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
-import { dateKeyOf, toDate } from '../../common/utils/calendar';
+import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OffboardingsService } from '../offboarding/offboardings.service';
 import {
   awaitingDesk,
@@ -75,6 +76,7 @@ export class ResignationsService {
     private readonly prisma: PrismaService,
     private readonly lifecycle: LifecyclePolicyService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
     private readonly offboardings: OffboardingsService,
   ) {}
 
@@ -171,7 +173,53 @@ export class ResignationsService {
         isShortNotice: input.lastWorkingDate < notice.earliestLastWorkingDate,
       },
     });
+    await this.announceSubmission(ctx, created, input.lastWorkingDate);
     return this.present(created, lifecycleCtx.todayKey);
+  }
+
+  /**
+   * Tell whoever has to act on it.
+   *
+   * Routed to a manager, it goes to that one person. Routed to nobody — the
+   * top of the org chart, or an organization with the manager step off — it
+   * goes to everyone who can give final approval, because otherwise the
+   * request sits on a desk nobody has been told about.
+   */
+  private async announceSubmission(
+    ctx: Ctx,
+    created: {
+      id: string;
+      routedManagerId: string | null;
+      employee: { firstName: string; lastName: string };
+    },
+    lastWorkingDate: string,
+  ) {
+    const who = `${created.employee.firstName} ${created.employee.lastName}`;
+    const payload = {
+      type: 'resignation.submitted',
+      title: `${who} has resigned`,
+      body: `Last working day ${displayDate(lastWorkingDate)}. It is waiting on you.`,
+      linkPath: `/resignations/${created.id}`,
+    };
+
+    if (created.routedManagerId) {
+      await this.notifications.notify(await this.usersOf([created.routedManagerId]), payload);
+      return;
+    }
+    await this.notifications.notifyPermission(ctx.orgId, 'resignation.approve', payload, {
+      except: ctx.userId,
+    });
+  }
+
+  /** Employee ids to the sign-ins behind them; anyone without one is dropped. */
+  private async usersOf(employeeIds: (string | null | undefined)[]): Promise<string[]> {
+    const ids = employeeIds.filter((v): v is string => Boolean(v));
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.employee.findMany({
+      where: { id: { in: ids }, userId: { not: null } },
+      select: { userId: true },
+    });
+    return rows.map((row) => row.userId as string);
   }
 
   /** The employee changing their own request, while it is still theirs to change. */
@@ -330,7 +378,40 @@ export class ResignationsService {
       ...(overriding ? { managerStepSkipped: record.routedManagerId } : {}),
     });
 
+    await this.announceDecision(record.employeeId, id, input, to);
     return this.detail(claims, id);
+  }
+
+  /**
+   * Tell the employee what was decided.
+   *
+   * A rejection or a send-back carries the remarks, because those are the only
+   * explanation they get and the API already made them mandatory.
+   */
+  private async announceDecision(
+    employeeId: string,
+    resignationId: string,
+    input: ResignationDecisionInput,
+    to: ResignationStatusCode,
+  ) {
+    // A manager approval is a step, not an outcome — telling the employee
+    // "approved" halfway would be wrong, and telling them "your manager
+    // agreed" is noise before the decision that matters.
+    if (to === 'MANAGER_APPROVED') return;
+
+    const title =
+      to === 'APPROVED'
+        ? 'Your resignation has been approved'
+        : to === 'REJECTED'
+          ? 'Your resignation was not approved'
+          : 'Your resignation needs a change';
+
+    await this.notifications.notify(await this.usersOf([employeeId]), {
+      type: `resignation.${to.toLowerCase()}`,
+      title,
+      body: input.remarks ?? null,
+      linkPath: `/resignations/${resignationId}`,
+    });
   }
 
   /** Called by the offboarding service; never routed to directly. */
