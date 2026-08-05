@@ -273,6 +273,7 @@ export default function OffboardingDetailPage() {
                 tasks={record.tasks}
                 editable={open}
                 employeeManagerId={record.employee.managerId}
+                employeeId={record.employeeId}
               />
             </CardContent>
           </Card>

@@ -7,6 +7,7 @@ const task = (over: Partial<OffboardingTask>): OffboardingTask => ({
   label: 'Return company assets',
   description: null,
   owner: 'IT_ADMIN',
+  kind: 'MANUAL',
   required: true,
   order: 0,
   status: 'PENDING',

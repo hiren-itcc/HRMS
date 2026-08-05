@@ -1,6 +1,7 @@
 import type { OrgSettings, Permission } from '@hrms/shared';
 import {
   BarChart3,
+  Boxes,
   CalendarClock,
   Contact,
   DoorOpen,
@@ -55,6 +56,13 @@ export const NAV_ITEMS: NavItem[] = [
     // Everyone can reach it: the first tab is their own resignation. The
     // approvals and offboarding tabs gate themselves.
     perms: ['resignation.read.own', 'resignation.read.team', 'resignation.read'],
+  },
+  {
+    href: '/assets',
+    label: 'Assets',
+    icon: Boxes,
+    perms: ['asset.read'],
+    module: 'assets',
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {

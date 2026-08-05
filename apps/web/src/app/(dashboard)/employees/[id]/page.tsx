@@ -41,6 +41,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
+import { EmployeeAssetsCard } from '@/features/assets/components/employee-assets-card';
 import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
@@ -459,6 +460,12 @@ function EmployeeDetailView() {
             <EmployeeAttendanceCard employeeId={e.id} />
           </FadeInItem>
         )}
+
+        {/* Gates itself on asset.read — every manager of this person can open
+            this record, and what they were issued is the register's business. */}
+        <FadeInItem>
+          <EmployeeAssetsCard employeeId={e.id} />
+        </FadeInItem>
 
         <FadeInItem>
           <Card>

@@ -1,4 +1,5 @@
 import type {
+  ClearanceKindCode,
   ClearanceOwnerCode,
   ExitInterviewInput,
   OffboardingCancelInput,
@@ -20,6 +21,8 @@ export interface OffboardingTask {
   label: string;
   description: string | null;
   owner: ClearanceOwnerCode;
+  /** MANUAL is hand-signed; ASSET_RETURN reads the register. */
+  kind: ClearanceKindCode;
   /** Completion is blocked while any required item is still PENDING. */
   required: boolean;
   order: number;

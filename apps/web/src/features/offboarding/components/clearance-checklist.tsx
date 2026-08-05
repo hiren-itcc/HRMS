@@ -8,13 +8,17 @@ import {
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
+import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 import { Check, CircleDashed, MinusCircle, Undo2 } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
+import { assetKeys, assetsApi } from '@/features/assets/api';
 import { useApiMutation } from '@/hooks/use-crud';
 import { type OffboardingTask, offboardingKeys, offboardingsApi } from '../api';
 
@@ -43,6 +47,52 @@ interface ChecklistProps {
   editable: boolean;
   /** The leaver's manager, so a manager can tell which rows are theirs. */
   employeeManagerId: string | null;
+  /** Whose assets an ASSET_RETURN row lists. */
+  employeeId: string;
+}
+
+/**
+ * What the leaver still holds, under the computed clearance item.
+ *
+ * Named by tag rather than counted: "2 outstanding" sends somebody hunting for
+ * which two, which is the failure the whole module exists to stop.
+ *
+ * Gated on `asset.read` — this row appears on an exit page every HR user can
+ * open, and it does not ask the API without the permission.
+ */
+function OutstandingAssets({ employeeId, settled }: { employeeId: string; settled: boolean }) {
+  const { can } = useSession();
+  const canRead = can('asset.read');
+  const query = useQuery({
+    queryKey: assetKeys.heldBy(employeeId),
+    queryFn: () => assetsApi.heldBy(employeeId),
+    enabled: canRead,
+  });
+
+  if (!canRead) return null;
+  if (query.isPending) return <Skeleton className="mt-2 h-8 w-full rounded-md" />;
+
+  const held = query.data ?? [];
+  if (held.length === 0) {
+    return (
+      <p className="mt-1 text-muted-foreground text-xs">
+        {settled ? 'Everything issued has come back.' : 'Nothing is issued to them.'}
+      </p>
+    );
+  }
+
+  return (
+    <ul className="mt-2 space-y-1">
+      {held.map((item) => (
+        <li key={item.id} className="text-xs">
+          <Link href={`/assets/${item.asset.id}`} className="font-medium hover:underline">
+            {item.asset.assetTag}
+          </Link>
+          <span className="text-muted-foreground"> · {item.asset.name}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /**
@@ -52,7 +102,12 @@ interface ChecklistProps {
  * blocking this" is the question the screen exists to answer and the person
  * reading it is usually not the person who has to act.
  */
-export function ClearanceChecklist({ tasks, editable, employeeManagerId }: ChecklistProps) {
+export function ClearanceChecklist({
+  tasks,
+  editable,
+  employeeManagerId,
+  employeeId,
+}: ChecklistProps) {
   const { can, user } = useSession();
   const [waiving, setWaiving] = useState<OffboardingTask | null>(null);
   const [note, setNote] = useState('');
@@ -133,6 +188,12 @@ export function ClearanceChecklist({ tasks, editable, employeeManagerId }: Check
                   <span>{CLEARANCE_OWNER_LABELS[task.owner]}</span>
                 </p>
                 {task.note && <p className="mt-1 break-words text-sm">{task.note}</p>}
+
+                {/* What is actually still out, by tag. A count would send
+                    somebody hunting for which laptop. */}
+                {task.kind === 'ASSET_RETURN' && (
+                  <OutstandingAssets employeeId={employeeId} settled={settled} />
+                )}
               </div>
 
               {maySign(task) && (
@@ -148,13 +209,18 @@ export function ClearanceChecklist({ tasks, editable, employeeManagerId }: Check
                     </Button>
                   ) : (
                     <>
-                      <Button
-                        size="sm"
-                        disabled={update.isPending}
-                        onClick={() => update.mutate({ id: task.id, status: 'DONE', note: null })}
-                      >
-                        Clear
-                      </Button>
+                      {/* A computed item is settled by the register, and the
+                          API refuses a hand-tick. Offering the button anyway
+                          would be offering a guaranteed error. */}
+                      {task.kind !== 'ASSET_RETURN' && (
+                        <Button
+                          size="sm"
+                          disabled={update.isPending}
+                          onClick={() => update.mutate({ id: task.id, status: 'DONE', note: null })}
+                        >
+                          Clear
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => setWaiving(task)}>
                         Not applicable
                       </Button>

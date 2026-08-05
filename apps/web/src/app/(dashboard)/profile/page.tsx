@@ -13,6 +13,7 @@ import { Separator } from '@hrms/ui/components/separator';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
+import { MyAssetsCard } from '@/features/assets/components/my-assets-card';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
@@ -106,6 +107,10 @@ export default function ProfilePage() {
 
         <FadeInItem className="lg:col-span-2">
           <MyHrProfile />
+        </FadeInItem>
+
+        <FadeInItem className="lg:col-span-2">
+          <MyAssetsCard />
         </FadeInItem>
 
         {user.employee && (
