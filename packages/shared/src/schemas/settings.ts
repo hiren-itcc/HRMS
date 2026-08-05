@@ -341,7 +341,13 @@ export const modulesSchema = z.object({
  */
 export const wfhSchema = z.object({
   enabled: z.boolean().default(true),
-  /** Zero means no limit, the way the gratuity ceiling already reads. */
+  /**
+   * **Zero means zero days, not "no limit"** — deliberately unlike the gratuity
+   * ceiling, which uses zero as a sentinel. `Employee.remoteDaysPerWeek` can
+   * legitimately be zero, because "this person never works remotely" is an
+   * ordinary arrangement, and two meanings for one value would have handed
+   * exactly those people unlimited remote days. No limit is seven.
+   */
   maxDaysPerWeek: z.number().int().min(0).max(7).default(2),
   /**
    * Off means a request is approved the moment it is filed. For a company that
