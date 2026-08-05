@@ -123,7 +123,11 @@ export function EmployeeAttendanceCard({ employeeId }: { employeeId: string }) {
                       month: 'long',
                     })}
                   </span>
-                  <AttendanceStatusBadge status={day.status} isLate={day.isLate} />
+                  <AttendanceStatusBadge
+                    status={day.status}
+                    isLate={day.isLate}
+                    remoteApproved={day.remoteApproved}
+                  />
                 </div>
                 {day.sessions.length > 0 ? (
                   <ul className="mt-2 space-y-1 text-muted-foreground text-xs tabular-nums">

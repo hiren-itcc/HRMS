@@ -55,15 +55,25 @@ export const STATUS_STYLE: Record<DerivedStatus, { label: string; badge: string;
 export function AttendanceStatusBadge({
   status,
   isLate,
+  remoteApproved,
 }: {
   status: DerivedStatus;
   isLate?: boolean;
+  /**
+   * Null when the question does not arise. Only `false` earns a badge —
+   * "approved" is the expected case and labelling it would put a chip on
+   * almost every remote day, which is how a signal stops being one.
+   */
+  remoteApproved?: boolean | null;
 }) {
   const style = STATUS_STYLE[status];
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <Badge className={cn(style.badge)}>{style.label}</Badge>
       {isLate && <Badge className="border-transparent bg-warning/15 text-warning-text">Late</Badge>}
+      {remoteApproved === false && (
+        <Badge className="border-transparent bg-warning/15 text-warning-text">Unplanned</Badge>
+      )}
     </span>
   );
 }

@@ -65,7 +65,7 @@ export class WfhService {
   // ── the flag ──────────────────────────────────────────────────────────
 
   /**
-   * Which employee-days were agreed in advance, as `"employeeId:dateKey"`.
+   * Which employee-days were agreed in advance, as `"employeeId|dateKey"`.
    *
    * The one thing attendance asks this module. It is a read, called once for a
    * range the caller is already fetching, and its absence is what "worked from
@@ -105,7 +105,7 @@ export class WfhService {
         weekOff,
       );
       for (const day of workingDays) {
-        if (day >= fromKey && day <= toKey) approved.add(`${row.employeeId}:${day}`);
+        if (day >= fromKey && day <= toKey) approved.add(`${row.employeeId}|${day}`);
       }
     }
     return approved;

@@ -53,6 +53,12 @@ export interface DayEntry {
   note: string | null;
   /** The day rolled up: all one way, or OFFICE when the sittings were mixed. */
   workMode: WorkMode | null;
+  /**
+   * Whether a remote day was agreed in advance. Null when the question does
+   * not arise — an office day has nothing to approve, so false there would
+   * read as a refusal rather than as "not applicable".
+   */
+  remoteApproved: boolean | null;
   sessions: DaySession[];
 }
 

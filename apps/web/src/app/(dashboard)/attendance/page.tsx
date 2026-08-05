@@ -78,7 +78,11 @@ function DayPanel({
         <div className="space-y-1">
           <p className="flex flex-wrap items-center gap-2 font-medium text-sm">
             {dayLabel(day.date)}
-            <AttendanceStatusBadge status={day.status} isLate={day.isLate} />
+            <AttendanceStatusBadge
+              status={day.status}
+              isLate={day.isLate}
+              remoteApproved={day.remoteApproved}
+            />
           </p>
           <p className="text-muted-foreground text-sm tabular-nums">
             In {timeIn(day.checkIn, timeZone)} · Out {timeIn(day.checkOut, timeZone)} ·{' '}

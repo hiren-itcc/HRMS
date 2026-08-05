@@ -129,6 +129,11 @@ export const employeeCreateSchema = z.object({
    */
   noticePeriodDays: nullableInt(0, 365),
   probationMonths: nullableInt(0, 24),
+  /**
+   * Remote days a week. Null is the company default; **zero is a real
+   * allowance** — "never works remotely" — and not the same thing.
+   */
+  remoteDaysPerWeek: nullableInt(0, 7),
 
   /**
    * Create a sign-in for this person, using their work email.

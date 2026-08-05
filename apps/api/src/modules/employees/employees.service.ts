@@ -34,6 +34,7 @@ import { EMPLOYED_AND_LIVE } from './employee-scopes';
 const LIFECYCLE_SELECT = {
   joinDate: true,
   noticePeriodDays: true,
+  remoteDaysPerWeek: true,
   probationMonths: true,
   probationEndDate: true,
   probationExtendedTo: true,

@@ -1,6 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { settingsDouble } from '../settings/settings.test-double';
+import { wfhDouble } from '../wfh/wfh.test-double';
 import { AttendanceService } from './attendance.service';
 import { AttendanceRequestsService } from './attendance-requests.service';
 
@@ -119,7 +120,7 @@ function makeService(seed: {
   };
 
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  const attendance = new AttendanceService(prisma as any, settingsDouble());
+  const attendance = new AttendanceService(prisma as any, settingsDouble(), wfhDouble());
   return {
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
     service: new AttendanceRequestsService(prisma as any, attendance),

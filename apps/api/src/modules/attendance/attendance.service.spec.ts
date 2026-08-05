@@ -1,6 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException } from '@nestjs/common';
 import { settingsDouble } from '../settings/settings.test-double';
+import { wfhDouble } from '../wfh/wfh.test-double';
 import { AttendanceService } from './attendance.service';
 
 type Mock = jest.Mock;
@@ -119,7 +120,7 @@ function makeService(
   };
   return {
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
-    service: new AttendanceService(prisma as any, settingsDouble()),
+    service: new AttendanceService(prisma as any, settingsDouble(), wfhDouble()),
     prisma,
     sessions,
     day: () => record,
@@ -587,7 +588,7 @@ describe('AttendanceService leave visibility (regression)', () => {
       },
     };
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
-    return { service: new AttendanceService(prisma as any, settingsDouble()), prisma };
+    return { service: new AttendanceService(prisma as any, settingsDouble(), wfhDouble()), prisma };
   }
 
   const hrClaims = claims({ perms: ['attendance.read'], employeeId: 'mgr' });
@@ -604,5 +605,79 @@ describe('AttendanceService leave visibility (regression)', () => {
     const result = await service.monthlySummary(hrClaims, { ...query, month: '2026-08' });
     // 3rd–5th Aug 2026: Mon, Tue, Wed — three working days of leave
     expect(result.data[0]?.onLeave).toBe(3);
+  });
+});
+
+describe('AttendanceService remote-day flag', () => {
+  /**
+   * Derived on read, never stored. The point of the flag is that an
+   * unapproved remote day is still a complete record of a day somebody
+   * worked — refusing the punch would have lost it.
+   */
+  function makeRemoteDay(approved: Set<string>, workMode: string | null = 'REMOTE') {
+    const employee = {
+      id: 'e1',
+      firstName: 'Dev',
+      lastName: 'Tester',
+      employeeCode: 'EMP-0100',
+      avatarUrl: null,
+      joinDate: new Date('2026-01-01T00:00:00.000Z'),
+      exitDate: null,
+      department: { name: 'Engineering' },
+      attendance: [
+        {
+          id: 'a1',
+          checkIn: new Date('2026-08-10T09:00:00.000Z'),
+          checkOut: new Date('2026-08-10T18:00:00.000Z'),
+          workMinutes: 480,
+          isLate: false,
+          status: 'WFH',
+          note: null,
+          workMode,
+          sessions: [],
+        },
+      ],
+    };
+    const prisma = {
+      employee: {
+        findMany: jest.fn().mockResolvedValue([employee]),
+        count: jest.fn().mockResolvedValue(1),
+      },
+      organization: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'UTC' }) },
+      holiday: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      leaveRequest: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    return new AttendanceService(prisma as any, settingsDouble(), wfhDouble(approved));
+  }
+
+  const hrClaims = claims({ perms: ['attendance.read'], employeeId: 'mgr' });
+  const query = { page: 1, limit: 10, order: 'asc' as const, sort: undefined, search: undefined };
+  const MON = '2026-08-10';
+
+  it('marks a remote day nobody agreed to', async () => {
+    const service = makeRemoteDay(new Set());
+    const result = await service.dayView(hrClaims, { ...query, date: MON });
+
+    expect(result.data[0]?.status).toBe('WFH');
+    expect(result.data[0]?.remoteApproved).toBe(false);
+  });
+
+  it('leaves an agreed remote day unmarked', async () => {
+    const service = makeRemoteDay(new Set([`e1|${MON}`]));
+    const result = await service.dayView(hrClaims, { ...query, date: MON });
+
+    expect(result.data[0]?.remoteApproved).toBe(true);
+  });
+
+  /*
+   * Null, not false. An office day has nothing to approve, and "false" there
+   * would read as a refusal rather than as a question that does not arise.
+   */
+  it('says nothing either way about a day worked from the office', async () => {
+    const service = makeRemoteDay(new Set(), 'OFFICE');
+    const result = await service.dayView(hrClaims, { ...query, date: MON });
+
+    expect(result.data[0]?.remoteApproved).toBeNull();
   });
 });

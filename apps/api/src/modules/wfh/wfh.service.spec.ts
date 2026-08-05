@@ -281,7 +281,7 @@ describe('the flag attendance reads', () => {
     const { service } = makeService({ held: [[MON, TUE]] });
     const approved = await service.approvedDaysIn('org1', ['e1'], MON, FRI);
 
-    expect([...approved]).toEqual([`e1:${MON}`, `e1:${TUE}`]);
+    expect([...approved]).toEqual([`e1|${MON}`, `e1|${TUE}`]);
   });
 
   /* A request may start before the window and end after it. */
@@ -289,14 +289,14 @@ describe('the flag attendance reads', () => {
     const { service } = makeService({ held: [['2026-08-03', FRI]] });
     const approved = await service.approvedDaysIn('org1', ['e1'], WED, THU);
 
-    expect([...approved]).toEqual([`e1:${WED}`, `e1:${THU}`]);
+    expect([...approved]).toEqual([`e1|${WED}`, `e1|${THU}`]);
   });
 
   it('never counts a weekend as an approved day', async () => {
     const { service } = makeService({ held: [[MON, '2026-08-16']] });
     const approved = await service.approvedDaysIn('org1', ['e1'], MON, '2026-08-16');
 
-    expect(approved.has('e1:2026-08-15')).toBe(false);
+    expect(approved.has('e1|2026-08-15')).toBe(false);
     expect(approved.size).toBe(5);
   });
 

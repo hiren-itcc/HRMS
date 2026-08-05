@@ -286,7 +286,13 @@ function TeamAttendanceView() {
               {
                 key: 'status',
                 header: 'Status',
-                render: (row) => <AttendanceStatusBadge status={row.status} isLate={row.isLate} />,
+                render: (row) => (
+                  <AttendanceStatusBadge
+                    status={row.status}
+                    isLate={row.isLate}
+                    remoteApproved={row.remoteApproved}
+                  />
+                ),
               },
             ]}
             rows={daily.data?.data}

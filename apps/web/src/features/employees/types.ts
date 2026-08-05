@@ -91,6 +91,8 @@ export interface EmployeeDetail extends EmployeeListItem {
   exitDate: string | null;
   /** Null means "inherit the company default"; `effectiveNoticeDays` resolves it. */
   noticePeriodDays: number | null;
+  /** Remote days a week. Null is the company default; zero is "never". */
+  remoteDaysPerWeek: number | null;
   probationMonths: number | null;
   probationEndDate: string | null;
   probationExtendedTo: string | null;

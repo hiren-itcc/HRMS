@@ -145,6 +145,16 @@ export function LifecycleCard({ employee }: { employee: EmployeeDetail }) {
                 </>
               }
             />
+            {employee.remoteDaysPerWeek !== null && (
+              <Row
+                label="Remote days"
+                value={
+                  employee.remoteDaysPerWeek === 0
+                    ? 'None — always on site'
+                    : `${employee.remoteDaysPerWeek} a week`
+                }
+              />
+            )}
             {employee.exitDate && (
               <Row
                 label={employee.status === 'EXITED' ? 'Left on' : 'Last working day'}

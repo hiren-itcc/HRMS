@@ -19,6 +19,10 @@ export default function AttendanceLayout({ children }: { children: React.ReactNo
       label: 'Approvals',
       show: can('attendance.approve') || can('attendance.approve.team'),
     },
+    // Everyone who can ask, which is everyone — the approvals inbox lives on
+    // the same tab rather than as a second entry, because a manager wants both
+    // halves of the same question in one place.
+    { href: '/attendance/remote', label: 'Remote work', show: can('wfh.request.own') },
   ];
 
   return (

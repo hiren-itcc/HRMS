@@ -416,6 +416,79 @@ export default function PreferencesPage() {
         </Card>
       </FadeInItem>
 
+      {/* ── Work from home ───────────────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Work from home</CardTitle>
+            <CardDescription>
+              How many remote days people may book, and whether somebody has to agree first.
+              Attendance records a remote day either way — this decides which ones were planned.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="wfh-enabled"
+                checked={draft.wfh.enabled}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('wfh', { enabled: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="wfh-enabled">Allow remote-work requests</Label>
+                <p className="text-muted-foreground text-xs">
+                  Off means nobody can ask. Days already agreed keep their approval.
+                </p>
+              </div>
+            </div>
+
+            {draft.wfh.enabled && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wfh-cap">Remote days a week</Label>
+                  <Input
+                    id="wfh-cap"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={7}
+                    className="w-32"
+                    disabled={!canManage}
+                    value={draft.wfh.maxDaysPerWeek}
+                    onChange={(e) => set('wfh', { maxDaysPerWeek: clamp(e.target.value, 0, 7) })}
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    {draft.wfh.maxDaysPerWeek === 0
+                      ? 'Nobody may book a remote day. This is a real setting, not "no limit".'
+                      : draft.wfh.maxDaysPerWeek === 7
+                        ? 'Seven is every day there is — effectively no limit.'
+                        : 'An individual can be given their own allowance on their record.'}
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="wfh-approval"
+                    checked={draft.wfh.requireApproval}
+                    disabled={!canManage}
+                    onCheckedChange={(v) => set('wfh', { requireApproval: v === true })}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="wfh-approval">Route requests past the manager</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off means a request is agreed the moment it is filed — still worth recording,
+                      because attendance can then say a day was planned.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {saveBar('wfh', 'Save remote work')}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
       {/* ── Full & final settlement ──────────────────────────────────── */}
       <FadeInItem>
         <Card>
