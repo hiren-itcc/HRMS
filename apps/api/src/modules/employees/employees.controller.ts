@@ -98,6 +98,13 @@ export class EmployeesController {
     return this.employees.offboard(user, id, dto);
   }
 
+  @Get(':id/activity')
+  @RequirePermissions('employee.read', 'employee.read.team', 'employee.read.own')
+  @ApiOperation({ summary: 'Employment history — every recorded change to this record' })
+  activity(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
+    return this.employees.activity(user, id);
+  }
+
   @Post(':id/confirm')
   @RequirePermissions('employee.confirm')
   @HttpCode(HttpStatus.OK)

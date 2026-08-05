@@ -59,6 +59,8 @@ function makeService(over: { employee?: object; resignation?: object; openCount?
     prisma,
     lifecycleDouble(),
     // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    { forEntity: jest.fn().mockResolvedValue([]) } as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
     offboardings as any,
   );
   return { service, prisma, offboardings };
@@ -127,6 +129,8 @@ describe('submitting', () => {
     const service = new ResignationsService(
       prisma.prisma,
       lifecycleDouble({ requireManagerApproval: false }),
+      // biome-ignore lint/suspicious/noExplicitAny: structural test double
+      { forEntity: jest.fn() } as any,
       // biome-ignore lint/suspicious/noExplicitAny: structural test double
       { startFromResignation: jest.fn() } as any,
     );

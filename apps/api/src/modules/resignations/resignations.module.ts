@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { LifecycleModule } from '../lifecycle/lifecycle.module';
 import { OffboardingModule } from '../offboarding/offboarding.module';
 import { ResignationsController } from './resignations.controller';
@@ -12,7 +13,7 @@ import { ResignationsService } from './resignations.service';
  * exists only to hold two method calls.
  */
 @Module({
-  imports: [LifecycleModule, forwardRef(() => OffboardingModule)],
+  imports: [AuditModule, LifecycleModule, forwardRef(() => OffboardingModule)],
   controllers: [ResignationsController],
   providers: [ResignationsService],
   exports: [ResignationsService],

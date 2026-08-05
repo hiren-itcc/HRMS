@@ -19,6 +19,7 @@ import { dateKeyOf, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { OffboardingsService } from '../offboarding/offboardings.service';
 import {
@@ -73,6 +74,7 @@ export class ResignationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lifecycle: LifecyclePolicyService,
+    private readonly audit: AuditService,
     private readonly offboardings: OffboardingsService,
   ) {}
 
@@ -427,47 +429,10 @@ export class ResignationsService {
   async activity(claims: AccessTokenClaims, id: string) {
     const ctx = ctxOf(claims);
     await this.requireReadable(ctx, id);
-    const rows = await this.prisma.auditLog.findMany({
-      where: { organizationId: ctx.orgId, entity: 'Resignation', entityId: id },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-    return this.withActors(ctx.orgId, rows);
+    return this.audit.forEntity(ctx.orgId, 'Resignation', id);
   }
 
   // ── internals ─────────────────────────────────────────────────────────
-
-  /** Attaches actor names without a foreign key, the way AuditService does. */
-  private async withActors(
-    orgId: string,
-    rows: { actorId: string | null; meta: unknown; [k: string]: unknown }[],
-  ) {
-    const ids = [...new Set(rows.map((r) => r.actorId).filter((v): v is string => Boolean(v)))];
-    const users = ids.length
-      ? await this.prisma.user.findMany({
-          where: { id: { in: ids }, organizationId: orgId },
-          select: {
-            id: true,
-            email: true,
-            employee: { select: { firstName: true, lastName: true } },
-          },
-        })
-      : [];
-    const byId = new Map(users.map((u) => [u.id, u]));
-    return rows.map((row) => {
-      const user = row.actorId ? byId.get(row.actorId) : undefined;
-      return {
-        ...row,
-        actor: user
-          ? {
-              id: user.id,
-              email: user.email,
-              name: user.employee ? `${user.employee.firstName} ${user.employee.lastName}` : null,
-            }
-          : null,
-      };
-    });
-  }
 
   /**
    * The scope narrowing guards cannot do, using the idiom the rest of the API

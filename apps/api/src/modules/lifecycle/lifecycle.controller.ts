@@ -11,6 +11,20 @@ import { LifecycleService } from './lifecycle.service';
 export class LifecycleController {
   constructor(private readonly lifecycle: LifecycleService) {}
 
+  /**
+   * No `@RequirePermissions`, deliberately.
+   *
+   * Every figure it returns is already gated inside the service on the
+   * permission that figure belongs to, and a caller who holds none gets a body
+   * of nulls. A blanket permission here would have to be the union of six
+   * others, and would be one more thing to keep in step with them.
+   */
+  @Get('stats')
+  @ApiOperation({ summary: 'Dashboard counts — probation, notice periods, exits' })
+  stats(@CurrentUser() user: AccessTokenClaims) {
+    return this.lifecycle.stats(user);
+  }
+
   @Get('status')
   @RequirePermissions('settings.manage')
   @ApiOperation({ summary: 'When the lifecycle tick last ran, and what it is configured to do' })

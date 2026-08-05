@@ -23,6 +23,7 @@ import { dateKeyOf } from '../../common/utils/calendar';
 import { buildListArgs, searchWhere, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { effectiveProbationEnd } from '../lifecycle/lifecycle.rules';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
@@ -96,6 +97,7 @@ export class EmployeesService {
     private readonly config: ConfigService,
     private readonly lifecycle: LifecyclePolicyService,
     private readonly transitions: EmploymentTransitionService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -494,6 +496,26 @@ export class EmployeesService {
       note: input.reason,
     });
     return { id, probationExtendedTo: input.extendedTo };
+  }
+
+  /**
+   * The employment history the brief asks for — created, updated, confirmed,
+   * probation extended, offboarded, exited — read from the audit trail rather
+   * than from a shadow table.
+   *
+   * A second table would be free to disagree with the live record, which is
+   * the reason `EmployeeSalary` is its own revision history rather than having
+   * one. `AuditLog` is already indexed on `[entity, entityId]` and already
+   * carries before/after for every one of these actions; what was missing was
+   * a way to read one record's rows without `audit.read`, which only Admin
+   * holds.
+   */
+  async activity(claims: AccessTokenClaims, id: string) {
+    const ctx = ctxOf(claims);
+    // Reuses the read scoping on the record itself, so a manager sees their
+    // report's history and nobody sees a stranger's.
+    await this.detail(claims, id);
+    return this.audit.forEntity(ctx.orgId, 'Employee', id);
   }
 
   /** `ensureExists`, plus the lifecycle columns the two actions above read. */

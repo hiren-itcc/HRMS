@@ -48,6 +48,8 @@ function makeService() {
     config as any,
     lifecycleDouble(),
     transitions,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    { forEntity: jest.fn().mockResolvedValue([]) } as any,
   );
   return { service, prisma };
 }

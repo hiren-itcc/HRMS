@@ -18,6 +18,7 @@ export class AuditService {
     const where: Prisma.AuditLogWhereInput = {
       organizationId: claims.orgId,
       ...(query.entity ? { entity: query.entity } : {}),
+      ...(query.entityId ? { entityId: query.entityId } : {}),
       ...(query.actorId ? { actorId: query.actorId } : {}),
       ...(query.action ? { action: query.action } : {}),
       // A family filter ("leave") matches every leave.* action. Actions are
@@ -45,6 +46,30 @@ export class AuditService {
     ]);
 
     return toPaginated(await this.withActors(claims.orgId, rows), total, query);
+  }
+
+  /**
+   * The trail for one record, newest first.
+   *
+   * Exists because `/audit` is behind `audit.read`, which only Admin holds,
+   * and several screens need to show what happened to *one* thing to people
+   * who should not see the organization's whole trail — an employee reading
+   * their own resignation, a manager reading their report's. The caller does
+   * the permission check for that record and then asks for its rows; there is
+   * no second history table to keep in step with this one.
+   */
+  async forEntity(
+    orgId: string,
+    entity: string,
+    entityId: string,
+    take = 100,
+  ): Promise<AuditEntry[]> {
+    const rows = await this.prisma.auditLog.findMany({
+      where: { organizationId: orgId, entity, entityId },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    return this.withActors(orgId, rows);
   }
 
   /**

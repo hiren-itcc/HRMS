@@ -1,14 +1,37 @@
+import type { AccessTokenClaims } from '@hrms/types';
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { auditMutation } from '../../common/utils/audit';
-import { toDate } from '../../common/utils/calendar';
+import { addDays, dateKeyOf, toDate } from '../../common/utils/calendar';
 import { PrismaService } from '../../database/prisma.service';
+import type { Prisma } from '../../generated/prisma/client';
 import { OffboardingsService } from '../offboarding/offboardings.service';
 import { effectiveProbationEnd } from './lifecycle.rules';
 import { LifecyclePolicyService } from './lifecycle-policy.service';
 
 /** One `Setting` row per organization, outside the typed registry. */
 const LAST_RUN_KEY = 'lifecycle.lastRunAt';
+
+/** How far ahead the dashboard counts as "soon". */
+const PROBATION_SOON_DAYS = 30;
+const LEAVING_SOON_DAYS = 30;
+
+export interface LifecycleStats {
+  today: string;
+  /** Null when the caller may not see that figure — the tile is not rendered. */
+  onProbation: number | null;
+  probationEndingSoon: number | null;
+  probationOverdue: number | null;
+  pendingResignations: number | null;
+  activeNoticePeriods: number | null;
+  offboardingInProgress: number | null;
+  upcomingLastWorkingDates: {
+    id: string;
+    name: string;
+    employeeCode: string;
+    lastWorkingDate: string | null;
+  }[];
+}
 
 export interface LifecycleRunResult {
   ranAt: string;
@@ -101,6 +124,134 @@ export class LifecycleService {
       // never be the reason somebody cannot sign in.
       this.logger.warn({ err, orgId }, 'lifecycle tick failed; state is still derived on read');
     }
+  }
+
+  /**
+   * The dashboard numbers, in one query set rather than six list calls that
+   * each fetch a row to read `meta.total` off the envelope.
+   *
+   * Every figure is null when the caller cannot see it, so the dashboard
+   * renders the tiles it is allowed to rather than a row of zeroes that look
+   * like facts. A manager gets the same shape as HR, narrowed to their own
+   * reports by the `'__none__'` sentinel — one endpoint, two dashboards.
+   */
+  async stats(claims: AccessTokenClaims): Promise<LifecycleStats> {
+    const perms = new Set(claims.perms);
+    const orgId = claims.orgId;
+    const ctx = await this.policy.contextFor(orgId);
+    const today = toDate(ctx.todayKey);
+    const soon = toDate(addDays(ctx.todayKey, PROBATION_SOON_DAYS));
+
+    const seesPeople = perms.has('employee.read') || perms.has('employee.read.team');
+    const seesResignations = perms.has('resignation.read') || perms.has('resignation.read.team');
+    const seesExits = perms.has('employee.offboard');
+
+    // The scope, resolved once. `'__none__'` makes a manager with no employee
+    // record match nothing rather than everything.
+    const teamOnly = !perms.has('employee.read');
+    const scope: Prisma.EmployeeWhereInput = {
+      organizationId: orgId,
+      deletedAt: null,
+      ...(teamOnly ? { managerId: claims.employeeId ?? '__none__' } : {}),
+    };
+    const resignationScope: Prisma.ResignationWhereInput = {
+      organizationId: orgId,
+      ...(perms.has('resignation.read')
+        ? {}
+        : { employee: { managerId: claims.employeeId ?? '__none__' } }),
+    };
+
+    /** Unconfirmed, with a probation end date, whichever one is in force. */
+    const onProbation: Prisma.EmployeeWhereInput = {
+      ...scope,
+      confirmedOn: null,
+      status: { notIn: ['ONBOARDING', 'EXITED'] },
+      OR: [{ probationExtendedTo: { not: null } }, { probationEndDate: { not: null } }],
+    };
+
+    const [
+      onProbationCount,
+      probationEndingSoon,
+      probationOverdue,
+      pendingResignations,
+      activeNoticePeriods,
+      offboardingInProgress,
+    ] = await Promise.all([
+      seesPeople ? this.prisma.employee.count({ where: onProbation }) : null,
+      seesPeople
+        ? this.prisma.employee.count({
+            where: { ...onProbation, ...this.probationEndBetween(today, soon) },
+          })
+        : null,
+      seesPeople
+        ? this.prisma.employee.count({
+            where: { ...onProbation, ...this.probationEndBefore(today) },
+          })
+        : null,
+      seesResignations
+        ? this.prisma.resignation.count({
+            where: { ...resignationScope, status: { in: ['SUBMITTED', 'MANAGER_APPROVED'] } },
+          })
+        : null,
+      seesPeople ? this.prisma.employee.count({ where: { ...scope, status: 'ON_NOTICE' } }) : null,
+      seesExits
+        ? this.prisma.offboarding.count({ where: { organizationId: orgId, status: 'IN_PROGRESS' } })
+        : null,
+    ]);
+
+    const upcomingLastWorkingDates = seesPeople
+      ? await this.prisma.employee.findMany({
+          where: {
+            ...scope,
+            status: 'ON_NOTICE',
+            exitDate: { gte: today, lte: toDate(addDays(ctx.todayKey, LEAVING_SOON_DAYS)) },
+          },
+          select: { id: true, firstName: true, lastName: true, employeeCode: true, exitDate: true },
+          orderBy: { exitDate: 'asc' },
+          take: 8,
+        })
+      : [];
+
+    return {
+      today: ctx.todayKey,
+      onProbation: onProbationCount,
+      probationEndingSoon,
+      probationOverdue,
+      pendingResignations,
+      activeNoticePeriods,
+      offboardingInProgress,
+      upcomingLastWorkingDates: upcomingLastWorkingDates.map((e) => ({
+        id: e.id,
+        name: `${e.firstName} ${e.lastName}`,
+        employeeCode: e.employeeCode,
+        lastWorkingDate: e.exitDate ? dateKeyOf(e.exitDate) : null,
+      })),
+    };
+  }
+
+  /**
+   * "Probation ends between these dates", honouring an extension.
+   *
+   * Split out because the OR shape is written three times and getting it wrong
+   * silently counts extended probations twice — once on their original date
+   * and once on the new one.
+   */
+  private probationEndBetween(from: Date, to: Date): Prisma.EmployeeWhereInput {
+    return {
+      OR: [
+        { probationExtendedTo: { gte: from, lte: to } },
+        { probationExtendedTo: null, probationEndDate: { gte: from, lte: to } },
+      ],
+    };
+  }
+
+  private probationEndBefore(before: Date): Prisma.EmployeeWhereInput {
+    return {
+      OR: [
+        { probationExtendedTo: { lt: before } },
+        { probationExtendedTo: null, probationEndDate: { lt: before } },
+      ],
+    };
   }
 
   async status(orgId: string) {

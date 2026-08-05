@@ -214,3 +214,75 @@ describe('status', () => {
     expect((await service.status('org1')).dueToday).toBe(false);
   });
 });
+
+describe('dashboard stats', () => {
+  const claims = (perms: string[], employeeId = 'mgr1') => ({
+    sub: 'u1',
+    orgId: 'org1',
+    roleCode: 'MANAGER' as const,
+    perms,
+    employeeId,
+  });
+
+  function withCounts() {
+    const made = makeService();
+    made.prisma.employee.count = jest.fn().mockResolvedValue(3);
+    made.prisma.resignation = { count: jest.fn().mockResolvedValue(2) };
+    made.prisma.offboarding = { count: jest.fn().mockResolvedValue(1) };
+    return made;
+  }
+
+  /*
+   * Nulls rather than zeroes. A zero reads as a fact — "nobody is on
+   * probation" — when what is true is "you may not see that".
+   */
+  it('returns null for figures the caller may not see', async () => {
+    const { service } = withCounts();
+    const stats = await service.stats(claims([]));
+    expect(stats.onProbation).toBeNull();
+    expect(stats.pendingResignations).toBeNull();
+    expect(stats.offboardingInProgress).toBeNull();
+    expect(stats.upcomingLastWorkingDates).toEqual([]);
+  });
+
+  it('narrows a manager to their own reports', async () => {
+    const { service, prisma } = withCounts();
+    await service.stats(claims(['employee.read.team']));
+    expect(prisma.employee.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ managerId: 'mgr1' }) }),
+    );
+  });
+
+  /* The sentinel again: a manager with no employee record matches nothing. */
+  it('matches nothing for a manager with no employee record', async () => {
+    const { service, prisma } = withCounts();
+    await service.stats({ ...claims(['employee.read.team']), employeeId: undefined });
+    expect(prisma.employee.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ managerId: '__none__' }) }),
+    );
+  });
+
+  it('leaves HR unnarrowed', async () => {
+    const { service, prisma } = withCounts();
+    await service.stats(claims(['employee.read', 'resignation.read', 'employee.offboard']));
+    const where = (prisma.employee.count as Mock).mock.calls[0][0].where;
+    expect(where.managerId).toBeUndefined();
+  });
+
+  /*
+   * An extension supersedes the original date. Counting both would show an
+   * extended probation as ending twice.
+   */
+  it('counts an extended probation on the extended date only', async () => {
+    const { service, prisma } = withCounts();
+    await service.stats(claims(['employee.read']));
+    const endingSoon = (prisma.employee.count as Mock).mock.calls[1][0].where;
+    expect(endingSoon.OR).toEqual([
+      { probationExtendedTo: expect.objectContaining({ gte: expect.any(Date) }) },
+      {
+        probationExtendedTo: null,
+        probationEndDate: expect.objectContaining({ gte: expect.any(Date) }),
+      },
+    ]);
+  });
+});
