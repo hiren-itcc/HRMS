@@ -107,6 +107,37 @@ export const payrollSchema = z.object({
     .prefault({}),
 });
 
+// ── Employment lifecycle ──────────────────────────────────────────────
+
+/**
+ * Company-wide defaults for joining, confirming and leaving.
+ *
+ * Every number here is a *default*, not a rule: `Employee.noticePeriodDays`
+ * and `Employee.probationMonths` override it per person, and null on the
+ * employee means "whatever this says". That is why the pair exists at all —
+ * a senior hire on three months' notice and a graduate on one are the normal
+ * case, not an exception worth a second policy table.
+ *
+ * The two `auto*` switches decide whether the daily tick may act on its own.
+ * An organization that wants a human to press Confirm turns the first off and
+ * the tick then only surfaces the list, it does not change anybody's record.
+ */
+export const lifecycleSchema = z.object({
+  defaultNoticeDays: z.number().int().min(0).max(365).default(30),
+  defaultProbationMonths: z.number().int().min(0).max(24).default(3),
+  /** Confirm at probation end automatically, or wait for HR to press it. */
+  autoConfirmOnProbationEnd: z.boolean().default(true),
+  /** Mark somebody EXITED once their last working date has passed. */
+  autoExitOnLastWorkingDate: z.boolean().default(true),
+  /**
+   * Route a resignation past the reporting manager before HR sees it. Off for
+   * a flat organization; also bypassed per-request when the employee has no
+   * manager, because whoever is at the top of the chart has nobody to review
+   * them and would otherwise be stuck at SUBMITTED forever.
+   */
+  requireManagerApproval: z.boolean().default(true),
+});
+
 // ── Modules ───────────────────────────────────────────────────────────
 
 /**
@@ -129,6 +160,7 @@ export const orgSettingsSchema = z.object({
   workingWeek: workingWeekSchema,
   leave: leavePolicySchema,
   payroll: payrollSchema,
+  lifecycle: lifecycleSchema,
   modules: modulesSchema,
 });
 
@@ -184,6 +216,7 @@ export const orgSettingsPatchSchema = z
     workingWeek: asPatch(workingWeekSchema).optional(),
     leave: asPatch(leavePolicySchema).optional(),
     payroll: asPatch(payrollSchema).optional(),
+    lifecycle: asPatch(lifecycleSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -194,7 +227,7 @@ export type OrgSettingsPatch = {
 };
 export type SettingsGroup = keyof OrgSettings;
 
-export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'payroll', 'modules'] as const;
+export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'payroll', 'lifecycle', 'modules'] as const;
 
 /** Fully-defaulted settings — the shape a fresh organization reads. */
 export function defaultSettings(): OrgSettings {
@@ -202,6 +235,7 @@ export function defaultSettings(): OrgSettings {
     workingWeek: {},
     leave: {},
     payroll: {},
+    lifecycle: {},
     modules: {},
   });
 }

@@ -22,6 +22,32 @@ export const PERMISSIONS = [
    * other than the person editing records can compose that in Settings.
    */
   'employee.onboarding.approve',
+  /*
+   * Confirming somebody off probation, or extending it. Separate from
+   * `employee.update` for the same reason approving onboarding is: it decides
+   * whether a person keeps their job, and an organization may well want that
+   * held by somebody other than whoever edits phone numbers.
+   *
+   * There is no matching code for offboarding — `employee.offboard` already
+   * exists, is already granted to exactly Admin and HR, and already means "may
+   * change whether this person works here". A second code would be a synonym.
+   */
+  'employee.confirm',
+
+  /*
+   * Resignation is the only workflow in the product an ordinary employee
+   * *starts* about themselves, which is why `request.own` exists at all —
+   * everything else self-service is a read or an edit of their own record.
+   *
+   * The `.team` pair is what a manager holds: the scope is resolved from
+   * `Employee.managerId` at query time, never from a request parameter.
+   */
+  'resignation.request.own',
+  'resignation.read.own',
+  'resignation.read.team',
+  'resignation.approve.team',
+  'resignation.read',
+  'resignation.approve',
 
   /*
    * The company directory: work contact details for everyone, and nothing
@@ -117,6 +143,10 @@ const EMPLOYEE_PERMS: Permission[] = [
   'announcement.read',
   'org.read',
   'payroll.read.own',
+  // Resigning is not a privilege HR grants; withholding it would only mean
+  // resignations arrive by email instead.
+  'resignation.request.own',
+  'resignation.read.own',
 ];
 
 const MANAGER_PERMS: Permission[] = [
@@ -129,6 +159,8 @@ const MANAGER_PERMS: Permission[] = [
   'document.read.team',
   'report.view.team',
   'payroll.read.team',
+  'resignation.read.team',
+  'resignation.approve.team',
 ];
 
 const HR_PERMS: Permission[] = [
@@ -139,6 +171,9 @@ const HR_PERMS: Permission[] = [
   'employee.invite',
   'employee.offboard',
   'employee.onboarding.approve',
+  'employee.confirm',
+  'resignation.read',
+  'resignation.approve',
   'attendance.read',
   'attendance.approve',
   'attendance.manage',

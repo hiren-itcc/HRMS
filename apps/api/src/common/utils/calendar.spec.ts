@@ -1,4 +1,4 @@
-import { isWeekend, leaveYearOf, WEEKEND_DAYS } from './calendar';
+import { addDays, addMonths, daysBetween, isWeekend, leaveYearOf, WEEKEND_DAYS } from './calendar';
 
 // August 2026: 1st is a Saturday, 2nd a Sunday, 3rd a Monday.
 const SAT = '2026-08-01';
@@ -54,5 +54,51 @@ describe('leaveYearOf', () => {
   it('handles a December start, where only December belongs to the new year', () => {
     expect(leaveYearOf('2026-12-01', 12)).toBe(2026);
     expect(leaveYearOf('2026-11-30', 12)).toBe(2025);
+  });
+});
+
+describe('addMonths', () => {
+  it('keeps the day of the month when the target month is long enough', () => {
+    expect(addMonths('2026-08-05', 3)).toBe('2026-11-05');
+    expect(addMonths('2026-01-01', 6)).toBe('2026-07-01');
+  });
+
+  it('clamps to the last day rather than rolling into the next month', () => {
+    // The one that matters: three months of probation from 31 January.
+    expect(addMonths('2026-01-31', 3)).toBe('2026-04-30');
+    expect(addMonths('2026-08-31', 6)).toBe('2027-02-28');
+    expect(addMonths('2028-08-31', 6)).toBe('2029-02-28');
+  });
+
+  it('lands on 29 February in a leap year', () => {
+    expect(addMonths('2027-11-29', 3)).toBe('2028-02-29');
+  });
+
+  it('crosses the year boundary in both directions', () => {
+    expect(addMonths('2026-11-15', 3)).toBe('2027-02-15');
+    expect(addMonths('2026-02-15', -3)).toBe('2025-11-15');
+  });
+
+  it('is a no-op for zero months', () => {
+    expect(addMonths('2026-08-05', 0)).toBe('2026-08-05');
+  });
+});
+
+describe('addDays', () => {
+  it('moves forwards and backwards across a month boundary', () => {
+    expect(addDays('2026-08-05', 30)).toBe('2026-09-04');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+
+  it('is a no-op for zero days', () => {
+    expect(addDays('2026-08-05', 0)).toBe('2026-08-05');
+  });
+});
+
+describe('daysBetween', () => {
+  it('counts whole days, signed', () => {
+    expect(daysBetween('2026-08-05', '2026-09-04')).toBe(30);
+    expect(daysBetween('2026-09-04', '2026-08-05')).toBe(-30);
+    expect(daysBetween('2026-08-05', '2026-08-05')).toBe(0);
   });
 });

@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Checkbox } from '@hrms/ui/components/checkbox';
+import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
   Select,
@@ -61,6 +62,18 @@ const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: s
   { key: 'announcements', label: 'Announcements', hint: 'Company-wide posts' },
   { key: 'reports', label: 'Reports', hint: 'Analytics and exports' },
 ];
+
+/**
+ * A number input hands back a string, and an empty one hands back `''`.
+ * `Number('')` is 0, which would silently save "no notice period" the moment
+ * somebody cleared the field to retype it — so an unparseable value keeps the
+ * low end of the range instead.
+ */
+function clamp(raw: string, min: number, max: number): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return min;
+  return Math.min(max, Math.max(min, parsed));
+}
 
 export default function PreferencesPage() {
   const { can } = useSession();
@@ -266,6 +279,114 @@ export default function PreferencesPage() {
             </div>
 
             {saveBar('leave', 'Save leave policy')}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
+      {/* ── Employment lifecycle ─────────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Employment lifecycle</CardTitle>
+            <CardDescription>
+              Defaults for joining, confirming and leaving. Every number here can be overridden on
+              an individual employee — this is what applies when theirs is left blank.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="notice-days">Notice period (days)</Label>
+                <Input
+                  id="notice-days"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={365}
+                  className="w-32"
+                  disabled={!canManage}
+                  value={draft.lifecycle.defaultNoticeDays}
+                  onChange={(e) =>
+                    set('lifecycle', { defaultNoticeDays: clamp(e.target.value, 0, 365) })
+                  }
+                />
+                <p className="text-muted-foreground text-xs">
+                  Calendar days from the day a resignation is filed.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="probation-months">Probation (months)</Label>
+                <Input
+                  id="probation-months"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={24}
+                  className="w-32"
+                  disabled={!canManage}
+                  value={draft.lifecycle.defaultProbationMonths}
+                  onChange={(e) =>
+                    set('lifecycle', { defaultProbationMonths: clamp(e.target.value, 0, 24) })
+                  }
+                />
+                <p className="text-muted-foreground text-xs">
+                  Zero means new hires start confirmed. Existing employees are unaffected.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="auto-confirm"
+                checked={draft.lifecycle.autoConfirmOnProbationEnd}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { autoConfirmOnProbationEnd: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-confirm">Confirm automatically at the end of probation</Label>
+                <p className="text-muted-foreground text-xs">
+                  Off means the date passes and the employee waits on the Probation ending list
+                  until HR presses Confirm.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="auto-exit"
+                checked={draft.lifecycle.autoExitOnLastWorkingDate}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { autoExitOnLastWorkingDate: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-exit">Mark leavers exited after their last working day</Label>
+                <p className="text-muted-foreground text-xs">
+                  Suspends the sign-in and signs every device out. Off means somebody who has left
+                  keeps working access until HR completes the offboarding by hand.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="manager-approval"
+                checked={draft.lifecycle.requireManagerApproval}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { requireManagerApproval: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="manager-approval">
+                  Route resignations past the manager before HR
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  Skipped anyway for anyone with no reporting manager, who would otherwise have
+                  nobody to review them.
+                </p>
+              </div>
+            </div>
+
+            {saveBar('lifecycle', 'Save lifecycle')}
           </CardContent>
         </Card>
       </FadeInItem>
