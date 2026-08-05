@@ -33,6 +33,7 @@ import { ResignationsModule } from './modules/resignations/resignations.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SettlementsModule } from './modules/settlements/settlements.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { WfhModule } from './modules/wfh/wfh.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { StorageModule } from './modules/storage/storage.module';
     AssetsModule,
     LifecycleJobsModule,
     AttendanceModule,
+    WfhModule,
     LeaveModule,
     AnnouncementsModule,
     ReportsModule,
