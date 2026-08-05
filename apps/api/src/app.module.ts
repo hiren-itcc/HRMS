@@ -20,11 +20,13 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
+import { OffboardingModule } from './modules/offboarding/offboarding.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ResignationsModule } from './modules/resignations/resignations.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { StorageModule } from './modules/storage/storage.module';
 
@@ -46,6 +48,8 @@ import { StorageModule } from './modules/storage/storage.module';
     DocumentsModule,
     LettersModule,
     OnboardingModule,
+    ResignationsModule,
+    OffboardingModule,
     AttendanceModule,
     LeaveModule,
     AnnouncementsModule,

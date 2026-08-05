@@ -319,6 +319,8 @@ model Employee {
   letters            Letter[]
   invites            EmployeeInvite[]
   onboarding         Onboarding?
+  resignations       Resignation[]
+  offboardings       Offboarding[]
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -1156,4 +1158,150 @@ model Onboarding {
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([status])
+}
+
+// ─── Exit: resignation and offboarding ────────────────────────────────
+//
+// Two tables, not one, because the two halves have different owners and
+// different lifetimes. A resignation is a request an employee makes and two
+// people decide on; an offboarding is the operational work of somebody
+// leaving, and it happens identically whether they resigned, were dismissed,
+// or reached the end of a contract.
+//
+// Neither writes Employee.status or Employee.exitDate. Both call
+// EmploymentTransitionService, which is the only thing that does — the same
+// path the HR offboard dialog has always used.
+
+enum ResignationStatus {
+  /// Filed, waiting on the manager — or on HR directly, when the
+  /// organization runs no manager step or the employee has no manager.
+  SUBMITTED
+  /// The manager agreed; HR has the final say.
+  MANAGER_APPROVED
+  /// Sent back to the employee to change something.
+  CHANGES_REQUESTED
+  /// HR accepted. An Offboarding now exists and the employee is ON_NOTICE.
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  /// The offboarding finished. Terminal, and what lets a re-hire file again.
+  COMPLETED
+}
+
+enum ResignationReason {
+  BETTER_OPPORTUNITY
+  COMPENSATION
+  RELOCATION
+  HIGHER_STUDIES
+  HEALTH
+  PERSONAL
+  WORK_ENVIRONMENT
+  CAREER_CHANGE
+  OTHER
+}
+
+model Resignation {
+  id             String            @id @default(cuid())
+  organizationId String
+  employeeId     String
+  status         ResignationStatus @default(SUBMITTED)
+
+  reason  ResignationReason
+  /// The employee's own words. Required when the reason is OTHER.
+  remarks String?
+
+  /// What they asked for.
+  requestedLastWorkingDate DateTime  @db.Date
+  /// What HR settled on. Null until approved; then this is the date the
+  /// offboarding and the employee's exitDate both take.
+  approvedLastWorkingDate  DateTime? @db.Date
+
+  /// The notice in force when this was filed, and the date it implied.
+  /// Frozen rather than recomputed: changing the company default in Settings
+  /// must not rewrite what was agreed with somebody who already resigned.
+  noticeDays              Int
+  earliestLastWorkingDate DateTime @db.Date
+
+  submittedAt DateTime @default(now())
+
+  /// Who the manager step was routed to, captured at submit. A reporting
+  /// change afterwards must not move a decision that already happened, or
+  /// leave a request addressed to nobody.
+  routedManagerId    String?
+  managerDecidedAt   DateTime?
+  managerDecidedById String?
+  managerRemarks     String?
+
+  hrDecidedAt   DateTime?
+  hrDecidedById String?
+  hrRemarks     String?
+
+  withdrawnAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  offboarding Offboarding?
+
+  @@index([organizationId, status])
+  @@index([employeeId])
+  @@index([routedManagerId, status])
+}
+
+enum OffboardingReason {
+  RESIGNATION
+  TERMINATION
+  CONTRACT_END
+  RETIREMENT
+  ABSCONDING
+  OTHER
+}
+
+enum OffboardingStatus {
+  /// Serving notice. There is no NOT_STARTED: the row is created when the
+  /// offboarding starts, so the state could never occur.
+  IN_PROGRESS
+  COMPLETED
+  /// Called off — a resignation withdrawn after approval, or a dismissal
+  /// reversed. The employee goes back to ACTIVE.
+  CANCELLED
+}
+
+model Offboarding {
+  id             String  @id @default(cuid())
+  organizationId String
+  employeeId     String
+  /// Null when HR started it directly: a termination, a contract ending, a
+  /// retirement. Unique because one resignation produces one offboarding.
+  resignationId  String? @unique
+
+  reason          OffboardingReason
+  reasonNote      String?
+  lastWorkingDate DateTime          @db.Date
+  status          OffboardingStatus @default(IN_PROGRESS)
+
+  /// Frozen at start, the way Letter freezes its variables. An exit record
+  /// has to still read true after the department it names is reorganised
+  /// away or the manager who signed it off has themselves left.
+  snapshotDepartment  String?
+  snapshotDesignation String?
+  snapshotManagerName String?
+  snapshotJoinDate    DateTime @db.Date
+
+  startedAt     DateTime  @default(now())
+  /// Null when the daily tick opened it — nobody pressed anything.
+  startedById   String?
+  completedAt   DateTime?
+  completedById String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  resignation Resignation? @relation(fields: [resignationId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([employeeId])
+  @@index([organizationId, lastWorkingDate])
 }
