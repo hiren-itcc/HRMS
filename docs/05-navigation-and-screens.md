@@ -38,6 +38,7 @@ switched on in Settings.
 | Leave | `/leave` | module on |
 | Documents | `/documents` | module on |
 | Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
+| Assets | `/assets` | `asset.read` — module on |
 | Announcements | `/announcements` | module on |
 | Reports | `/reports` | `report.view` \| `report.view.team` |
 | Settings | `/settings` | `settings.manage` \| `role.manage` \| `audit.read` \| `org.manage` |
@@ -161,6 +162,24 @@ screen with the last working day and the clearance in front of it.
 Probation and notice period also appear as a **Lifecycle card** on the employee
 record (screen: Employees & profile), with Confirm and Extend behind
 `employee.confirm`, and as four tiles on the dashboard.
+
+### Assets (3 + 2 cards)
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 47 | Register | `/assets` | Search by tag, serial or name; category and status filters; add dialog. Adding is blocked with a link to Categories when there are none, because an asset must be filed under one |
+| 48 | Asset detail | `/assets/[id]` | Its facts, the current holder, every spell somebody held it, and issue / take back / change status. The status dialog offers only what is legal from where the asset is |
+| 49 | Categories | `/assets/categories` | One CRUD table with a count per category; removal refused while assets are filed under it |
+
+Plus **"Issued to me"** on `/profile` (`asset.read.own`, read-only, and
+deliberately *not* linked to the register — an employee holds no `asset.read`,
+so a link would land them on a refusal), and a **Company assets** card on the
+employee record (`asset.read`, and it does not call the API without it).
+
+On the exit page, a clearance item with `kind: ASSET_RETURN` renders the
+outstanding items **by tag** instead of a checkbox, each linking to the asset.
+"2 outstanding" would send somebody hunting for which two. Its *Clear* button is
+not rendered at all — the API refuses a hand-tick — while *Not applicable*
+stays, because waiving with a reason is the honest escape hatch.
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |

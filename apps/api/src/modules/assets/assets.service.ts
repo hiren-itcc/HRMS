@@ -252,7 +252,10 @@ export class AssetsService {
         await tx.assetAssignment.update({
           where: { id: open.id },
           data: {
-            returnedOn: new Date(),
+            // `@db.Date` columns are stored at UTC midnight — always built that
+            // way, per `toDate`. A raw `new Date()` carries a time, which lands
+            // a day out either side of UTC depending on the server's offset.
+            returnedOn: toDate(dateKeyOf(new Date())),
             returnedById: ctx.userId,
             notes: [open.notes, `Written off: ${input.reason}`].filter(Boolean).join(' · '),
           },

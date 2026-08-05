@@ -299,6 +299,38 @@ cannot edit a service's Build Command after creation** — a one-character fix
 there means recreating the service and losing its URL and environment. As
 scripts, build changes are an ordinary commit.
 
+### Pushing does not deploy
+
+**Auto-deploy is off on both services.** Every deploy on this account is
+`trigger: "api"` — somebody or something calls the Render API. `git push` moves
+`origin/master` and changes nothing that is running.
+
+This was discovered the slow way: a phase was pushed, both services were
+assumed to have picked it up, and neither had. Worth stating plainly here
+because the failure is silent — no error anywhere, the site simply keeps
+serving the previous build.
+
+**Deploy the API first.** Its build script ends with `pnpm db:deploy`, so the
+API deploy is what applies pending migrations. Deploying the web first would
+put new screens in front of tables that do not exist yet.
+
+Verifying a deploy needs a probe that can distinguish the new build from the
+old one, and picking that probe is not trivial. A path that "only exists in the
+new build" is worthless if an existing dynamic segment swallows it —
+`/payroll/settlements` returned 200 on the *old* web build because
+`/payroll/[runId]` matched it with `runId="settlements"`. Use a two-segment
+path under the new route, and always check a control path alongside it:
+
+```bash
+# API: the route exists (401) versus does not (404)
+curl -o /dev/null -w '%{http_code}\n' $API/api/v1/<new-route>
+curl -o /dev/null -w '%{http_code}\n' $API/api/v1/<nonsense>   # control
+
+# Web: 404 -> 200 on a path no dynamic segment can match
+curl -o /dev/null -w '%{http_code}\n' $WEB/<section>/<new>/probe
+curl -o /dev/null -w '%{http_code}\n' $WEB/<section>/zzz/probe # control
+```
+
 ### The two hosts are cross-site, and that is not a Render detail
 
 `onrender.com` is on the Public Suffix List, exactly as `vercel.app` is, so one

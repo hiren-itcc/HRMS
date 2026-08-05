@@ -389,7 +389,10 @@ which other documents were citing.
     first appear.
 16. Expense & reimbursement
 17. Performance / goals / OKR (`11:61` reserves the seam)
-18. Asset management (`11:62` reserves the seam) — and the exit checklist’s "return company assets" line stays a manual tick until it lands
+18. ~~Asset management~~ ✅ **built** — a per-item register with issue/return
+    history, and the exit checklist's "return company assets" line is now
+    computed from it rather than ticked. **No depreciation, procurement or
+    vendor management**: this is an asset register, not a fixed-asset ledger.
 19. Bulk employee import/export
 20. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
     resolved toward building after all. **Email notifications remain absent**,

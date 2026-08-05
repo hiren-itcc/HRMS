@@ -394,6 +394,18 @@ no company laptop is closed honestly rather than by ticking a box that says the
 laptop came back. An exit cannot be completed while a required item is still
 outstanding, and the refusal names which ones.
 
+**"Return company assets" is the one item nobody signs.** It reads the asset
+register: it lists what the leaver is still holding, by asset tag, and settles
+itself when the last thing comes back. Ticking it by hand is refused, because
+that would be asserting the laptops came back while the register says they did
+not. It can still be waived with a reason — "they posted it back" and "written
+off" are real answers.
+
+Companies that were already using the system keep signing that item by hand
+until they switch it on in Settings. Turning a completion gate on underneath an
+exit already in progress could block somebody with no way out, so it is a
+deliberate choice rather than something that happened to them.
+
 HR can also record an **exit interview**: the questions, the answers, and
 whether the company would rehire the person. Only HR can read it — deliberately
 not the leaver's own manager, who is very often the subject of the answers.
@@ -458,6 +470,45 @@ which is on the default list already.
 Tax is not withheld on a settlement. The system does not project tax anywhere —
 monthly TDS is entered per employee, not computed — and a settlement is not
 where a tax engine should first appear. HR adds a deduction line for it.
+
+---
+
+## Company property: assets
+
+A register of the things the company owns and who is holding each one.
+
+**One row per physical thing**, not a count per kind. There is a row for *that*
+laptop — its asset tag, serial number, make and model, what it cost, when the
+warranty runs out — rather than a line saying the company owns twelve. That is
+what lets somebody be asked to return a specific item, and what lets an exit be
+blocked on it.
+
+IT **issues** an asset to somebody and **takes it back** later, recording the
+condition each way. "It came back scratched" is then a fact on the record rather
+than an argument six months on. Returned rows stay, so the register can still
+answer who had a laptop in March.
+
+An asset can be in one person's hands at a time, and the database enforces that
+rather than trusting the software to remember. It can also be marked **in
+repair**, **lost** or **retired**, each with a reason:
+
+- **In repair** and **retired** are refused while somebody is still holding it.
+  Both mean the company has the thing back, and it does not.
+- **Lost** is allowed, because "it is gone" is exactly the case where it cannot
+  be handed back first. Writing one off closes that person's assignment.
+- **Retired is final.** A replacement is a new row with its own tag and its own
+  history, not the old one brought back to life.
+
+An asset that has ever been issued **cannot be deleted** — the row is the answer
+to "who had this", which is what the register is for. Retiring is the honest way
+to stop using something.
+
+Everyone can see **what is issued to them**, on their profile. They cannot edit
+it: the register is IT's record, and somebody who cannot see their own list
+cannot return it — which matters most on the way out.
+
+Assets are what make the exit checklist's "return company assets" line mean
+something; see [Somebody leaves](#somebody-leaves) above.
 
 ---
 
@@ -530,6 +581,8 @@ Company-wide options:
   override.
 - **Exit checklist** — the clearance template each exit is copied from. Editing
   it changes what future exits carry, never one already underway.
+  One item per checklist can be marked **read from the asset register**, which
+  is what makes "return company assets" compute itself.
 - **Full & final settlement** — what a day of pay is worth and whether it is
   priced off basic or gross, whether short notice is recovered, and the gratuity
   rate, qualifying period and ceiling.
@@ -562,8 +615,12 @@ Being straight about this is more useful than a feature list:
   nothing else, so somebody who does not open the app does not hear about it.
 - **Tax is not computed on a settlement**, or projected anywhere else. Monthly
   TDS is entered per employee, and settlement tax is a line HR adds by hand.
-- **Company assets are a checklist item, not a register.** "Return company
-  assets" is a line somebody ticks; the system does not know what was issued.
+- **The asset register does not do depreciation, purchasing or vendors.** It
+  records what exists and who has it. What a laptop is worth after three years
+  is an accounting question this does not answer.
+- **Nobody signs for an asset.** IT records what was handed over; the employee
+  can read the list but does not confirm it. In a dispute the record is one
+  side's, not both.
 - **There is no mobile app.**
 - **Companies cannot sign themselves up.** A new company has to be created on
   the server (see [14-production-setup.md](./14-production-setup.md)).

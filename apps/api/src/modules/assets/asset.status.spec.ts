@@ -1,4 +1,4 @@
-import { ASSET_STATUSES, type AssetStatusCode } from '@hrms/shared';
+import { ASSET_MANUAL_STATUSES, ASSET_STATUSES, type AssetStatusCode } from '@hrms/shared';
 import {
   canIssue,
   canReturn,
@@ -43,6 +43,27 @@ describe('canSetStatus', () => {
   it('sends one in stock for repair, and brings it back', () => {
     expect(canSetStatus('IN_STOCK', 'IN_REPAIR')).toBe(true);
     expect(canSetStatus('IN_REPAIR', 'IN_STOCK')).toBe(true);
+  });
+
+  /*
+   * The rule and the schema the route validates against have to agree. They did
+   * not: `IN_STOCK` was missing from ASSET_MANUAL_STATUSES, so repair was a
+   * dead end and the refusal on issuing an in-repair asset — "put it back in
+   * stock before issuing it" — was advice the API made impossible to follow.
+   */
+  it('accepts every status the rules allow somebody to set by hand', () => {
+    const settable = new Set<string>(ASSET_MANUAL_STATUSES);
+    for (const to of ASSET_STATUSES) {
+      const reachable = ASSET_STATUSES.some((from) => canSetStatus(from, to));
+      // ASSIGNED is reached by issuing, never by typing it.
+      if (reachable && to !== 'ASSIGNED') {
+        expect(settable.has(to)).toBe(true);
+      }
+    }
+  });
+
+  it('still refuses to put a held asset back in stock behind a return', () => {
+    expect(canSetStatus('ASSIGNED', 'IN_STOCK')).toBe(false);
   });
 
   it('retires one nobody is holding', () => {

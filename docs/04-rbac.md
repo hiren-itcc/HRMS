@@ -17,6 +17,7 @@ Notes:
 - **Manager is scope-based:** the `MANAGER` role holds `*.team` permissions; the *set of people* it applies to is resolved from `Employee.managerId` at query time. A manager with zero reports effectively degrades to Employee.
 - One role per user in Phase 1 (simplicity first). The join table `RolePermission` already supports multi-role/custom roles later without schema change.
 - **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default. The same three permissions carry the full & final settlement, which is why it has no codes of its own: HR prepares, Finance releases, and that is already the split.
+- **`asset.assign` is separate from `asset.manage` for the same reason `offboarding.clearance` is separate from `employee.offboard`.** Buying and retiring equipment is an admin job; handing a laptop to a joiner is not. Assets give `IT_ADMIN` its second reason to exist as a composed role — there is still no seeded one, so those clearance items keep falling to `employee.offboard` holders until an organization makes one. Every role holds `asset.read.own`, including a leaver: somebody who cannot see their own list cannot return it.
 - Roles are **per organization** (migration `20260801050000_role_per_organization`): editing HR's grants in one tenant does not touch another's.
 
 ## Permission catalog
@@ -60,6 +61,9 @@ document.read          document.upload          document.manage     (categories,
 letter.read.own
 letter.read            letter.issue             letter.template.manage
 
+asset.read.own
+asset.read             asset.manage             asset.assign        (issue, take back)
+
 announcement.read      announcement.manage
 
 org.read               org.manage               (departments, designations, locations, holidays)
@@ -102,6 +106,8 @@ settings.manage        role.manage              audit.read
 | `document.read` (all) / `upload` (any) / `manage` | ✅ | ✅ | — | — | — |
 | `letter.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
+| `asset.read.own` (what I am holding) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `asset.read` / `asset.manage` / `asset.assign` | ✅ | ✅ | — | — | — |
 | `announcement.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `announcement.manage` | ✅ | ✅ | — | — | — |
 | `org.read` (directory, org chart, holidays) | ✅ | ✅ | ✅ | ✅ | ✅ |

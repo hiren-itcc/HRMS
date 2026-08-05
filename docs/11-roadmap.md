@@ -59,7 +59,7 @@ The architecture reserves an explicit seam for each planned module — adding on
 | ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
 | **Recruitment** | own module; Candidate is *not* Employee — a hire *converts* into the existing create-employee flow | none | public careers endpoints (unauthenticated segment already exists in web) |
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
-| **Assets** | own module (Asset, AssetAssignment FK Employee); turns the exit checklist’s “return company assets” line from a manual tick into a live count. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so it reads the checklist directly | none | none |
+| ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
 | **AI features** | `modules/ai` behind AI Gateway (leave-policy Q&A over docs, attrition signals from Reports read-models) | none | LLM provider key; pgvector if RAG |
 | **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) — **and the NotificationsModule they would sit behind, which was never built** (doc 03) |
 | **Multi-tenant SaaS** | activate the dormant `organizationId` scoping: org signup flow + Postgres RLS + per-org subdomain | none (already scoped) | RLS policies, billing |
@@ -81,6 +81,12 @@ endpoint's original spec left unedited as proof nothing changed. **Settlement
 needed no ADR** — a separate entity edits no existing module, so doc 01 rule 4
 is satisfied without one. Had it been built as a kind of `PayrollRun`, as first
 recommended, it would have needed one.
+
+Assets is the first module to touch an existing table — one nullable-by-default
+column, `OffboardingTask.kind`. That is still additive rather than a redesign,
+and the seam it uses was left deliberately: `assertCleared`'s own comment said
+the gate was generic "so Asset Management can later make one of these items
+compute itself without the gate changing at all". It did not change.
 
 ## Payroll — what is deliberately not built yet
 

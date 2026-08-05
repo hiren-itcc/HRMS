@@ -34,13 +34,19 @@ export const ASSET_CONDITION_LABELS: Record<AssetConditionCode, string> = {
 };
 
 /**
- * The three an organization sets by hand.
+ * The statuses an organization sets by hand.
  *
- * `IN_STOCK` and `ASSIGNED` are deliberately absent: those two are what issuing
- * and returning mean, and letting somebody type them would let the status and
- * the assignment history disagree.
+ * `ASSIGNED` is deliberately absent: that is what issuing *means*, and letting
+ * somebody type it would let the status and the assignment history disagree.
+ *
+ * `IN_STOCK` is here, and its first draft was not — which made repair a
+ * dead end. `canSetStatus` allowed `IN_REPAIR → IN_STOCK` while this enum
+ * refused it, so an asset sent to the vendor could never come back, and the
+ * refusal on issuing one said "put it back in stock before issuing it" — advice
+ * the API made impossible to follow. Moving *to* `IN_STOCK` from a held asset is
+ * still refused, by the rule rather than by the enum.
  */
-export const ASSET_MANUAL_STATUSES = ['IN_REPAIR', 'LOST', 'RETIRED'] as const;
+export const ASSET_MANUAL_STATUSES = ['IN_STOCK', 'IN_REPAIR', 'LOST', 'RETIRED'] as const;
 export const assetManualStatusSchema = z.enum(ASSET_MANUAL_STATUSES);
 export type AssetManualStatusCode = (typeof ASSET_MANUAL_STATUSES)[number];
 

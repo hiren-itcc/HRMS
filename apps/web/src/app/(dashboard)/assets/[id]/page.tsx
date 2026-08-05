@@ -30,7 +30,7 @@ import type { z } from 'zod';
 import { ActivityTimeline } from '@/components/activity-timeline';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { ErrorState } from '@/components/error-state';
-import { FormInput, FormSelect, FormTextarea } from '@/components/form';
+import { FormDatePicker, FormSelect, FormTextarea } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { assetKeys, assetsApi, holderOf } from '@/features/assets/api';
@@ -150,7 +150,12 @@ export default function AssetDetailPage() {
               size="sm"
               onClick={() => {
                 statusForm.reset({
-                  status: asset.status === 'ASSIGNED' ? 'LOST' : 'IN_REPAIR',
+                  status:
+                    asset.status === 'ASSIGNED'
+                      ? 'LOST'
+                      : asset.status === 'IN_REPAIR'
+                        ? 'IN_STOCK'
+                        : 'IN_REPAIR',
                   reason: '',
                 });
                 setChanging(true);
@@ -300,7 +305,12 @@ export default function AssetDetailPage() {
             </SelectItem>
           ))}
         </FormSelect>
-        <FormInput control={issueForm.control} name="issuedOn" label="Issued on" type="date" />
+        <FormDatePicker
+          control={issueForm.control}
+          name="issuedOn"
+          label="Issued on"
+          placeholder="Select the date"
+        />
         <FormSelect
           control={issueForm.control}
           name="conditionOut"
@@ -333,7 +343,12 @@ export default function AssetDetailPage() {
         submitLabel="Take it back"
         onSubmit={returnForm.handleSubmit((values) => takeBack.mutate(values))}
       >
-        <FormInput control={returnForm.control} name="returnedOn" label="Returned on" type="date" />
+        <FormDatePicker
+          control={returnForm.control}
+          name="returnedOn"
+          label="Returned on"
+          placeholder="Select the date"
+        />
         <FormSelect
           control={returnForm.control}
           name="conditionIn"
@@ -362,20 +377,23 @@ export default function AssetDetailPage() {
         description={
           asset.status === 'ASSIGNED'
             ? 'Somebody is still holding this, so only "lost" applies — and it closes their assignment.'
-            : 'In repair, lost or retired. Retiring is final.'
+            : 'Back in stock, in repair, lost or retired. Retiring is final.'
         }
         submitting={setStatus.isPending}
         submitLabel="Change it"
         onSubmit={statusForm.handleSubmit((values) => setStatus.mutate(values))}
       >
         <FormSelect control={statusForm.control} name="status" label="Mark it">
-          {ASSET_MANUAL_STATUSES.filter((s) => asset.status !== 'ASSIGNED' || s === 'LOST').map(
-            (s) => (
-              <SelectItem key={s} value={s}>
-                {ASSET_STATUS_LABELS[s]}
-              </SelectItem>
-            ),
-          )}
+          {/* Mirrors the service rule, so a choice is never a guaranteed error:
+              never the status it already has, and only "lost" while somebody
+              is holding it. */}
+          {ASSET_MANUAL_STATUSES.filter(
+            (s) => s !== asset.status && (asset.status !== 'ASSIGNED' || s === 'LOST'),
+          ).map((s) => (
+            <SelectItem key={s} value={s}>
+              {ASSET_STATUS_LABELS[s]}
+            </SelectItem>
+          ))}
         </FormSelect>
         <FormTextarea
           control={statusForm.control}

@@ -242,6 +242,51 @@ rewrite a letter someone is already holding.
 | GET | `/letters/:id` | service: own, or `letter.read` (+ `payroll.read` when it quotes pay) |
 | POST | `/letters/:id/void` — withdraws with a reason; never deletes | `letter.issue` |
 
+### Assets (`/assets`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/assets` — register; filter category/status, search tag/serial/name | `asset.read` |
+| GET | `/assets/me` — what I am holding | `asset.read.own` |
+| GET / POST | `/assets/categories` · PATCH/DELETE `/assets/categories/:id` | `asset.read` / `asset.manage` |
+| GET | `/assets/employee/:employeeId` — what one person still holds | `asset.read` |
+| GET | `/assets/:id` · `/assets/:id/activity` | `asset.read` |
+| POST / PATCH | `/assets` · `/assets/:id` | `asset.manage` |
+| DELETE | `/assets/:id` — refused once anybody has held it | `asset.manage` |
+| POST | `/assets/:id/issue` · `/assets/:id/return` | `asset.assign` |
+| POST | `/assets/:id/status` — IN_REPAIR / LOST / RETIRED, with a reason | `asset.manage` |
+
+**`asset.assign` is not `asset.manage`.** Buying and retiring equipment is an
+admin job; handing a laptop to a joiner is not. Same split, and the same
+reasoning, as `offboarding.clearance` versus `employee.offboard`. There is no
+`.team` scope: no manager workflow needs one, and the place the question really
+arises — an exit — is already gated on `employee.offboard`.
+
+**Static segments before `:id`.** `me`, `categories` and `employee` are declared
+first; Nest matches in declaration order, so a static route arriving second
+loses to the parameter above it.
+
+**Per item, not per category.** A stock count cannot answer "who has SN-4471",
+has nowhere to hold a serial or a warranty, and reduces the exit check to a
+number somebody reconciles by hand.
+
+**One open assignment per asset is a partial unique index**, not a service
+check — see doc 02. `Asset.status` is stored rather than derived, so one method
+is its only writer.
+
+**`LOST` is the one status settable while somebody still holds it**, and it
+closes their assignment. "It is gone" is exactly the case where the thing
+cannot be handed back first. `IN_REPAIR` and `RETIRED` are refused there,
+because both claim the company has it and the company does not.
+
+**The exit clearance reads this module.** An `OffboardingTask` with
+`kind: ASSET_RETURN` is settled by `AssetClearanceService` — the single writer
+of that task's status — on issue, on return, on write-off, and once when the
+exit starts. It cannot be ticked to `DONE` by hand; `NOT_APPLICABLE` with a
+reason still works. `assertCleared` is unchanged: it already refused completion
+while any required task was `PENDING`, which is all this needed. The dependency
+runs `Offboarding → Assets` only, with no `forwardRef`.
+
 ### Announcements (`/announcements`)
 | Method | Path |
 |---|---|

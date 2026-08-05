@@ -865,6 +865,9 @@ model OffboardingTask {
   label         String
   description   String?
   owner         ClearanceOwner
+  /// MANUAL is hand-signed. ASSET_RETURN reads the asset register and cannot
+  /// be ticked to DONE by hand; waiving it still works.
+  kind          ClearanceKind         @default(MANUAL)
   required      Boolean               @default(true)   // blocks completion
   order         Int
   status        OffboardingTaskStatus @default(PENDING)
@@ -877,6 +880,7 @@ model OffboardingTask {
 }
 
 enum ClearanceOwner { MANAGER HR FINANCE IT_ADMIN }
+enum ClearanceKind { MANUAL ASSET_RETURN }
 enum OffboardingTaskStatus { PENDING DONE NOT_APPLICABLE }
 
 /// The exit conversation. Read by employee.offboard holders only.
@@ -946,6 +950,64 @@ model SettlementLine {
   order        Int
   /// HR changed the computed figure. Kept so the statement can say so.
   overridden   Boolean @default(false)
+}
+
+// ─── Assets ───────────────────────────────────────────────────────────
+
+enum AssetStatus    { IN_STOCK  ASSIGNED  IN_REPAIR  LOST  RETIRED }
+enum AssetCondition { NEW  GOOD  FAIR  POOR  DAMAGED }
+
+/// Per-org, like DocumentCategory. A table rather than a settings list
+/// because assets are filtered and counted by category.
+model AssetCategory {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  @@unique([organizationId, name])
+}
+
+/// One physical thing. Per-item rather than a stock count, which is what
+/// makes "who has SN-4471" and the exit clearance answerable at all.
+model Asset {
+  id String @id @default(cuid())
+  organizationId String
+  categoryId     String
+  /// Printed on the sticker — "MAC-0042".
+  assetTag     String
+  name         String
+  serialNumber String?
+  make         String?
+  model        String?
+
+  /// Stored, not derived, and written in exactly one place. Issuing and
+  /// returning move it between IN_STOCK and ASSIGNED; the rest are set by
+  /// hand with a reason.
+  status    AssetStatus    @default(IN_STOCK)
+  condition AssetCondition @default(GOOD)
+
+  purchaseDate DateTime? @db.Date
+  purchaseCost Decimal?  @db.Decimal(14, 2)
+  warrantyEnd  DateTime? @db.Date
+  vendor       String?
+  locationId   String?
+  notes        String?
+
+  @@unique([organizationId, assetTag])
+}
+
+/// One spell of somebody holding one asset. History, not current state: a
+/// returned row stays so the register can answer who had it in March.
+model AssetAssignment {
+  id String @id @default(cuid())
+  assetId    String
+  employeeId String
+  issuedOn     DateTime @db.Date
+  issuedById   String?
+  conditionOut AssetCondition
+  returnedOn   DateTime?       @db.Date
+  returnedById String?
+  conditionIn  AssetCondition?
+  notes        String?
 }
 
 // ─── Payroll ──────────────────────────────────────────────────────────
@@ -1167,6 +1229,28 @@ model AuditLog {
 - **`Settlement.netPayable` is not clamped at zero**, unlike a payslip's net.
   Somebody whose notice recovery exceeds their dues genuinely owes the company,
   and a floor would make the total disagree with the lines above it.
+- **An asset is in at most one person's hands, and that is an index.** Prisma
+  cannot express a partial unique index, so
+  `CREATE UNIQUE INDEX … ON "AssetAssignment"("assetId") WHERE "returnedOn" IS
+  NULL` is hand-written — same shape as the one-open-resignation index. Without
+  it two concurrent issues of the same laptop both succeed and the register can
+  never be trusted again.
+- **`Asset.status` is stored rather than derived from an open assignment.**
+  Deriving it would have produced two axes — assigned *and* in repair — that no
+  screen could render honestly. The cost is that one service method must be the
+  only writer, the same bargain `EmploymentTransitionService` makes for
+  `Employee.status`.
+- **`LOST` may be set while somebody still holds it; `IN_REPAIR` and `RETIRED`
+  may not.** "It is gone" is precisely the case where the thing cannot be handed
+  back first, and refusing would leave the register insisting an employee still
+  carries a laptop everybody agrees no longer exists. Setting it closes their
+  assignment. The other two claim the company has it back, and the company does
+  not.
+- **`OffboardingTask.kind` defaults to `MANUAL` and was backfilled to nothing.**
+  An `ASSET_RETURN` item reads the register and cannot be ticked by hand, so
+  switching it on for an organization mid-exit could block a completion nobody
+  can unblock. Existing organizations opt in from the checklist template; the
+  shipped default carries `ASSET_RETURN` for new ones.
 - **`LeaveType.encashable` defaults to false and was backfilled to false.**
   Most leave is use-it-or-lose-it, and switching every existing type on would
   have added a silent payout to every settlement computed afterwards.
