@@ -40,6 +40,7 @@ import {
 } from '@/features/offboarding/components/clearance-checklist';
 import { ExitInterviewCard } from '@/features/offboarding/components/exit-interview-card';
 import { resignationKeys } from '@/features/resignations/api';
+import { SettlementCard } from '@/features/settlements/components/settlement-card';
 import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
@@ -284,6 +285,12 @@ export default function OffboardingDetailPage() {
             <ExitInterviewCard offboardingId={record.id} />
           </FadeInItem>
         )}
+
+        {/* Gates itself on `payroll.read`: an exit page that shows a
+            colleague's payout to every HR user is a leak. */}
+        <FadeInItem>
+          <SettlementCard offboardingId={record.id} />
+        </FadeInItem>
 
         <FadeInItem>
           <Card>
