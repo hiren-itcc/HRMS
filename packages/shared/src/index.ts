@@ -12,6 +12,7 @@ export * from './schemas/document';
 export * from './schemas/employee';
 export * from './schemas/leave';
 export * from './schemas/letter';
+export * from './schemas/notification';
 export * from './schemas/offboarding';
 export * from './schemas/onboarding';
 export * from './schemas/organization';

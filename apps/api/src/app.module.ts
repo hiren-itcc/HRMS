@@ -21,6 +21,7 @@ import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
 import { LifecycleJobsModule } from './modules/lifecycle/lifecycle-jobs.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OffboardingModule } from './modules/offboarding/offboarding.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
@@ -43,6 +44,7 @@ import { StorageModule } from './modules/storage/storage.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    NotificationsModule,
     AuthModule,
     OrganizationModule,
     EmployeesModule,
