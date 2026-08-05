@@ -28,6 +28,9 @@ export default {
         'lifecycle',
         'resignation',
         'offboarding',
+        // The money half of the exit. Routed under /payroll, but its own
+        // module — a settlement is not a payroll run.
+        'settlements',
         'mail',
         'reports',
         'settings',
