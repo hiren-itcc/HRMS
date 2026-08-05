@@ -293,6 +293,7 @@ export const modulesSchema = z.object({
   announcements: z.boolean().default(true),
   reports: z.boolean().default(true),
   payroll: z.boolean().default(true),
+  assets: z.boolean().default(true),
 });
 
 // ── Registry ──────────────────────────────────────────────────────────

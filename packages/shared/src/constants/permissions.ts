@@ -107,6 +107,22 @@ export const PERMISSIONS = [
   'letter.issue',
   'letter.template.manage',
 
+  /*
+   * The asset register. `assign` is separate from `manage` for the same reason
+   * `offboarding.clearance` is separate from `employee.offboard`: buying and
+   * retiring equipment is an admin job, handing a laptop to a new joiner is
+   * not, and an organization may well want IT doing the second without being
+   * able to write off the first.
+   *
+   * There is no `.team` scope. A manager has no workflow that needs to know
+   * what their reports were issued — and the one place the question genuinely
+   * arises, an exit, is already gated on `employee.offboard`.
+   */
+  'asset.read.own',
+  'asset.read',
+  'asset.manage',
+  'asset.assign',
+
   'announcement.read',
   'announcement.manage',
 
@@ -151,6 +167,9 @@ const EMPLOYEE_PERMS: Permission[] = [
   'document.read.own',
   'document.upload.own',
   'letter.read.own',
+  // What they were issued. Read-only: the register is IT's record, and an
+  // employee editing it would be the register disagreeing with itself.
+  'asset.read.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -200,6 +219,9 @@ const HR_PERMS: Permission[] = [
   'letter.read',
   'letter.issue',
   'letter.template.manage',
+  'asset.read',
+  'asset.manage',
+  'asset.assign',
   'announcement.manage',
   'org.manage',
   'report.view',

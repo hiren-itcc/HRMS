@@ -195,6 +195,7 @@ model Location {
   employees    Employee[]
   holidays     Holiday[]
   sessions     AttendanceSession[]
+  assets       Asset[]
 
   @@unique([organizationId, name])
 }
@@ -322,6 +323,7 @@ model Employee {
   resignations       Resignation[]
   offboardings       Offboarding[]
   settlements        Settlement[]
+  assetAssignments   AssetAssignment[]
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -1343,12 +1345,29 @@ enum OffboardingTaskStatus {
 /// `Letter.variables` follow. Editing the template must not rewrite an exit
 /// that is half signed off: somebody who has already returned their laptop has
 /// returned it whatever the list says next week.
+/// What settles a clearance item.
+///
+/// MANUAL is somebody signing it off. ASSET_RETURN is computed from the asset
+/// register — `AssetClearanceService` owns its status, and it cannot be ticked
+/// to DONE by hand, because the register is the truth. Waiving it as
+/// NOT_APPLICABLE still works: "they posted it back, write it off" is a real
+/// answer and it already requires a reason.
+enum ClearanceKind {
+  MANUAL
+  ASSET_RETURN
+}
+
 model OffboardingTask {
   id            String                @id @default(cuid())
   offboardingId String
   label         String
   description   String?
   owner         ClearanceOwner
+  /// Copied from the template at start, like every other field here. Defaults
+  /// to MANUAL so an organization that saved a checklist before assets existed
+  /// keeps hand-signing until they switch it on — silently turning a
+  /// completion gate on could block an exit already in flight.
+  kind          ClearanceKind         @default(MANUAL)
   /// Completion is blocked while any required item is still PENDING.
   required      Boolean               @default(true)
   order         Int
@@ -1503,4 +1522,112 @@ model SettlementLine {
   settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   @@index([settlementId, order])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assets
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssetStatus {
+  IN_STOCK
+  ASSIGNED
+  IN_REPAIR
+  LOST
+  RETIRED
+}
+
+/// Recorded on the way out and again on the way back, so "it came back
+/// scratched" is a fact on the record rather than an argument later.
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+/// Per-organization, exactly like DocumentCategory. A table rather than a
+/// settings list because assets are filtered and counted by category, and a
+/// free-text category would make both unreliable.
+model AssetCategory {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+
+  assets Asset[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// One physical thing. Per-item rather than a stock count, which is what makes
+/// "who has SN-4471" and the exit clearance answerable at all.
+model Asset {
+  id             String @id @default(cuid())
+  organizationId String
+  categoryId     String
+
+  /// Printed on the sticker — "MAC-0042".
+  assetTag     String
+  name         String
+  serialNumber String?
+  make         String?
+  model        String?
+
+  /// Stored rather than derived, and written in exactly one place. Issuing and
+  /// returning move it between IN_STOCK and ASSIGNED; the other three are set
+  /// by hand with a reason. Deriving "assigned" from an open assignment would
+  /// have meant two axes — assigned *and* in repair — that no screen could
+  /// render honestly.
+  status    AssetStatus    @default(IN_STOCK)
+  condition AssetCondition @default(GOOD)
+
+  purchaseDate DateTime? @db.Date
+  purchaseCost Decimal?  @db.Decimal(14, 2)
+  warrantyEnd  DateTime? @db.Date
+  vendor       String?
+  locationId   String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category    AssetCategory     @relation(fields: [categoryId], references: [id])
+  location    Location?         @relation(fields: [locationId], references: [id])
+  assignments AssetAssignment[]
+
+  @@unique([organizationId, assetTag])
+  @@index([organizationId, status])
+  @@index([organizationId, categoryId])
+}
+
+/// One spell of somebody holding one asset.
+///
+/// History, not current state: a returned row stays so the register can answer
+/// who had it in March. "Currently out" is `returnedOn IS NULL`, and the
+/// partial unique index in the migration makes at-most-one-open a database
+/// invariant rather than something the service hopes it checked.
+model AssetAssignment {
+  id         String @id @default(cuid())
+  assetId    String
+  employeeId String
+
+  issuedOn     DateTime       @db.Date
+  issuedById   String?
+  conditionOut AssetCondition
+
+  returnedOn   DateTime?       @db.Date
+  returnedById String?
+  conditionIn  AssetCondition?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([assetId, issuedOn])
+  @@index([employeeId, returnedOn])
 }

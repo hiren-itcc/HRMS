@@ -5,6 +5,7 @@ export * from './constants/org-defaults';
 export * from './constants/pay-components';
 export * from './constants/permissions';
 export * from './schemas/announcement';
+export * from './schemas/asset';
 export * from './schemas/attendance';
 export * from './schemas/audit';
 export * from './schemas/auth';

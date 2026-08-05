@@ -31,6 +31,9 @@ export default {
         // The money half of the exit. Routed under /payroll, but its own
         // module — a settlement is not a payroll run.
         'settlements',
+        // The register that makes the exit checklist's asset line mean
+        // something.
+        'assets',
         'mail',
         'reports',
         'settings',

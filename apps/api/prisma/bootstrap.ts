@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import {
+  DEFAULT_ASSET_CATEGORIES,
   DEFAULT_DEPARTMENTS,
   DEFAULT_DESIGNATIONS,
   DEFAULT_DOCUMENT_CATEGORIES,
@@ -253,6 +254,22 @@ async function main() {
   }
   const folderCount = await prisma.documentCategory.count({ where: { organizationId: org.id } });
   console.log(`Document folders: ${folderCount}`);
+
+  // ── Asset categories ─────────────────────────────────────────────────────
+  // Same upsert-with-empty-update shape: re-running stays additive, and a
+  // category somebody has since renamed is left alone. An asset cannot be
+  // created without one, so a register with no categories is a dead screen.
+  for (const name of DEFAULT_ASSET_CATEGORIES) {
+    await prisma.assetCategory.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {},
+      create: { organizationId: org.id, name },
+    });
+  }
+  const assetCategoryCount = await prisma.assetCategory.count({
+    where: { organizationId: org.id },
+  });
+  console.log(`Asset categories: ${assetCategoryCount}`);
 
   // ── Default salary structure ─────────────────────────────────────────────
   // Must run after the pay components: the lines point at them by id.
