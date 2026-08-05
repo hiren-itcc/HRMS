@@ -66,7 +66,14 @@ interface ComputedLine {
   amount: number;
 }
 
-const money = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+/**
+ * Money inside a basis string, to the paisa — matching what the statement
+ * prints beside it. A rate shown as ₹1,923 in the working and an amount of
+ * ₹24,038.50 next to it is arithmetic that visibly does not add up, on the one
+ * document whose whole point is that every figure can be checked.
+ */
+const money = (n: number) =>
+  `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
 
 /**
@@ -108,24 +115,29 @@ export class SettlementsService {
     const { lines, snapshot } = await this.computeFor(ctx.orgId, input.offboardingId);
     const totals = settlementTotals(lines);
 
-    const created = await this.prisma.settlement.create({
-      data: {
-        organizationId: ctx.orgId,
-        offboardingId: input.offboardingId,
-        employeeId: snapshot.employeeId,
-        lastWorkingDate: toDate(snapshot.lastWorkingDate),
-        joinDate: toDate(snapshot.joinDate),
-        monthlyPay: snapshot.monthlyPay,
-        perDayRate: snapshot.perDayRate,
-        totalEarnings: totals.totalEarnings,
-        totalDeductions: totals.totalDeductions,
-        netPayable: totals.netPayable,
-        notes: input.notes ?? null,
-        computedAt: new Date(),
-        lines: { create: lines.map((line, index) => ({ ...line, order: index })) },
-      },
-      include: LIST_INCLUDE,
-    });
+    const created = await this.prisma.settlement
+      .create({
+        data: {
+          organizationId: ctx.orgId,
+          offboardingId: input.offboardingId,
+          employeeId: snapshot.employeeId,
+          lastWorkingDate: toDate(snapshot.lastWorkingDate),
+          joinDate: toDate(snapshot.joinDate),
+          monthlyPay: snapshot.monthlyPay,
+          perDayRate: snapshot.perDayRate,
+          totalEarnings: totals.totalEarnings,
+          totalDeductions: totals.totalDeductions,
+          netPayable: totals.netPayable,
+          notes: input.notes ?? null,
+          computedAt: new Date(),
+          lines: { create: lines.map((line, index) => ({ ...line, order: index })) },
+        },
+        include: LIST_INCLUDE,
+        // The check above loses a race with a double-click; the unique index on
+        // offboardingId does not. Without this the second press is a 500 rather
+        // than the same refusal the first path gives.
+      })
+      .catch(this.rethrowDuplicate);
 
     await auditMutation(this.prisma, ctx, 'settlement.compute', 'Settlement', created.id, {
       after: {
@@ -203,9 +215,11 @@ export class SettlementsService {
     const offboarding = await this.prisma.offboarding.findFirst({
       where: { id: offboardingId, organizationId: orgId },
       include: {
-        resignation: {
-          select: { earliestLastWorkingDate: true, approvedLastWorkingDate: true },
-        },
+        // Only the earliest date. The *actual* last working day is the
+        // offboarding's, which `Offboarding.update` keeps in step with the
+        // approved one and which a reschedule moves — reading the resignation's
+        // copy would price a shortfall against a date nobody is leaving on.
+        resignation: { select: { earliestLastWorkingDate: true } },
         employee: {
           select: { id: true, joinDate: true },
         },
@@ -216,8 +230,7 @@ export class SettlementsService {
       throw new BadRequestException('This exit was cancelled — there is nothing to settle');
     }
 
-    const config = (await this.settings.get(orgId)).settlement;
-    const leaveConfig = (await this.settings.get(orgId)).leave;
+    const { settlement: config, leave: leaveConfig } = await this.settings.get(orgId);
     const lastWorkingDate = dateKeyOf(offboarding.lastWorkingDate);
     const joinDate = dateKeyOf(offboarding.employee.joinDate);
 
@@ -600,4 +613,11 @@ export class SettlementsService {
     if (!line) throw new NotFoundException('Settlement line not found');
     return line;
   }
+
+  private rethrowDuplicate = (err: unknown): never => {
+    if ((err as { code?: string }).code === 'P2002') {
+      throw new ConflictException('This exit already has a settlement');
+    }
+    throw err;
+  };
 }

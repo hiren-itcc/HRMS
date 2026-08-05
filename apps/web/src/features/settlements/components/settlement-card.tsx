@@ -16,9 +16,8 @@ import { useQuery } from '@tanstack/react-query';
 import { IndianRupee } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from '@/components/session-provider';
-import { formatMoney } from '@/features/payroll/api';
 import { useApiMutation } from '@/hooks/use-crud';
-import { settlementKeys, settlementsApi } from '../api';
+import { formatSettlementMoney, settlementKeys, settlementsApi } from '../api';
 
 const TONE: Record<SettlementStatusCode, string> = {
   DRAFT: 'bg-warning/15 text-warning-text',
@@ -88,7 +87,7 @@ export function SettlementCard({ offboardingId }: { offboardingId: string }) {
                   settlement.netPayable < 0 && 'text-destructive-text',
                 )}
               >
-                {formatMoney(settlement.netPayable)}
+                {formatSettlementMoney(settlement.netPayable)}
               </p>
               {settlement.netPayable < 0 && (
                 <p className="text-muted-foreground text-xs">

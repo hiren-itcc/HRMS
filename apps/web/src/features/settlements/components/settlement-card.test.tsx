@@ -66,7 +66,8 @@ describe('SettlementCard', () => {
     vi.mocked(settlementsApi.forOffboarding).mockResolvedValue(settlement());
     render(<SettlementCard offboardingId="off1" />);
 
-    expect(await screen.findByText('₹2,29,000')).toBeInTheDocument();
+    // To the paisa, matching the statement — see `formatSettlementMoney`.
+    expect(await screen.findByText('₹2,29,000.00')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open statement/i })).toHaveAttribute(
       'href',
       '/payroll/settlements/s1',

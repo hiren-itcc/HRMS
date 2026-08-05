@@ -166,7 +166,39 @@ describe('computing', () => {
     await service.create(hr, { offboardingId: 'off1' });
 
     const encashment = createdLines(prisma).find((l) => l.source === 'LEAVE_ENCASHMENT');
-    expect(encashment.basis).toBe('12.5 days × ₹2,000');
+    expect(encashment.basis).toBe('12.5 days × ₹2,000.00');
+  });
+
+  /*
+   * The invariant behind that basis line, not just its shape. A rate printed
+   * to the rupee beside an amount carrying paise is arithmetic that visibly
+   * does not add up — which is worse than printing no working at all, on the
+   * one document whose whole point is that every figure can be checked.
+   */
+  it('prints a rate the amount beside it can be reproduced from', async () => {
+    // 50,000 ÷ 26 is ₹1,923.08 — the awkward case, not the clean one.
+    const { service, prisma } = makeService({
+      balances: [balance()],
+      salary: {
+        monthlyCtc: 70_000,
+        structure: {
+          lines: [
+            {
+              component: { code: 'BASIC', name: 'Basic Salary', kind: 'EARNING' },
+              calcType: 'FLAT',
+              value: 50_000,
+              order: 0,
+            },
+          ],
+        },
+      },
+    });
+    await service.create(hr, { offboardingId: 'off1' });
+
+    const encashment = createdLines(prisma).find((l) => l.source === 'LEAVE_ENCASHMENT');
+    expect(encashment.basis).toBe('12.5 days × ₹1,923.08');
+    // And 12.5 × 1923.08 really is the amount, to the paisa.
+    expect(encashment.amount).toBe(24_038.5);
   });
 
   it('recovers the notice they did not serve', async () => {

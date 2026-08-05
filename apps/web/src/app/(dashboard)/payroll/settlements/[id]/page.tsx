@@ -45,9 +45,8 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { ErrorState } from '@/components/error-state';
 import { Field } from '@/components/field';
 import { useSession } from '@/components/session-provider';
-import { formatMoney } from '@/features/payroll/api';
 import type { SettlementLine } from '@/features/settlements/api';
-import { settlementKeys, settlementsApi } from '@/features/settlements/api';
+import { formatSettlementMoney, settlementKeys, settlementsApi } from '@/features/settlements/api';
 import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
@@ -111,9 +110,12 @@ function LineRows({
                 )}
               </dt>
               <dd className="flex shrink-0 items-center gap-1">
-                <span className="tabular-nums">{formatMoney(line.amount)}</span>
+                <span className="tabular-nums">{formatSettlementMoney(line.amount)}</span>
                 {editable && (
-                  <span className="flex print:hidden">
+                  // Spaced, not flush: Remove is destructive and sits beside
+                  // Change, and two 36px targets touching is how somebody
+                  // deletes a figure they meant to edit.
+                  <span className="flex gap-1 print:hidden">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -139,7 +141,7 @@ function LineRows({
       )}
       <div className="mt-2 flex justify-between gap-4 border-t pt-2 font-medium text-sm">
         <span>Total</span>
-        <span className="tabular-nums">{formatMoney(total)}</span>
+        <span className="tabular-nums">{formatSettlementMoney(total)}</span>
       </div>
     </div>
   );
@@ -223,6 +225,21 @@ export default function SettlementPage() {
   const deductions = s.lines.filter((l) => l.kind === 'DEDUCTION');
   const who = `${s.employee.firstName} ${s.employee.lastName}`;
 
+  /*
+   * The reason the submit button is dead, in words. `submitDisabled` is
+   * documented as "pair it with a visible error on the field, never on its
+   * own" — a button that quietly stops working is a form telling somebody
+   * they are wrong without saying how.
+   */
+  const amountError = (() => {
+    if (!amount.trim()) return 'Enter an amount';
+    if (!Number.isFinite(Number(amount))) return 'That is not a number';
+    if (Number(amount) < 0) return 'Enter it on the other side rather than as a negative';
+    return undefined;
+  })();
+  const labelError = label.trim() ? undefined : 'Say what this line is for';
+  const refError = paymentRef.trim() ? undefined : 'Enter the payment reference';
+
   const openEdit = (line: SettlementLine) => {
     setAmount(String(line.amount));
     setEditing(line);
@@ -283,8 +300,8 @@ export default function SettlementPage() {
           {[
             ['Joined', showDate(s.joinDate)],
             ['Last working day', showDate(s.lastWorkingDate)],
-            ['Monthly pay', formatMoney(s.monthlyPay)],
-            ['A day of pay', formatMoney(s.perDayRate)],
+            ['Monthly pay', formatSettlementMoney(s.monthlyPay)],
+            ['A day of pay', formatSettlementMoney(s.perDayRate)],
           ].map(([labelText, value]) => (
             <div key={labelText}>
               <dt className="text-muted-foreground text-xs">{labelText}</dt>
@@ -322,7 +339,7 @@ export default function SettlementPage() {
               s.netPayable < 0 && 'text-destructive-text',
             )}
           >
-            {formatMoney(Math.abs(s.netPayable))}
+            {formatSettlementMoney(Math.abs(s.netPayable))}
           </span>
         </div>
 
@@ -381,13 +398,13 @@ export default function SettlementPage() {
         description="The statement will say this figure was changed from the computed one."
         submitting={editLine.isPending}
         submitLabel="Save"
-        submitDisabled={!Number.isFinite(Number(amount)) || Number(amount) < 0}
+        submitDisabled={Boolean(amountError)}
         onSubmit={(e) => {
           e.preventDefault();
           if (editing) editLine.mutate({ lineId: editing.id, amount: Number(amount) });
         }}
       >
-        <Field label="Amount">
+        <Field label="Amount" error={amountError}>
           {(field) => (
             <Input
               {...field}
@@ -417,7 +434,7 @@ export default function SettlementPage() {
         description="For anything the calculator cannot know: a retention bonus, tax withheld, an asset nobody returned."
         submitting={addLine.isPending}
         submitLabel="Add"
-        submitDisabled={!label.trim() || !Number.isFinite(Number(amount)) || Number(amount) < 0}
+        submitDisabled={Boolean(labelError || amountError)}
         onSubmit={(e) => {
           e.preventDefault();
           addLine.mutate({ kind, label: label.trim(), amount: Number(amount) });
@@ -436,7 +453,7 @@ export default function SettlementPage() {
             </Select>
           )}
         </Field>
-        <Field label="Description">
+        <Field label="Description" error={labelError}>
           {(field) => (
             <Input
               {...field}
@@ -446,7 +463,7 @@ export default function SettlementPage() {
             />
           )}
         </Field>
-        <Field label="Amount">
+        <Field label="Amount" error={amountError}>
           {(field) => (
             <Input
               {...field}
@@ -469,10 +486,10 @@ export default function SettlementPage() {
           if (open) setPaymentRef('');
         }}
         title="Record the payment"
-        description={`${formatMoney(Math.abs(s.netPayable))} for ${who}. This closes the settlement — it cannot be edited afterwards.`}
+        description={`${formatSettlementMoney(Math.abs(s.netPayable))} for ${who}. This closes the settlement — it cannot be edited afterwards.`}
         submitting={pay.isPending}
         submitLabel="Record payment"
-        submitDisabled={!paymentRef.trim()}
+        submitDisabled={Boolean(refError)}
         onSubmit={(e) => {
           e.preventDefault();
           pay.mutate(paymentRef.trim());
@@ -480,6 +497,7 @@ export default function SettlementPage() {
       >
         <Field
           label="Payment reference"
+          error={refError}
           hint="The bank reference, so this can be tied to a statement line."
         >
           {(field) => (
@@ -497,7 +515,9 @@ export default function SettlementPage() {
       <AlertDialog open={confirmApprove} onOpenChange={setConfirmApprove}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Approve {formatMoney(Math.abs(s.netPayable))}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Approve {formatSettlementMoney(Math.abs(s.netPayable))}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Nothing on this statement can be changed afterwards. Whoever can release the payment
               will be told it is ready.

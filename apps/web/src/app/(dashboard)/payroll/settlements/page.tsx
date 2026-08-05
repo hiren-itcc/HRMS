@@ -15,8 +15,12 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
-import { formatMoney } from '@/features/payroll/api';
-import { type Settlement, settlementKeys, settlementsApi } from '@/features/settlements/api';
+import {
+  formatSettlementMoney,
+  type Settlement,
+  settlementKeys,
+  settlementsApi,
+} from '@/features/settlements/api';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -76,13 +80,17 @@ export default function SettlementsPage() {
       key: 'totalEarnings',
       header: 'Earnings',
       className: 'hidden md:table-cell',
-      render: (row) => <span className="tabular-nums">{formatMoney(row.totalEarnings)}</span>,
+      render: (row) => (
+        <span className="tabular-nums">{formatSettlementMoney(row.totalEarnings)}</span>
+      ),
     },
     {
       key: 'totalDeductions',
       header: 'Deductions',
       className: 'hidden md:table-cell',
-      render: (row) => <span className="tabular-nums">{formatMoney(row.totalDeductions)}</span>,
+      render: (row) => (
+        <span className="tabular-nums">{formatSettlementMoney(row.totalDeductions)}</span>
+      ),
     },
     {
       key: 'netPayable',
@@ -92,7 +100,7 @@ export default function SettlementsPage() {
         <span
           className={cn('font-medium tabular-nums', row.netPayable < 0 && 'text-destructive-text')}
         >
-          {formatMoney(row.netPayable)}
+          {formatSettlementMoney(row.netPayable)}
         </span>
       ),
     },

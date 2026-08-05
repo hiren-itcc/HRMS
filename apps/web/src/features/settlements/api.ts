@@ -60,6 +60,26 @@ export interface Settlement {
   lines: SettlementLine[];
 }
 
+/**
+ * Money on a settlement, to the paisa.
+ *
+ * Deliberately not payroll's `formatMoney`, which rounds to whole rupees. A
+ * payslip can afford that; this document cannot. Every figure here prints its
+ * own working underneath ("12.5 days × ₹1,923.08"), and a rounded total turns
+ * that into arithmetic that visibly does not add up — ₹24,038.50 shown as
+ * ₹24,039 beside the multiplication that produced it. The whole point of the
+ * basis line is that somebody can check the number, so the number has to be
+ * checkable.
+ */
+export function formatSettlementMoney(amount: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export const settlementKeys = {
   all: () => ['settlements'] as const,
   list: (params: ListRequest) => ['settlements', 'list', params] as const,
