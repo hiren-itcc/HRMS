@@ -76,6 +76,29 @@ export const DEFAULT_PAY_COMPONENTS: PayComponentSeed[] = [
     isStatutory: false,
   },
 
+  // ── Exit only ──
+  // Settlements carry their own figures rather than pushing lines into a
+  // payroll run, so nothing computes these today. They exist so a settlement
+  // line has a real component to map onto if that ever changes, and so the
+  // component list a finance user reads is not missing the three things an
+  // exit actually pays.
+  {
+    code: 'LEAVE_ENCASHMENT',
+    name: 'Leave Encashment',
+    kind: 'EARNING',
+    taxable: true,
+    isStatutory: false,
+  },
+  {
+    code: 'GRATUITY',
+    name: 'Gratuity',
+    kind: 'EARNING',
+    // Exempt under section 10(10) up to the statutory ceiling, which is the
+    // ceiling the settlement settings default to.
+    taxable: false,
+    isStatutory: false,
+  },
+
   // ── Deductions ──
   { code: 'PF', name: 'Provident Fund', kind: 'DEDUCTION', taxable: false, isStatutory: true },
   {
@@ -109,6 +132,13 @@ export const DEFAULT_PAY_COMPONENTS: PayComponentSeed[] = [
     isStatutory: false,
   },
   { code: 'LOAN', name: 'Loan Deduction', kind: 'DEDUCTION', taxable: false, isStatutory: false },
+  {
+    code: 'NOTICE_RECOVERY',
+    name: 'Notice Period Recovery',
+    kind: 'DEDUCTION',
+    taxable: false,
+    isStatutory: false,
+  },
   {
     code: 'OTHER_DEDUCTION',
     name: 'Other Deductions',

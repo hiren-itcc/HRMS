@@ -321,6 +321,7 @@ model Employee {
   onboarding         Onboarding?
   resignations       Resignation[]
   offboardings       Offboarding[]
+  settlements        Settlement[]
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -1306,6 +1307,7 @@ model Offboarding {
   resignation Resignation?      @relation(fields: [resignationId], references: [id])
   tasks       OffboardingTask[]
   interview   ExitInterview?
+  settlement  Settlement?
 
   @@index([organizationId, status])
   @@index([employeeId])
@@ -1388,4 +1390,117 @@ model ExitInterview {
   updatedAt DateTime @updatedAt
 
   offboarding Offboarding @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full & final settlement
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SettlementStatus {
+  DRAFT
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum SettlementLineKind {
+  EARNING
+  DEDUCTION
+}
+
+/// Where a line came from. `MANUAL` is HR's own — a retention bonus, a tax
+/// deduction, a laptop nobody returned. The other three are computed, and are
+/// what a recompute rebuilds; a manual line survives one.
+enum SettlementLineSource {
+  LEAVE_ENCASHMENT
+  NOTICE_RECOVERY
+  GRATUITY
+  MANUAL
+}
+
+/// What a leaver is owed, as one document.
+///
+/// Not a `PayrollRun`, and that is the load-bearing decision. A run is unique
+/// per organization per month, prorates by working days and computes statutory
+/// deductions on gross — all three wrong for a settlement, which lands weeks
+/// after the last working day and must not push somebody's monthly gross past
+/// the ESI threshold. It carries its own figures instead.
+model Settlement {
+  id             String @id @default(cuid())
+  organizationId String
+  /// One settlement per exit, not per employee: somebody rehired and leaving
+  /// again gets a second one against a second offboarding.
+  offboardingId  String @unique
+  employeeId     String
+
+  status SettlementStatus @default(DRAFT)
+
+  /// Frozen when it is computed, the way Payslip and Offboarding already
+  /// freeze. A salary revision or a leave adjustment afterwards must not
+  /// silently rewrite a settlement somebody has already been shown.
+  lastWorkingDate DateTime @db.Date
+  joinDate        DateTime @db.Date
+  /// The monthly figure the day rate came from — basic or gross, whichever the
+  /// organization prices settlements off. Named for what it holds, not for the
+  /// setting that chose it.
+  monthlyPay      Decimal  @db.Decimal(14, 2)
+  perDayRate      Decimal  @db.Decimal(14, 2)
+
+  totalEarnings   Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal @default(0) @db.Decimal(14, 2)
+  /// Earnings less deductions. Allowed to be negative: somebody whose notice
+  /// recovery exceeds their dues owes the company, and a floor of zero would
+  /// make the total disagree with the lines above it.
+  netPayable      Decimal @default(0) @db.Decimal(14, 2)
+
+  notes      String?
+  computedAt DateTime?
+
+  approvedAt   DateTime?
+  approvedById String?
+  paidAt       DateTime?
+  paidById     String?
+  /// The bank reference, so Finance can tie this to a statement line.
+  paymentRef   String?
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offboarding Offboarding      @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  lines       SettlementLine[]
+
+  @@index([organizationId, status])
+  @@index([employeeId])
+  @@index([organizationId, lastWorkingDate])
+}
+
+/// One figure on the statement.
+///
+/// Carries its own id rather than keying on a component code, because two
+/// encashable leave types produce two lines that mean different things. The
+/// payslip screen keys its rows on `line.code` and would collide here.
+model SettlementLine {
+  id           String               @id @default(cuid())
+  settlementId String
+  kind         SettlementLineKind
+  source       SettlementLineSource
+  label        String
+  /// How the figure was reached — "12.5 days × ₹2,400". Printed under the
+  /// amount, because a number nobody can check is a number nobody accepts.
+  basis        String?
+  amount       Decimal              @db.Decimal(14, 2)
+  order        Int
+  /// HR changed the computed figure. Kept so the statement can say so rather
+  /// than presenting a negotiated number as if the system had produced it.
+  overridden   Boolean              @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId, order])
 }
