@@ -34,7 +34,7 @@ switched on in Settings.
 | Employees | `/employees` | `employee.read` \| `employee.read.team` |
 | Directory | `/directory` | `directory.read` — everyone |
 | Organization | `/organization` | `org.read` |
-| Attendance | `/attendance` | module on |
+| Attendance | `/attendance` | module on — includes the Remote work tab |
 | Leave | `/leave` | module on |
 | Documents | `/documents` | module on |
 | Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
@@ -162,6 +162,24 @@ screen with the last working day and the clearance in front of it.
 Probation and notice period also appear as a **Lifecycle card** on the employee
 record (screen: Employees & profile), with Confirm and Extend behind
 `employee.confirm`, and as four tiles on the dashboard.
+
+### Work from home (1)
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 50 | Remote work | `/attendance/remote` | A tab under Attendance carrying both halves: my requests, and — for a manager — the ones waiting on them. One screen rather than two nav entries, because they are the same question from two sides |
+
+The apply dialog previews as soon as both dates are set: how many working days
+the range really covers, and which week it would fill. Submit stays disabled
+while a breach stands, with the reason in an alert beside it.
+
+Plus **the flag**: an `Unplanned` badge on any `WFH` day with no approved
+request behind it, on the month calendar, the team day view and the employee
+record's attendance card. Only unapproved days are labelled — badging the
+approved ones would put a chip on nearly every remote day, which is how a
+signal stops being one.
+
+The per-employee allowance appears on the Lifecycle card beside notice period
+and probation, and only when they have one of their own.
 
 ### Assets (3 + 2 cards)
 | # | Screen | Route | Notes |

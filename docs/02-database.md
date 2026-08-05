@@ -536,6 +536,31 @@ model LeaveRequest {
 
 enum HalfDaySide { FIRST_HALF SECOND_HALF }
 
+/// Permission to work remotely on particular days.
+///
+/// Attendance already *detects* who worked from home — detectPlacement reads
+/// it off the position taken at the punch. This is the other half. Nothing
+/// here is consulted at clock-in: an unapproved remote day is recorded as any
+/// other and flagged on read.
+model RemoteWorkRequest {
+  id             String @id @default(cuid())
+  organizationId String
+  employeeId     String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  /// Working days the range covers, counted at submission against the working
+  /// week and holidays. Stored, not recomputed: a holiday added later must not
+  /// change the count a request was approved on.
+  days      Decimal  @db.Decimal(4, 1)
+
+  reason       String
+  status       ApprovalStatus @default(PENDING)
+  approverId   String?
+  actedAt      DateTime?
+  approverNote String?
+}
+
 // ─── Documents ────────────────────────────────────────────────────────
 
 model DocumentCategory {
@@ -1229,6 +1254,18 @@ model AuditLog {
 - **`Settlement.netPayable` is not clamped at zero**, unlike a payslip's net.
   Somebody whose notice recovery exceeds their dues genuinely owes the company,
   and a floor would make the total disagree with the lines above it.
+- **`RemoteWorkRequest` carries `organizationId`; `LeaveRequest` and
+  `AttendanceRequest` do not.** Those two are the oldest tables here and the
+  only ones that break principle 1. Every table added since carries it, and a
+  third exception would make eventual row-level security harder for no gain.
+- **Nothing records that a remote day was unapproved.** The flag is derived on
+  read, by asking which days were agreed for a range the caller is already
+  fetching. Storing it would mean a write path that can disagree with the
+  requests — and would need re-writing whenever one was approved after the fact.
+- **`Employee.remoteDaysPerWeek`: null is the company default, zero is "never".**
+  Two different things, unlike `gratuity.cap` where zero is a no-limit
+  sentinel. Reading zero as unlimited would have handed exactly the people
+  barred from remote work every day of the week. No limit is seven.
 - **An asset is in at most one person's hands, and that is an index.** Prisma
   cannot express a partial unique index, so
   `CREATE UNIQUE INDEX … ON "AssetAssignment"("assetId") WHERE "returnedOn" IS

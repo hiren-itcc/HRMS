@@ -242,6 +242,47 @@ their own.
 
 ---
 
+## Working from home
+
+Attendance already knows **who** worked from home: when somebody clocks in, the
+system checks their position against the office geofences, and a day worked
+entirely away from every office is recorded as work-from-home. Nobody types
+that in — it is measured.
+
+What this part adds is **who was allowed to**. An employee asks for a range of
+days with a reason; their manager agrees or declines. Weekends and holidays in
+the range are skipped, so asking for a whole week books the working days in it
+and nothing else.
+
+There is a **weekly limit** — two days out of the box. A company sets its own,
+and an individual can be given a different one on their record: a fully-remote
+hire and somebody who is never off site are both ordinary arrangements. Zero
+means never; seven means every day, which is how a company with no limit says
+so. Asking for more than the limit is refused, and the refusal names the week
+and the count rather than saying "over your limit".
+
+The check counts days already booked, not just the ones being asked for. Asking
+for a Wednesday when Tuesday and Thursday are already agreed is over a limit of
+two, and it is refused then rather than at the end of the month.
+
+### Nothing is blocked at the door
+
+**A day worked from home without an approved request is still recorded.** It
+shows on the calendar as work-from-home, exactly as an agreed day does, and is
+marked as *unplanned*.
+
+That is deliberate, and it is the most important thing in this section. A burst
+pipe at seven in the morning is not a policy violation the software should be
+adjudicating, and refusing the clock-in would not stop somebody working — it
+would only lose the record that they did. The company gets a truthful
+attendance record and a visible list of the days nobody planned, which is what
+somebody having the conversation actually needs.
+
+A manager sees the flag on their team's day view; the employee sees it on their
+own month.
+
+---
+
 ## Taking time off: leave
 
 HR sets up the **leave types** — casual, sick, earned, unpaid — each with an
@@ -575,6 +616,8 @@ Company-wide options:
   allowed.
 - **Payroll** — currency, pay day, statutory rates and thresholds, and how
   unpaid days are pro-rated.
+- **Work from home** — whether people may ask at all, how many remote days a
+  week they get, and whether a manager has to agree first.
 - **Employment lifecycle** — the default notice period and probation length,
   whether confirmation and exits happen automatically, and whether resignations
   go past the manager. Every number here is a default an individual employee can

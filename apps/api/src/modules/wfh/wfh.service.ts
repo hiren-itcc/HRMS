@@ -19,6 +19,7 @@ import { addDays, dateKeyOf, displayDate, toDate } from '../../common/utils/cale
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { dateKeyInTz } from '../attendance/attendance.util';
 import { calculateLeaveDays } from '../leave/leave.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
@@ -230,7 +231,10 @@ export class WfhService {
     if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
       throw new BadRequestException('This request is already closed');
     }
-    if (request.status === 'APPROVED' && dateKeyOf(request.endDate) < this.todayKey()) {
+    if (
+      request.status === 'APPROVED' &&
+      dateKeyOf(request.endDate) < (await this.todayKey(ctx.orgId))
+    ) {
       throw new BadRequestException('Those days have already passed');
     }
 
@@ -368,8 +372,20 @@ export class WfhService {
 
   // ── internals ─────────────────────────────────────────────────────────
 
-  private todayKey(): string {
-    return dateKeyOf(new Date());
+  /**
+   * Today where the company is, not where the server is.
+   *
+   * UTC would be wrong for any organization ahead of it: at 03:00 in Mumbai it
+   * is still yesterday in UTC, so a request "for today" would be accepted for a
+   * day that has already gone — which is the one thing this check exists to
+   * refuse. Attendance already reckons its days this way.
+   */
+  private async todayKey(orgId: string): Promise<string> {
+    const org = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+      select: { timezone: true },
+    });
+    return dateKeyInTz(new Date(), org.timezone);
   }
 
   private requireEmployee(claims: AccessTokenClaims): string {
@@ -467,7 +483,7 @@ export class WfhService {
     input: WfhApplyInput,
     exceptId: string | null,
   ): Promise<string[]> {
-    if (input.startDate < this.todayKey()) {
+    if (input.startDate < (await this.todayKey(claims.orgId))) {
       throw new BadRequestException('Remote days are agreed in advance, not afterwards');
     }
 

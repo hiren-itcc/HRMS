@@ -69,6 +69,8 @@ function makeService(over: Over = {}, settings: Parameters<typeof settingsDouble
           (over.holidays ?? []).map((d) => ({ date: new Date(`${d}T00:00:00.000Z`) })),
         ),
     },
+    // "Today" is reckoned where the company is, so every write path asks.
+    organization: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: 'UTC' }) },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn((arg: unknown) =>
       typeof arg === 'function'
@@ -142,6 +144,20 @@ describe('filing', () => {
   it('refuses days that have already gone', async () => {
     const { service } = makeService();
     await expect(service.apply(employee, apply('2020-01-06'))).rejects.toThrow(/agreed in advance/);
+  });
+
+  /*
+   * "Today" is the company's, not the server's. At 03:00 in Mumbai it is still
+   * yesterday in UTC, so reckoning in UTC would accept a request for a day that
+   * has already gone — the one thing this check exists to refuse.
+   */
+  it('reckons today where the company is, not where the server is', async () => {
+    const { service, prisma } = makeService({ remoteDaysPerWeek: 5 });
+    await service.apply(employee, apply(MON, TUE));
+
+    expect(prisma.organization.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { timezone: true } }),
+    );
   });
 
   it('refuses a range overlapping one they already have', async () => {

@@ -388,24 +388,28 @@ which other documents were citing.
     projects tax nowhere, and a settlement is not where a tax engine should
     first appear.
 16. Expense & reimbursement
-17. Performance / goals / OKR (`11:61` reserves the seam)
-18. ~~Asset management~~ ✅ **built** — a per-item register with issue/return
+17. ~~WFH / hybrid working~~ ✅ **built** — remote-day requests with a weekly
+    cap, an org default and a per-employee allowance. **Nothing is enforced at
+    clock-in**: a remote day nobody approved is still recorded, and flagged on
+    read, because refusing the punch would lose the record of a day worked.
+18. Performance / goals / OKR (`11:61` reserves the seam)
+19. ~~Asset management~~ ✅ **built** — a per-item register with issue/return
     history, and the exit checklist's "return company assets" line is now
     computed from it rather than ticked. **No depreciation, procurement or
     vendor management**: this is an asset register, not a fixed-asset ledger.
-19. Bulk employee import/export
-20. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
+20. Bulk employee import/export
+21. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
     resolved toward building after all. **Email notifications remain absent**,
     so a resignation moving through approval reaches nobody who does not open
     the app.
-21. Form 16, Form 24Q, ECR, ESIC challan
+22. Form 16, Form 24Q, ECR, ESIC challan
 
 ### P3 — differentiators, once the above is settled
 
-22. Recruitment / ATS (`11:60`)
-23. Helpdesk, LMS, engagement surveys
-24. Mobile app (`07:55` designs the auth variant)
-25. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)
+23. Recruitment / ATS (`11:60`)
+24. Helpdesk, LMS, engagement surveys
+25. Mobile app (`07:55` designs the auth variant)
+26. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)
 
 ---
 

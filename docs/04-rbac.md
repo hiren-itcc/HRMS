@@ -52,7 +52,11 @@ attendance.read        attendance.approve       attendance.manage   (unused — 
 
 leave.read.own         leave.request.own
 leave.read.team        leave.approve.team
-leave.read             leave.approve            leave.manage        (types, balance adjust)
+leave.read             leave.approve            leave.manage
+
+wfh.read.own           wfh.request.own
+wfh.read.team          wfh.approve.team
+wfh.read               wfh.approve        (types, balance adjust)
 
 document.read.own      document.upload.own
 document.read.team
@@ -108,6 +112,9 @@ settings.manage        role.manage              audit.read
 | `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
 | `asset.read.own` (what I am holding) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `asset.read` / `asset.manage` / `asset.assign` | ✅ | ✅ | — | — | — |
+| `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `wfh.read.team` / `wfh.approve.team` | ✅ | ✅ | — | ✅ | — |
+| `wfh.read` / `wfh.approve` | ✅ | ✅ | — | — | — |
 | `announcement.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `announcement.manage` | ✅ | ✅ | — | — | — |
 | `org.read` (directory, org chart, holidays) | ✅ | ✅ | ✅ | ✅ | ✅ |

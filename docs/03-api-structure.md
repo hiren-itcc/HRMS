@@ -242,6 +242,40 @@ rewrite a letter someone is already holding.
 | GET | `/letters/:id` | service: own, or `letter.read` (+ `payroll.read` when it quotes pay) |
 | POST | `/letters/:id/void` — withdraws with a reason; never deletes | `letter.issue` |
 
+### Work from home (`/wfh`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/wfh/preview?startDate=&endDate=` — working days, and any week it would fill | `wfh.request.own` |
+| GET | `/wfh/me` | `wfh.read.own` |
+| GET | `/wfh` — `scope=own\|inbox\|all` | `wfh.read` \| `.read.team` \| `.approve.team` |
+| GET | `/wfh/:id` | read scope on the record |
+| POST | `/wfh` — ask for a range | `wfh.request.own` |
+| PATCH | `/wfh/:id` — own, while still pending | `wfh.request.own` |
+| POST | `/wfh/:id/cancel` — own; approved days still to come | `wfh.request.own` \| `wfh.approve` |
+| POST | `/wfh/:id/approve` · `/wfh/:id/reject` | `wfh.approve` \| `.approve.team` |
+
+Mirrors `leave.controller.ts` route for route: an employee asks, their manager
+agrees, and the record is what somebody points at afterwards. Which requests a
+`.team` holder may act on comes from `Employee.managerId` in the service, never
+from a query parameter.
+
+**Attendance asks this module exactly one question**, through
+`approvedDaysIn(orgId, employeeIds, from, to)`: which employee-days were agreed,
+as a set, for a range it is already fetching. `monthFor` and `dayView` each call
+it once and mark any `WFH` day that is missing. The dependency runs
+`Attendance → WFH` only — WFH never asks whether somebody actually worked from
+home, which keeps a permission out of every clock-in.
+
+**Nothing is enforced at the punch.** A remote day nobody approved is recorded
+exactly as before and flagged on read. Refusing the clock-in would lose the
+record of a day somebody worked, and a burst pipe at 7am is not a policy
+violation the software should adjudicate.
+
+**The cap is per week, and re-checked at approval.** Two requests can each pass
+on the way in and only collide once one is approved, because the first decision
+is what makes those days real. Refusals name the week and the count.
+
 ### Assets (`/assets`)
 
 | Method | Path | Permission |

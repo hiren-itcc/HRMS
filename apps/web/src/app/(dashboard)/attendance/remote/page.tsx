@@ -188,7 +188,8 @@ export default function RemoteWorkPage() {
                 emptyTitle="Nothing waiting"
                 emptyHint="Requests from the people who report to you arrive here."
                 actions={(row) => (
-                  <span className="flex gap-1.5">
+                  // Decline is the consequential one and sits beside Approve.
+                  <span className="flex gap-2">
                     <Button
                       size="sm"
                       disabled={approve.isPending}
