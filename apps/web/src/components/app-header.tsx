@@ -16,6 +16,7 @@ import { SidebarNav } from '@/components/app-sidebar';
 import { CommandPalette } from '@/components/command-palette';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
+import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { useUiStore } from '@/stores/ui-store';
 
 /** Sticky glass header: mobile nav sheet, sidebar collapse, theme, account. */
@@ -88,6 +89,7 @@ export function AppHeader() {
 
         <div className="flex items-center gap-1">
           <CommandPalette />
+          <NotificationBell />
           <ThemeToggle />
           <UserMenu />
         </div>
