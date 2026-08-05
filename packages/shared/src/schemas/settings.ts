@@ -326,6 +326,29 @@ export const modulesSchema = z.object({
   reports: z.boolean().default(true),
   payroll: z.boolean().default(true),
   assets: z.boolean().default(true),
+  wfh: z.boolean().default(true),
+});
+
+// ── Work from home ────────────────────────────────────────────────────
+
+/**
+ * How much remote working the company allows, and whether it is agreed first.
+ *
+ * The cap is per week rather than per month because that is how hybrid
+ * policies are actually written — "two days a week", not "nine days a month" —
+ * and because a monthly figure lets somebody take the whole of one week off
+ * site and still be inside it.
+ */
+export const wfhSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Zero means no limit, the way the gratuity ceiling already reads. */
+  maxDaysPerWeek: z.number().int().min(0).max(7).default(2),
+  /**
+   * Off means a request is approved the moment it is filed. For a company that
+   * treats remote days as a matter of record rather than permission — which is
+   * still worth recording, because attendance can then say a day was expected.
+   */
+  requireApproval: z.boolean().default(true),
 });
 
 // ── Registry ──────────────────────────────────────────────────────────
@@ -337,6 +360,7 @@ export const orgSettingsSchema = z.object({
   lifecycle: lifecycleSchema,
   exitChecklist: exitChecklistSchema,
   settlement: settlementSchema,
+  wfh: wfhSchema,
   modules: modulesSchema,
 });
 
@@ -395,6 +419,7 @@ export const orgSettingsPatchSchema = z
     lifecycle: asPatch(lifecycleSchema).optional(),
     exitChecklist: asPatch(exitChecklistSchema).optional(),
     settlement: asPatch(settlementSchema).optional(),
+    wfh: asPatch(wfhSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -412,6 +437,7 @@ export const SETTINGS_GROUPS = [
   'lifecycle',
   'exitChecklist',
   'settlement',
+  'wfh',
   'modules',
 ] as const;
 
@@ -424,6 +450,7 @@ export function defaultSettings(): OrgSettings {
     lifecycle: {},
     exitChecklist: {},
     settlement: {},
+    wfh: {},
     modules: {},
   });
 }

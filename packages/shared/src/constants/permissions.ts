@@ -84,6 +84,22 @@ export const PERMISSIONS = [
   'leave.approve',
   'leave.manage',
 
+  /*
+   * Working from home. The `.team` pair is the entire workflow — a manager
+   * agreeing their own reports' days — which is why this mirrors leave rather
+   * than assets, where no manager scope existed to give.
+   *
+   * There is no `wfh.manage`. The weekly cap is a settings edit and the
+   * per-employee allowance is an employee edit, so both are already gated by a
+   * code that exists.
+   */
+  'wfh.read.own',
+  'wfh.request.own',
+  'wfh.read.team',
+  'wfh.approve.team',
+  'wfh.read',
+  'wfh.approve',
+
   'document.read.own',
   'document.upload.own',
   'document.read.team',
@@ -164,6 +180,10 @@ const EMPLOYEE_PERMS: Permission[] = [
   'attendance.request.own',
   'leave.read.own',
   'leave.request.own',
+  // Asking to work from home is not a privilege HR grants; withholding it
+  // would only mean the request arrives by chat instead.
+  'wfh.read.own',
+  'wfh.request.own',
   'document.read.own',
   'document.upload.own',
   'letter.read.own',
@@ -186,6 +206,8 @@ const MANAGER_PERMS: Permission[] = [
   'attendance.approve.team',
   'leave.read.team',
   'leave.approve.team',
+  'wfh.read.team',
+  'wfh.approve.team',
   'document.read.team',
   'report.view.team',
   'payroll.read.team',
@@ -213,6 +235,8 @@ const HR_PERMS: Permission[] = [
   'leave.read',
   'leave.approve',
   'leave.manage',
+  'wfh.read',
+  'wfh.approve',
   'document.read',
   'document.upload',
   'document.manage',

@@ -292,6 +292,12 @@ model Employee {
   /// Off probation for good. Set by HR or by the daily tick.
   confirmedOn         DateTime? @db.Date
 
+  /// Remote days a week this person may book. Null = the organization default.
+  /// Same shape as `noticePeriodDays` above, and for the same reason: a
+  /// fully-remote hire and a caregiver are ordinary arrangements, not
+  /// exceptions worth turning the company cap off for.
+  remoteDaysPerWeek Int?
+
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -315,6 +321,7 @@ model Employee {
   attendance         AttendanceRecord[]
   attendanceRequests AttendanceRequest[]
   leaveRequests      LeaveRequest[]
+  remoteRequests     RemoteWorkRequest[]
   leaveBalances      LeaveBalance[]
   documents          Document[]
   letters            Letter[]
@@ -501,6 +508,44 @@ model AttendanceRequest {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@index([employeeId, status])
+}
+
+/// Permission to work remotely on particular days.
+///
+/// Attendance already *detects* who worked from home — `detectPlacement` reads
+/// it off the position taken at the punch, and a remote day rolls up to status
+/// WFH. This is the other half: who was allowed to, agreed in advance.
+///
+/// Nothing here is enforced at clock-in. A day worked from home with no
+/// approval behind it is still recorded, and flagged on read — a burst pipe at
+/// 7am is not a policy violation the software should adjudicate, and refusing
+/// the punch would lose the record of a day somebody worked.
+model RemoteWorkRequest {
+  id             String @id @default(cuid())
+  organizationId String
+  employeeId     String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  /// Working days the range actually covers, counted at submission against the
+  /// working week and the holiday calendar. Stored rather than recomputed: a
+  /// holiday added later must not change the count a request was approved on.
+  days      Decimal  @db.Decimal(4, 1)
+
+  reason       String
+  status       ApprovalStatus @default(PENDING)
+  approverId   String?
+  actedAt      DateTime?
+  approverNote String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, status])
+  @@index([organizationId, status, startDate])
+  /// The read behind the flag: approved rows overlapping a date range.
+  @@index([organizationId, startDate, endDate])
 }
 
 // ─── Leave ────────────────────────────────────────────────────────────
