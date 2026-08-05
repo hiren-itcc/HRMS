@@ -124,6 +124,38 @@ export const offboardingTaskUpdateSchema = z
   });
 export type OffboardingTaskUpdateInput = z.infer<typeof offboardingTaskUpdateSchema>;
 
+// ── Exit interview ────────────────────────────────────────────────────
+
+/**
+ * What HR records after the conversation.
+ *
+ * Answers carry the question text with them rather than only a key, so
+ * changing the questionnaire in a later release cannot rewrite what somebody
+ * already said. An exit interview is evidence; evidence whose question can be
+ * edited after the fact is not evidence.
+ *
+ * Every field is optional because the interview is recorded as it happens —
+ * half a conversation saved is better than a form somebody abandons.
+ */
+export const exitInterviewSchema = z.object({
+  conductedOn: dateOnlySchema.optional().nullable(),
+  responses: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(60),
+        question: z.string().trim().min(1).max(300),
+        answer: z.string().trim().max(4000),
+      }),
+    )
+    .max(30)
+    .default([]),
+  notes: z.string().trim().max(4000).optional().nullable(),
+  /** The two facts HR actually reports on afterwards. */
+  wouldRecommend: z.boolean().optional().nullable(),
+  rehireEligible: z.boolean().optional().nullable(),
+});
+export type ExitInterviewInput = z.infer<typeof exitInterviewSchema>;
+
 export const offboardingQuerySchema = paginationQuerySchema.extend({
   status: offboardingStatusSchema.optional(),
   reason: offboardingReasonSchema.optional(),

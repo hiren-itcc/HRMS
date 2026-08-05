@@ -584,3 +584,77 @@ describe('the completion gate', () => {
     );
   });
 });
+
+describe('the exit interview', () => {
+  function withInterview(existing: object | null = null) {
+    const made = makeService();
+    made.prisma.exitInterview = {
+      findUnique: jest.fn().mockResolvedValue(existing),
+      findFirst: jest.fn().mockResolvedValue(existing),
+      upsert: jest.fn().mockResolvedValue({ id: 'int1' }),
+    };
+    return made;
+  }
+
+  const answers = {
+    conductedOn: '2026-09-29',
+    responses: [
+      { key: 'reason', question: 'What is the main reason you decided to leave?', answer: 'Pay' },
+    ],
+    notes: null,
+    wouldRecommend: true,
+    rehireEligible: true,
+  };
+
+  /*
+   * Written *during* the conversation, so it upserts: half of it saved is
+   * better than a form somebody abandons because it had to be finished in one
+   * sitting.
+   */
+  it('saves whatever has been said so far, and can be amended', async () => {
+    const { service, prisma } = withInterview();
+    await service.saveInterview(hr, 'off1', answers);
+    expect(prisma.exitInterview.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { offboardingId: 'off1' },
+        create: expect.objectContaining({ offboardingId: 'off1', wouldRecommend: true }),
+      }),
+    );
+  });
+
+  /*
+   * The answers are the most sensitive text in the record and the audit log is
+   * a wider read than the interview itself, so the trail says one was recorded
+   * without repeating what was said.
+   */
+  it('audits that it happened without copying the answers into the log', async () => {
+    const { service, prisma } = withInterview();
+    await service.saveInterview(hr, 'off1', answers);
+    const meta = (prisma.auditLog.create as Mock).mock.calls.at(-1)[0].data.meta;
+    expect(meta.after).toEqual({ recorded: true, amended: false, answered: 1 });
+    expect(JSON.stringify(meta)).not.toContain('Pay');
+  });
+
+  it('records an amendment as an amendment', async () => {
+    const { service, prisma } = withInterview({ id: 'int1' });
+    await service.saveInterview(hr, 'off1', answers);
+    const meta = (prisma.auditLog.create as Mock).mock.calls.at(-1)[0].data.meta;
+    expect(meta.after.amended).toBe(true);
+  });
+
+  /*
+   * The interview often happens on the last day and is written up afterwards.
+   * Refusing then would mean the record is whatever was typed in a hurry.
+   */
+  it('can still be written after the offboarding has completed', async () => {
+    const { service, prisma } = withInterview();
+    (prisma.offboarding.findFirst as Mock).mockResolvedValue({ id: 'off1', status: 'COMPLETED' });
+    await expect(service.saveInterview(hr, 'off1', answers)).resolves.toBeDefined();
+  });
+
+  it('404s for an offboarding in another organization', async () => {
+    const { service, prisma } = withInterview();
+    (prisma.offboarding.findFirst as Mock).mockResolvedValue(null);
+    await expect(service.saveInterview(hr, 'off1', answers)).rejects.toThrow(/not found/i);
+  });
+});

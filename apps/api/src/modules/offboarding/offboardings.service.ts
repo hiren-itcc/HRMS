@@ -1,4 +1,5 @@
 import type {
+  ExitInterviewInput,
   OffboardingCancelInput,
   OffboardingCompleteInput,
   OffboardingCreateInput,
@@ -462,6 +463,68 @@ export class OffboardingsService {
     throw new BadRequestException(
       `Still outstanding: ${outstanding.map((t) => t.label).join(', ')}`,
     );
+  }
+
+  // ── exit interview ────────────────────────────────────────────────────
+
+  /**
+   * Record the conversation, or amend what was recorded.
+   *
+   * An upsert rather than a create-then-edit pair, because the interview is
+   * written *during* the conversation: half of it saved is better than a form
+   * somebody abandons because they had to finish it in one sitting.
+   *
+   * Editable after the offboarding completes, deliberately. The interview
+   * often happens on the last day and gets written up afterwards, and refusing
+   * then would mean the record is whatever was typed in a hurry.
+   */
+  async saveInterview(claims: AccessTokenClaims, id: string, input: ExitInterviewInput) {
+    const ctx: OffboardingCtx = { orgId: claims.orgId, userId: claims.sub };
+    const record = await this.prisma.offboarding.findFirst({
+      where: { id, organizationId: ctx.orgId },
+      select: { id: true },
+    });
+    if (!record) throw new NotFoundException('Offboarding not found');
+
+    const data = {
+      conductedOn: input.conductedOn ? toDate(input.conductedOn) : null,
+      conductedById: ctx.userId,
+      responses: input.responses,
+      notes: input.notes ?? null,
+      wouldRecommend: input.wouldRecommend ?? null,
+      rehireEligible: input.rehireEligible ?? null,
+    };
+    const existed = await this.prisma.exitInterview.findUnique({
+      where: { offboardingId: id },
+      select: { id: true },
+    });
+
+    const saved = await this.prisma.exitInterview.upsert({
+      where: { offboardingId: id },
+      create: { offboardingId: id, ...data },
+      update: data,
+    });
+
+    await auditMutation(this.prisma, ctx, 'offboarding.interview', 'Offboarding', id, {
+      // The answers are not in the audit meta on purpose: they are the most
+      // sensitive text in the record, and the audit log is a wider read than
+      // the interview itself.
+      after: { recorded: true, amended: Boolean(existed), answered: input.responses.length },
+    });
+    return saved;
+  }
+
+  /**
+   * Read it back.
+   *
+   * `employee.offboard` only — deliberately not the leaver's own manager, who
+   * is very often the subject of the answers. The route enforces that; this
+   * exists so the offboarding detail read does not have to carry it.
+   */
+  async interview(claims: AccessTokenClaims, id: string) {
+    return this.prisma.exitInterview.findFirst({
+      where: { offboardingId: id, offboarding: { organizationId: claims.orgId } },
+    });
   }
 
   // ── reads ─────────────────────────────────────────────────────────────

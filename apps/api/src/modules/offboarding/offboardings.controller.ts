@@ -1,4 +1,5 @@
 import {
+  exitInterviewSchema,
   offboardingCancelSchema,
   offboardingCompleteSchema,
   offboardingCreateSchema,
@@ -16,6 +17,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -30,6 +32,7 @@ export class OffboardingCompleteDto extends createZodDto(offboardingCompleteSche
 export class OffboardingCancelDto extends createZodDto(offboardingCancelSchema) {}
 export class OffboardingQueryDto extends createZodDto(offboardingQuerySchema) {}
 export class OffboardingTaskUpdateDto extends createZodDto(offboardingTaskUpdateSchema) {}
+export class ExitInterviewDto extends createZodDto(exitInterviewSchema) {}
 
 /**
  * Every route here is `employee.offboard`.
@@ -94,6 +97,30 @@ export class OffboardingsController {
     @Body() dto: OffboardingTaskUpdateDto,
   ) {
     return this.offboardings.updateTask(user, taskId, dto);
+  }
+
+  /*
+   * Both sides of the interview are `employee.offboard`, not
+   * `offboarding.clearance` — and deliberately not readable by the leaver's
+   * own manager, who is very often the subject of the answers. A manager who
+   * signs off the handover has no business reading what was said about them.
+   */
+  @Get(':id/interview')
+  @RequirePermissions('employee.offboard')
+  @ApiOperation({ summary: 'The exit conversation, as HR recorded it' })
+  interview(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
+    return this.offboardings.interview(user, id);
+  }
+
+  @Put(':id/interview')
+  @RequirePermissions('employee.offboard')
+  @ApiOperation({ summary: 'Record or amend the exit interview' })
+  saveInterview(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Body() dto: ExitInterviewDto,
+  ) {
+    return this.offboardings.saveInterview(user, id, dto);
   }
 
   @Post(':id/complete')

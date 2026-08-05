@@ -1301,6 +1301,7 @@ model Offboarding {
   employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   resignation Resignation?      @relation(fields: [resignationId], references: [id])
   tasks       OffboardingTask[]
+  interview   ExitInterview?
 
   @@index([organizationId, status])
   @@index([employeeId])
@@ -1357,4 +1358,30 @@ model OffboardingTask {
 
   @@index([offboardingId, order])
   @@index([offboardingId, status])
+}
+
+/// The exit conversation, as HR recorded it.
+///
+/// Read by `employee.offboard` holders only — deliberately not by the leaver's
+/// own manager, who is very often the subject of the answers.
+model ExitInterview {
+  id            String    @id @default(cuid())
+  offboardingId String    @unique
+  conductedOn   DateTime? @db.Date
+  conductedById String?
+
+  /// [{ key, question, answer }] — the question text is frozen alongside the
+  /// answer, so changing the questionnaire in a later release cannot rewrite
+  /// what somebody already said.
+  responses Json    @default("[]")
+  notes     String?
+
+  /// The two facts HR actually reports on afterwards.
+  wouldRecommend Boolean?
+  rehireEligible Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offboarding Offboarding @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
 }
