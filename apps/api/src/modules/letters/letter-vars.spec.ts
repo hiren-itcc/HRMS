@@ -1,4 +1,4 @@
-import { letterTemplateDefault } from '@hrms/shared';
+import { LETTER_TEMPLATES, letterTemplateDefault } from '@hrms/shared';
 import { render } from '../mail/template-renderer';
 import {
   bodyContainsSalary,
@@ -104,5 +104,38 @@ describe('formatTenure', () => {
     ['2026-07-20', '2026-08-02', 'less than a month'],
   ])('%s → %s is %s', (from, to, expected) => {
     expect(formatTenure(new Date(`${from}T00:00:00Z`), new Date(`${to}T00:00:00Z`))).toBe(expected);
+  });
+});
+
+/*
+ * The trap this guards: `missingVariables()` unions *declared* with *used*, so
+ * a template that declares a variable `buildLetterVars` does not supply makes
+ * every issue of it throw — and the failure surfaces at preview or issue time,
+ * not at build time. Adding a template is meant to be one object in an array;
+ * this is what keeps it that cheap.
+ */
+describe('every shipped template can actually be issued', () => {
+  const vars = buildLetterVars({ ...subject, exitDate: new Date('2026-09-30T00:00:00Z') }, context);
+
+  it.each(LETTER_TEMPLATES.map((t) => [t.key, t] as const))(
+    '%s leaves no placeholder unresolved',
+    (_key, template) => {
+      expect(missingVariables(template.key, template.bodyHtml, vars)).toEqual([]);
+    },
+  );
+
+  /*
+   * Letter numbers are sequential per prefix per calendar year, and the row
+   * carries `@@unique([organizationId, letterNumber])`. Two templates sharing
+   * a prefix would count independently and collide on the second one issued.
+   */
+  it('gives every template its own number prefix', () => {
+    const prefixes = LETTER_TEMPLATES.map((t) => t.numberPrefix);
+    expect(new Set(prefixes).size).toBe(prefixes.length);
+  });
+
+  it('gives every template its own key', () => {
+    const keys = LETTER_TEMPLATES.map((t) => t.key);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });

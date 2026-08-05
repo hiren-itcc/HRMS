@@ -478,7 +478,8 @@ function EmployeeDetailView() {
               <CardHeader>
                 <CardTitle>Letters</CardTitle>
                 <CardDescription>
-                  Offer, appointment, experience and salary letters issued to this employee
+                  Offer, appointment, relieving, experience and salary letters issued to this
+                  employee
                 </CardDescription>
               </CardHeader>
               <CardContent>

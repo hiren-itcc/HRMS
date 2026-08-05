@@ -100,11 +100,44 @@ export const LETTER_TEMPLATES: LetterTemplateDefault[] = [
     containsSalary: false,
     numberPrefix: 'APT',
   },
+  /*
+   * Separate from the experience certificate, though the two are often
+   * confused. A relieving letter says the employment is over and nothing is
+   * owed — it is what the next employer asks for. An experience certificate
+   * says what somebody did and how well; it is a reference. They are issued at
+   * the same moment and are not the same document, so a company that has to
+   * produce both should not have to edit one template twice.
+   *
+   * `REL`, not `EXP`: letter numbers are sequential per prefix per year, and
+   * two templates sharing one would collide on the unique constraint.
+   *
+   * Uses only variables `buildLetterVars` already supplies. Declaring one it
+   * does not would make every issue of this template throw, because
+   * `missingVariables()` unions declared with used.
+   */
+  {
+    key: 'relieving_letter',
+    name: 'Relieving letter',
+    description:
+      'Confirms the employment has ended and the exit formalities are complete. Issued on the last working day.',
+    title: 'Relieving Letter',
+    bodyHtml: [
+      '<p>To whomsoever it may concern,</p>',
+      '<p>This is to confirm that <strong>{{employeeName}}</strong> (employee code {{employeeCode}}) has been relieved from the services of {{orgName}} with effect from the close of business on <strong>{{exitDate}}</strong>.</p>',
+      '<p>They joined us on {{joinDate}} and at the time of leaving held the position of <strong>{{designation}}</strong> in the {{department}} department, a total tenure of {{tenure}}.</p>',
+      '<p>All exit formalities have been completed and there are no dues outstanding on either side.</p>',
+      '<p>We thank them for their service and wish them well.</p>',
+      SIGN_OFF,
+    ].join('\n'),
+    variables: [...COMMON_LETTER_VARIABLES, 'joinDate', 'exitDate', 'tenure'],
+    containsSalary: false,
+    numberPrefix: 'REL',
+  },
   {
     key: 'experience_letter',
-    name: 'Experience / relieving letter',
+    name: 'Experience certificate',
     description:
-      'Confirms tenure and role on exit. Issued to a serving employee it reads "to present".',
+      'Confirms tenure and role, as a reference. Issued to a serving employee it reads "to present".',
     title: 'Experience Certificate',
     bodyHtml: [
       '<p>To whomsoever it may concern,</p>',

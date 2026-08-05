@@ -136,7 +136,7 @@ places rather than one screen that quietly shows you less.
 | 31 | Document admin | `/documents/admin` | Across every employee, filter by person/folder; `document.read` |
 | 32 | Folders | `/documents/folders` | Create and delete only — **rename is not wired**, though the endpoint and client method both exist; `document.manage` |
 | 32a | Letter | `/letters/:id` | The issued document — print to PDF, void with a reason |
-| 32b | Letter templates | `/settings/letters` | Edit the four shipped templates; `letter.template.manage` |
+| 32b | Letter templates | `/settings/letters` | Edit the shipped templates; `letter.template.manage` |
 
 ### Exits (4)
 

@@ -37,7 +37,7 @@ interface Props {
 }
 
 /** Letters an employment normally has exactly one of. */
-const ONCE_PER_EMPLOYMENT = new Set(['offer_letter', 'appointment_letter']);
+const ONCE_PER_EMPLOYMENT = new Set(['offer_letter', 'appointment_letter', 'relieving_letter']);
 
 /**
  * Pick a template, see the real letter, then issue it. The preview is rendered
