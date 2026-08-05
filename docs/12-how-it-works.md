@@ -166,6 +166,28 @@ sequence somebody can follow rather than a single current value.
 
 ---
 
+## The dashboard
+
+The landing page, and it is meant to answer one question: **is anything waiting
+on me?**
+
+What each person sees depends on what they may do. An employee gets their clock
+card, announcements, the holiday calendar and celebrations. A manager also gets
+what is waiting on them to approve, who is in today, who is remote, who is late,
+and who is leaving. HR sees the headcount; finance sees payroll that is stuck.
+
+Nothing is shown that the person cannot act on. Counts of departments and
+offices used to sit here and were removed — they change a few times a year and
+nobody ever did anything about them.
+
+**Celebrations** lists birthdays and work anniversaries in the next 30 days, and
+everyone can see it, because the point is that colleagues wish each other well.
+A birthday shows the day and the month and never an age — the system does not
+send the year at all, so there is nothing to work it out from. Work
+anniversaries do show the number of years, since that is the whole point of one.
+
+---
+
 ## Every working day: attendance
 
 People clock in when they start and clock out when they stop — as many times a

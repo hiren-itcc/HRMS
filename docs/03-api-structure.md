@@ -242,6 +242,43 @@ rewrite a letter someone is already holding.
 | GET | `/letters/:id` | service: own, or `letter.read` (+ `payroll.read` when it quotes pay) |
 | POST | `/letters/:id/void` — withdraws with a reason; never deletes | `letter.issue` |
 
+### Dashboard (`/dashboard`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/dashboard/summary` | any signed-in user |
+
+**No `@RequirePermissions` on the route, deliberately.** Every signed-in person
+has a dashboard, and what they may see differs field by field rather than route
+by route — a permission here would be either too strict to let an employee load
+the page or too loose to mean anything. **Every figure is `null` when the caller
+may not see it**, so a tile checks for null rather than for a permission and the
+page cannot drift from the API's answer. A zero would be a lie: it reads as
+"nothing is waiting on you" when the truth is "you may not know".
+
+This module reads other modules' tables through Prisma directly, which is what
+`SettlementsService` and `AssetClearanceService` already do. The screen's
+question — "is anything waiting on me?" — is not any one domain's.
+
+**`/lifecycle/stats` was deleted, not kept alongside.** It had exactly one
+consumer, this page, so it was never an API anybody depended on; it was this
+screen's backend under a name that stopped being true once the figures stopped
+being about lifecycle.
+
+**Exits are one figure and the headline is not a sum.** Somebody serving notice
+almost always has an offboarding open too, so adding the three would count most
+people twice — and a pending resignation is somebody who has *asked*, not
+somebody who is leaving.
+
+**A birthday's year never leaves the API.** `monthDay` is `"MM-DD"`, so age
+cannot be read off the response even by somebody looking at the network tab.
+Anniversaries carry `years`, because that is the substance of one. Celebrations
+are gated on `directory.read`, which every seeded role holds.
+
+`attendance/stats` also gained `remote` and `remoteUnplanned` — the second is
+what puts the unapproved-remote-day flag somewhere a manager meets it without
+opening the day view.
+
 ### Work from home (`/wfh`)
 
 | Method | Path | Permission |

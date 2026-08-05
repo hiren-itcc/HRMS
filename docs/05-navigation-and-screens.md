@@ -79,9 +79,25 @@ Rows struck through or marked **not built** are the gap between this list and
 | 4 | Accept invite | `/invite?token=` | Set password → auto-login |
 
 ### Dashboard (3 variants, one route)
-| 5 | Employee dashboard | `/dashboard` | Check-in/out card w/ live timer, leave balances, pending requests, pinned announcements, who's-out-today |
-| 6 | Manager add-ons | ″ | + team presence strip, approvals inbox count |
-| 7 | HR/Admin add-ons | ″ | + headcount stat tiles, today's absence/late list, joiners this month |
+| 5 | Employee dashboard | `/dashboard` | Check-in/out card w/ live timer, announcements, upcoming holidays, **celebrations** |
+| 6 | Manager add-ons | ″ | + Waiting on you, Present/Remote/Late today, Leaving, On probation |
+| 7 | HR/Admin add-ons | ″ | + Total employees; Finance additionally sees Payroll |
+
+The tiles are ordered by **urgency, not by module**: what is waiting on you,
+then money that is stuck, then today, then the slower people figures. A tile
+earns its place by being something somebody acts on — which is why Departments
+and Locations were removed, having never once changed and having cost a list
+call each on every load purely to read `meta.total`.
+
+One call feeds them all (`/dashboard/summary`), and every figure comes back
+null when the caller may not see it, so a tile checks for null rather than
+re-deriving a permission. The page makes three requests where it made five.
+
+**Celebrations** — birthdays and work anniversaries in the next 30 days — sit
+beside the holidays panel and are visible to everyone, because the point of the
+panel is that colleagues wish each other well. Birthdays show a day and a month
+and **never an age**: the API sends no birth year, so there is nothing on the
+client to derive one from.
 
 ### Employees & profile (7)
 | 8 | Employee list | `/employees` | Table: filter dept/location/status. **Saved views and CSV export are not built.** |

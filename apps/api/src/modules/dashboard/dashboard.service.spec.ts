@@ -231,6 +231,23 @@ describe('celebrations', () => {
     expect(summary.celebrations.anniversaries[0]).toMatchObject({ monthDay: '08-20', years: 5 });
   });
 
+  /*
+   * The same new-year wrap that `inDays` is careful about, and which the years
+   * count originally was not. Read on 28 December, somebody who joined on
+   * 5 January 2020 is eight days from their **sixth** anniversary — taking the
+   * year off today rather than off the occurrence announced it as their fifth.
+   */
+  it('counts the years to the anniversary, not to today, across new year', async () => {
+    const { service } = makeService({
+      people: [person({ joinDate: new Date('2020-01-05T00:00:00.000Z') })],
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: reaching past the policy double
+    (service as any).policy = { contextFor: async () => ({ todayKey: '2025-12-28' }) };
+
+    const summary = await service.summary(claims(['directory.read']));
+    expect(summary.celebrations.anniversaries[0]).toMatchObject({ inDays: 8, years: 6 });
+  });
+
   /* Somebody who joined this year is not celebrating a nought-year anniversary. */
   it('leaves out a first year that has not come round', async () => {
     const summary = await withPeople([person({ joinDate: new Date('2026-08-20T00:00:00.000Z') })]);

@@ -348,19 +348,31 @@ export class DashboardService {
       const base = { id: row.id, name, avatarUrl: row.avatarUrl };
 
       if (row.dateOfBirth) {
-        const inDays = this.daysUntilAnniversaryOf(dateKeyOf(row.dateOfBirth), todayKey);
-        if (inDays !== null) {
-          birthdays.push({ ...base, monthDay: dateKeyOf(row.dateOfBirth).slice(5), inDays });
+        const next = this.nextOccurrenceOf(dateKeyOf(row.dateOfBirth), todayKey);
+        if (next) {
+          birthdays.push({
+            ...base,
+            monthDay: dateKeyOf(row.dateOfBirth).slice(5),
+            inDays: next.inDays,
+          });
         }
       }
 
       const joinKey = dateKeyOf(row.joinDate);
-      const inDays = this.daysUntilAnniversaryOf(joinKey, todayKey);
-      // A first anniversary is one that has come round, so somebody who joined
-      // this month is not "0 years" — they are simply not celebrating yet.
-      const years = Number(todayKey.slice(0, 4)) - Number(joinKey.slice(0, 4));
-      if (inDays !== null && years > 0) {
-        anniversaries.push({ ...base, monthDay: joinKey.slice(5), inDays, years });
+      const next = this.nextOccurrenceOf(joinKey, todayKey);
+      if (next) {
+        /*
+         * Counted from the year the anniversary *falls in*, not from today's.
+         * Read on 28 December, somebody who joined on 5 January 2020 is eight
+         * days from their sixth anniversary — taking the year off today would
+         * announce it as their fifth.
+         */
+        const years = next.year - Number(joinKey.slice(0, 4));
+        // A first anniversary is one that has come round, so somebody who
+        // joined this year is not "0 years" — they are simply not celebrating.
+        if (years > 0) {
+          anniversaries.push({ ...base, monthDay: joinKey.slice(5), inDays: next.inDays, years });
+        }
       }
     }
 
@@ -372,15 +384,21 @@ export class DashboardService {
   }
 
   /**
-   * How many days until this date comes round again, or null if that is more
-   * than the window away.
+   * When this date next comes round — how many days away, and which year it
+   * lands in — or null if that is beyond the window.
+   *
+   * The year is returned rather than left to the caller because the caller
+   * would guess it from today, and be wrong across new year.
    *
    * Wrapping is the whole difficulty: read in December, a January birthday is
    * days away and a January *date* is months behind. Comparing month-day
    * strings gets that wrong, so the next occurrence is built explicitly and
    * rolled into next year when it has already gone.
    */
-  private daysUntilAnniversaryOf(dateKey: string, todayKey: string): number | null {
+  private nextOccurrenceOf(
+    dateKey: string,
+    todayKey: string,
+  ): { inDays: number; year: number } | null {
     const monthDay = dateKey.slice(5);
     const thisYear = Number(todayKey.slice(0, 4));
 
@@ -391,10 +409,14 @@ export class DashboardService {
       return new Date(Date.UTC(year, month - 1, day));
     };
 
-    let next = occurrence(thisYear);
-    if (dateKeyOf(next) < todayKey) next = occurrence(thisYear + 1);
+    let year = thisYear;
+    let next = occurrence(year);
+    if (dateKeyOf(next) < todayKey) {
+      year += 1;
+      next = occurrence(year);
+    }
 
-    const days = Math.round((next.getTime() - toDate(todayKey).getTime()) / 86_400_000);
-    return days >= 0 && days <= CELEBRATION_WINDOW_DAYS ? days : null;
+    const inDays = Math.round((next.getTime() - toDate(todayKey).getTime()) / 86_400_000);
+    return inDays >= 0 && inDays <= CELEBRATION_WINDOW_DAYS ? { inDays, year } : null;
   }
 }
