@@ -20,6 +20,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
+import { LifecycleJobsModule } from './modules/lifecycle/lifecycle-jobs.module';
 import { OffboardingModule } from './modules/offboarding/offboarding.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
@@ -50,6 +51,7 @@ import { StorageModule } from './modules/storage/storage.module';
     OnboardingModule,
     ResignationsModule,
     OffboardingModule,
+    LifecycleJobsModule,
     AttendanceModule,
     LeaveModule,
     AnnouncementsModule,

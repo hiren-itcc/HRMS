@@ -20,6 +20,7 @@ import { AllowPasswordChange } from '../../common/decorators/allow-password-chan
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { Env } from '../../config/env';
+import { LifecycleService } from '../lifecycle/lifecycle.service';
 import { AuthService, type RequestMeta } from './auth.service';
 import {
   AcceptInviteDto,
@@ -44,6 +45,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly invites: InviteService,
     private readonly tokens: TokenService,
+    private readonly lifecycle: LifecycleService,
     config: ConfigService<Env, true>,
   ) {
     this.isProd = config.get('NODE_ENV', { infer: true }) === 'production';
@@ -171,6 +173,18 @@ export class AuthController {
   @AllowPasswordChange()
   @ApiOperation({ summary: 'Current user with role, permissions and employee summary' })
   me(@CurrentUser() user: AccessTokenClaims) {
+    /*
+     * The daily lifecycle tick, hung off the one request every session makes
+     * on load. Not awaited, and it swallows its own errors: nothing on any
+     * screen depends on it having run — probation state and notice elapse are
+     * derived from the dates on read — so it must never be the reason `me`
+     * is slow or fails.
+     *
+     * This is here rather than in an `@Cron` because the instance sleeps after
+     * fifteen idle minutes, and a timer that silently does not fire is worse
+     * than no timer at all.
+     */
+    void this.lifecycle.tickIfDue(user.orgId);
     return this.auth.getMe(user.sub);
   }
 

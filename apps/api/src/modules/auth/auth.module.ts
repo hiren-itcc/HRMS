@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type { Env } from '../../config/env';
+import { LifecycleJobsModule } from '../lifecycle/lifecycle-jobs.module';
 import { MailModule } from '../mail/mail.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -15,6 +16,8 @@ import { TokenService } from './token.service';
   imports: [
     PassportModule,
     MailModule,
+    // Only for the once-a-day tick hung off GET /auth/me.
+    LifecycleJobsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({

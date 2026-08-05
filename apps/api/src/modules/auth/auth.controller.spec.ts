@@ -1,5 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import type { LifecycleService } from '../lifecycle/lifecycle.service';
 import { AuthController, REFRESH_COOKIE } from './auth.controller';
 import type { AuthService } from './auth.service';
 import type { InviteService } from './invite.service';
@@ -29,7 +30,10 @@ function buildController(nodeEnv: string, tokenOverrides: Partial<TokenService> 
     ...tokenOverrides,
   } as unknown as TokenService;
 
-  const controller = new AuthController(auth, {} as InviteService, tokens, config);
+  // The lifecycle tick is fire-and-forget and swallows its own errors, so the
+  // stub only has to exist — no assertion here depends on it.
+  const lifecycle = { tickIfDue: jest.fn() } as unknown as LifecycleService;
+  const controller = new AuthController(auth, {} as InviteService, tokens, lifecycle, config);
   const res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
   return { controller, res, auth, tokens };
 }
