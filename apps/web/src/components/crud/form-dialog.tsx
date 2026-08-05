@@ -20,6 +20,13 @@ interface FormDialogProps {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   submitting: boolean;
   submitLabel: string;
+  /**
+   * Blocks submit for a reason the form itself can see, separately from
+   * `submitting`. Only for dialogs whose fields are plain state rather than
+   * react-hook-form, where there is no resolver to refuse for them — pair it
+   * with a visible error on the field, never on its own.
+   */
+  submitDisabled?: boolean;
   children: React.ReactNode;
 }
 
@@ -32,6 +39,7 @@ export function FormDialog({
   onSubmit,
   submitting,
   submitLabel,
+  submitDisabled,
   children,
 }: FormDialogProps) {
   return (
@@ -55,7 +63,7 @@ export function FormDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || submitDisabled}>
               {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
               {submitLabel}
             </Button>

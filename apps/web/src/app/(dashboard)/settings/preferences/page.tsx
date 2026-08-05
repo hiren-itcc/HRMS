@@ -38,6 +38,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
+import { LifecycleRunPanel } from '@/features/lifecycle/components/lifecycle-run-panel';
 import { SETTINGS_KEY, settingsApi, useOrgSettings } from '@/features/settings/api';
 
 const MONTHS = [
@@ -387,6 +388,8 @@ export default function PreferencesPage() {
             </div>
 
             {saveBar('lifecycle', 'Save lifecycle')}
+
+            {canManage && <LifecycleRunPanel />}
           </CardContent>
         </Card>
       </FadeInItem>

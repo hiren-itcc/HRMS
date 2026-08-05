@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarClock,
   Contact,
+  DoorOpen,
   FileText,
   LayoutDashboard,
   type LucideIcon,
@@ -46,6 +47,14 @@ export const NAV_ITEMS: NavItem[] = [
     // read.own is enough to reach the module: every employee has a salary page.
     perms: ['payroll.read', 'payroll.read.team', 'payroll.read.own'],
     module: 'payroll',
+  },
+  {
+    href: '/resignations',
+    label: 'Exits',
+    icon: DoorOpen,
+    // Everyone can reach it: the first tab is their own resignation. The
+    // approvals and offboarding tabs gate themselves.
+    perms: ['resignation.read.own', 'resignation.read.team', 'resignation.read'],
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {

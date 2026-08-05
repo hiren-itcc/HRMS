@@ -13,14 +13,18 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
+  BadgeCheck,
   Building2,
   CalendarClock,
   CalendarDays,
   Clock3,
+  DoorOpen,
+  LogOut,
   MapPin,
   Network,
   Palmtree,
   UserCheck,
+  UserMinus,
   UserPlus,
   UserRound,
   Users,
@@ -34,6 +38,7 @@ import { AnnouncementsWidget } from '@/features/announcements/components/announc
 import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { employeesApi } from '@/features/employees/api';
+import { lifecycleApi } from '@/features/lifecycle/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
 import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
 
@@ -107,6 +112,18 @@ export default function DashboardPage() {
     queryFn: () =>
       holidaysApi.list({ page: 1, limit: 50, year: new Date().getFullYear(), sort: 'date' }),
     enabled: canOrg,
+    staleTime: 60_000,
+  });
+
+  /*
+   * One query for six lifecycle numbers rather than six list calls reading
+   * meta.total off the envelope. Each figure comes back null when the caller
+   * may not see it, so the tiles below check for null rather than for a
+   * permission — the API decides once and the dashboard follows.
+   */
+  const lifecycle = useQuery({
+    queryKey: ['lifecycle', 'stats'],
+    queryFn: lifecycleApi.stats,
     staleTime: 60_000,
   });
 
@@ -184,6 +201,66 @@ export default function DashboardPage() {
           />
         ),
       },
+    lifecycle.data?.pendingResignations !== null && {
+      key: 'resignations',
+      card: (
+        <StatCard
+          label="Pending resignations"
+          value={lifecycle.data?.pendingResignations ?? undefined}
+          hint="Awaiting a decision"
+          icon={DoorOpen}
+          gradient="rose"
+          loading={lifecycle.isLoading}
+        />
+      ),
+    },
+    lifecycle.data?.onProbation !== null && {
+      key: 'probation',
+      card: (
+        <StatCard
+          label="On probation"
+          value={lifecycle.data?.onProbation ?? undefined}
+          hint={
+            lifecycle.data?.probationOverdue
+              ? `${lifecycle.data.probationOverdue} past their end date`
+              : `${lifecycle.data?.probationEndingSoon ?? 0} ending within 30 days`
+          }
+          icon={BadgeCheck}
+          gradient="sky"
+          loading={lifecycle.isLoading}
+        />
+      ),
+    },
+    lifecycle.data?.activeNoticePeriods !== null && {
+      key: 'notice',
+      card: (
+        <StatCard
+          label="Serving notice"
+          value={lifecycle.data?.activeNoticePeriods ?? undefined}
+          hint={
+            lifecycle.data?.upcomingLastWorkingDates.length
+              ? `Next: ${lifecycle.data.upcomingLastWorkingDates[0]?.name}`
+              : 'No upcoming last days'
+          }
+          icon={LogOut}
+          gradient="amber"
+          loading={lifecycle.isLoading}
+        />
+      ),
+    },
+    lifecycle.data?.offboardingInProgress !== null && {
+      key: 'offboarding',
+      card: (
+        <StatCard
+          label="Offboarding"
+          value={lifecycle.data?.offboardingInProgress ?? undefined}
+          hint="Exits in progress"
+          icon={UserMinus}
+          gradient="primary"
+          loading={lifecycle.isLoading}
+        />
+      ),
+    },
   ].filter(Boolean) as { key: string; card: React.ReactNode }[];
 
   const actions: QuickAction[] = [
