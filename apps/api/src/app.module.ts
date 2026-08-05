@@ -12,6 +12,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { AssetsModule } from './modules/assets/assets.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -54,6 +55,7 @@ import { StorageModule } from './modules/storage/storage.module';
     OnboardingModule,
     ResignationsModule,
     OffboardingModule,
+    AssetsModule,
     LifecycleJobsModule,
     AttendanceModule,
     LeaveModule,
