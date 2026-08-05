@@ -429,14 +429,20 @@ export class AttendanceService {
     const to = toDate(days[days.length - 1] as string);
     const todayKey = dateKeyInTz(new Date(), ctx.timeZone);
 
-    const [records, holidays, leave, weekOff, remote] = await Promise.all([
+    // The working week and the holidays are wanted twice — once here and once
+    // by the remote-day lookup — so they are fetched first and handed over,
+    // rather than each caller paying for them.
+    const [holidays, weekOff] = await Promise.all([
+      this.holidayKeys(ctx.organizationId, from, to),
+      this.weekOffDays(ctx.organizationId),
+    ]);
+
+    const [records, leave, remote] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
         where: { employeeId: ctx.employeeId, date: { gte: from, lte: to } },
         include: WITH_SESSIONS,
       }),
-      this.holidayKeys(ctx.organizationId, from, to),
       this.leaveKeys([ctx.employeeId], from, to),
-      this.weekOffDays(ctx.organizationId),
       // Derived, never stored. A remote day nobody approved is still recorded
       // exactly as it was — this is the only place that fact is noticed.
       this.wfh.approvedDaysIn(
@@ -444,6 +450,7 @@ export class AttendanceService {
         [ctx.employeeId],
         days[0] as string,
         days[days.length - 1] as string,
+        { weekOffDays: weekOff, holidays },
       ),
     ]);
     const byDate = new Map(records.map((r) => [dateKeyOf(r.date), r]));
@@ -520,18 +527,21 @@ export class AttendanceService {
 
     // Approved leave must win over "absent" here too — without this an
     // employee on sanctioned leave reads as ABSENT to their manager.
-    const [leave, weekOff, remote] = await Promise.all([
+    const weekOff = await this.weekOffDays(claims.orgId);
+    const [leave, remote] = await Promise.all([
       this.leaveKeys(
         employees.map((e) => e.id),
         toDate(dateKey),
         toDate(dateKey),
       ),
-      this.weekOffDays(claims.orgId),
+      // `isHoliday` above already answered the holiday question for this one
+      // day, so the set handed over is simply that answer.
       this.wfh.approvedDaysIn(
         claims.orgId,
         employees.map((e) => e.id),
         dateKey,
         dateKey,
+        { weekOffDays: weekOff, holidays: new Set(isHoliday ? [dateKey] : []) },
       ),
     ]);
 

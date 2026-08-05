@@ -10,6 +10,8 @@ import { api } from '@/lib/api-client';
  */
 export interface LifecycleStats {
   today: string;
+  /** People who actually work here — leavers and not-yet-started excluded. */
+  headcount: number | null;
   onProbation: number | null;
   probationEndingSoon: number | null;
   probationOverdue: number | null;

@@ -78,6 +78,14 @@ export class WfhService {
     employeeIds: string[],
     fromKey: string,
     toKey: string,
+    /**
+     * The working week and holidays, when the caller has already fetched them.
+     *
+     * Attendance always has: it reads both for the very range it is asking
+     * about. Without this, every month view and every team day view paid for
+     * the same two queries twice — on the screen everybody opens daily.
+     */
+    known?: { weekOffDays: number[]; holidays: Set<string> },
   ): Promise<Set<string>> {
     if (employeeIds.length === 0) return new Set();
 
@@ -93,8 +101,8 @@ export class WfhService {
       select: { employeeId: true, startDate: true, endDate: true },
     });
 
-    const weekOff = (await this.settings.get(orgId)).workingWeek.weekOffDays;
-    const holidays = await this.holidayKeys(orgId, fromKey, toKey);
+    const weekOff = known?.weekOffDays ?? (await this.settings.get(orgId)).workingWeek.weekOffDays;
+    const holidays = known?.holidays ?? (await this.holidayKeys(orgId, fromKey, toKey));
 
     const approved = new Set<string>();
     for (const row of rows) {
@@ -231,22 +239,47 @@ export class WfhService {
     if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
       throw new BadRequestException('This request is already closed');
     }
-    if (
-      request.status === 'APPROVED' &&
-      dateKeyOf(request.endDate) < (await this.todayKey(ctx.orgId))
-    ) {
+    const todayKey = await this.todayKey(ctx.orgId);
+    const startKey = dateKeyOf(request.startDate);
+    const endKey = dateKeyOf(request.endDate);
+
+    if (request.status === 'APPROVED' && endKey < todayKey) {
       throw new BadRequestException('Those days have already passed');
     }
 
-    const updated = await this.prisma.remoteWorkRequest.update({
-      where: { id },
-      data: { status: 'CANCELLED', actedAt: new Date() },
-      include: INCLUDE,
-    });
+    /*
+     * A range that straddles today is **truncated, not voided**.
+     *
+     * Withdrawing a Monday-to-Friday request on the Wednesday must not unapprove
+     * the Monday and Tuesday somebody already worked — attendance would re-read
+     * those days as unplanned, disagreeing with a decision that was made and
+     * acted on at the time. Only the part still ahead is given up.
+     */
+    const straddles = request.status === 'APPROVED' && startKey < todayKey && endKey >= todayKey;
+
+    const updated = straddles
+      ? await this.prisma.remoteWorkRequest.update({
+          where: { id },
+          data: {
+            endDate: toDate(addDays(todayKey, -1)),
+            days: (await this.workingDaysOf(ctx.orgId, startKey, addDays(todayKey, -1))).length,
+            approverNote: [request.approverNote, `Remaining days withdrawn on ${todayKey}`]
+              .filter(Boolean)
+              .join(' · '),
+          },
+          include: INCLUDE,
+        })
+      : await this.prisma.remoteWorkRequest.update({
+          where: { id },
+          data: { status: 'CANCELLED', actedAt: new Date() },
+          include: INCLUDE,
+        });
 
     await auditMutation(this.prisma, ctx, 'wfh.cancel', 'RemoteWorkRequest', id, {
-      before: { status: request.status },
-      after: { status: 'CANCELLED' },
+      before: { status: request.status, startDate: startKey, endDate: endKey },
+      after: straddles
+        ? { status: 'APPROVED', endDate: addDays(todayKey, -1), truncated: true }
+        : { status: 'CANCELLED' },
     });
     return updated;
   }

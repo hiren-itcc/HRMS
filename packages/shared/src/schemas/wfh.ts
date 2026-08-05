@@ -23,12 +23,32 @@ const endNotBeforeStart = {
 export const wfhPreviewQuerySchema = z.object(range);
 export type WfhPreviewQuery = z.infer<typeof wfhPreviewQuerySchema>;
 
+/**
+ * A range long enough to be a mistake.
+ *
+ * `eachDayKey` stops counting at 400 days and returns what it has, silently —
+ * so without a bound a two-year request would store a day count that is simply
+ * wrong and get a cap check that only ever saw the first 400 days. Ninety days
+ * is a quarter, which is longer than any real arrangement made one request at
+ * a time, and a refusal beats a number nobody can trust.
+ */
+const MAX_SPAN_DAYS = 90;
+const spanIsSane = {
+  check: (v: { startDate: string; endDate: string }) =>
+    (Date.parse(v.endDate) - Date.parse(v.startDate)) / 86_400_000 < MAX_SPAN_DAYS,
+  options: {
+    path: ['endDate'],
+    message: `Ask for ${MAX_SPAN_DAYS} days or fewer at a time`,
+  },
+};
+
 export const wfhApplySchema = z
   .object({
     ...range,
     reason: z.string().trim().min(3, 'Say why').max(500),
   })
-  .refine(endNotBeforeStart.check, endNotBeforeStart.options);
+  .refine(endNotBeforeStart.check, endNotBeforeStart.options)
+  .refine(spanIsSane.check, spanIsSane.options);
 export type WfhApplyInput = z.infer<typeof wfhApplySchema>;
 
 export const wfhAmendSchema = wfhApplySchema;

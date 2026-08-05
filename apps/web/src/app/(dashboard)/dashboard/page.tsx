@@ -37,7 +37,6 @@ import { displayName } from '@/components/user-menu';
 import { AnnouncementsWidget } from '@/features/announcements/components/announcements-widget';
 import { attendanceApi } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
-import { employeesApi } from '@/features/employees/api';
 import { lifecycleApi, lifecycleKeys } from '@/features/lifecycle/api';
 import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
 import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
@@ -89,12 +88,6 @@ export default function DashboardPage() {
     staleTime: 30_000,
   });
 
-  const employees = useQuery({
-    queryKey: ['employees', 'stat'],
-    queryFn: () => employeesApi.list(ONE_PAGE),
-    enabled: canEmployees,
-    staleTime: 60_000,
-  });
   const departments = useQuery({
     queryKey: ['org-departments', 'stat'],
     queryFn: () => departmentsApi.list(ONE_PAGE),
@@ -166,11 +159,21 @@ export default function DashboardPage() {
       card: (
         <StatCard
           label="Total employees"
-          value={employees.data?.meta.total}
-          hint="Active records"
+          /*
+           * The lifecycle count, not the employee list's total. That total
+           * filters on nothing but the soft delete, so it counted people who
+           * had already left — a company of two that had lost one still read
+           * "2 · Active records".
+           */
+          value={lifecycle.data?.headcount ?? undefined}
+          hint={
+            lifecycle.data?.activeNoticePeriods
+              ? `${lifecycle.data.activeNoticePeriods} serving notice`
+              : 'Currently employed'
+          }
           icon={Users}
           gradient="primary"
-          loading={employees.isLoading}
+          loading={lifecycle.isLoading}
         />
       ),
     },

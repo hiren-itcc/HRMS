@@ -245,6 +245,26 @@ describe('dashboard stats', () => {
     expect(stats.upcomingLastWorkingDates).toEqual([]);
   });
 
+  /*
+   * The dashboard used to take its headcount from the employee list's
+   * `meta.total`, which filters on nothing but the soft delete — so a company
+   * of two that had lost one still read "2 · Active records". The count that
+   * replaced it excludes both leavers and people who have not started.
+   */
+  it('counts only people who actually work here', async () => {
+    const { service, prisma } = withCounts();
+    await service.stats(claims(['employee.read']));
+
+    const headcountCall = (prisma.employee.count as jest.Mock).mock.calls[0][0];
+    expect(headcountCall.where.status).toEqual({ notIn: ['ONBOARDING', 'EXITED'] });
+    expect(headcountCall.where.deletedAt).toBeNull();
+  });
+
+  it('gives no headcount to somebody who may not see people', async () => {
+    const { service } = withCounts();
+    expect((await service.stats(claims([]))).headcount).toBeNull();
+  });
+
   it('narrows a manager to their own reports', async () => {
     const { service, prisma } = withCounts();
     await service.stats(claims(['employee.read.team']));
@@ -276,7 +296,8 @@ describe('dashboard stats', () => {
   it('counts an extended probation on the extended date only', async () => {
     const { service, prisma } = withCounts();
     await service.stats(claims(['employee.read']));
-    const endingSoon = (prisma.employee.count as Mock).mock.calls[1][0].where;
+    // [0] is the headcount, [1] is on-probation, [2] is ending-soon.
+    const endingSoon = (prisma.employee.count as Mock).mock.calls[2][0].where;
     expect(endingSoon.OR).toEqual([
       { probationExtendedTo: expect.objectContaining({ gte: expect.any(Date) }) },
       {

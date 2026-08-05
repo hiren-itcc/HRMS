@@ -5,6 +5,7 @@ import { auditMutation } from '../../common/utils/audit';
 import { addDays, dateKeyOf, toDate } from '../../common/utils/calendar';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { OffboardingsService } from '../offboarding/offboardings.service';
 import { effectiveProbationEnd } from './lifecycle.rules';
 import { LifecyclePolicyService } from './lifecycle-policy.service';
@@ -18,6 +19,15 @@ const LEAVING_SOON_DAYS = 30;
 
 export interface LifecycleStats {
   today: string;
+  /**
+   * People who actually work here: everyone but those who have left and those
+   * who have not started.
+   *
+   * The dashboard used to take this from the employee list's `meta.total`,
+   * which filters on nothing but the soft delete — so it counted leavers, and
+   * a company of two that had lost one still read "2 · Active records".
+   */
+  headcount: number | null;
   /** Null when the caller may not see that figure — the tile is not rendered. */
   onProbation: number | null;
   probationEndingSoon: number | null;
@@ -170,6 +180,7 @@ export class LifecycleService {
     };
 
     const [
+      headcount,
       onProbationCount,
       probationEndingSoon,
       probationOverdue,
@@ -177,6 +188,13 @@ export class LifecycleService {
       activeNoticePeriods,
       offboardingInProgress,
     ] = await Promise.all([
+      // EMPLOYED_AND_LIVE is the shared definition of "works here" — imported
+      // rather than retyped, which is the whole reason it exists.
+      seesPeople
+        ? this.prisma.employee.count({
+            where: { ...scope, ...EMPLOYED_AND_LIVE, status: { notIn: ['ONBOARDING', 'EXITED'] } },
+          })
+        : null,
       seesPeople ? this.prisma.employee.count({ where: onProbation }) : null,
       seesPeople
         ? this.prisma.employee.count({
@@ -214,6 +232,7 @@ export class LifecycleService {
 
     return {
       today: ctx.todayKey,
+      headcount,
       onProbation: onProbationCount,
       probationEndingSoon,
       probationOverdue,

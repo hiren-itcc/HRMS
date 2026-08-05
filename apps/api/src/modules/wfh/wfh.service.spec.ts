@@ -355,4 +355,43 @@ describe('cancelling', () => {
     });
     await expect(service.cancel(employee, 'r1')).rejects.toThrow(BadRequestException);
   });
+
+  /*
+   * The bug this replaced. Withdrawing a Monday-to-Friday request on the
+   * Wednesday used to cancel the whole row, so the Monday and Tuesday somebody
+   * had already worked stopped being approved — and attendance re-read them as
+   * unplanned, disagreeing with a decision made and acted on at the time.
+   *
+   * Only the part still ahead is given up. `settingsDouble` fixes the clock at
+   * 2026-08-05, a Wednesday.
+   */
+  it('gives up only the days still ahead when the range straddles today', async () => {
+    const { service, prisma } = makeService({
+      request: {
+        status: 'APPROVED',
+        startDate: new Date('2026-08-03T00:00:00.000Z'),
+        endDate: new Date('2026-08-07T00:00:00.000Z'),
+      },
+    });
+    await service.cancel(employee, 'r1');
+
+    const { data } = prisma.remoteWorkRequest.update.mock.calls[0][0];
+    expect(data.status).toBeUndefined();
+    expect(data.endDate).toEqual(new Date('2026-08-04T00:00:00.000Z'));
+    // Mon and Tue only — the two days already worked.
+    expect(data.days).toBe(2);
+  });
+
+  it('cancels outright when every day is still ahead', async () => {
+    const { service, prisma } = makeService({
+      request: {
+        status: 'APPROVED',
+        startDate: new Date('2026-08-10T00:00:00.000Z'),
+        endDate: new Date('2026-08-11T00:00:00.000Z'),
+      },
+    });
+    await service.cancel(employee, 'r1');
+
+    expect(prisma.remoteWorkRequest.update.mock.calls[0][0].data.status).toBe('CANCELLED');
+  });
 });
