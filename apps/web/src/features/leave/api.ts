@@ -18,6 +18,7 @@ export interface LeaveType {
   carryForward: boolean;
   maxCarryForward: number | null;
   requiresApproval: boolean;
+  encashable: boolean;
   _count?: { requests: number };
 }
 

@@ -88,6 +88,7 @@ function LeaveSettingsView() {
       carryForward: false,
       maxCarryForward: null,
       requiresApproval: true,
+      encashable: false,
     });
     setEditing('new');
   };
@@ -101,6 +102,7 @@ function LeaveSettingsView() {
       carryForward: t.carryForward,
       maxCarryForward: t.maxCarryForward,
       requiresApproval: t.requiresApproval,
+      encashable: t.encashable,
     });
     setEditing(t);
   };
@@ -158,6 +160,7 @@ function LeaveSettingsView() {
                   {t.carryForward && (
                     <Badge variant="outline">Carry ≤ {t.maxCarryForward ?? '—'}</Badge>
                   )}
+                  {t.encashable && <Badge variant="outline">Encashable</Badge>}
                   {!t.requiresApproval && <Badge variant="outline">Auto-approve</Badge>}
                 </span>
               ),
@@ -277,7 +280,18 @@ function LeaveSettingsView() {
           min={0}
         />
         <div className="space-y-2.5">
-          <FormCheckbox control={typeForm.control} name="isPaid" label="Paid leave" />
+          <FormCheckbox
+            control={typeForm.control}
+            name="isPaid"
+            label="Paid leave"
+            onValueChange={(checked) => {
+              // Encashing leave that is not paid in the first place is
+              // nonsense, and the schema refuses it. Clearing it here means
+              // unchecking Paid does not strand an error on a field the user
+              // never touched.
+              if (!checked) typeForm.setValue('encashable', false, { shouldDirty: true });
+            }}
+          />
           <FormCheckbox
             control={typeForm.control}
             name="requiresApproval"
@@ -295,6 +309,14 @@ function LeaveSettingsView() {
             }}
           />
         </div>
+        {typeForm.watch('isPaid') && (
+          <FormCheckbox
+            control={typeForm.control}
+            name="encashable"
+            label="Encash unused balance on exit"
+            hint="Whatever is left is paid out in the leaver's full & final settlement."
+          />
+        )}
         {typeForm.watch('carryForward') && (
           <FormInput
             control={typeForm.control}

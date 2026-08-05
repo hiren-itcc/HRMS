@@ -222,6 +222,63 @@ export const exitChecklistSchema = z.object({
     ]),
 });
 
+// ── Full & final settlement ───────────────────────────────────────────
+
+/**
+ * What a day of pay is worth when a settlement prices one.
+ *
+ * 26 is the statutory divisor in the Payment of Gratuity Act and the common
+ * Indian practice for encashment; 30 suits a contract written in calendar
+ * days; the calendar month divides by however many days that month actually
+ * had, so February pays more per day than March.
+ */
+export const PER_DAY_BASES = ['DAYS_26', 'DAYS_30', 'CALENDAR_MONTH'] as const;
+export const perDayBasisSchema = z.enum(PER_DAY_BASES);
+export type PerDayBasis = (typeof PER_DAY_BASES)[number];
+
+export const PER_DAY_BASIS_LABELS: Record<PerDayBasis, string> = {
+  DAYS_26: '26 days (statutory)',
+  DAYS_30: '30 days',
+  CALENDAR_MONTH: 'Days in that month',
+};
+
+/**
+ * Settlement policy.
+ *
+ * Every figure a settlement computes is a *starting point* — each line is
+ * editable before approval, because a real settlement gets negotiated and a
+ * system that produces an unarguable number is one people work around in a
+ * spreadsheet. These settings decide what that starting point is.
+ *
+ * Settlement amounts deliberately sit outside the statutory base: nothing here
+ * feeds `computeStatutory`. An earning added to monthly gross would cross the
+ * ESI threshold, which is a cliff rather than a taper, and switch ESI off for
+ * the month. Tax on a settlement is entered by hand, exactly as monthly TDS
+ * already is.
+ */
+export const settlementSchema = z.object({
+  perDayBasis: perDayBasisSchema.default('DAYS_26'),
+  /** Encashment and recovery are priced off basic unless an org says gross. */
+  rateBasis: z.enum(['BASIC', 'GROSS']).default('BASIC'),
+  /**
+   * Recover pay for notice the employee did not serve. Off for organizations
+   * that waive it as a matter of course. Never applies to an exit the employee
+   * did not choose — see `settlement.calc.ts`.
+   */
+  recoverShortNotice: z.boolean().default(true),
+  gratuity: z
+    .object({
+      enabled: z.boolean().default(true),
+      /** Continuous service before any gratuity is owed. */
+      minYears: z.number().int().min(0).max(20).default(5),
+      daysPerYear: z.number().min(0).max(31).default(15),
+      divisor: z.number().min(1).max(31).default(26),
+      /** ₹20 lakh, the statutory ceiling. Zero means no ceiling. */
+      cap: z.number().min(0).default(2_000_000),
+    })
+    .prefault({}),
+});
+
 // ── Modules ───────────────────────────────────────────────────────────
 
 /**
@@ -246,6 +303,7 @@ export const orgSettingsSchema = z.object({
   payroll: payrollSchema,
   lifecycle: lifecycleSchema,
   exitChecklist: exitChecklistSchema,
+  settlement: settlementSchema,
   modules: modulesSchema,
 });
 
@@ -303,6 +361,7 @@ export const orgSettingsPatchSchema = z
     payroll: asPatch(payrollSchema).optional(),
     lifecycle: asPatch(lifecycleSchema).optional(),
     exitChecklist: asPatch(exitChecklistSchema).optional(),
+    settlement: asPatch(settlementSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -319,6 +378,7 @@ export const SETTINGS_GROUPS = [
   'payroll',
   'lifecycle',
   'exitChecklist',
+  'settlement',
   'modules',
 ] as const;
 
@@ -330,6 +390,7 @@ export function defaultSettings(): OrgSettings {
     payroll: {},
     lifecycle: {},
     exitChecklist: {},
+    settlement: {},
     modules: {},
   });
 }

@@ -512,6 +512,10 @@ model LeaveType {
   carryForward     Boolean  @default(false)
   maxCarryForward  Decimal? @db.Decimal(5, 1)
   requiresApproval Boolean  @default(true)
+  /// Paid out on exit for whatever balance is left. Off by default: most
+  /// leave types are use-it-or-lose-it, and encashing everything by accident
+  /// is an expensive default to get wrong.
+  encashable       Boolean  @default(false)
 
   requests LeaveRequest[]
   balances LeaveBalance[]
