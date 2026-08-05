@@ -112,6 +112,10 @@ export interface AttendanceStats {
   stillIn: number;
   notMarked: number;
   pendingRequests: number;
+  /** Worked from home today. */
+  remote: number;
+  /** Of those, how many had no approved request behind them. */
+  remoteUnplanned: number;
 }
 
 export interface AttendanceRequestRow {
