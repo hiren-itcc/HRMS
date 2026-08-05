@@ -50,6 +50,17 @@ export const PERMISSIONS = [
   'resignation.approve',
 
   /*
+   * Signing off one line of somebody's exit clearance. Separate from
+   * `employee.offboard` because the two are different jobs: offboard decides
+   * whether and when somebody leaves, this says a laptop came back. Finance
+   * and Managers hold it and hold nothing else about exits.
+   *
+   * Whose exit a Manager may sign off is not something the guard can answer,
+   * so the service checks they are actually that employee's manager.
+   */
+  'offboarding.clearance',
+
+  /*
    * The company directory: work contact details for everyone, and nothing
    * else. Deliberately separate from `employee.read`, which opens the HR
    * record — date of birth, home address, bank details. Every role holds it.
@@ -161,6 +172,8 @@ const MANAGER_PERMS: Permission[] = [
   'payroll.read.team',
   'resignation.read.team',
   'resignation.approve.team',
+  // A manager signs off the handover for their own leaver, and nothing else.
+  'offboarding.clearance',
 ];
 
 const HR_PERMS: Permission[] = [
@@ -174,6 +187,7 @@ const HR_PERMS: Permission[] = [
   'employee.confirm',
   'resignation.read',
   'resignation.approve',
+  'offboarding.clearance',
   'attendance.read',
   'attendance.approve',
   'attendance.manage',
@@ -210,6 +224,8 @@ const FINANCE_PERMS: Permission[] = [
   'payroll.pay',
   'report.view',
   'report.export',
+  // Finance clears outstanding dues on the way out.
+  'offboarding.clearance',
 ];
 
 /** Default grants per system role (docs/04-rbac.md permission matrix). */

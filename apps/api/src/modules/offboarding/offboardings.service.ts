@@ -3,12 +3,14 @@ import type {
   OffboardingCompleteInput,
   OffboardingCreateInput,
   OffboardingQuery,
+  OffboardingTaskUpdateInput,
   OffboardingUpdateInput,
 } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   forwardRef,
   Inject,
   Injectable,
@@ -18,7 +20,7 @@ import { auditMutation } from '../../common/utils/audit';
 import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
-import type { Prisma } from '../../generated/prisma/client';
+import type { ClearanceOwner, Prisma } from '../../generated/prisma/client';
 import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -280,6 +282,7 @@ export class OffboardingsService {
    */
   async complete(ctx: OffboardingCtx, id: string, input: OffboardingCompleteInput = {}) {
     const record = await this.requireOpen(ctx.orgId, id);
+    await this.assertCleared(id);
     const lastWorkingDate = input.lastWorkingDate ?? dateKeyOf(record.lastWorkingDate);
 
     await this.transitions.apply(ctx, record.employeeId, {
@@ -355,6 +358,110 @@ export class OffboardingsService {
       note: input.reason,
     });
     return updated;
+  }
+
+  // ── clearance ─────────────────────────────────────────────────────────
+
+  /**
+   * Sign one line off, waive it, or put it back.
+   *
+   * Putting it back is deliberately allowed: a laptop that turned out not to
+   * have come back has not come back, and the only alternative is a record
+   * that is wrong.
+   */
+  async updateTask(claims: AccessTokenClaims, taskId: string, input: OffboardingTaskUpdateInput) {
+    const ctx: OffboardingCtx = { orgId: claims.orgId, userId: claims.sub };
+    const task = await this.prisma.offboardingTask.findFirst({
+      where: { id: taskId, offboarding: { organizationId: ctx.orgId } },
+      include: {
+        offboarding: {
+          select: { id: true, status: true, employee: { select: { managerId: true } } },
+        },
+      },
+    });
+    if (!task) throw new NotFoundException('Clearance item not found');
+    if (task.offboarding.status !== 'IN_PROGRESS') {
+      throw new BadRequestException(
+        task.offboarding.status === 'COMPLETED'
+          ? 'This offboarding is already complete'
+          : 'This offboarding was cancelled',
+      );
+    }
+    this.assertMaySignOff(claims, task.owner, task.offboarding.employee.managerId);
+
+    const done = input.status !== 'PENDING';
+    const updated = await this.prisma.offboardingTask.update({
+      where: { id: taskId },
+      data: {
+        status: input.status,
+        note: input.note ?? null,
+        // Cleared by nobody at no time is what PENDING means; leaving the
+        // stamps behind would make a reopened item look signed off.
+        doneAt: done ? new Date() : null,
+        doneById: done ? ctx.userId : null,
+      },
+    });
+
+    await auditMutation(
+      this.prisma,
+      ctx,
+      'offboarding.clearance',
+      'Offboarding',
+      task.offboardingId,
+      {
+        before: { task: task.label, status: task.status },
+        after: { status: input.status },
+        note: input.note ?? null,
+      },
+    );
+    return updated;
+  }
+
+  /**
+   * Who may sign off what.
+   *
+   * `offboarding.clearance` says "you may clear an exit item"; it cannot say
+   * whose. A `MANAGER`-owned item therefore demands the caller actually be that
+   * employee's manager — otherwise every manager in the organization could
+   * sign off every handover.
+   *
+   * `employee.offboard` holders may sign off anything, which is also what
+   * covers `IT_ADMIN` items until an IT role exists.
+   */
+  private assertMaySignOff(
+    claims: AccessTokenClaims,
+    owner: ClearanceOwner,
+    managerId: string | null,
+  ) {
+    const perms = new Set(claims.perms);
+    if (perms.has('employee.offboard')) return;
+    if (!perms.has('offboarding.clearance')) {
+      throw new ForbiddenException('You cannot sign off exit clearance');
+    }
+    if (owner === 'MANAGER' && managerId !== claims.employeeId) {
+      throw new ForbiddenException('Only their reporting manager can sign this off');
+    }
+  }
+
+  /**
+   * The gate.
+   *
+   * This one rule is "employees cannot complete exit until required assets are
+   * returned" — generic, so it covers the handover and the dues as well, and
+   * so Asset Management can later make one of these items compute itself
+   * without the gate changing at all.
+   */
+  private async assertCleared(offboardingId: string) {
+    const outstanding = await this.prisma.offboardingTask.findMany({
+      where: { offboardingId, required: true, status: 'PENDING' },
+      select: { label: true },
+      orderBy: { order: 'asc' },
+    });
+    if (outstanding.length === 0) return;
+    // Named, not counted: "3 items outstanding" sends somebody hunting.
+    throw new BadRequestException(
+      `Still outstanding: ${outstanding.map((t) => t.label).join(', ')}`,
+    );
   }
 
   // ── reads ─────────────────────────────────────────────────────────────

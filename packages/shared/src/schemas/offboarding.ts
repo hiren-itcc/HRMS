@@ -93,6 +93,37 @@ export const offboardingCancelSchema = z.object({
 });
 export type OffboardingCancelInput = z.infer<typeof offboardingCancelSchema>;
 
+// ── Clearance ─────────────────────────────────────────────────────────
+
+export const OFFBOARDING_TASK_STATUSES = ['PENDING', 'DONE', 'NOT_APPLICABLE'] as const;
+export const offboardingTaskStatusSchema = z.enum(OFFBOARDING_TASK_STATUSES);
+export type OffboardingTaskStatusCode = (typeof OFFBOARDING_TASK_STATUSES)[number];
+
+export const OFFBOARDING_TASK_STATUS_LABELS: Record<OffboardingTaskStatusCode, string> = {
+  PENDING: 'Outstanding',
+  DONE: 'Cleared',
+  NOT_APPLICABLE: 'Not applicable',
+};
+
+/**
+ * Signing one line off, or waiving it.
+ *
+ * A waiver requires a note and a completion does not: "cleared" is the
+ * expected outcome and needs no explanation, whereas "this one did not apply"
+ * is a judgement somebody will ask about later. Setting it back to PENDING is
+ * allowed — a laptop that turned out not to have come back has not come back.
+ */
+export const offboardingTaskUpdateSchema = z
+  .object({
+    status: offboardingTaskStatusSchema,
+    note: z.string().trim().max(500).optional().nullable(),
+  })
+  .refine((v) => v.status !== 'NOT_APPLICABLE' || Boolean(v.note?.trim()), {
+    message: 'Say why it does not apply',
+    path: ['note'],
+  });
+export type OffboardingTaskUpdateInput = z.infer<typeof offboardingTaskUpdateSchema>;
+
 export const offboardingQuerySchema = paginationQuerySchema.extend({
   status: offboardingStatusSchema.optional(),
   reason: offboardingReasonSchema.optional(),

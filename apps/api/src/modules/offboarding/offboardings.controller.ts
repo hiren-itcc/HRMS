@@ -3,6 +3,7 @@ import {
   offboardingCompleteSchema,
   offboardingCreateSchema,
   offboardingQuerySchema,
+  offboardingTaskUpdateSchema,
   offboardingUpdateSchema,
 } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
@@ -28,6 +29,7 @@ export class OffboardingUpdateDto extends createZodDto(offboardingUpdateSchema) 
 export class OffboardingCompleteDto extends createZodDto(offboardingCompleteSchema) {}
 export class OffboardingCancelDto extends createZodDto(offboardingCancelSchema) {}
 export class OffboardingQueryDto extends createZodDto(offboardingQuerySchema) {}
+export class OffboardingTaskUpdateDto extends createZodDto(offboardingTaskUpdateSchema) {}
 
 /**
  * Every route here is `employee.offboard`.
@@ -75,6 +77,23 @@ export class OffboardingsController {
     @Body() dto: OffboardingUpdateDto,
   ) {
     return this.offboardings.update(user, id, dto);
+  }
+
+  /*
+   * Its own permission, and declared on the task rather than the offboarding:
+   * Finance and Managers can sign one line off without being able to schedule
+   * or complete anybody's exit. Whose exit a Manager may touch is a question
+   * the guard cannot answer, so the service checks it.
+   */
+  @Patch('tasks/:taskId')
+  @RequirePermissions('offboarding.clearance', 'employee.offboard')
+  @ApiOperation({ summary: 'Sign an exit clearance item off, waive it, or reopen it' })
+  updateTask(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('taskId') taskId: string,
+    @Body() dto: OffboardingTaskUpdateDto,
+  ) {
+    return this.offboardings.updateTask(user, taskId, dto);
   }
 
   @Post(':id/complete')

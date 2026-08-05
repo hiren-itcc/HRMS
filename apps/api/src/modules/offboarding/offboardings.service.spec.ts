@@ -47,6 +47,9 @@ function makeService(
       create: jest.fn().mockResolvedValue({ ...offboarding, ...over.offboarding }),
       update: jest.fn().mockResolvedValue({ ...offboarding, ...over.offboarding }),
     },
+    // The completion gate reads this on every complete(); an empty list is an
+    // exit with nothing outstanding.
+    offboardingTask: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     resignation: { update: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn((arg: unknown) =>
@@ -419,5 +422,165 @@ describe('the checklist', () => {
       lastWorkingDate: '2026-09-30',
     });
     expect(tasksOf(prisma)).toEqual([]);
+  });
+});
+
+describe('clearance', () => {
+  const manager: AccessTokenClaims = {
+    sub: 'u-mgr',
+    orgId: 'org1',
+    roleCode: 'MANAGER',
+    perms: ['offboarding.clearance'],
+    employeeId: 'mgr1',
+  };
+  const finance: AccessTokenClaims = {
+    sub: 'u-fin',
+    orgId: 'org1',
+    roleCode: 'FINANCE',
+    perms: ['offboarding.clearance'],
+    employeeId: 'e-fin',
+  };
+
+  function withTask(over: { owner?: string; status?: string; managerId?: string | null } = {}) {
+    const made = makeService();
+    made.prisma.offboardingTask = {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 't1',
+        offboardingId: 'off1',
+        label: 'Return company assets',
+        owner: over.owner ?? 'IT_ADMIN',
+        status: 'PENDING',
+        offboarding: {
+          id: 'off1',
+          status: over.status ?? 'IN_PROGRESS',
+          employee: { managerId: over.managerId === undefined ? 'mgr1' : over.managerId },
+        },
+      }),
+      update: jest.fn().mockResolvedValue({ id: 't1', status: 'DONE' }),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    return made;
+  }
+
+  it('signs an item off and stamps who and when', async () => {
+    const { service, prisma } = withTask();
+    await service.updateTask(hr, 't1', { status: 'DONE', note: 'Laptop and card returned' });
+    expect(prisma.offboardingTask.update).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: {
+        status: 'DONE',
+        note: 'Laptop and card returned',
+        doneAt: expect.any(Date),
+        doneById: 'u-hr',
+      },
+    });
+  });
+
+  /*
+   * A laptop that turned out not to have come back has not come back. Leaving
+   * the stamps behind would make a reopened item look signed off.
+   */
+  it('clears the stamps when an item is reopened', async () => {
+    const { service, prisma } = withTask();
+    await service.updateTask(hr, 't1', { status: 'PENDING', note: null });
+    expect(prisma.offboardingTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ doneAt: null, doneById: null }) }),
+    );
+  });
+
+  it('lets Finance sign off a Finance item', async () => {
+    const { service, prisma } = withTask({ owner: 'FINANCE' });
+    await service.updateTask(finance, 't1', { status: 'DONE', note: null });
+    expect(prisma.offboardingTask.update).toHaveBeenCalled();
+  });
+
+  /*
+   * `offboarding.clearance` says "you may clear an exit item"; it cannot say
+   * whose. Without the service check every manager could sign off every
+   * handover in the organization.
+   */
+  it('lets the right manager sign off a manager item', async () => {
+    const { service, prisma } = withTask({ owner: 'MANAGER', managerId: 'mgr1' });
+    await service.updateTask(manager, 't1', { status: 'DONE', note: null });
+    expect(prisma.offboardingTask.update).toHaveBeenCalled();
+  });
+
+  it('refuses a manager who is not their manager', async () => {
+    const { service } = withTask({ owner: 'MANAGER', managerId: 'somebody-else' });
+    await expect(service.updateTask(manager, 't1', { status: 'DONE', note: null })).rejects.toThrow(
+      /reporting manager/i,
+    );
+  });
+
+  /* Which is also what covers IT_ADMIN items until an IT role exists. */
+  it('lets an employee.offboard holder sign off anything', async () => {
+    const { service, prisma } = withTask({ owner: 'MANAGER', managerId: 'somebody-else' });
+    await service.updateTask(hr, 't1', { status: 'DONE', note: null });
+    expect(prisma.offboardingTask.update).toHaveBeenCalled();
+  });
+
+  it('refuses somebody holding neither permission', async () => {
+    const { service } = withTask();
+    await expect(
+      service.updateTask({ ...finance, perms: [] }, 't1', { status: 'DONE', note: null }),
+    ).rejects.toThrow(/cannot sign off/i);
+  });
+
+  it('refuses once the offboarding is closed', async () => {
+    const { service } = withTask({ status: 'COMPLETED' });
+    await expect(service.updateTask(hr, 't1', { status: 'DONE', note: null })).rejects.toThrow(
+      /already complete/i,
+    );
+  });
+});
+
+describe('the completion gate', () => {
+  function withOutstanding(labels: string[]) {
+    const made = makeService();
+    made.prisma.offboardingTask = {
+      findMany: jest.fn().mockResolvedValue(labels.map((label) => ({ label }))),
+    };
+    return made;
+  }
+
+  /*
+   * This one rule is "employees cannot complete exit until required assets are
+   * returned" — generic, so it covers the handover and the dues too, and so
+   * Asset Management can make one item compute itself without the gate moving.
+   */
+  it('refuses while a required item is outstanding, and names it', async () => {
+    const { service, transitions } = withOutstanding(['Return company assets']);
+    await expect(service.complete(ctx, 'off1', {})).rejects.toThrow(
+      'Still outstanding: Return company assets',
+    );
+    // And nothing happened: no exit, no suspended sign-in.
+    expect(transitions.apply).not.toHaveBeenCalled();
+  });
+
+  it('names every one of them, because a count sends somebody hunting', async () => {
+    const { service } = withOutstanding(['Handover', 'Return company assets']);
+    await expect(service.complete(ctx, 'off1', {})).rejects.toThrow(
+      'Still outstanding: Handover, Return company assets',
+    );
+  });
+
+  it('only counts required items', async () => {
+    const { service, prisma } = withOutstanding([]);
+    await service.complete(ctx, 'off1', {});
+    expect(prisma.offboardingTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { offboardingId: 'off1', required: true, status: 'PENDING' },
+      }),
+    );
+  });
+
+  it('completes once everything required is cleared or waived', async () => {
+    const { service, transitions } = withOutstanding([]);
+    await service.complete(ctx, 'off1', {});
+    expect(transitions.apply).toHaveBeenCalledWith(
+      ctx,
+      'e1',
+      expect.objectContaining({ status: 'EXITED' }),
+    );
   });
 });
