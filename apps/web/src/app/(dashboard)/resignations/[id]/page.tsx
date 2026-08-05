@@ -15,23 +15,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, Info, Undo2 } from 'lucide-react';
+import { ArrowLeft, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ActivityTimeline } from '@/components/activity-timeline';
-import { FormDialog } from '@/components/crud/form-dialog';
 import { ErrorState } from '@/components/error-state';
-import { Field } from '@/components/field';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { initials } from '@/features/employees/types';
-import { lifecycleKeys } from '@/features/lifecycle/api';
-import { offboardingKeys, offboardingsApi } from '@/features/offboarding/api';
 import { resignationKeys, resignationsApi } from '@/features/resignations/api';
 import {
   DecisionDialog,
@@ -43,7 +37,6 @@ import {
   resignationSteps,
 } from '@/features/resignations/components/resignation-status';
 import type { Resignation } from '@/features/resignations/types';
-import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -92,167 +85,39 @@ function Decision({
   );
 }
 
-/** The offboarding half, once one exists. */
+/**
+ * The offboarding half, once one exists.
+ *
+ * A summary and a link, not a second set of controls. Completing, cancelling
+ * and rescheduling all live on the offboarding's own page — having them in two
+ * places would mean two dialogs that have to agree about what completion does,
+ * and the clearance gate is only visible on one of them.
+ */
 function OffboardingPanel({ resignation }: { resignation: Resignation }) {
-  const { can } = useSession();
-  const [completing, setCompleting] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [rescheduling, setRescheduling] = useState(false);
-  const [lastWorkingDate, setLastWorkingDate] = useState('');
-  const [cancelReason, setCancelReason] = useState('');
-
   const offboarding = resignation.offboarding;
-  const canManage = can('employee.offboard');
-  const invalidate = [
-    resignationKeys.all(),
-    offboardingKeys.all(),
-    ['employees'],
-    lifecycleKeys.all(),
-  ];
-
-  const complete = useApiMutation({
-    mutationFn: () =>
-      offboardingsApi.complete(offboarding?.id ?? '', { lastWorkingDate: null, note: null }),
-    invalidate,
-    success: 'Marked as left — their sign-in has been suspended',
-    error: 'Could not complete the offboarding',
-    onSuccess: () => setCompleting(false),
-  });
-
-  const cancel = useApiMutation({
-    mutationFn: () => offboardingsApi.cancel(offboarding?.id ?? '', { reason: cancelReason }),
-    invalidate,
-    success: 'Exit cancelled — they are back to active',
-    error: 'Could not cancel the offboarding',
-    onSuccess: () => {
-      setCancelling(false);
-      setCancelReason('');
-    },
-  });
-
-  const reschedule = useApiMutation({
-    mutationFn: () =>
-      offboardingsApi.update(offboarding?.id ?? '', { lastWorkingDate, reasonNote: null }),
-    invalidate,
-    success: 'Last working date changed',
-    error: 'Could not change the date',
-    onSuccess: () => setRescheduling(false),
-  });
-
   if (!offboarding) return null;
-  const open = offboarding.status === 'IN_PROGRESS';
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Offboarding</CardTitle>
-          <CardDescription>
-            {OFFBOARDING_STATUS_LABELS[offboarding.status]} · last working day{' '}
-            {showDate(offboarding.lastWorkingDate)}
-          </CardDescription>
-        </CardHeader>
-        {canManage && open && (
-          <CardContent className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                setLastWorkingDate(offboarding.lastWorkingDate.slice(0, 10));
-                setCompleting(true);
-              }}
-            >
-              <CheckCircle2 className="size-4" aria-hidden /> Mark as left
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setLastWorkingDate(offboarding.lastWorkingDate.slice(0, 10));
-                setRescheduling(true);
-              }}
-            >
-              Change the date
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setCancelling(true)}>
-              <Undo2 className="size-4" aria-hidden /> Cancel the exit
-            </Button>
-          </CardContent>
-        )}
-      </Card>
-
-      <FormDialog
-        open={completing}
-        onOpenChange={setCompleting}
-        title="Mark as left"
-        description="Closes the offboarding. This is the point their access ends."
-        onSubmit={(e) => {
-          e.preventDefault();
-          complete.mutate();
-        }}
-        submitting={complete.isPending}
-        submitLabel="Mark as left"
-      >
-        <div className="rounded-xl border bg-muted/40 p-3">
-          <p className="font-medium text-sm">What this does</p>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-muted-foreground text-sm">
-            <li>Their sign-in is suspended and every device is signed out immediately.</li>
-            <li>They stop appearing in the directory and as a manager option.</li>
-            <li>Payslips, attendance and leave history are kept — nothing is deleted.</li>
-            <li>The final part-month is still paid: payroll uses the exit date, not the status.</li>
-          </ul>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle>Offboarding</CardTitle>
+            <CardDescription>
+              {OFFBOARDING_STATUS_LABELS[offboarding.status]} · last working day{' '}
+              {showDate(offboarding.lastWorkingDate)}
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            render={<Link href={`/resignations/offboarding/${offboarding.id}`} />}
+          >
+            Open the exit
+          </Button>
         </div>
-      </FormDialog>
-
-      <FormDialog
-        open={rescheduling}
-        onOpenChange={setRescheduling}
-        title="Change the last working date"
-        description="Moves their exit date too, which is what payroll and attendance read."
-        onSubmit={(e) => {
-          e.preventDefault();
-          reschedule.mutate();
-        }}
-        submitting={reschedule.isPending}
-        submitLabel="Save date"
-      >
-        <Field label="Last working date" required>
-          {(a11y) => (
-            <DatePicker {...a11y} value={lastWorkingDate} onValueChange={setLastWorkingDate} />
-          )}
-        </Field>
-      </FormDialog>
-
-      <FormDialog
-        open={cancelling}
-        onOpenChange={setCancelling}
-        title="Cancel the exit"
-        description="They are staying. Clears the exit date and restores their sign-in."
-        onSubmit={(e) => {
-          e.preventDefault();
-          cancel.mutate();
-        }}
-        submitting={cancel.isPending}
-        submitLabel="Cancel the exit"
-        submitDisabled={!cancelReason.trim()}
-      >
-        <Field
-          label="Reason"
-          required
-          hint="Kept on the audit trail"
-          error={cancelReason.trim() ? undefined : 'Say why the exit is being called off'}
-        >
-          {(a11y) => (
-            <Input
-              {...a11y}
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              maxLength={1000}
-              placeholder="Counter-offer accepted"
-            />
-          )}
-        </Field>
-      </FormDialog>
-    </>
+      </CardHeader>
+    </Card>
   );
 }
 

@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
 import { type Offboarding, offboardingKeys, offboardingsApi } from '@/features/offboarding/api';
+import { clearanceProgress } from '@/features/offboarding/components/clearance-checklist';
 import { StartOffboardingDialog } from '@/features/offboarding/components/start-offboarding-dialog';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
@@ -99,6 +100,20 @@ export default function OffboardingPage() {
       ),
     },
     {
+      key: 'clearance',
+      header: 'Clearance',
+      className: 'hidden sm:table-cell',
+      render: (row) => {
+        const { done, total } = clearanceProgress(row.tasks);
+        if (total === 0) return <span className="text-muted-foreground">—</span>;
+        return (
+          <span className={done < total ? 'text-warning-text' : undefined}>
+            {done} of {total}
+          </span>
+        );
+      },
+    },
+    {
       key: 'status',
       header: 'Status',
       render: (row) => (
@@ -150,15 +165,7 @@ export default function OffboardingPage() {
           <Button
             variant="outline"
             size="sm"
-            render={
-              <Link
-                href={
-                  row.resignationId
-                    ? `/resignations/${row.resignationId}`
-                    : `/employees/${row.employeeId}`
-                }
-              />
-            }
+            render={<Link href={`/resignations/offboarding/${row.id}`} />}
           >
             View
           </Button>
