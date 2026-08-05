@@ -30,6 +30,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ResignationsModule } from './modules/resignations/resignations.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { SettlementsModule } from './modules/settlements/settlements.module';
 import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
@@ -59,6 +60,7 @@ import { StorageModule } from './modules/storage/storage.module';
     AnnouncementsModule,
     ReportsModule,
     PayrollModule,
+    SettlementsModule,
     SettingsModule,
     StorageModule,
     AuditModule,

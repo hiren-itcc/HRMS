@@ -21,3 +21,4 @@ export * from './schemas/payroll';
 export * from './schemas/report';
 export * from './schemas/resignation';
 export * from './schemas/settings';
+export * from './schemas/settlement';
