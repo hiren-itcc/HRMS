@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { employeeCreateSchema } from '@hrms/shared';
 import type { EmployeeStatus, Gender } from '@hrms/types';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
@@ -16,7 +15,6 @@ import { SelectItem } from '@hrms/ui/components/select';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormCheckbox, FormDatePicker, FormInput, FormSelect } from '@/components/form';
@@ -31,6 +29,7 @@ import {
   shiftsApi,
 } from '@/features/organization/api';
 import { errorMessage, type Option, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 type FormValues = z.input<typeof employeeCreateSchema>;
 
@@ -76,8 +75,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
     (m) => `${fullName(m)} (${m.employeeCode})`,
   );
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(employeeCreateSchema),
+  const form = useZodForm<FormValues>(employeeCreateSchema, {
     defaultValues: {
       employeeCode: '',
       firstName: '',
@@ -185,21 +183,9 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           <CardDescription>Identity and contact information</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <FormInput
-            control={form.control}
-            name="firstName"
-            label="First name"
-            required
-            autoFocus
-          />
+          <FormInput control={form.control} name="firstName" label="First name" autoFocus />
           <FormInput control={form.control} name="lastName" label="Last name" required />
-          <FormInput
-            control={form.control}
-            name="workEmail"
-            label="Work email"
-            required
-            type="email"
-          />
+          <FormInput control={form.control} name="workEmail" label="Work email" type="email" />
           <FormInput
             control={form.control}
             name="personalEmail"
@@ -252,7 +238,6 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             control={form.control}
             name="joinDate"
             label="Joining date"
-            required
             placeholder="Select joining date"
           />
           <OptionSelect label="Department" name="departmentId" items={departments.options} />

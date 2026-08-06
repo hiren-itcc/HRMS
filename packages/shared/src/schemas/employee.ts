@@ -88,7 +88,7 @@ export const employeeCreateSchema = z.object({
   employeeCode: optionalStr(20),
   firstName: trimmed(60).min(1, 'First name is required'),
   lastName: trimmed(60).min(1, 'Last name is required'),
-  workEmail: z.email('Enter a valid email').trim().toLowerCase(),
+  workEmail: z.email().trim().toLowerCase(),
   personalEmail: optionalEmail,
   phone: optionalStr(20),
   dateOfBirth: z

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { holidayCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import {
@@ -11,7 +10,6 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -22,6 +20,7 @@ import { holidaysApi, locationsApi } from '@/features/organization/api';
 import type { Holiday } from '@/features/organization/types';
 import { useCrudList, useCrudMutations, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-holidays';
 const ALL = 'all';
@@ -54,7 +53,7 @@ function HolidaysView() {
   const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
 
   const [editing, setEditing] = useState<Holiday | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(holidayCreateSchema) });
+  const form = useZodForm<FormValues>(holidayCreateSchema);
 
   const openNew = () => {
     form.reset({ name: '', date: '', locationId: null, isOptional: false });

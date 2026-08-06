@@ -1,9 +1,9 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { SelectItem } from '@hrms/ui/components/select';
 import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { render, screen } from '@/test/render';
 import { FormSelect } from './form-select';
 
@@ -13,8 +13,7 @@ const schema = z.object({
 });
 
 function Harness({ onSubmit = vi.fn() }: { onSubmit?: (v: unknown) => void }) {
-  const form = useForm({
-    resolver: zodResolver(schema),
+  const form = useZodForm(schema, {
     defaultValues: { leaveTypeId: '', parentId: null },
   });
   return (
@@ -120,8 +119,7 @@ describe('FormSelect cascades and loading state', () => {
     const onSubmit = vi.fn();
 
     function Cascade() {
-      const form = useForm({
-        resolver: zodResolver(schema),
+      const form = useZodForm(schema, {
         defaultValues: { leaveTypeId: '', parentId: null },
       });
       return (
@@ -154,8 +152,7 @@ describe('FormSelect cascades and loading state', () => {
     const seen: unknown[] = [];
 
     function Cascade() {
-      const form = useForm({
-        resolver: zodResolver(schema),
+      const form = useZodForm(schema, {
         defaultValues: { leaveTypeId: 'casual', parentId: 'dept-1' },
       });
       return (

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { leaveBalanceAdjustSchema, leaveTypeCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
@@ -8,7 +7,6 @@ import { Input } from '@hrms/ui/components/input';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
@@ -19,6 +17,7 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { type LeaveBalance, type LeaveType, leaveApi } from '@/features/leave/api';
 import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 type TypeValues = z.input<typeof leaveTypeCreateSchema>;
 type AdjustValues = z.input<typeof leaveBalanceAdjustSchema>;
@@ -44,8 +43,8 @@ function LeaveSettingsView() {
     queryFn: () => leaveApi.balances({ year, page: params.page, limit: 10 }),
   });
 
-  const typeForm = useForm<TypeValues>({ resolver: zodResolver(leaveTypeCreateSchema) });
-  const adjustForm = useForm<AdjustValues>({ resolver: zodResolver(leaveBalanceAdjustSchema) });
+  const typeForm = useZodForm<TypeValues>(leaveTypeCreateSchema);
+  const adjustForm = useZodForm<AdjustValues>(leaveBalanceAdjustSchema);
 
   const saveType = useApiMutation({
     mutationFn: (input: TypeValues) => {

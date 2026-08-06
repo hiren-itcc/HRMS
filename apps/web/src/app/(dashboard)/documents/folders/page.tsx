@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { documentCategoryCreateSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -13,7 +12,6 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormInput } from '@/components/form';
@@ -23,6 +21,7 @@ import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { documentsApi } from '@/features/documents/api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 type FolderValues = z.input<typeof documentCategoryCreateSchema>;
 
@@ -40,8 +39,8 @@ export default function DocumentFoldersPage() {
     enabled: canManage,
   });
 
-  const form = useForm<FolderValues>({ resolver: zodResolver(documentCategoryCreateSchema) });
-  const renameForm = useForm<FolderValues>({ resolver: zodResolver(documentCategoryCreateSchema) });
+  const form = useZodForm<FolderValues>(documentCategoryCreateSchema);
+  const renameForm = useZodForm<FolderValues>(documentCategoryCreateSchema);
 
   const createFolder = useApiMutation({
     mutationFn: documentsApi.createFolder,

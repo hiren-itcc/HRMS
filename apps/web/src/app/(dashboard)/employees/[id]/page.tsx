@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type BankDetailInput,
   bankDetailSchema,
@@ -35,7 +34,6 @@ import { ArrowLeft, Landmark, Pencil, Phone, ShieldAlert, Trash2, Users } from '
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { CardColumns } from '@/components/card-columns';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -55,6 +53,7 @@ import { type EmployeeDetail, fullName, initials } from '@/features/employees/ty
 import { LettersPanel } from '@/features/letters/components/letters-panel';
 import { InviteCard } from '@/features/onboarding/components/invite-card';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -84,9 +83,7 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
   const { can, user: me } = useSession();
   const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const form = useForm<EmployeeRoleChangeInput>({
-    resolver: zodResolver(employeeRoleChangeSchema),
-  });
+  const form = useZodForm<EmployeeRoleChangeInput>(employeeRoleChangeSchema);
 
   const save = useApiMutation({
     mutationFn: (input: EmployeeRoleChangeInput) => employeesApi.setRole(employee.id, input),
@@ -167,7 +164,7 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
   const { can } = useSession();
   const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const form = useForm<BankDetailInput>({ resolver: zodResolver(bankDetailSchema) });
+  const form = useZodForm<BankDetailInput>(bankDetailSchema);
   const bank = employee.bankDetail;
 
   const save = useApiMutation({

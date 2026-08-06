@@ -1,16 +1,15 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { leaveApplySchema } from '@hrms/shared';
 import { SelectItem } from '@hrms/ui/components/select';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, Info } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormSelect, FormTextarea } from '@/components/form';
 import { useApiMutation, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { formatDays, type LeaveBalance, leaveApi } from '../api';
 
 type FormValues = z.input<typeof leaveApplySchema>;
@@ -30,8 +29,7 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
     enabled: open,
   });
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(leaveApplySchema),
+  const form = useZodForm<FormValues>(leaveApplySchema, {
     defaultValues: {
       leaveTypeId: '',
       startDate: today(),
@@ -202,7 +200,6 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
         control={form.control}
         name="reason"
         label="Reason"
-        required
         rows={3}
         placeholder="Family function out of town"
       />

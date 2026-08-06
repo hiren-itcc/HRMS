@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type WfhApplyInput, wfhApplySchema } from '@hrms/shared';
 import { Alert, AlertDescription } from '@hrms/ui/components/alert';
 import { Badge } from '@hrms/ui/components/badge';
@@ -16,7 +15,6 @@ import { cn } from '@hrms/ui/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { House, Info, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
 import { FormDatePicker, FormTextarea } from '@/components/form';
@@ -30,6 +28,7 @@ import {
   wfhKeys,
 } from '@/features/wfh/api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const dateFmt = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -80,7 +79,7 @@ export default function RemoteWorkPage() {
     enabled: canDecide,
   });
 
-  const form = useForm<WfhApplyInput>({ resolver: zodResolver(wfhApplySchema) });
+  const form = useZodForm<WfhApplyInput>(wfhApplySchema);
   const startDate = form.watch('startDate');
   const endDate = form.watch('endDate');
 

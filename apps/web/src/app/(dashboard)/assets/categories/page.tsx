@@ -1,12 +1,10 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type AssetCategoryInput, assetCategorySchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { type Column, DataTable } from '@/components/data-table';
@@ -14,6 +12,7 @@ import { FormInput } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { type AssetCategory, assetKeys, assetsApi } from '@/features/assets/api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 export default function AssetCategoriesPage() {
   const { can } = useSession();
@@ -25,8 +24,7 @@ export default function AssetCategoriesPage() {
     queryFn: () => assetsApi.categories(),
   });
 
-  const form = useForm<AssetCategoryInput>({
-    resolver: zodResolver(assetCategorySchema),
+  const form = useZodForm<AssetCategoryInput>(assetCategorySchema, {
     defaultValues: { name: '' },
   });
 

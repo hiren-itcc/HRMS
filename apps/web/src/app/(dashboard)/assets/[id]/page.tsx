@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ASSET_CONDITION_LABELS,
   ASSET_CONDITIONS,
@@ -25,7 +24,6 @@ import { ArrowLeft, PackageCheck, PackageOpen, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { ActivityTimeline } from '@/components/activity-timeline';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -37,6 +35,7 @@ import { assetKeys, assetsApi, holderOf } from '@/features/assets/api';
 import { AssetStatusBadge } from '@/features/assets/components/asset-status-badge';
 import { employeesApi } from '@/features/employees/api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 type IssueValues = z.input<typeof assetIssueSchema>;
 type ReturnValues = z.input<typeof assetReturnSchema>;
@@ -79,9 +78,9 @@ export default function AssetDetailPage() {
   const [returning, setReturning] = useState(false);
   const [changing, setChanging] = useState(false);
 
-  const issueForm = useForm<IssueValues>({ resolver: zodResolver(assetIssueSchema) });
-  const returnForm = useForm<ReturnValues>({ resolver: zodResolver(assetReturnSchema) });
-  const statusForm = useForm<StatusValues>({ resolver: zodResolver(assetStatusChangeSchema) });
+  const issueForm = useZodForm<IssueValues>(assetIssueSchema);
+  const returnForm = useZodForm<ReturnValues>(assetReturnSchema);
+  const statusForm = useZodForm<StatusValues>(assetStatusChangeSchema);
 
   const invalidate = [assetKeys.all()];
 

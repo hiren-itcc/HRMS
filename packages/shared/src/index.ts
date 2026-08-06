@@ -1,3 +1,13 @@
+import { installValidationMessages } from './validation-messages';
+
+/*
+ * Installed here rather than at each call site: importing any schema from this
+ * package now carries the message map with it, and a parse cannot happen
+ * without one of these imports. Registering it in the app instead would leave
+ * whichever app forgot showing zod's developer-facing defaults.
+ */
+installValidationMessages();
+
 export * from './constants/email-templates';
 export * from './constants/exit-interview';
 export * from './constants/letter-templates';
@@ -24,3 +34,4 @@ export * from './schemas/resignation';
 export * from './schemas/settings';
 export * from './schemas/settlement';
 export * from './schemas/wfh';
+export * from './validation-messages';

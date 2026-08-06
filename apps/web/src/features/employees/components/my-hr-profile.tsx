@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type SelfProfileUpdateInput, selfProfileUpdateSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -14,12 +13,13 @@ import { Separator } from '@hrms/ui/components/separator';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray } from 'react-hook-form';
 import { FormInput } from '@/components/form';
 import { IconAction } from '@/components/icon-action';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -46,8 +46,7 @@ export function MyHrProfile() {
   const _queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ['me-profile'], queryFn: meApi.profile, retry: false });
 
-  const form = useForm<SelfProfileUpdateInput>({
-    resolver: zodResolver(selfProfileUpdateSchema),
+  const form = useZodForm<SelfProfileUpdateInput>(selfProfileUpdateSchema, {
     defaultValues: { phone: '', personalEmail: '', addressLine: '', city: '', country: '' },
   });
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ASSET_CONDITION_LABELS,
   ASSET_CONDITIONS,
@@ -22,7 +21,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Eye, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
@@ -32,6 +30,7 @@ import { useSession } from '@/components/session-provider';
 import { type Asset, assetKeys, assetsApi, holderOf } from '@/features/assets/api';
 import { AssetStatusBadge } from '@/features/assets/components/asset-status-badge';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const PAGE_SIZE = 20;
 
@@ -69,8 +68,7 @@ export default function AssetsPage() {
     queryFn: () => assetsApi.list(params),
   });
 
-  const form = useForm<AssetValues>({
-    resolver: zodResolver(assetCreateSchema),
+  const form = useZodForm<AssetValues>(assetCreateSchema, {
     defaultValues: { categoryId: '', assetTag: '', name: '', condition: 'GOOD' },
   });
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   RESIGNATION_REASON_LABELS,
   type ResignationReasonCode,
@@ -10,11 +9,11 @@ import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { SelectItem } from '@hrms/ui/components/select';
 import { TriangleAlert } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormInput, FormSelect } from '@/components/form';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { resignationKeys, resignationsApi } from '../api';
 import type { Resignation, ResignationEligibility } from '../types';
 
@@ -49,8 +48,7 @@ interface ResignDialogProps {
  * organization's.
  */
 export function ResignDialog({ open, onOpenChange, eligibility, editing }: ResignDialogProps) {
-  const form = useForm<FormValues>({
-    resolver: zodResolver(resignationCreateSchema),
+  const form = useZodForm<FormValues>(resignationCreateSchema, {
     defaultValues: {
       lastWorkingDate: eligibility.earliestLastWorkingDate,
       reason: 'BETTER_OPPORTUNITY',
@@ -103,7 +101,6 @@ export function ResignDialog({ open, onOpenChange, eligibility, editing }: Resig
         control={form.control}
         name="lastWorkingDate"
         label="Last working date"
-        required
         hint={`Your notice period is ${eligibility.noticeDays} days, so the earliest is ${showDate(eligibility.earliestLastWorkingDate)}.`}
         placeholder="Select your last working date"
       />

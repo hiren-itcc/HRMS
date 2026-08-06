@@ -1,9 +1,7 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { designationCreateSchema } from '@hrms/shared';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -14,6 +12,7 @@ import { designationsApi } from '@/features/organization/api';
 import type { Designation } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-designations';
 type FormValues = z.input<typeof designationCreateSchema>;
@@ -30,7 +29,7 @@ function DesignationsView() {
   const { create, update, remove } = useCrudMutations(KEY, designationsApi, 'Designation');
 
   const [editing, setEditing] = useState<Designation | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(designationCreateSchema) });
+  const form = useZodForm<FormValues>(designationCreateSchema);
 
   const openNew = () => {
     form.reset({ title: '', level: 0 });

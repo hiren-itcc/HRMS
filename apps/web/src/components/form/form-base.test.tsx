@@ -1,8 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import userEvent from '@testing-library/user-event';
-import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { render, screen } from '@/test/render';
 import { FormInput, FormTextarea } from './form-input';
 
@@ -13,13 +12,12 @@ const schema = z.object({
 });
 
 function Harness({ onSubmit = vi.fn() }: { onSubmit?: (v: unknown) => void }) {
-  const form = useForm({
-    resolver: zodResolver(schema),
+  const form = useZodForm(schema, {
     defaultValues: { name: '', notes: undefined, nested: { deep: '' } },
   });
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-      <FormInput control={form.control} name="name" label="Name" required />
+      <FormInput control={form.control} name="name" label="Name" />
       <FormTextarea control={form.control} name="notes" label="Notes" hint="Optional" />
       <FormInput control={form.control} name="nested.deep" label="Deep" />
       <button type="submit">Save</button>
@@ -87,5 +85,36 @@ describe('FormField / FormInput', () => {
 
     expect(onSubmit).toHaveBeenCalled();
     expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({ name: 'Nisha' });
+  });
+});
+
+describe('required, from the schema', () => {
+  /*
+   * The complaint this answers: `Field` has always rendered the asterisk and
+   * the screen-reader "(required)", but it was told by hand — on 27 of 154
+   * fields. The other 127 were required and looked optional. Nothing below
+   * passes `required`; the schema is the only source.
+   */
+  it('marks a constrained field without being told', () => {
+    render(<Harness />);
+    expect(screen.getByLabelText(/^Name/)).toBeRequired();
+  });
+
+  it('leaves an optional field unmarked', () => {
+    render(<Harness />);
+    expect(screen.getByLabelText(/^Notes/)).not.toBeRequired();
+  });
+
+  /* The asterisk is decoration; the sr-only text is the announcement. */
+  it('announces required to a screen reader, not just with a glyph', () => {
+    render(<Harness />);
+    const label = screen.getByText('Name').closest('label');
+    expect(label).toHaveTextContent('*');
+    expect(label).toHaveTextContent('(required)');
+  });
+
+  it('reaches a nested path', () => {
+    render(<Harness />);
+    expect(screen.getByLabelText(/^Deep/)).toBeRequired();
   });
 });

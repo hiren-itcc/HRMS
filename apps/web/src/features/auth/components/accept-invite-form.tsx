@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { passwordSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -16,12 +15,12 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
 import { errorMessage } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { PasswordInput } from './password-input';
 
 const formSchema = z
@@ -67,8 +66,7 @@ export function AcceptInviteForm() {
     retry: false,
   });
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useZodForm<FormValues>(formSchema, {
     defaultValues: { password: '', confirmPassword: '' },
   });
   const { isSubmitting } = form.formState;

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type CompanyUpdateInput, companyUpdateSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -14,12 +13,12 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { FormField, FormInput } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { TimezoneField } from '@/components/timezone-field';
 import { companyApi } from '@/features/organization/api';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 export default function CompanyPage() {
   const { can } = useSession();
@@ -28,8 +27,7 @@ export default function CompanyPage() {
 
   const company = useQuery({ queryKey: ['org-company'], queryFn: companyApi.get });
 
-  const form = useForm<CompanyUpdateInput>({
-    resolver: zodResolver(companyUpdateSchema),
+  const form = useZodForm<CompanyUpdateInput>(companyUpdateSchema, {
     defaultValues: { name: '', timezone: 'UTC', logoUrl: null },
   });
   const { isSubmitting, isDirty } = form.formState;

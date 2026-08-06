@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ANNOUNCEMENT_CATEGORY_LABELS,
   ANNOUNCEMENT_PRIORITY_LABELS,
@@ -12,7 +11,6 @@ import { SelectItem } from '@hrms/ui/components/select';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Paperclip, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -20,6 +18,7 @@ import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/for
 import { IconAction } from '@/components/icon-action';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
 import { errorMessage, useApiMutation, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { type Announcement, announcementsApi } from '../api';
 import { RichTextEditor } from './rich-text-editor';
 
@@ -45,7 +44,7 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null);
 
-  const form = useForm<FormValues>({ resolver: zodResolver(announcementCreateSchema) });
+  const form = useZodForm<FormValues>(announcementCreateSchema);
   const audience = form.watch('audience') ?? 'ALL';
 
   const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name, {

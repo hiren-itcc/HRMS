@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type LoginInput, loginSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -14,9 +13,9 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { FormField, FormInput } from '@/components/form';
 import { useSession } from '@/components/session-provider';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { ApiError } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
 
@@ -26,8 +25,7 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const form = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
+  const form = useZodForm<LoginInput>(loginSchema, {
     defaultValues: { email: '', password: '' },
   });
   const { isSubmitting } = form.formState;
@@ -68,7 +66,6 @@ export function LoginForm() {
             control={form.control}
             name="email"
             label="Email"
-            required
             type="email"
             autoComplete="email"
             placeholder="you@company.com"

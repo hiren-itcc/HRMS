@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { locationCreateSchema } from '@hrms/shared';
 import type { LocationType } from '@hrms/types';
 import { Badge } from '@hrms/ui/components/badge';
@@ -13,7 +12,6 @@ import {
 } from '@hrms/ui/components/select';
 import { TriangleAlert } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -25,6 +23,7 @@ import { locationsApi } from '@/features/organization/api';
 import type { Location } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-locations';
 const ALL = 'all';
@@ -51,7 +50,7 @@ function LocationsView() {
   const { create, update, remove } = useCrudMutations(KEY, locationsApi, 'Location');
 
   const [editing, setEditing] = useState<Location | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(locationCreateSchema) });
+  const form = useZodForm<FormValues>(locationCreateSchema);
 
   const openNew = () => {
     form.reset({

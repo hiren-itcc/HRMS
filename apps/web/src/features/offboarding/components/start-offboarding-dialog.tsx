@@ -1,9 +1,7 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { OFFBOARDING_REASON_LABELS, offboardingCreateSchema } from '@hrms/shared';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormInput, FormSelect } from '@/components/form';
@@ -11,6 +9,7 @@ import { employeesApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 import { lifecycleKeys } from '@/features/lifecycle/api';
 import { useApiMutation, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { offboardingKeys, offboardingsApi } from '../api';
 
 type FormValues = z.input<typeof offboardingCreateSchema>;
@@ -37,8 +36,7 @@ export function StartOffboardingDialog({
     { enabled: open },
   );
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(offboardingCreateSchema),
+  const form = useZodForm<FormValues>(offboardingCreateSchema, {
     defaultValues: { employeeId: '', reason: 'TERMINATION', reasonNote: '', lastWorkingDate: '' },
   });
   const reason = form.watch('reason');
@@ -102,7 +100,6 @@ export function StartOffboardingDialog({
         control={form.control}
         name="lastWorkingDate"
         label="Last working date"
-        required
         hint="They stay a full employee until this date — sign-in, attendance, leave and payroll are unchanged."
         placeholder="Select the last working date"
       />

@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type ForgotPasswordInput, forgotPasswordSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -13,14 +12,13 @@ import {
 import { ArrowLeft, Loader2, MailCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { FormInput } from '@/components/form';
 import { authApi } from '@/features/auth/api';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
-  const form = useForm<ForgotPasswordInput>({
-    resolver: zodResolver(forgotPasswordSchema),
+  const form = useZodForm<ForgotPasswordInput>(forgotPasswordSchema, {
     defaultValues: { email: '' },
   });
   const { isSubmitting } = form.formState;

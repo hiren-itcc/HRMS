@@ -1,16 +1,15 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { changePasswordSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { ApiError, setAccessToken } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
 
@@ -25,8 +24,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function ChangePasswordForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const { reload } = useSession();
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useZodForm<FormValues>(formSchema, {
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
   const { isSubmitting } = form.formState;

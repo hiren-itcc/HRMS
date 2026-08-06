@@ -1,8 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import userEvent from '@testing-library/user-event';
-import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { render, screen } from '@/test/render';
 import { FormDatePicker, FormTimePicker } from './form-date';
 
@@ -18,8 +17,7 @@ function Harness({
   onSubmit?: (v: unknown) => void;
   date?: string;
 }) {
-  const form = useForm({
-    resolver: zodResolver(schema),
+  const form = useZodForm(schema, {
     defaultValues: { date, startTime: '' },
   });
   return (

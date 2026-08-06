@@ -1,9 +1,7 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { shiftCreateSchema } from '@hrms/shared';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
@@ -14,6 +12,7 @@ import { shiftsApi } from '@/features/organization/api';
 import type { Shift } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-shifts';
 type FormValues = z.input<typeof shiftCreateSchema>;
@@ -30,7 +29,7 @@ function ShiftsView() {
   const { create, update, remove } = useCrudMutations(KEY, shiftsApi, 'Shift');
 
   const [editing, setEditing] = useState<Shift | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(shiftCreateSchema) });
+  const form = useZodForm<FormValues>(shiftCreateSchema);
 
   const openNew = () => {
     form.reset({ name: '', startTime: '09:00', endTime: '18:00', graceMinutes: 15 });

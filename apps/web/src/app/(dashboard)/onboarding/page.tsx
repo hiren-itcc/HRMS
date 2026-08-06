@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type BankDetailInput,
   bankDetailSchema,
@@ -27,7 +26,6 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Info, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import { FormDatePicker, FormField, FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { PageHeader } from '@/components/page-header';
@@ -36,6 +34,7 @@ import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
 import { OnboardingDocuments } from '@/features/onboarding/components/onboarding-documents';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 /**
  * The new hire's own intake.
@@ -50,10 +49,8 @@ export default function OnboardingPage() {
 
   const record = useQuery({ queryKey: onboardingKeys.mine(), queryFn: onboardingApi.mine });
 
-  const profileForm = useForm<OnboardingProfileInput>({
-    resolver: zodResolver(onboardingProfileSchema),
-  });
-  const bankForm = useForm<BankDetailInput>({ resolver: zodResolver(bankDetailSchema) });
+  const profileForm = useZodForm<OnboardingProfileInput>(onboardingProfileSchema);
+  const bankForm = useZodForm<BankDetailInput>(bankDetailSchema);
 
   const employee = record.data?.employee;
   useEffect(() => {

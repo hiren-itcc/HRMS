@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { passwordSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -14,11 +13,11 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { FormField } from '@/components/form';
 import { authApi } from '@/features/auth/api';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { ApiError } from '@/lib/api-client';
 import { PasswordInput } from './password-input';
 
@@ -35,8 +34,7 @@ export function ResetPasswordForm() {
   const token = useSearchParams().get('token');
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useZodForm<FormValues>(formSchema, {
     defaultValues: { password: '', confirmPassword: '' },
   });
   const { isSubmitting } = form.formState;

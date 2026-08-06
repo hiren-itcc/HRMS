@@ -1,14 +1,13 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceRequestCreateSchema } from '@hrms/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormDatePicker, FormTextarea, FormTimePicker } from '@/components/form';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { attendanceApi } from '../api';
 
 type FormValues = z.input<typeof attendanceRequestCreateSchema>;
@@ -22,8 +21,7 @@ interface CorrectionDialogProps {
 
 export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogProps) {
   const _queryClient = useQueryClient();
-  const form = useForm<FormValues>({
-    resolver: zodResolver(attendanceRequestCreateSchema),
+  const form = useZodForm<FormValues>(attendanceRequestCreateSchema, {
     defaultValues: { date, requestedIn: '', requestedOut: '', reason: '' },
   });
 

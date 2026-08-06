@@ -9,6 +9,8 @@ import {
   type FieldValues,
 } from 'react-hook-form';
 import { Field } from '@/components/field';
+import { schemaOf } from '@/hooks/use-zod-form';
+import { isRequiredField } from '@/lib/zod-field';
 
 /**
  * The react-hook-form binding `Field` has never had.
@@ -56,6 +58,7 @@ export interface FormFieldProps<
   name: TName;
   label: string;
   hint?: string;
+  /** Overrides the schema. Only for a control the schema cannot describe. */
   required?: boolean;
 }
 
@@ -72,12 +75,28 @@ export function FormField<
 }: FormFieldProps<TValues, TName> & {
   children: (arg: { field: ControllerRenderProps<TValues, TName>; a11y: FieldA11y }) => ReactNode;
 }) {
+  /*
+   * The schema decides, and the prop is only a fallback.
+   *
+   * It used to be the other way round — 27 fields said `required` by hand and
+   * 127 required ones said nothing, so most of the app looked optional. The
+   * schema is the thing that actually rejects the submit, so it is the honest
+   * source; the prop stays for the handful of controls built on `FormField`
+   * directly with no schema behind them.
+   */
+  const fromSchema = isRequiredField(schemaOf(control), name);
+
   return (
     <Controller
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <Field label={label} hint={hint} required={required} error={fieldState.error?.message}>
+        <Field
+          label={label}
+          hint={hint}
+          required={required ?? fromSchema}
+          error={fieldState.error?.message}
+        >
           {(a11y) => children({ field, a11y })}
         </Field>
       )}

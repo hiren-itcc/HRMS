@@ -280,5 +280,16 @@ Loading = skeletons (no spinners on full pages) · Empty = illustration + primar
 1. **Accessibility:** all interactive elements keyboard-reachable; focus rings visible; contrast ≥ 4.5:1 in both themes; icon buttons have `aria-label`.
 2. **Touch/interaction:** 44×44 min targets (check-in button is a large card); every mutation shows optimistic or pending feedback within 100 ms.
 3. **Performance:** tables virtualized past 100 rows; skeletons reserve layout (CLS < 0.1); avatars lazy + WebP.
-4. **Forms:** visible labels (no placeholder-as-label); inline errors adjacent to fields; multi-step forms show progress and preserve state on back.
+4. **Forms:** visible labels (no placeholder-as-label); inline errors adjacent
+   to fields; multi-step forms show progress and preserve state on back.
+   **Required fields are marked from the schema, not by hand** — `useZodForm`
+   carries the schema on the form's control and `FormField` asks it, so an
+   asterisk cannot disagree with the rule that rejects the submit. A `required`
+   prop still overrides, for the few controls a static schema cannot describe
+   (a field required only when another says "Other"). Nullable counts as
+   optional: "no manager" is an answer.
+   **Error messages come from one map** in `packages/shared/validation-messages.ts`
+   rather than from zod's defaults, which are written for whoever is holding
+   the stack trace. A message written on the schema still wins, so anything
+   sharper belongs on the field.
 5. **Navigation:** breadcrumb on all nested pages; browser back always works (dialogs/drawers sync to URL query params where stateful).

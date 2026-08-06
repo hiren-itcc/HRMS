@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type EmployeeOnboardInput, employeeOnboardSchema } from '@hrms/shared';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
@@ -14,7 +13,6 @@ import {
 import { Loader2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { FormDatePicker, FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
@@ -23,6 +21,7 @@ import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 /**
  * Inviting a new hire.
@@ -34,8 +33,7 @@ import { useApiMutation } from '@/hooks/use-crud';
  */
 function OnboardForm() {
   const router = useRouter();
-  const form = useForm<EmployeeOnboardInput>({
-    resolver: zodResolver(employeeOnboardSchema),
+  const form = useZodForm<EmployeeOnboardInput>(employeeOnboardSchema, {
     defaultValues: { joinDate: new Date().toISOString().slice(0, 10) },
   });
 

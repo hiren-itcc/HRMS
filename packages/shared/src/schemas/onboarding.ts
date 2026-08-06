@@ -23,9 +23,9 @@ export const employeeOnboardSchema = z.object({
   firstName: trimmed(60).min(1, 'First name is required'),
   lastName: trimmed(60).min(1, 'Last name is required'),
   /** Where the invite is sent. They cannot read the work mailbox yet. */
-  personalEmail: z.email('Enter a valid personal email').trim().toLowerCase(),
+  personalEmail: z.email().trim().toLowerCase(),
   /** Becomes their login. Must be free on User.email. */
-  workEmail: z.email('Enter a valid work email').trim().toLowerCase(),
+  workEmail: z.email().trim().toLowerCase(),
   joinDate: dateOnlySchema,
   employeeCode: optionalStr(20),
   departmentId: optionalStr(40),
