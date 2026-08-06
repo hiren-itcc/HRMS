@@ -134,7 +134,7 @@ for somebody joining, who has no work mailbox yet.
 ### Directory & org (5)
 | 15 | Directory | `/directory` | Card grid, search-first; every role. Work contact details only — the HR record stays on screen 10 behind `employee.read` |
 | 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
-| 16 | Org chart | `/organization/chart` | Top-down boxed cards with connectors from `md` up, the same tree as an indented list below it. Per-node count of everybody below; search filters by name, code, title or department and expands to the hit. Several roots are normal |
+| 16 | Org chart | `/organization/chart` | Top-down boxed cards with connectors from `md` up, the same tree as an indented list below it. Rooted on a card carrying the company name, so several people with no manager hang off one thing instead of being laid out in a row. **One branch open at a time**; opens to the top level only. Per-node count of everybody below; search opens the path down to a hit and steps through the rest |
 | 17 | Departments & designations | `/organization/departments`, `/organization/designations` | Separate tabs, one CRUD table each — not two-pane. Employment types and shifts have their own tabs |
 | 18 | Locations | `/organization/locations` | Includes the attendance geofence: coordinates and a radius, both optional |
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |
@@ -146,6 +146,19 @@ connectors switch off and it is the indented list it has always been, which is
 the only shape a deep tree has ever had on a phone. It scrolls sideways rather
 than squashing — a wide org is wide, and shrinking the cards to fit would make
 none of them readable.
+
+**A top-down chart cannot expand everything, and that is structural.** The
+width of a level is the sum of every expanded branch in it, so opening the
+whole company puts most of it off the side of the screen. One branch is open at
+a time: opening a card closes whatever else was, and search opens the way *down
+to* a match rather than opening everything to find it. The first version did
+expand everything and was unusable at twenty-three people.
+
+**The card has to be centred in its `<li>`, or nothing lines up.** An `li` is
+as wide as the subtree beneath it while the card has a fixed width, and the
+connectors are drawn at the li's midpoint — so a left-aligned card and a
+centred rule never meet. `align-items: center` is the whole geometry; it is one
+line and it is load-bearing.
 
 **Photos.** `EmployeeAvatar` is the only thing that renders one, in all twelve
 places a face appears. The bytes come through the API with the access token,
