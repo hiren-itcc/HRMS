@@ -58,8 +58,23 @@
     border-left: 1px solid var(--border);
   }
 
+  /*
+   * `align-items: center` is the whole geometry, and leaving it out is what
+   * broke the first version.
+   *
+   * An `li` is as wide as the subtree beneath it, while `.org-card` has a fixed
+   * width — so as a plain block the card sat at the *left edge* of a branch
+   * while the connectors below were drawn at `left: 50%` / `right: 50%` of the
+   * li, down the middle of that branch. Card on the left, lines down the
+   * centre, nothing joining up. Centring the card makes the li's midpoint and
+   * the card's midpoint the same point, which is what every one of the rules
+   * below assumes.
+   */
   .org-tree li {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     padding: --spacing(5) --spacing(2) 0;
   }
 

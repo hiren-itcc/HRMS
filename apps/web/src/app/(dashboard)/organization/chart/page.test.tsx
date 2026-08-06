@@ -4,7 +4,9 @@ import { companyApi, type OrgChartNode } from '@/features/organization/api';
 import { render, screen, waitFor, within } from '@/test/render';
 import OrgChartPage from './page';
 
-vi.mock('@/features/organization/api', () => ({ companyApi: { chart: vi.fn() } }));
+vi.mock('@/features/organization/api', () => ({
+  companyApi: { chart: vi.fn(), get: vi.fn() },
+}));
 
 const node = (
   id: string,
@@ -27,7 +29,17 @@ function chartOf(roots: OrgChartNode[], total = 0) {
   vi.mocked(companyApi.chart).mockResolvedValue({ roots, total: total || roots.length });
 }
 
-beforeEach(() => vi.mocked(companyApi.chart).mockReset());
+beforeEach(() => {
+  vi.mocked(companyApi.chart).mockReset();
+  vi.mocked(companyApi.get).mockResolvedValue({
+    id: 'org1',
+    name: 'Acme',
+    slug: 'acme',
+    timezone: 'UTC',
+    logoUrl: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+});
 
 /**
  * Names render as `{firstName} {lastName}` — three text nodes, which
@@ -38,39 +50,70 @@ const person = (name: string) => screen.queryByRole('link', { name });
 const findPerson = (name: string) => screen.findByRole('link', { name });
 
 describe('OrgChartPage', () => {
-  it('opens two levels deep and leaves the rest folded', async () => {
-    chartOf([node('ceo', [node('cto', [node('dev', [node('intern')])])])], 4);
+  it('opens to the top level and no further', async () => {
+    chartOf([node('ceo', [node('cto', [node('dev')])])], 3);
     render(<OrgChartPage />);
 
-    // Levels 0–2 are visible; level 3 waits behind its parent's toggle, so a
-    // large company opens to something readable rather than a wall of names.
+    // The company card is open, so its top level shows — and nothing below it.
+    // Drawing the whole company at once is the one thing a top-down chart
+    // cannot do: a level is as wide as every expanded branch in it put together.
     expect(await findPerson('ceo Person')).toBeInTheDocument();
-    expect(person('cto Person')).toBeInTheDocument();
-    expect(person('dev Person')).toBeInTheDocument();
-    expect(person('intern Person')).not.toBeInTheDocument();
+    expect(person('cto Person')).not.toBeInTheDocument();
   });
 
-  it('expands a folded branch when its toggle is pressed', async () => {
-    chartOf([node('ceo', [node('cto', [node('dev', [node('intern')])])])], 4);
+  it('walks down one level at a time', async () => {
+    chartOf([node('ceo', [node('cto', [node('dev')])])], 3);
     render(<OrgChartPage />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /Expand dev Person/i }));
-    expect(await findPerson('intern Person')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /Expand ceo Person/i }));
+    expect(await findPerson('cto Person')).toBeInTheDocument();
+    expect(person('dev Person')).not.toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand cto Person/i }));
+    expect(await findPerson('dev Person')).toBeInTheDocument();
+  });
+
+  /*
+   * The whole point of the change, and invisible to every other assertion here:
+   * opening one branch has to close the other, or the chart grows sideways
+   * until it is unreadable — which is exactly what the first version did.
+   */
+  it('closes the open branch when another is opened', async () => {
+    chartOf([node('a', [node('a-report')]), node('b', [node('b-report')])], 4);
+    render(<OrgChartPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand a Person/i }));
+    expect(await findPerson('a-report Person')).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand b Person/i }));
+    expect(await findPerson('b-report Person')).toBeInTheDocument();
+    expect(person('a-report Person')).not.toBeInTheDocument();
   });
 
   it('collapses an open branch again', async () => {
     chartOf([node('ceo', [node('cto')])], 2);
     render(<OrgChartPage />);
 
+    await userEvent.click(await screen.findByRole('button', { name: /Expand ceo Person/i }));
+    expect(await findPerson('cto Person')).toBeInTheDocument();
+
     await userEvent.click(await screen.findByRole('button', { name: /Collapse ceo Person/i }));
     expect(person('cto Person')).not.toBeInTheDocument();
   });
 
-  it('shows several roots without pretending one is the top', async () => {
+  /*
+   * The company is the root, and that is not the same as promoting somebody.
+   * Several people with no manager all hang off it, and the count still says
+   * how many there are.
+   */
+  it('hangs several top-level people off the company, promoting none of them', async () => {
     chartOf([node('a'), node('b')], 2);
     render(<OrgChartPage />);
 
     expect(await screen.findByText(/2 top-level/)).toBeInTheDocument();
+    expect(await screen.findByText('Acme')).toBeInTheDocument();
+    expect(await findPerson('a Person')).toBeInTheDocument();
+    expect(person('b Person')).toBeInTheDocument();
   });
 
   it('keeps the ancestors of a search hit, and drops unrelated branches', async () => {
@@ -86,14 +129,21 @@ describe('OrgChartPage', () => {
     expect(person('sales Person')).not.toBeInTheDocument();
   });
 
-  it('expands everything while searching — a deep hit must not stay hidden', async () => {
+  /*
+   * Searching opens the way *down to* a match rather than opening everything.
+   * Opening everything is what made the chart unreadable, but a hit that stays
+   * hidden behind a collapsed branch is no better — so the path opens itself.
+   */
+  it('opens the path down to a search hit', async () => {
     chartOf([node('ceo', [node('cto', [node('deep')])])], 3);
     render(<OrgChartPage />);
-    // 'deep' is at depth 2 and therefore collapsed before the search.
+    // 'deep' is two levels below the top and therefore closed before the search.
     expect(person('deep Person')).not.toBeInTheDocument();
 
     await userEvent.type(await screen.findByLabelText(/Find someone/i), 'deep');
     expect(await findPerson('deep Person')).toBeInTheDocument();
+    // Its managers came with it, so the hit keeps its context.
+    expect(person('cto Person')).toBeInTheDocument();
   });
 
   it('searches job title and department, not just names', async () => {
