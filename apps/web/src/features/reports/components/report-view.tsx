@@ -73,9 +73,21 @@ interface ReportViewProps {
   /** Department filter is meaningless on the department rollup. */
   showDepartmentFilter?: boolean;
   emptyTitle: string;
+  /**
+   * Per-column renderers, keyed by column key, supplied by the report's own
+   * page. Whether a value is an employee status or a leave status is knowledge
+   * about those things rather than about tables, and this component serves
+   * four reports that would disagree about it.
+   */
+  cells?: Record<string, (value: string | number | null) => React.ReactNode>;
 }
 
-export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: ReportViewProps) {
+export function ReportView({
+  report,
+  showDepartmentFilter = true,
+  emptyTitle,
+  cells,
+}: ReportViewProps) {
   const params = useListParams('name');
   const { can } = useSession();
   const fallback = defaultRange();
@@ -207,11 +219,16 @@ export function ReportView({ report, showDepartmentFilter = true, emptyTitle }: 
                 key: col.key,
                 header: col.header,
                 className: col.type === 'number' ? 'text-right' : undefined,
-                render: (row: Record<string, string | number | null>) => (
-                  <span className={col.type === 'number' ? 'block text-right tabular-nums' : ''}>
-                    {row[col.key] ?? '—'}
-                  </span>
-                ),
+                render: (row: Record<string, string | number | null>) => {
+                  const value = row[col.key] ?? null;
+                  const cell = cells?.[col.key];
+                  if (cell) return cell(value);
+                  return (
+                    <span className={col.type === 'number' ? 'block text-right tabular-nums' : ''}>
+                      {value ?? '—'}
+                    </span>
+                  );
+                },
               }))}
               rows={visible}
               rowKey={(row) => row.__key}
