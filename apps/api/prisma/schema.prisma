@@ -273,7 +273,15 @@ model Employee {
   phone            String?
   dateOfBirth      DateTime?      @db.Date
   gender           Gender?
+  /// The path that serves the photo — `/employees/<id>/avatar?v=<hash>`, not a
+  /// public URL. The bucket is private (see `supabase.storage.ts`), so the
+  /// bytes go through the API like every other file and the `v` token is what
+  /// makes a replacement photo beat the browser cache.
   avatarUrl        String?
+  /// The opaque storage key behind `avatarUrl`. Kept separately because
+  /// replacing or removing a photo has to delete the previous object, and the
+  /// served path cannot be turned back into a key.
+  avatarKey        String?
   addressLine      String?
   city             String?
   country          String?
