@@ -36,7 +36,6 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { CardColumns } from '@/components/card-columns';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { EmployeeAvatar } from '@/components/employee-avatar';
 import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
@@ -44,6 +43,7 @@ import { EmployeeAssetsCard } from '@/features/assets/components/employee-assets
 import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
+import { AvatarPicker } from '@/features/employees/components/avatar-picker';
 import { LifecycleCard } from '@/features/employees/components/lifecycle-card';
 import { OffboardDialog } from '@/features/employees/components/offboard-dialog';
 import { ProbationBadge } from '@/features/employees/components/probation-badge';
@@ -256,7 +256,7 @@ function EmployeeDetailView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useSession();
-  const _queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
   const employee = useQuery({
     queryKey: ['employees', 'detail', id],
@@ -322,11 +322,18 @@ function EmployeeDetailView() {
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <EmployeeAvatar
+          {/*
+            HR sets a photo from the record they already edit everything else
+            on. Without `employee.update` this is the plain avatar — the picker
+            renders read-only rather than being hidden, so the face is still
+            there.
+          */}
+          <AvatarPicker
             src={e.avatarUrl}
             fallback={initials(e)}
-            className="size-14"
-            fallbackClassName="text-lg"
+            endpoint={`/employees/${e.id}/avatar`}
+            canEdit={can('employee.update')}
+            onDone={() => queryClient.invalidateQueries({ queryKey: ['employees'] })}
           />
           <div>
             <h1 className="flex flex-wrap items-center gap-2">

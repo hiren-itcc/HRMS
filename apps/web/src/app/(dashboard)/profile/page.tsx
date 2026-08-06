@@ -10,13 +10,13 @@ import {
 } from '@hrms/ui/components/card';
 import { Separator } from '@hrms/ui/components/separator';
 import { CardColumns } from '@/components/card-columns';
-import { EmployeeAvatar } from '@/components/employee-avatar';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
 import { MyAssetsCard } from '@/features/assets/components/my-assets-card';
 import { ChangePasswordForm } from '@/features/auth/components/change-password-form';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
+import { AvatarPicker } from '@/features/employees/components/avatar-picker';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 import { ROLE_LABEL } from '@/features/employees/role-options';
 
@@ -30,7 +30,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function ProfilePage() {
-  const { user } = useSession();
+  const { user, can, reload } = useSession();
   if (!user) return null;
 
   return (
@@ -45,20 +45,25 @@ export default function ProfilePage() {
           <FadeInItem>
             <Card>
               <CardHeader>
-                <div className="flex items-center gap-4">
-                  <EmployeeAvatar
-                    src={user.employee?.avatarUrl}
-                    fallback={userInitials(user)}
-                    className="size-14"
-                    fallbackClassName="text-lg"
-                  />
-                  <div className="min-w-0">
-                    <CardTitle className="truncate text-lg">{displayName(user)}</CardTitle>
-                    <CardDescription className="truncate">{user.email}</CardDescription>
-                  </div>
+                <div className="min-w-0">
+                  <CardTitle className="truncate text-lg">{displayName(user)}</CardTitle>
+                  <CardDescription className="truncate">{user.email}</CardDescription>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-5">
+                {/*
+                  An account with no employee record has nowhere to hang a
+                  photo — the column is on Employee, not User.
+                */}
+                {user.employee && (
+                  <AvatarPicker
+                    src={user.employee.avatarUrl}
+                    fallback={userInitials(user)}
+                    endpoint="/me/avatar"
+                    canEdit={can('employee.update.own')}
+                    onDone={reload}
+                  />
+                )}
                 <dl className="space-y-3">
                   <Row
                     label="Role"
