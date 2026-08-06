@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@hrms/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@hrms/ui/components/tooltip';
-import { cn } from '@hrms/ui/lib/utils';
 import { Check, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { COLOR_THEMES, useColorTheme } from '@/components/color-theme';
@@ -23,9 +22,8 @@ import { COLOR_THEMES, useColorTheme } from '@/components/color-theme';
  * ships a light and a dark block, so the two axes compose.
  */
 export function ThemeToggle() {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { setTheme } = useTheme();
   const { theme: color, setTheme: setColor } = useColorTheme();
-  const isDark = resolvedTheme === 'dark';
 
   return (
     <DropdownMenu>
@@ -58,18 +56,21 @@ export function ThemeToggle() {
         {COLOR_THEMES.map((t) => (
           <DropdownMenuItem key={t.name} onClick={() => setColor(t.name)}>
             {/*
-              The swatch is the theme's own --primary, read from a nested
-              data-theme rather than a hardcoded hex: one source for the colour,
-              so a swatch cannot drift from the theme it advertises. The default
-              carries no attribute, because `:root` already is it.
+              `--swatch-<name>`, generated alongside the themes, rather than a
+              nested `data-theme` reading `--primary`.
 
-              `dark` goes on the same element on purpose — the dark blocks are
-              `.dark[data-theme=x]`, both on one element, so a swatch with only
-              the attribute would advertise the light palette at night.
+              That was the first attempt and it got the default wrong: the
+              default theme carries no attribute, because `:root` already is
+              terracotta — so the span inherited `--primary` from `<html>`,
+              which is whatever theme is *currently* applied. Terracotta always
+              wore the colour of the selected theme.
+
+              These variables are set on `:root` and `.dark` only, and nothing
+              overrides them, so each swatch shows its own theme in both modes.
             */}
             <span
-              data-theme={t.name === 'terracotta' ? undefined : t.name}
-              className={cn('size-4 shrink-0 rounded-full border bg-primary', isDark && 'dark')}
+              style={{ backgroundColor: `var(--swatch-${t.name})` }}
+              className="size-4 shrink-0 rounded-full border"
               aria-hidden
             />
             <span className="flex-1">{t.label}</span>

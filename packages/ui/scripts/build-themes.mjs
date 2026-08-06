@@ -415,6 +415,31 @@ for (const theme of THEMES) {
   lines.push(`.dark[data-theme="${theme.name}"] {\n${declarations(map)}\n}\n`);
 }
 
+/*
+ * Swatches for the theme menu, and they cannot be `--primary` under a nested
+ * `data-theme`.
+ *
+ * That was the first attempt, and it made the *default* swatch wrong: the
+ * default carries no attribute, because `:root` already is terracotta — so the
+ * span inherited `--primary` from `<html>`, which is whatever theme is
+ * currently applied. Every screenshot showed Terracotta wearing the colour of
+ * the active theme.
+ *
+ * One flat variable per theme instead. Nothing overrides these, so a swatch
+ * shows its own theme whatever is selected, and the dark set is here too so a
+ * swatch does not advertise light colours at night.
+ */
+lines.push('/* ── menu swatches, immune to the active theme ───────────────── */\n');
+const swatch = (base, mode) => {
+  const map = new Map([[`--swatch-${DEFAULT_THEME_NAME}`, base.get('--primary')]]);
+  for (const theme of THEMES) {
+    map.set(`--swatch-${theme.name}`, derive(base, theme).get('--primary'));
+  }
+  return `${mode} {\n${declarations(map)}\n}\n`;
+};
+lines.push(swatch(LIGHT, ':root'));
+lines.push(swatch(DARK, '.dark'));
+
 writeFileSync(OUTPUT, `${lines.join('\n')}`, 'utf8');
 
 /*

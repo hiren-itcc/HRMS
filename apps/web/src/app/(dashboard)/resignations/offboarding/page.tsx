@@ -16,10 +16,11 @@ import {
 } from '@hrms/ui/components/select';
 import { cn } from '@hrms/ui/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { UserMinus } from 'lucide-react';
+import { Eye, UserMinus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import { type Offboarding, offboardingKeys, offboardingsApi } from '@/features/offboarding/api';
 import { clearanceProgress } from '@/features/offboarding/components/clearance-checklist';
 import { StartOffboardingDialog } from '@/features/offboarding/components/start-offboarding-dialog';
@@ -162,13 +163,11 @@ export default function OffboardingPage() {
         emptyTitle={status === 'IN_PROGRESS' ? 'Nobody is serving notice' : 'Nothing here'}
         emptyHint="Approving a resignation starts one automatically. Use “Start an exit” for a termination or a contract ending."
         actions={(row) => (
-          <Button
-            variant="outline"
-            size="sm"
+          <IconAction
+            label={`View ${row.employee.firstName} ${row.employee.lastName}’s offboarding`}
+            icon={Eye}
             render={<Link href={`/resignations/offboarding/${row.id}`} />}
-          >
-            View
-          </Button>
+          />
         )}
       />
 

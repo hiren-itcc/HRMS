@@ -329,3 +329,23 @@
   --sidebar-border: oklch(0.3621 0.0091 255);
   --code: oklch(0.3086 0.0032 255);
 }
+
+/* ── menu swatches, immune to the active theme ───────────────── */
+
+:root {
+  --swatch-terracotta: oklch(0.6171 0.1375 39.0427);
+  --swatch-indigo: oklch(0.6099 0.1375 274);
+  --swatch-emerald: oklch(0.5876 0.1265 163);
+  --swatch-violet: oklch(0.6171 0.1375 305);
+  --swatch-amber: oklch(0.6087 0.1294 74);
+  --swatch-slate: oklch(0.602 0.0756 252);
+}
+
+.dark {
+  --swatch-terracotta: oklch(0.6724 0.1308 38.7559);
+  --swatch-indigo: oklch(0.6652 0.1308 274);
+  --swatch-emerald: oklch(0.6444 0.1203 163);
+  --swatch-violet: oklch(0.6722 0.1308 305);
+  --swatch-amber: oklch(0.6643 0.1243 74);
+  --swatch-slate: oklch(0.658 0.0719 252);
+}

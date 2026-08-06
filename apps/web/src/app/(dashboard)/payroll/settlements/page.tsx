@@ -2,7 +2,6 @@
 
 import { SETTLEMENT_STATUS_LABELS, type SettlementStatusCode } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
-import { Button } from '@hrms/ui/components/button';
 import {
   Select,
   SelectContent,
@@ -12,9 +11,11 @@ import {
 } from '@hrms/ui/components/select';
 import { cn } from '@hrms/ui/lib/utils';
 import { useQuery } from '@tanstack/react-query';
+import { Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import {
   formatSettlementMoney,
   type Settlement,
@@ -148,13 +149,11 @@ export default function SettlementsPage() {
         emptyTitle={status === 'DRAFT' ? 'Nothing waiting to be settled' : 'Nothing here'}
         emptyHint="A settlement is prepared from the exit it belongs to, on the offboarding record."
         actions={(row) => (
-          <Button
-            variant="outline"
-            size="sm"
+          <IconAction
+            label={`View ${row.employee.firstName} ${row.employee.lastName}’s settlement`}
+            icon={Eye}
             render={<Link href={`/payroll/settlements/${row.id}`} />}
-          >
-            View
-          </Button>
+          />
         )}
       />
     </div>
