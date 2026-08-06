@@ -140,7 +140,15 @@ export function MyHrProfile() {
                 point of them.
               </p>
 
-              <div className="mt-3 space-y-3">
+              {/*
+                A container query, not a viewport one. `sm:grid-cols-3` put
+                three inputs side by side whenever the *window* passed 640px —
+                but this card is one half of a two-column layout, so each field
+                got about 90 pixels and a name read "Deva", a relation "Broth"
+                and a phone "+91 9". The window was never the thing with the
+                room in it.
+              */}
+              <div className="@container mt-3 space-y-3">
                 {contacts.fields.map((field, i) => (
                   <div key={field.id} className="flex items-end gap-2">
                     {/*
@@ -149,7 +157,7 @@ export function MyHrProfile() {
                       errors.emergencyContacts?.[i]?.name?.message, three
                       optional chains with nothing checking the path.
                     */}
-                    <div className="grid flex-1 gap-2 sm:grid-cols-3">
+                    <div className="grid flex-1 gap-2 @md:grid-cols-3">
                       <FormInput
                         control={form.control}
                         name={`emergencyContacts.${i}.name`}
