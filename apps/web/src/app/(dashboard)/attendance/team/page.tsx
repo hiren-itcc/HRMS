@@ -1,7 +1,7 @@
 'use client';
 
 import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
+import { MonthPicker } from '@hrms/ui/components/month-picker';
 import {
   Select,
   SelectContent,
@@ -166,12 +166,11 @@ function TeamAttendanceView() {
                 size="icon"
                 onClick={() => params.setFilter('month', shiftMonth(month, -1))}
               />
-              <Input
-                type="month"
+              <MonthPicker
                 value={month}
                 max={currentMonth()}
-                onChange={(e) => params.setFilter('month', e.target.value || undefined)}
-                className="w-40"
+                onValueChange={(next) => params.setFilter('month', next || undefined)}
+                className="w-44"
                 aria-label="Attendance month"
               />
               <IconAction

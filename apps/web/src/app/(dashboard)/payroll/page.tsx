@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@hrms/ui/components/button';
+import { MonthPicker, toISOMonth } from '@hrms/ui/components/month-picker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -16,10 +17,28 @@ import type { PayrollRun } from '@/features/payroll/types';
 import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
+/**
+ * `yyyy-mm` for a local date.
+ *
+ * Never `toISOString`, which is UTC — the same trap `toISODate` exists to
+ * avoid. Built from a local date, `new Date(2026, 6, 1).toISOString()` is
+ * 30 June in India, so the old version of `previousMonth` returned *two*
+ * months back for the whole target market.
+ */
+function monthKey(date: Date): string {
+  return toISOMonth(date.getFullYear(), date.getMonth() + 1);
+}
+
 /** Default to last month: payroll is run after the month it pays for. */
 function previousMonth(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+  // Day 1 with a rolled-over month index: -1 in January correctly gives December.
+  return monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+}
+
+/** The latest month payroll may be opened for. */
+function thisMonth(): string {
+  return monthKey(new Date());
 }
 
 export default function PayrollRunsPage() {
@@ -191,14 +210,7 @@ export default function PayrollRunsPage() {
       >
         <Field label="Month" required hint="Payroll cannot be opened for a future month">
           {(a11y) => (
-            <input
-              {...a11y}
-              type="month"
-              value={month}
-              max={new Date().toISOString().slice(0, 7)}
-              onChange={(e) => setMonth(e.target.value)}
-              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/24"
-            />
+            <MonthPicker {...a11y} value={month} max={thisMonth()} onValueChange={setMonth} />
           )}
         </Field>
       </FormDialog>

@@ -254,7 +254,10 @@ export function timeIn(iso: string | null, timeZone?: string): string {
 }
 
 export function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  // Local, not UTC. `toISOString` on the 1st of a month before 05:30 in India
+  // still reads as the previous month, which made the current one unselectable.
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /** Today's YYYY-MM-DD in the given timezone — mirrors the server's day key. */
