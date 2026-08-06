@@ -34,6 +34,7 @@ export default {
         // The register that makes the exit checklist's asset line mean
         // something.
         'assets',
+        'recruitment',
         'mail',
         'reports',
         'settings',
