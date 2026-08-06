@@ -116,7 +116,7 @@ client to derive one from.
 | 10 | Employee detail | `/employees/:id` | Contact, job, role, invite state, bank, documents, letters, direct reports. **No attendance or leave tab** — the endpoint for it exists and nothing calls it |
 | 11 | Edit employee | `/employees/:id/edit` | HR fields; audit note on save |
 | 12 | Offboard dialog | (modal on screen 10) | On notice / exited / withdraw a resignation, with an exit date and the consequences listed. Distinct from Delete, which archives the record |
-| 13 | My profile | `/profile` | Self-editable subset: phone, personal email, address, and emergency contacts (add/remove, saved with the rest) |
+| 13 | My profile | `/profile` | Profile photo, plus the self-editable subset: phone, personal email, address, and emergency contacts (add/remove, saved with the rest) |
 | 14 | My sessions | `/profile/sessions` | Devices still able to refresh, newest first, with the current one marked; sign out any of them. Reached from the avatar menu |
 
 ### Onboarding (4)
@@ -134,10 +134,32 @@ for somebody joining, who has no work mailbox yet.
 ### Directory & org (5)
 | 15 | Directory | `/directory` | Card grid, search-first; every role. Work contact details only — the HR record stays on screen 10 behind `employee.read` |
 | 15a | Colleague profile | `/directory/:id` | Name, job title, department, work email/phone, location, who they report to |
-| 16 | Org chart | `/organization/chart` | Collapsible tree with a per-node count of everybody below. Search filters by name, code, title or department and expands to the hit. Several roots are normal |
+| 16 | Org chart | `/organization/chart` | Top-down boxed cards with connectors from `md` up, the same tree as an indented list below it. Per-node count of everybody below; search filters by name, code, title or department and expands to the hit. Several roots are normal |
 | 17 | Departments & designations | `/organization/departments`, `/organization/designations` | Separate tabs, one CRUD table each — not two-pane. Employment types and shifts have their own tabs |
 | 18 | Locations | `/organization/locations` | Includes the attendance geofence: coordinates and a radius, both optional |
 | 19 | Holiday calendar | `/organization/holidays` | Year view, location filter |
+
+**The org chart is a picture, not a canvas.** The connectors are CSS
+pseudo-elements on the `<li>`s, so what a screen reader walks is still a nested
+list and the chevrons are still buttons in the normal tab order. Below `md` the
+connectors switch off and it is the indented list it has always been, which is
+the only shape a deep tree has ever had on a phone. It scrolls sideways rather
+than squashing — a wide org is wide, and shrinking the cards to fit would make
+none of them readable.
+
+**Photos.** `EmployeeAvatar` is the only thing that renders one, in all twelve
+places a face appears. The bytes come through the API with the access token,
+because the bucket is private, so the component caches the *blob* under the
+photo's own path — somebody in the employee list, the directory and the org
+chart costs one request, not three — and creates the object URL per mount so
+none of them leak. No photo means no request at all, which matters in a fresh
+workspace where that is almost everybody.
+
+On My profile and the employee record the photo **is** the control that changes
+it; a separate upload field beside a picture of the current one is two things
+saying the same thing. It is squared and shrunk to a 512px WebP in the browser,
+with the EXIF rotation applied — otherwise every portrait photo would be stored
+on its side, permanently.
 
 ### Attendance (5)
 | 20 | My attendance | `/attendance` | Month calendar + day drawer listing that day's sessions with where each was worked; regularize action; open sessions on a past day flagged |

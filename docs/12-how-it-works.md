@@ -194,6 +194,14 @@ The system refuses to create a **circular reporting line** — you cannot make
 someone their own manager, directly or through a chain. Without that check an
 approval could have nowhere to go.
 
+**A photo is optional and self-service.** Anybody can put one on their own
+record from My profile, and HR can set or remove one from the employee record.
+Without a photo the system shows initials, which is what almost everybody
+starts as. The picture is squared and shrunk inside your browser before it is
+sent, so a 4 MB phone photo arrives as about 40 KB — and it is served through
+the system rather than from a public address, so a photo is no more visible to
+the outside world than the rest of the record.
+
 **Bank details** are treated as more sensitive than the rest of the record. The
 employee can see their own, and HR can see them; a direct manager cannot.
 

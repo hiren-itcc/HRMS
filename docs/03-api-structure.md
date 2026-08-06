@@ -55,11 +55,26 @@ allowed and clears the cookie with it.
 | PUT | `/employees/:id/bank` — bank details; `employee.update` |
 | DELETE | `/employees/:id` — soft delete (Admin only) |
 | GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, personal email, address) |
+| GET | `/employees/:id/avatar` — the photo itself; `directory.read` |
+| POST / DELETE | `/employees/:id/avatar` — set or take down; `employee.update` |
+| POST / DELETE | `/me/avatar` — your own; `employee.update.own` |
 
 | POST | `/employees/:id/offboard` — put on notice, mark exited, or withdraw a resignation; `employee.offboard` |
 | POST | `/employees/:id/confirm` — off probation; `employee.confirm` |
 | POST | `/employees/:id/extend-probation` — push the end date back, with a reason; `employee.confirm` |
 | GET | `/employees/:id/activity` — employment history, from the audit trail |
+
+**Neither avatar write carries `@RequirePermissions`, and that is deliberate.**
+Whether setting a photo costs `employee.update.own` or `employee.update`
+depends on whose record the id belongs to, and the guard cannot see that — it
+sees a permission, not a subject. The service decides, which is also what stops
+self-service being a way to put a photo on a colleague.
+
+The read is gated on `directory.read`, which every role holds. That width is
+correct: the directory and the org chart already show every colleague's face to
+everybody, and a stricter gate would leave photo-shaped holes in both for
+ordinary staff. A photo nobody has set is a 404, so the browser falls back to
+initials rather than being handed a placeholder.
 
 **Offboarding is not deletion.** `DELETE` archives a record that should not have
 existed; offboarding records that somebody left, and keeps everything. Only

@@ -290,7 +290,8 @@ model Employee {
   phone          String?
   dateOfBirth    DateTime?      @db.Date
   gender         Gender?
-  avatarUrl      String?
+  avatarUrl      String?                 // the path that serves it, not a public URL
+  avatarKey      String?                 // the opaque storage key behind it
   addressLine    String?
   city           String?
   country        String?
@@ -1464,6 +1465,29 @@ model AuditLog {
   same reasoning that makes `EmployeeSalary` its own revision history.
 
 - **Reports need no tables** — they are read-model queries over attendance/leave/employees, exported server-side (doc 03).
+
+### Profile photos
+
+- **`avatarUrl` holds a path this API serves**, `/employees/<id>/avatar?v=<hash>`,
+  not somewhere a CDN answers. `supabase.storage.ts` says the bucket is private
+  and stays that way, because a public or signed URL routes around the one
+  check that makes personnel files private. An `<img src>` cannot carry a
+  Bearer token, so the web side fetches the bytes and makes an object URL —
+  the same thing document previews already do.
+
+- **`avatarKey` is a second column, not a duplicate.** Replacing or removing a
+  photo has to delete the previous object, and a served path cannot be turned
+  back into a storage key. Keeping `avatarUrl` populated also means none of the
+  dozen `select: { avatarUrl: true }` sites across the API had to change.
+
+- **The `v` token is a hash of the key.** A new photo is a new URL, which is
+  what lets the response be cached hard — `immutable`, a year — and still
+  change the instant somebody replaces their picture.
+
+- **The stored file is named from the validated mimetype**, never from the
+  upload. The key's extension is what the read route declares as
+  `Content-Type`, so taking it from the client would let the client choose that
+  header. `X-Content-Type-Options: nosniff` is set on the way out as well.
 
 ### Recruitment
 
