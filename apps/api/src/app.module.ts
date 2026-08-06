@@ -29,6 +29,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ResignationsModule } from './modules/resignations/resignations.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -64,6 +65,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
     WfhModule,
     LeaveModule,
     AnnouncementsModule,
+    RecruitmentModule,
     ReportsModule,
     PayrollModule,
     SettlementsModule,

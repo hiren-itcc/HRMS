@@ -163,6 +163,25 @@ export const PERMISSIONS = [
   'payroll.approve',
   'payroll.pay',
 
+  /*
+   * Recruitment. `recruitment.hire` is separate from `recruitment.offer.manage`
+   * for the same reason `employee.onboarding.approve` is separate from
+   * `employee.update`: converting somebody into staff creates a login and a
+   * payroll subject, and an organization may well want that held by someone
+   * other than whoever negotiates the offer.
+   *
+   * Hiring also needs `employee.invite`, because it goes through the same
+   * onboarding invite as every other new starter. That is stated rather than
+   * implied — the service says so when it refuses.
+   */
+  'recruitment.read',
+  'recruitment.read.team',
+  'recruitment.opening.manage',
+  'recruitment.candidate.manage',
+  'recruitment.interview.submit',
+  'recruitment.offer.manage',
+  'recruitment.hire',
+
   'settings.manage',
   'role.manage',
   'audit.read',
@@ -215,6 +234,10 @@ const MANAGER_PERMS: Permission[] = [
   'resignation.approve.team',
   // A manager signs off the handover for their own leaver, and nothing else.
   'offboarding.clearance',
+  // Their own openings, and feedback on the people they interview. Not the
+  // offer, and not the hire.
+  'recruitment.read.team',
+  'recruitment.interview.submit',
 ];
 
 const HR_PERMS: Permission[] = [
@@ -255,6 +278,14 @@ const HR_PERMS: Permission[] = [
   'payroll.structure.manage',
   'payroll.salary.manage',
   'payroll.process',
+  // HR runs hiring end to end, and already holds `employee.invite` — which is
+  // what a hire actually spends when it creates the new starter's login.
+  'recruitment.read',
+  'recruitment.opening.manage',
+  'recruitment.candidate.manage',
+  'recruitment.interview.submit',
+  'recruitment.offer.manage',
+  'recruitment.hire',
 ];
 
 /** Approves and pays; deliberately holds no salary or structure write. */

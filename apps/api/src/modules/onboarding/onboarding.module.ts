@@ -10,5 +10,8 @@ import { OnboardingService } from './onboarding.service';
   imports: [AuthModule, MailModule, EmployeesModule, LifecycleModule],
   controllers: [OnboardingController, MyOnboardingController],
   providers: [OnboardingService],
+  // Recruitment converts an accepted offer through this rather than creating
+  // an employee a second way.
+  exports: [OnboardingService],
 })
 export class OnboardingModule {}
