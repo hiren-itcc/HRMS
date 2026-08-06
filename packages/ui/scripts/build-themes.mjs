@@ -339,12 +339,14 @@ for (const theme of THEMES) {
     map.set('--font-sans-stack', theme.font);
     map.set('--font-heading-stack', theme.font);
   }
-  lines.push(`[data-theme='${theme.name}'] {\n${declarations(map)}\n}\n`);
+  // Double quotes because that is what Biome formats CSS to; emitting single
+  // quotes made every regeneration produce a diff against the committed file.
+  lines.push(`[data-theme="${theme.name}"] {\n${declarations(map)}\n}\n`);
 }
 
 lines.push('/* ── theme dark ──────────────────────────────────────────────── */\n');
 for (const theme of THEMES) {
-  lines.push(`.dark[data-theme='${theme.name}'] {\n${declarations(derive(DARK, theme))}\n}\n`);
+  lines.push(`.dark[data-theme="${theme.name}"] {\n${declarations(derive(DARK, theme))}\n}\n`);
 }
 
 writeFileSync(OUTPUT, `${lines.join('\n')}`, 'utf8');
