@@ -106,6 +106,24 @@ families and loading them twice ships a family nothing references.
 `aria-hidden`. coss's registry pulls `@remixicon/react` as a transitive
 dependency; we do not use it — one icon family or none.
 
+**An icon-only button also has to say what it is on hover**, which an
+`aria-label` alone does not do — it reaches a screen reader and nobody else,
+and a pencil beside a bin beside a power symbol is a guessing game for anyone
+who does not already know the screen. `IconAction` takes one `label` and
+spends it twice, as the accessible name and as the tooltip, so the two cannot
+drift apart the way they do when a tooltip is added separately. The provider
+is global (`components/providers.tsx`), because a page that forgets to wrap
+itself is a button that silently stops explaining.
+
+Two exceptions, both deliberate. A trigger whose `Button` lives inside a
+`render` prop — the theme menu, the notification bell, a dropdown — is wrapped
+in `Tooltip`/`TooltipTrigger` by hand rather than converted. And a control that
+only exists below `lg`, like the mobile navigation button, gets no tooltip at
+all: there is no pointer on those screens to hover with.
+
+Never a native `title` alongside. Two hover labels on one button is one too
+many, and the native one is slower and cannot be styled.
+
 ## Component library (`packages/ui`)
 
 Built **on coss UI** (Base UI, accessible by default), installed into
@@ -162,6 +180,8 @@ Both are now handled inside the `Select` wrapper.
 | `AnnouncementCard` | pinned state, unread dot, audience chip | feed |
 | `FileUpload` | dropzone + progress + type/size validation | documents |
 | `OrgChartNode` | collapsible tree node | org chart |
+| `IconAction` | icon-only `Button` + `Tooltip`, one `label` serving both the accessible name and the hover text | every icon button in the app |
+| `CardColumns` | two vertical stacks rather than a two-column grid — a grid levels its rows, so a short card beside a tall one leaves a hole beneath it. Deals evens left and odds right, which is exactly where the grid put them | employee record, profile, dashboard |
 | `EmptyState` / `ErrorState` / `ForbiddenState` | illustration + action | all screens |
 | `ConfirmDialog` | typed-confirmation variant for destructive actions | offboard, delete |
 | `MultiStepForm` | stepper + per-step Zod validation + state preservation | add employee |
