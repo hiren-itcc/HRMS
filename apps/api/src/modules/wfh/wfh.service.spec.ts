@@ -104,6 +104,23 @@ const apply = (startDate: string, endDate = startDate) => ({
   reason: 'Plumber coming',
 });
 
+/*
+ * The clock is frozen at Wednesday 2026-08-05, which every date in this file is
+ * written relative to: the Mon–Fri week above is next week, and the straddling
+ * cancel below is the current one.
+ *
+ * `WfhService` reads the real clock — it must, because "already gone" is a
+ * question about now — so without this the suite is only true on the day it was
+ * written. It was: the straddling test started failing the following morning.
+ */
+beforeEach(() => {
+  jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+  jest.setSystemTime(new Date('2026-08-05T06:00:00.000Z'));
+});
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 describe('preview', () => {
   it('counts working days and names the ones it skipped', async () => {
     const { service } = makeService({ holidays: [WED] });
@@ -362,8 +379,8 @@ describe('cancelling', () => {
    * had already worked stopped being approved — and attendance re-read them as
    * unplanned, disagreeing with a decision made and acted on at the time.
    *
-   * Only the part still ahead is given up. `settingsDouble` fixes the clock at
-   * 2026-08-05, a Wednesday.
+   * Only the part still ahead is given up. The clock is frozen at Wednesday
+   * 2026-08-05 for the whole file.
    */
   it('gives up only the days still ahead when the range straddles today', async () => {
     const { service, prisma } = makeService({
