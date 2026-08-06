@@ -39,7 +39,7 @@ hrms/
 │       │   ├── app.module.ts
 │       │   ├── common/               # Guards, decorators, interceptors, filters, pipes
 │       │   ├── config/               # Typed config module (env validated with Zod)
-│       │   ├── database/             # PrismaService + prisma/ (schema, migrations, seed)
+│       │   ├── database/             # PrismaService + prisma/ (schema, migrations, seed/, scripts/)
 │       │   └── modules/
 │       │       ├── auth/
 │       │       ├── rbac/             # Roles, permissions, PermissionsGuard

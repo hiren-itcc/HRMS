@@ -1355,3 +1355,51 @@ model AuditLog {
 - **Loss of pay is not a column.** It is derived at calculation from unpaid
   approved leave unioned with days marked absent, then frozen onto the payslip
   — the same derive-on-read rule attendance and leave already follow.
+
+---
+
+## The demo seed
+
+`prisma/seed/` fills one organization with a workspace you can actually
+exercise. It is destructive by design — it empties the org first, so repeated
+runs produce an identical database rather than accumulating duplicates — and
+`prisma/bootstrap.ts` is the opposite: additive, production-safe, and the only
+one that belongs on a live tenant by default. Doc 14 covers the guard that
+keeps them apart.
+
+It is a directory rather than a file because it outgrew one: `index.ts`
+orchestrates, `wipe.ts` empties, `random.ts` holds a fixed-seed PRNG, and one
+module per area does the writing.
+
+**"Random" means varied, not unrepeatable.** Every generated name, phone
+number, salary and attendance quirk comes from mulberry32 seeded with a
+constant. Two runs produce identical data, which is what makes "is this a bug,
+or just how this run came out?" answerable at all.
+
+**Figures come from the engines that compute them for real.** Payslips go
+through `calculatePayslip`; settlement lines go through `encashmentLines`,
+`gratuityFor`, `noticeShortfallDays` and `settlementTotals`; letters go through
+`buildLetterVars` and the mail renderer. A seed with hand-typed totals drifts
+away from the code the first time a calculation changes, and a demo statement
+that does not add up is worse than no demo statement.
+
+What it covers, and why each thing is there:
+
+| Area | Shape |
+|---|---|
+| People | 28 — seven named logins plus twenty-one generated, across ACTIVE, ONBOARDING, ON_NOTICE and EXITED, five on probation with two overdue |
+| Celebrations | three birthdays and three work anniversaries inside the next 30 days, **computed from today** — fixed dates left the panel empty most of the year |
+| Attendance | eight weeks: present, late, half day, WFH, client site, absent (no row — ABSENT is derived), a forgotten clock-out, a split day |
+| Remote work | pending, approved-future, approved-past, rejected and cancelled — the approved-past ones deliberately cover only *some* recorded remote days, so "N unplanned" counts something |
+| Leave | balances for all 28, requests in every state, one half-day |
+| Payroll | three published months, one IN_REVIEW to approve and pay, the current month DRAFT, adjustments, and paid/failed/pending payments |
+| Assets | every status, open and returned assignments, and **a leaver still holding a phone** so the exit clearance gate actually blocks |
+| Exit | resignations at each stage, two offboardings in progress, one completed with an exit interview, settlements in draft, approved and paid |
+| Onboarding | two invited hires, one still filling in, one waiting on HR |
+| Comms | announcements incl. a scheduled one, documents, letters incl. a voided one, unread notifications, settings and an audit trail |
+
+**`wipe()` must stay exhaustive.** Nearly every table carries a foreign key to
+`Employee`, so a single row it forgets makes `employee.deleteMany` throw —
+after the rest of the wipe has already run. It missed nine modules' worth of
+tables for exactly that reason once: it was written before they existed, and
+nothing failed until those tables had rows in them.

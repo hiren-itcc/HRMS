@@ -22,10 +22,35 @@ There are two seed commands and they are **not** interchangeable:
 | Command | What it does | Use in production? |
 |---|---|---|
 | `pnpm db:bootstrap` | Creates one company, the roles, and one administrator. Additive, safe to re-run. | **Yes — this is the one** |
-| `pnpm db:seed` | Demo data: **wipes the company**, then creates 6 fictional employees with invented attendance, leave, payroll runs and announcements. | **No. Never.** |
+| `pnpm db:seed` | Demo data: **wipes the company**, then creates 28 fictional employees with invented attendance, leave, remote work, payroll runs, assets, exits, settlements and letters. | **No, unless you mean it** |
 
-`db:seed` refuses to run against `NODE_ENV=production` unless you override it.
-Do not override it.
+### The guard on `db:seed`
+
+It used to refuse on `NODE_ENV === 'production'`, which protected nothing: the
+checked-in `.env` says `development` while `DATABASE_URL` points at a hosted
+database, so the one configuration that most needed stopping sailed through.
+
+It now looks at **where it is connecting**. A local host runs without ceremony;
+anything else prints the target, the company and the row counts it is about to
+delete, then refuses unless `SEED_ALLOW_RESET=true` is set.
+
+**It was run against production once, deliberately, on 6 August 2026**, to
+replace a nearly-empty workspace with one that exercises every module. Two
+things made that survivable and should accompany any repeat:
+
+1. `prisma/scripts/backup-org.ts` wrote every row of the organization to JSON
+   first. It exists because `pg_dump` is a Postgres client install and the
+   machine doing this may not have one.
+2. `prisma/scripts/drop-org.ts` makes a **rehearsal** possible: the seed is
+   org-scoped, so `SEED_ORG_SLUG=seed-rehearsal pnpm db:seed` proves it against
+   a throwaway tenant in the same database, and `DROP_ORG_SLUG=seed-rehearsal
+   pnpm tsx prisma/scripts/drop-org.ts` clears it away. `drop-org` refuses the
+   `default` slug.
+
+Running the demo seed **deletes the accounts people sign in with**. Afterwards
+the logins are the seeded ones (`admin@hrms.local` and the rest, on
+`SEED_PASSWORD`), and the company is renamed to Acme Industries — rename it
+back under Settings → Organization.
 
 ---
 
@@ -277,7 +302,8 @@ docker compose run api npx prisma migrate deploy
 - [ ] `NEXT_PUBLIC_API_URL` correct **and the web app rebuilt** after setting it
 - [ ] `pnpm db:deploy` run
 - [ ] `pnpm db:bootstrap` run, sign-in confirmed, password changed
-- [ ] `pnpm db:seed` **not** run
+- [ ] `pnpm db:seed` **not** run — unless a demo workspace is what you want, in
+      which case back up first and read the guard section above
 - [ ] Database backups configured
 - [ ] `/health` and `/health/ready` wired to your monitoring
 
