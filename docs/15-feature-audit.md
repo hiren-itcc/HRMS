@@ -13,7 +13,10 @@ web pages, the 54-permission catalogue and docs 00–14.
 > exist yet; a suite that cannot run in CI is not a gate. That is the next
 > infrastructure job, and it is tracked in §6.
 >
-> P2 and P3 below are untouched. Items struck through are fixed.
+> **P2 and P3 are no longer untouched**, whatever this box used to say: exits
+> and the full-and-final settlement, WFH, assets, notifications and recruitment
+> have all shipped since the review. Items struck through are done; the rest of
+> P2 and P3 stand.
 
 ## How to read this
 
@@ -283,8 +286,8 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
 | **Performance / goals / OKR** | ❌ | ✅ all four |
 | **Expense & reimbursement** | ❌ | ✅ all four |
-| **Asset management** | ❌ | ✅ Keka, Darwinbox |
-| ~~**Exit / offboarding**~~ ✅ built · **FNF** still ❌ | ⚠️ | ✅ all four |
+| ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
+| ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
 | **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
@@ -308,7 +311,7 @@ is what an Indian payroll buyer is actually purchasing:
 | **ESIC** contribution challan | ❌ |
 | **Form 12BB** / investment declarations | ❌ |
 | **Old vs new regime** TDS projection | ❌ — monthly TDS is typed in per employee |
-| **Gratuity** | ❌ |
+| **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
 | **Bonus** (Payment of Bonus Act) | ❌ |
 | **LWF** | ❌ |
 | PF / ESI / PT / register / bank-transfer reports | ✅ six reports ship |
