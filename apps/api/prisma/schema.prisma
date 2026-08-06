@@ -38,6 +38,11 @@ model Organization {
 
   letters         Letter[]
   letterTemplates LetterTemplate[]
+
+  jobOpenings  JobOpening[]
+  candidates   Candidate[]
+  applications Application[]
+  offers       Offer[]
 }
 
 enum UserStatus {
@@ -151,6 +156,9 @@ model Department {
   head         Employee?    @relation("DeptHead", fields: [headId], references: [id])
   employees    Employee[]
 
+  jobOpenings JobOpening[]
+  offers      Offer[]
+
   @@unique([organizationId, name])
   @@index([organizationId])
 }
@@ -163,6 +171,9 @@ model Designation {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   employees    Employee[]
+
+  jobOpenings JobOpening[]
+  offers      Offer[]
 
   @@unique([organizationId, title])
 }
@@ -197,6 +208,9 @@ model Location {
   sessions     AttendanceSession[]
   assets       Asset[]
 
+  jobOpenings JobOpening[]
+  offers      Offer[]
+
   @@unique([organizationId, name])
 }
 
@@ -207,6 +221,9 @@ model EmploymentType {
   code           String?
 
   employees Employee[]
+
+  jobOpenings JobOpening[]
+  offers      Offer[]
 
   @@unique([organizationId, name])
 }
@@ -331,6 +348,13 @@ model Employee {
   offboardings       Offboarding[]
   settlements        Settlement[]
   assetAssignments   AssetAssignment[]
+
+  /// Recruitment: what this person does on the hiring side, and — for exactly
+  /// one row — the offer they were hired from.
+  openingsOwned      JobOpening[] @relation("OpeningsOwned")
+  candidatesReferred Candidate[]  @relation("CandidatesReferred")
+  interviewsGiven    Interview[]  @relation("InterviewsGiven")
+  hiredFromOffer     Offer?       @relation("HiredFromOffer")
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -650,6 +674,9 @@ model Document {
 
   employee Employee?         @relation(fields: [employeeId], references: [id])
   category DocumentCategory? @relation(fields: [categoryId], references: [id])
+
+  /// The application this file is the CV for, when it is one.
+  application Application?
 
   @@index([organizationId, employeeId])
 }
@@ -1675,4 +1702,283 @@ model AssetAssignment {
 
   @@index([assetId, issuedOn])
   @@index([employeeId, returnedOn])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recruitment
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The front of the lifecycle. Everything else in this schema begins at an
+// Employee; this is what happens before there is one.
+//
+// **A Candidate is not an Employee**, and the foreign keys say so: `Offer`
+// points *at* Employee, and only once somebody is hired. Anybody who applies
+// and is turned down leaves a Candidate and no Employee, which is the whole
+// distinction — a rejected application must not be a deleted person, and the
+// same human applying again next year must be the same row.
+
+enum OpeningStatus {
+  DRAFT
+  OPEN
+  /// Paused — no new applications, the ones in flight continue.
+  ON_HOLD
+  /// Ended without filling it.
+  CLOSED
+  FILLED
+}
+
+/// Where the pipeline can go.
+///
+/// A column rather than a table. Per-opening configurable stages is the
+/// feature every ATS grows and the one that turns every count into a join;
+/// this is the set the reporting actually needs. If an organization ever wants
+/// its own, they belong in `Setting` as a typed group like the exit checklist,
+/// which is a pattern this codebase already runs.
+enum ApplicationStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+/// Why somebody did not get the job. Recorded because "rejected" on its own
+/// answers nothing three months later, and because it is what tells the
+/// difference between a bad advert and a bad interview loop.
+enum RejectionReason {
+  SKILLS
+  EXPERIENCE
+  COMPENSATION
+  LOCATION
+  NOTICE_PERIOD
+  CULTURE_FIT
+  POSITION_CLOSED
+  CANDIDATE_WITHDREW
+  OTHER
+}
+
+enum InterviewMode {
+  IN_PERSON
+  VIDEO
+  PHONE
+}
+
+enum InterviewRecommendation {
+  STRONG_YES
+  YES
+  NO
+  STRONG_NO
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+  EXPIRED
+}
+
+model JobOpening {
+  id               String  @id @default(cuid())
+  organizationId   String
+  title            String
+  /// Reuses the org structure rather than free text, so an opening filters and
+  /// reports alongside the people already in that department.
+  departmentId     String?
+  designationId    String?
+  locationId       String?
+  employmentTypeId String?
+  /// Who owns the loop. Nullable because an opening can be raised before the
+  /// manager is settled.
+  hiringManagerId  String?
+
+  headcount     Int           @default(1)
+  status        OpeningStatus @default(DRAFT)
+  description   String?
+  /// The band, for the offer conversation. Nullable throughout: plenty of
+  /// organizations do not publish one internally either.
+  minMonthlyCtc Decimal?      @db.Decimal(14, 2)
+  maxMonthlyCtc Decimal?      @db.Decimal(14, 2)
+
+  openedOn DateTime? @db.Date
+  closedOn DateTime? @db.Date
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id])
+  designation    Designation?    @relation(fields: [designationId], references: [id])
+  location       Location?       @relation(fields: [locationId], references: [id])
+  employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
+  hiringManager  Employee?       @relation("OpeningsOwned", fields: [hiringManagerId], references: [id])
+  applications   Application[]
+
+  @@index([organizationId, status])
+  @@index([hiringManagerId, status])
+}
+
+/// One person, once.
+///
+/// Unique on email per organization, so somebody who applies to three openings
+/// is one candidate with three applications, and a re-applicant next year is
+/// the same history rather than a stranger.
+model Candidate {
+  id             String @id @default(cuid())
+  organizationId String
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  currentEmployer    String?
+  currentTitle       String?
+  /// What they say they are on, in days. Their word rather than a contract —
+  /// it is what the start date gets planned around.
+  noticePeriodDays   Int?
+  expectedMonthlyCtc Decimal? @db.Decimal(14, 2)
+
+  /// Where they came from. Plain text rather than an enum: referral sources are
+  /// somebody's name, and job boards come and go.
+  source     String?
+  /// Who referred them, when the source is a colleague.
+  referrerId String?
+  notes      String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  referrer     Employee?     @relation("CandidatesReferred", fields: [referrerId], references: [id])
+  applications Application[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, createdAt])
+}
+
+/// One candidate against one opening.
+model Application {
+  id             String @id @default(cuid())
+  /// Denormalised off the opening so the pipeline can be scoped and counted
+  /// without a join, the way every other module here scopes by organization.
+  organizationId String
+  candidateId    String
+  openingId      String
+
+  stage           ApplicationStage @default(APPLIED)
+  rejectionReason RejectionReason?
+  /// The sentence somebody would want to read later. Required by the service
+  /// when the reason is OTHER, the way Resignation already requires remarks.
+  rejectionNote   String?
+
+  appliedOn        DateTime  @default(now())
+  decidedAt        DateTime?
+  /// The CV, as a Document — so it goes through the same storage adapter, size
+  /// and type checks and streaming download as every other file in the product.
+  resumeDocumentId String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  opening      JobOpening   @relation(fields: [openingId], references: [id], onDelete: Cascade)
+  resume       Document?    @relation(fields: [resumeDocumentId], references: [id])
+  interviews   Interview[]
+  offer        Offer?
+
+  /// One application per person per opening. Applying twice is the same
+  /// application moving, not a second one.
+  @@unique([candidateId, openingId])
+  @@index([organizationId, stage])
+  @@index([openingId, stage])
+}
+
+/// A conversation, and what came of it.
+///
+/// The feedback freezes when it is submitted: `submittedAt` set means the
+/// recommendation and notes stop being editable. The same rule as `Letter`'s
+/// frozen body and `Offboarding`'s snapshots, and for a sharper reason — a
+/// recommendation that can be rewritten after the decision is evidence of
+/// nothing.
+model Interview {
+  id            String  @id @default(cuid())
+  applicationId String
+  /// Nullable: a panel member can leave, and the interview still happened.
+  interviewerId String?
+
+  scheduledFor    DateTime
+  durationMinutes Int           @default(45)
+  mode            InterviewMode @default(VIDEO)
+  /// "Technical round", "Culture fit" — free text, because every company names
+  /// these differently and none of the names mean anything to the schema.
+  round           String?
+
+  recommendation InterviewRecommendation?
+  notes          String?
+  submittedAt    DateTime?
+
+  cancelledAt DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewer Employee?   @relation("InterviewsGiven", fields: [interviewerId], references: [id])
+
+  @@index([applicationId, scheduledFor])
+  @@index([interviewerId, scheduledFor])
+}
+
+/// What was offered, and what became of it.
+///
+/// The job details are copied rather than joined. An offer is a statement made
+/// on a day — the same freezing rule as Payslip and Settlement — so the opening
+/// it came from can be edited or closed afterwards without rewriting what
+/// somebody was told.
+model Offer {
+  id             String @id @default(cuid())
+  organizationId String
+  applicationId  String @unique
+
+  status OfferStatus @default(DRAFT)
+
+  designationId    String?
+  departmentId     String?
+  locationId       String?
+  employmentTypeId String?
+  monthlyCtc       Decimal   @db.Decimal(14, 2)
+  joinDate         DateTime  @db.Date
+  /// After which it lapses. Nothing expires it on a timer — there is no
+  /// scheduler here — so it is derived on read, like everything else.
+  expiresOn        DateTime? @db.Date
+
+  notes String?
+
+  sentAt          DateTime?
+  respondedAt     DateTime?
+  /// Set only once an accepted offer has been converted into staff. Nullable,
+  /// and pointing at Employee rather than the other way round: this is the one
+  /// place the two halves of the lifecycle touch.
+  hiredEmployeeId String?   @unique
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  application    Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  designation    Designation?    @relation(fields: [designationId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id])
+  location       Location?       @relation(fields: [locationId], references: [id])
+  employmentType EmploymentType? @relation(fields: [employmentTypeId], references: [id])
+  hiredEmployee  Employee?       @relation("HiredFromOffer", fields: [hiredEmployeeId], references: [id])
+
+  @@index([organizationId, status])
 }
