@@ -8,10 +8,12 @@
  * palettes would be ~550 more values with none of that behind them, and
  * hand-picked colour is exactly how a 4.6:1 label quietly becomes 3.2:1.
  *
- * So a theme is not a palette. A theme is a **rotation**: every token keeps
- * the base theme's lightness exactly and moves only in hue and chroma. In
- * OKLCH, contrast is dominated by L, so holding L holds the audit — and the
- * gate then re-measures all six to prove it rather than to assume it.
+ * So a theme is not a palette. A theme is a **rotation**: every token moves in
+ * hue and chroma while holding its *luminance* — not its OKLCH lightness. The
+ * distinction is the whole thing and is explained on `matchLuminance` below;
+ * an earlier draft of this comment claimed lightness, which is what the first
+ * version did and why emerald's primary buttons regressed. The gate then
+ * re-measures all six themes to prove the ratios rather than assume them.
  *
  * Output: src/styles/themes.css, committed. Generated, but a person debugs
  * CSS at 2am and should find it on disk rather than in a build step.
@@ -281,6 +283,69 @@ function rotate(value, hue, chromaFactor) {
   return `oklch(${+lightness.toFixed(4)} ${+fitted.toFixed(4)} ${+hue.toFixed(2)})`;
 }
 
+/* ---------- solving --primary-text against its own chip ---------- */
+
+const parseOklch = (v) => {
+  const m = v.match(/^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/i);
+  return m ? [Number.parseFloat(m[1]), Number.parseFloat(m[2]), Number.parseFloat(m[3])] : null;
+};
+
+const toBytes = (L, C, H) =>
+  oklchToLinearRgb(L, C, H)
+    .map((v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055))
+    .map((v) => clamp01(v) * 255);
+
+const relLum = ([r, g, b]) => {
+  const f = (v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+
+const contrast = (a, b) => {
+  const x = relLum(a);
+  const y = relLum(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
+/**
+ * `--primary-text` sits on a 15% tint of `--primary` over the card, and must
+ * clear 4.5:1 there. Rotating it by luminance alone is not enough: the tint is
+ * composited in gamma-encoded sRGB, which is not linear in luminance, so the
+ * ratio drifts a few hundredths with hue. Measured, that landed some themes at
+ * 4.46:1 — under AA, and only hidden by the gate's rounding allowance.
+ *
+ * So it is solved rather than derived: walk the lightness away from the chip
+ * until the measured ratio clears, which is what the base theme's own comments
+ * describe doing by hand.
+ */
+function solvePrimaryText(map, base, isDark) {
+  const text = parseOklch(map.get('--primary-text') ?? '');
+  const primary = parseOklch(map.get('--primary') ?? '');
+  const card = parseOklch(map.get('--card') ?? base.get('--card') ?? '');
+  if (!text || !primary || !card) return;
+
+  const cardRgb = toBytes(...card);
+  const primaryRgb = toBytes(...primary);
+  // 15% of the fill over the card, the way the chip is built.
+  const chip = [0, 1, 2].map((i) => primaryRgb[i] * 0.15 + cardRgb[i] * 0.85);
+
+  const [, C, H] = text;
+  // A dark theme's chip text lightens to gain contrast; a light theme's darkens.
+  const step = isDark ? 0.002 : -0.002;
+  let L = text[0];
+  for (let i = 0; i < 250; i++) {
+    if (contrast(toBytes(L, fitChroma(L, C, H), H), chip) >= 4.55) break;
+    L += step;
+    if (L <= 0 || L >= 1) break;
+  }
+  map.set(
+    '--primary-text',
+    `oklch(${+L.toFixed(4)} ${+fitChroma(L, C, H).toFixed(4)} ${+H.toFixed(2)})`,
+  );
+}
+
 function derive(base, theme) {
   const out = new Map();
   for (const token of BRAND) {
@@ -332,6 +397,7 @@ lines.push(`/*
 lines.push('/* ── theme light ─────────────────────────────────────────────── */\n');
 for (const theme of THEMES) {
   const map = derive(LIGHT, theme);
+  solvePrimaryText(map, LIGHT, false);
   map.set('--radius', theme.radius);
   if (theme.font) {
     map.set('--font-sans-stack', theme.font);
@@ -344,7 +410,9 @@ for (const theme of THEMES) {
 
 lines.push('/* ── theme dark ──────────────────────────────────────────────── */\n');
 for (const theme of THEMES) {
-  lines.push(`.dark[data-theme="${theme.name}"] {\n${declarations(derive(DARK, theme))}\n}\n`);
+  const map = derive(DARK, theme);
+  solvePrimaryText(map, DARK, true);
+  lines.push(`.dark[data-theme="${theme.name}"] {\n${declarations(map)}\n}\n`);
 }
 
 writeFileSync(OUTPUT, `${lines.join('\n')}`, 'utf8');

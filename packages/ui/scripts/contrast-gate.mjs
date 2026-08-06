@@ -326,13 +326,19 @@ const ACCEPTED = {
 const FLOOR = 3.0;
 
 /*
- * The compiled stylesheet is not the arithmetic the tokens were solved to.
- * Lightning CSS quantises every colour to a hex triplet, and a tint is
- * composited in gamma-encoded sRGB rather than linearly — together worth a few
- * hundredths either way. globals.css already notes that solving to exactly
- * 4.50 landed at 4.48 once the compiler rounded. This absorbs that and no more.
+ * The compiled stylesheet is not the arithmetic the tokens were solved to:
+ * Lightning CSS quantises every colour to a hex triplet, so a value solved to
+ * exactly 4.50 lands a hundredth or two under. globals.css already records
+ * hitting that.
+ *
+ * 0.03, not more. It was 0.05 for one draft, and at that width it was quietly
+ * covering themed `--primary-text` values that genuinely rendered at 4.46:1 —
+ * an allowance wide enough to hide a real shortfall is not an allowance. Those
+ * are now solved against their own chip in build-themes.mjs, and what is left
+ * under 4.50 is the base theme's own `info-text` and `destructive-text`, at
+ * 4.48–4.50.
  */
-const QUANTISATION = 0.05;
+const QUANTISATION = 0.03;
 
 function resolve(name, vars, surface) {
   if (name.startsWith('#')) return parseColor(name, vars);

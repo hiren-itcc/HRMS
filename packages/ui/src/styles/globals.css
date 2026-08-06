@@ -286,8 +286,12 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Clamped at zero. `--radius` is now per-theme, and Slate's 0.125rem made
+     `--radius-sm` compute to -2px — an invalid border-radius, which browsers
+     drop entirely. The result happened to look right, by way of a declaration
+     the browser threw away. max() makes the sharp corner deliberate. */
+  --radius-sm: max(0px, calc(var(--radius) - 4px));
+  --radius-md: max(0px, calc(var(--radius) - 2px));
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
