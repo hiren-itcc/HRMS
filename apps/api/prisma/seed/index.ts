@@ -14,6 +14,7 @@ import { seedOrg } from './org';
 import { seedPayroll } from './payroll';
 import { seedPeople } from './people';
 import { makeRandom } from './random';
+import { seedRecruitment } from './recruitment';
 import { seedWfh } from './wfh';
 import { census, wipe } from './wipe';
 
@@ -77,6 +78,7 @@ async function confirmTarget(orgId: string, orgName: string): Promise<void> {
     `${counts.leave} leave requests`,
     `${counts.payslips} payslips`,
     `${counts.assets} assets`,
+    `${counts.candidates} candidates`,
   ].join(', ');
 
   console.log(`\n  Target:  ${host}`);
@@ -174,6 +176,9 @@ async function main() {
   console.log('Onboarding…');
   await seedOnboarding(prisma, people, todayKey);
 
+  console.log('Recruitment…');
+  await seedRecruitment(prisma, org.id, fixtures, people, random, todayKey);
+
   console.log('Announcements, letters and settings…');
   await seedComms(prisma, org.id, org.name, fixtures, people, random, todayKey);
 
@@ -186,6 +191,8 @@ async function main() {
     payslips: await prisma.payslip.count({ where: { organizationId: org.id } }),
     settlements: await prisma.settlement.count({ where: { organizationId: org.id } }),
     letters: await prisma.letter.count({ where: { organizationId: org.id } }),
+    openings: await prisma.jobOpening.count({ where: { organizationId: org.id } }),
+    candidates: await prisma.candidate.count({ where: { organizationId: org.id } }),
   };
 
   console.log(`
@@ -194,6 +201,7 @@ Seed complete — ${org.name}
   ${counts.employees} employees · ${counts.attendance} attendance records · ${counts.leave} leave requests
   ${counts.remote} remote requests · ${counts.assets} assets · ${counts.payslips} payslips
   ${counts.settlements} settlements · ${counts.letters} letters
+  ${counts.openings} job openings · ${counts.candidates} candidates
 
   Password for every account: ${PASSWORD}
 

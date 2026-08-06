@@ -61,6 +61,16 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.salaryStructure.deleteMany({ where: { organizationId: orgId } }),
       prisma.payComponent.deleteMany({ where: { organizationId: orgId } }),
 
+      // Recruitment, deepest first: an offer and its interviews hang off an
+      // application, and every one of them points at an employee somewhere —
+      // the hiring manager, the interviewer, the referrer, the person a hire
+      // became. Candidates go last because an application needs one.
+      prisma.offer.deleteMany({ where: { organizationId: orgId } }),
+      prisma.interview.deleteMany({ where: { application: { organizationId: orgId } } }),
+      prisma.application.deleteMany({ where: { organizationId: orgId } }),
+      prisma.jobOpening.deleteMany({ where: { organizationId: orgId } }),
+      prisma.candidate.deleteMany({ where: { organizationId: orgId } }),
+
       // Letters and onboarding.
       prisma.letter.deleteMany({ where: { organizationId: orgId } }),
       prisma.letterTemplate.deleteMany({ where: { organizationId: orgId } }),
@@ -118,13 +128,14 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
 
 /** What the wipe is about to destroy, for the confirmation the guard prints. */
 export async function census(prisma: PrismaClient, orgId: string) {
-  const [employees, users, attendance, payslips, assets, leave] = await Promise.all([
+  const [employees, users, attendance, payslips, assets, leave, candidates] = await Promise.all([
     prisma.employee.count({ where: { organizationId: orgId } }),
     prisma.user.count({ where: { organizationId: orgId } }),
     prisma.attendanceRecord.count({ where: { organizationId: orgId } }),
     prisma.payslip.count({ where: { organizationId: orgId } }),
     prisma.asset.count({ where: { organizationId: orgId } }),
     prisma.leaveRequest.count({ where: { employee: { organizationId: orgId } } }),
+    prisma.candidate.count({ where: { organizationId: orgId } }),
   ]);
-  return { employees, users, attendance, payslips, assets, leave };
+  return { employees, users, attendance, payslips, assets, leave, candidates };
 }
