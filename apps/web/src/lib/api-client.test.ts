@@ -59,6 +59,19 @@ describe('api()', () => {
     await expect(api('/documents/x')).resolves.toBeUndefined();
   });
 
+  /*
+   * A Nest handler that returns null sends **200** with nothing in it, not 204
+   * — which is what `GET /offboardings/:id/interview` does for an exit nobody
+   * has held the conversation for yet. `res.json()` on that throws "Unexpected
+   * end of JSON input", so the Exit interview card showed its error state for
+   * every offboarding without one. The endpoint's own type said
+   * `ExitInterview | null`; the client could not produce the null.
+   */
+  it('reads an empty 200 as null — the answer "there is nothing here yet"', async () => {
+    stubFetch(() => new Response(null, { status: 200 }));
+    await expect(api('/offboardings/o1/interview')).resolves.toBeNull();
+  });
+
   it('throws ApiError carrying the server message, not a generic failure', async () => {
     stubFetch(() =>
       json({ statusCode: 400, error: 'Bad Request', message: 'Exit date is required' }, 400),
