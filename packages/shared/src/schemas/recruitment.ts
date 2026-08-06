@@ -20,6 +20,29 @@ const optionalStr = (max: number) =>
     // An empty select posts "", which is not an id and must not be stored as one.
     .transform((v) => (v ? v : undefined));
 
+/**
+ * An optional figure where blank means "not stated".
+ *
+ * A number input posts `""` when cleared and `z.coerce.number()` reads that as
+ * 0 — so a cleared salary band would advertise a role paying nothing, and a
+ * cleared notice period would claim they can start tomorrow. Both are worse
+ * than saying nothing. The same trap `employee.ts`'s `nullableInt` sidesteps,
+ * and the reason it is worth a helper rather than a `.optional()`.
+ */
+const optionalMoney = () =>
+  z
+    .literal('')
+    .transform(() => null)
+    .or(z.coerce.number().min(0))
+    .nullish();
+
+const optionalInt = (min: number, max: number) =>
+  z
+    .literal('')
+    .transform(() => null)
+    .or(z.coerce.number().int().min(min).max(max))
+    .nullish();
+
 export const OPENING_STATUSES = ['DRAFT', 'OPEN', 'ON_HOLD', 'CLOSED', 'FILLED'] as const;
 export const openingStatusSchema = z.enum(OPENING_STATUSES);
 export type OpeningStatusCode = (typeof OPENING_STATUSES)[number];
@@ -136,8 +159,8 @@ export const openingCreateSchema = z
     hiringManagerId: optionalStr(40),
     headcount: z.coerce.number().int().min(1, 'At least one').max(999).default(1),
     description: optionalStr(5000),
-    minMonthlyCtc: z.coerce.number().min(0).optional(),
-    maxMonthlyCtc: z.coerce.number().min(0).optional(),
+    minMonthlyCtc: optionalMoney(),
+    maxMonthlyCtc: optionalMoney(),
   })
   .refine((d) => !d.minMonthlyCtc || !d.maxMonthlyCtc || d.maxMonthlyCtc >= d.minMonthlyCtc, {
     path: ['maxMonthlyCtc'],
@@ -172,8 +195,8 @@ export const candidateCreateSchema = z.object({
   phone: optionalStr(30),
   currentEmployer: optionalStr(120),
   currentTitle: optionalStr(120),
-  noticePeriodDays: z.coerce.number().int().min(0).max(365).optional(),
-  expectedMonthlyCtc: z.coerce.number().min(0).optional(),
+  noticePeriodDays: optionalInt(0, 365),
+  expectedMonthlyCtc: optionalMoney(),
   source: optionalStr(80),
   referrerId: optionalStr(40),
   notes: optionalStr(4000),

@@ -12,6 +12,7 @@ import {
   Network,
   Palmtree,
   Settings,
+  UserSearch,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -48,6 +49,14 @@ export const NAV_ITEMS: NavItem[] = [
     // read.own is enough to reach the module: every employee has a salary page.
     perms: ['payroll.read', 'payroll.read.team', 'payroll.read.own'],
     module: 'payroll',
+  },
+  {
+    href: '/recruitment',
+    label: 'Recruitment',
+    icon: UserSearch,
+    // A hiring manager holds only the team read and must still get in — the API
+    // narrows them to their own openings once they are there.
+    perms: ['recruitment.read', 'recruitment.read.team'],
   },
   {
     href: '/resignations',

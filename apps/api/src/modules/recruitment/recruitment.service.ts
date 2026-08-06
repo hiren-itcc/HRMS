@@ -33,6 +33,7 @@ import {
   canRespondToOffer,
   isTerminal,
 } from './application.stage';
+import { mapCandidate, mapMaybeOffer, mapOffer, mapOpening } from './recruitment.mapper';
 
 /** Applications that have not ended. What "live" means for closing an opening. */
 const LIVE_STAGES: ApplicationStage[] = ['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER'];
@@ -102,7 +103,7 @@ export class RecruitmentService {
     ]);
 
     return {
-      data: rows.map((r) => ({ ...r, liveApplications: r._count.applications })),
+      data: rows.map((r) => mapOpening({ ...r, liveApplications: r._count.applications })),
       meta: { page: query.page, limit: query.limit, total },
     };
   }
@@ -127,7 +128,14 @@ export class RecruitmentService {
       },
     });
     if (!opening) throw new NotFoundException('No such opening');
-    return opening;
+    return mapOpening({
+      ...opening,
+      applications: opening.applications.map((a) => ({
+        ...a,
+        candidate: mapCandidate(a.candidate),
+        offer: mapMaybeOffer(a.offer),
+      })),
+    });
   }
 
   async createOpening(claims: AccessTokenClaims, input: OpeningCreateInput) {
@@ -156,13 +164,13 @@ export class RecruitmentService {
       created.id,
       { after: { title: created.title } },
     );
-    return created;
+    return mapOpening(created);
   }
 
   async updateOpening(claims: AccessTokenClaims, id: string, input: OpeningCreateInput) {
     this.require(claims, 'recruitment.opening.manage', 'You cannot edit openings');
     await this.opening(claims, id);
-    return this.prisma.jobOpening.update({
+    const updated = await this.prisma.jobOpening.update({
       where: { id },
       data: {
         title: input.title,
@@ -177,6 +185,7 @@ export class RecruitmentService {
         maxMonthlyCtc: input.maxMonthlyCtc ?? null,
       },
     });
+    return mapOpening(updated);
   }
 
   /**
@@ -198,7 +207,7 @@ export class RecruitmentService {
       if (!verdict.ok) throw new BadRequestException(verdict.reason);
     }
 
-    return this.prisma.jobOpening.update({
+    const updated = await this.prisma.jobOpening.update({
       where: { id },
       data: {
         status: input.status,
@@ -207,6 +216,7 @@ export class RecruitmentService {
         closedOn: input.status === 'CLOSED' || input.status === 'FILLED' ? toDate(todayKey) : null,
       },
     });
+    return mapOpening(updated);
   }
 
   // ── Candidates ─────────────────────────────────────────────────────────
@@ -238,7 +248,7 @@ export class RecruitmentService {
       }),
       this.prisma.candidate.count({ where }),
     ]);
-    return { data, meta: { page: query.page, limit: query.limit, total } };
+    return { data: data.map(mapCandidate), meta: { page: query.page, limit: query.limit, total } };
   }
 
   async candidate(claims: AccessTokenClaims, id: string) {
@@ -261,7 +271,10 @@ export class RecruitmentService {
       },
     });
     if (!candidate) throw new NotFoundException('No such candidate');
-    return candidate;
+    return mapCandidate({
+      ...candidate,
+      applications: candidate.applications.map((a) => ({ ...a, offer: mapMaybeOffer(a.offer) })),
+    });
   }
 
   async createCandidate(claims: AccessTokenClaims, input: CandidateCreateInput) {
@@ -278,7 +291,7 @@ export class RecruitmentService {
       );
     }
 
-    return this.prisma.candidate.create({
+    const created = await this.prisma.candidate.create({
       data: {
         organizationId: claims.orgId,
         firstName: input.firstName,
@@ -295,12 +308,14 @@ export class RecruitmentService {
         createdById: claims.sub,
       },
     });
+    return mapCandidate(created);
   }
 
   async updateCandidate(claims: AccessTokenClaims, id: string, input: CandidateUpdateInput) {
     this.require(claims, 'recruitment.candidate.manage', 'You cannot edit candidates');
     await this.candidate(claims, id);
-    return this.prisma.candidate.update({ where: { id }, data: { ...input } });
+    const updated = await this.prisma.candidate.update({ where: { id }, data: { ...input } });
+    return mapCandidate(updated);
   }
 
   // ── Applications ───────────────────────────────────────────────────────
@@ -454,7 +469,7 @@ export class RecruitmentService {
     const verdict = canRaiseOffer(application.stage);
     if (!verdict.ok) throw new BadRequestException(verdict.reason);
 
-    return this.prisma.offer.create({
+    const created = await this.prisma.offer.create({
       data: {
         organizationId: claims.orgId,
         applicationId: application.id,
@@ -469,6 +484,7 @@ export class RecruitmentService {
         createdById: claims.sub,
       },
     });
+    return mapOffer(created);
   }
 
   async offer(claims: AccessTokenClaims, id: string) {
@@ -487,7 +503,10 @@ export class RecruitmentService {
       },
     });
     if (!offer) throw new NotFoundException('No such offer');
-    return offer;
+    return mapOffer({
+      ...offer,
+      application: { ...offer.application, candidate: mapCandidate(offer.application.candidate) },
+    });
   }
 
   async sendOffer(claims: AccessTokenClaims, id: string) {
@@ -495,10 +514,11 @@ export class RecruitmentService {
     const offer = await this.offer(claims, id);
     if (offer.status !== 'DRAFT')
       throw new BadRequestException('That offer has already been sent.');
-    return this.prisma.offer.update({
+    const sent = await this.prisma.offer.update({
       where: { id },
       data: { status: 'SENT', sentAt: new Date() },
     });
+    return mapOffer(sent);
   }
 
   async respondToOffer(claims: AccessTokenClaims, id: string, input: OfferRespondInput) {
@@ -531,7 +551,7 @@ export class RecruitmentService {
       });
     }
 
-    return updated;
+    return mapOffer(updated);
   }
 
   /**
