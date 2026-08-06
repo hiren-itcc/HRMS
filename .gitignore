@@ -31,3 +31,7 @@ apps/api/src/generated/
 
 # uploaded files (local disk storage adapter)
 apps/api/uploads/
+
+# Pre-wipe dumps from prisma/scripts/backup-org.ts. Real people, real bank
+# details — a file that must never be pushed to a public remote.
+org-backup*.json
