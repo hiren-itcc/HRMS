@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
 
 /**
@@ -55,7 +56,14 @@ export function FadeInItem({
   const reduce = useReducedMotion();
   return (
     <motion.div
-      className={className}
+      /*
+       * `empty:hidden` because several cards decide for themselves that they
+       * have nothing to show and return null — the invite card outside
+       * onboarding, the assets card without `asset.read`. The wrapper still
+       * rendered, and in a gapped grid an empty wrapper is a visible hole with
+       * nothing in it.
+       */
+      className={cn('empty:hidden', className)}
       variants={{
         hidden: reduce ? { opacity: 1 } : { opacity: 0, y: 14, scale: 0.98 },
         show: { opacity: 1, y: 0, scale: 1 },

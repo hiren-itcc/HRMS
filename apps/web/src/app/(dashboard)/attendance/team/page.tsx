@@ -1,7 +1,6 @@
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
-import { Button } from '@hrms/ui/components/button';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
@@ -16,6 +15,7 @@ import { ChevronLeft, ChevronRight, Clock3, Timer, UserCheck, UserX } from 'luci
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
@@ -134,14 +134,13 @@ function TeamAttendanceView() {
 
           {view === 'daily' ? (
             <div className="flex items-center gap-1">
-              <Button
+              <IconAction
+                label="Previous day"
+                icon={ChevronLeft}
                 variant="outline"
                 size="icon"
-                aria-label="Previous day"
                 onClick={() => params.setFilter('date', shiftDay(date, -1))}
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Button>
+              />
               <DatePicker
                 value={date}
                 max={today}
@@ -149,26 +148,24 @@ function TeamAttendanceView() {
                 className="w-44"
                 aria-label="Attendance date"
               />
-              <Button
+              <IconAction
+                label="Next day"
+                icon={ChevronRight}
                 variant="outline"
                 size="icon"
-                aria-label="Next day"
-                disabled={date >= today}
                 onClick={() => params.setFilter('date', shiftDay(date, 1))}
-              >
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
+                disabled={date >= today}
+              />
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <Button
+              <IconAction
+                label="Previous month"
+                icon={ChevronLeft}
                 variant="outline"
                 size="icon"
-                aria-label="Previous month"
                 onClick={() => params.setFilter('month', shiftMonth(month, -1))}
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Button>
+              />
               <Input
                 type="month"
                 value={month}
@@ -177,15 +174,14 @@ function TeamAttendanceView() {
                 className="w-40"
                 aria-label="Attendance month"
               />
-              <Button
+              <IconAction
+                label="Next month"
+                icon={ChevronRight}
                 variant="outline"
                 size="icon"
-                aria-label="Next month"
-                disabled={month >= currentMonth()}
                 onClick={() => params.setFilter('month', shiftMonth(month, 1))}
-              >
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
+                disabled={month >= currentMonth()}
+              />
             </div>
           )}
 

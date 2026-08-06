@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@hrms/ui/components/button';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
@@ -17,6 +16,7 @@ import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryRow } from '@/features/payroll/types';
@@ -189,22 +189,18 @@ export default function SalariesPage() {
             can('payroll.salary.manage')
               ? (row) => (
                   <>
-                    <Button
-                      variant="ghost"
+                    <IconAction
+                      label={`Revise salary for ${row.name}`}
+                      icon={Pencil}
                       size="icon-sm"
-                      aria-label={`Revise salary for ${row.name}`}
                       onClick={() => openFor(row)}
-                    >
-                      <Pencil className="size-4" aria-hidden />
-                    </Button>
-                    <Button
-                      variant="ghost"
+                    />
+                    <IconAction
+                      label={`Salary history for ${row.name}`}
+                      icon={History}
                       size="icon-sm"
-                      aria-label={`Salary history for ${row.name}`}
                       render={<a href={`/payroll/salaries/${row.employeeId}`} />}
-                    >
-                      <History className="size-4" aria-hidden />
-                    </Button>
+                    />
                   </>
                 )
               : undefined

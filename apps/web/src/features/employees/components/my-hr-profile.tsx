@@ -16,6 +16,7 @@ import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { FormInput } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
 import { useApiMutation } from '@/hooks/use-crud';
@@ -167,16 +168,13 @@ export function MyHrProfile() {
                         type="tel"
                       />
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
+                    <IconAction
+                      label={`Remove emergency contact ${i + 1}`}
+                      icon={Trash2}
                       size="icon"
                       className="mb-1 text-destructive hover:text-destructive"
-                      aria-label={`Remove emergency contact ${i + 1}`}
                       onClick={() => contacts.remove(i)}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
+                    />
                   </div>
                 ))}
 

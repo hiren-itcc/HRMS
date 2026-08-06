@@ -17,6 +17,7 @@ import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormInput } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
@@ -121,27 +122,23 @@ export default function DocumentFoldersPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
+                  <IconAction
+                    label={`Rename folder ${f.name}`}
+                    icon={Pencil}
                     size="icon"
-                    aria-label={`Rename folder ${f.name}`}
                     onClick={() => {
                       renameForm.reset({ name: f.name });
                       setRenaming(f);
                     }}
-                  >
-                    <Pencil className="size-4" aria-hidden />
-                  </Button>
-                  <Button
-                    variant="ghost"
+                  />
+                  <IconAction
+                    label={`Delete folder ${f.name}`}
+                    icon={Trash2}
                     size="icon"
                     className="text-destructive hover:text-destructive"
-                    aria-label={`Delete folder ${f.name}`}
-                    disabled={removeFolder.isPending}
                     onClick={() => removeFolder.mutate(f.id)}
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
+                    disabled={removeFolder.isPending}
+                  />
                 </div>
               </div>
             ))}

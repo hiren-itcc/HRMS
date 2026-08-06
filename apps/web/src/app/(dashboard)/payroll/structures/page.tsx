@@ -1,12 +1,12 @@
 'use client';
 
 import { Badge } from '@hrms/ui/components/badge';
-import { Button } from '@hrms/ui/components/button';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Pencil, Power, PowerOff, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { type Column, DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryStructure } from '@/features/payroll/types';
@@ -157,53 +157,42 @@ export default function StructuresPage() {
           can('payroll.structure.manage')
             ? (row) => (
                 <>
-                  <Button
-                    variant="ghost"
+                  <IconAction
+                    label={`Edit ${row.name}`}
+                    icon={Pencil}
                     size="icon-sm"
-                    aria-label={`Edit ${row.name}`}
                     onClick={() => router.push(`/payroll/structures/${row.id}`)}
-                  >
-                    <Pencil className="size-4" aria-hidden />
-                  </Button>
-                  <Button
-                    variant="ghost"
+                  />
+                  <IconAction
+                    label={`Clone ${row.name}`}
+                    icon={Copy}
                     size="icon-sm"
-                    aria-label={`Clone ${row.name}`}
-                    disabled={clone.isPending}
                     onClick={() => clone.mutate(row.id)}
-                  >
-                    <Copy className="size-4" aria-hidden />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`${row.isActive ? 'Deactivate' : 'Reactivate'} ${row.name}`}
-                    disabled={setActive.isPending}
-                    title={
+                    disabled={clone.isPending}
+                  />
+                  {/*
+                    The consequence used to live in a `title`, which the
+                    tooltip now carries — two hover labels on one button is one
+                    too many, and the native one is the slower and uglier.
+                  */}
+                  <IconAction
+                    label={
                       row.isActive
-                        ? 'Deactivate — stops it being assigned; existing assignments are unchanged'
-                        : 'Reactivate'
+                        ? `Deactivate ${row.name} — stops it being assigned; existing assignments are unchanged`
+                        : `Reactivate ${row.name}`
                     }
-                    onClick={() => setActive.mutate({ id: row.id, isActive: !row.isActive })}
-                  >
-                    {row.isActive ? (
-                      <PowerOff className="size-4" aria-hidden />
-                    ) : (
-                      <Power className="size-4" aria-hidden />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
+                    icon={row.isActive ? PowerOff : Power}
                     size="icon-sm"
-                    aria-label={`Delete ${row.name}`}
-                    // An assigned structure cannot be deleted — the API refuses
-                    // it too, but disabling says so before the click.
-                    disabled={row.assignedCount > 0 || remove.isPending}
-                    title={row.assignedCount > 0 ? 'In use — deactivate it instead' : undefined}
+                    disabled={setActive.isPending}
+                    onClick={() => setActive.mutate({ id: row.id, isActive: !row.isActive })}
+                  />
+                  <IconAction
+                    label={`Delete ${row.name}`}
+                    icon={Trash2}
+                    size="icon-sm"
                     onClick={() => remove.mutate(row.id)}
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
+                    disabled={row.assignedCount > 0 || remove.isPending}
+                  />
                 </>
               )
             : undefined

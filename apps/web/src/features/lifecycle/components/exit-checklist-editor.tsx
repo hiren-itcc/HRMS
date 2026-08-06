@@ -19,6 +19,7 @@ import {
 } from '@hrms/ui/components/select';
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import { useId } from 'react';
+import { IconAction } from '@/components/icon-action';
 
 const BLANK: ClearanceItem = {
   label: '',
@@ -88,37 +89,28 @@ export function ExitChecklistEditor({
               </div>
 
               <div className="flex shrink-0 flex-col gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
+                <IconAction
+                  label={`Move ${item.label || `item ${index + 1}`} up`}
+                  icon={ArrowUp}
                   size="icon"
-                  disabled={disabled || index === 0}
-                  aria-label={`Move ${item.label || `item ${index + 1}`} up`}
                   onClick={() => move(index, -1)}
-                >
-                  <ArrowUp className="size-4" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
+                  disabled={disabled || index === 0}
+                />
+                <IconAction
+                  label={`Move ${item.label || `item ${index + 1}`} down`}
+                  icon={ArrowDown}
                   size="icon"
-                  disabled={disabled || index === items.length - 1}
-                  aria-label={`Move ${item.label || `item ${index + 1}`} down`}
                   onClick={() => move(index, 1)}
-                >
-                  <ArrowDown className="size-4" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
+                  disabled={disabled || index === items.length - 1}
+                />
+                <IconAction
+                  label={`Remove ${item.label || `item ${index + 1}`}`}
+                  icon={X}
                   size="icon"
                   className="text-destructive hover:text-destructive"
-                  disabled={disabled}
-                  aria-label={`Remove ${item.label || `item ${index + 1}`}`}
                   onClick={() => onChange(items.filter((_, i) => i !== index))}
-                >
-                  <X className="size-4" aria-hidden />
-                </Button>
+                  disabled={disabled}
+                />
               </div>
             </div>
 

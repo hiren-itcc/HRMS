@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Eye, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -27,6 +27,7 @@ import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
 import { FormInput, FormSelect } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { type Asset, assetKeys, assetsApi, holderOf } from '@/features/assets/api';
 import { AssetStatusBadge } from '@/features/assets/components/asset-status-badge';
@@ -211,9 +212,11 @@ export default function AssetsPage() {
             : 'Add the first thing the company owns, and issue it to somebody.'
         }
         actions={(row) => (
-          <Button variant="outline" size="sm" render={<Link href={`/assets/${row.id}`} />}>
-            View
-          </Button>
+          <IconAction
+            label={`View ${row.assetTag}`}
+            icon={Eye}
+            render={<Link href={`/assets/${row.id}`} />}
+          />
         )}
       />
 

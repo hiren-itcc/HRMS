@@ -31,6 +31,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
+import { CardColumns } from '@/components/card-columns';
 import { EmptyState } from '@/components/empty-state';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
@@ -467,7 +468,7 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <CardColumns>
         <Card className="hover-lift">
           <CardHeader>
             <CardTitle>Quick actions</CardTitle>
@@ -549,7 +550,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </CardColumns>
     </div>
   );
 }

@@ -2,12 +2,12 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
-import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent } from '@hrms/ui/components/card';
 import { cn } from '@hrms/ui/lib/utils';
 import { CalendarClock, Download, Eye, Paperclip, Pencil, Pin, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { IconAction } from '@/components/icon-action';
 import { type Announcement, announcementsApi, CATEGORY_STYLE, PRIORITY_STYLE } from '../api';
 import { Markdown } from './markdown';
 
@@ -124,30 +124,24 @@ export function AnnouncementCard({
           {canManage && (onEdit || onDelete || onViewReads) && (
             <div className="flex shrink-0 gap-0.5">
               {onViewReads && (
-                <Button
-                  variant="ghost"
+                <IconAction
+                  label={`Read receipts for ${a.title}`}
+                  icon={Eye}
                   size="icon"
                   onClick={onViewReads}
-                  aria-label={`Read receipts for ${a.title}`}
-                >
-                  <Eye className="size-4" aria-hidden />
-                </Button>
+                />
               )}
               {onEdit && (
-                <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${a.title}`}>
-                  <Pencil className="size-4" aria-hidden />
-                </Button>
+                <IconAction label={`Edit ${a.title}`} icon={Pencil} size="icon" onClick={onEdit} />
               )}
               {onDelete && (
-                <Button
-                  variant="ghost"
+                <IconAction
+                  label={`Delete ${a.title}`}
+                  icon={Trash2}
                   size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={onDelete}
-                  aria-label={`Delete ${a.title}`}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
+                />
               )}
             </div>
           )}

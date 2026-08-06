@@ -5,6 +5,7 @@ import { Button } from '@hrms/ui/components/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@hrms/ui/components/input-group';
 import { Plus, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 
 interface CrudShellProps {
@@ -81,14 +82,12 @@ export function CrudShell({
           />
           {value && (
             <InputGroupAddon align="inline-end">
-              <Button
-                variant="ghost"
+              <IconAction
+                label="Clear search"
+                icon={X}
                 size="icon-sm"
                 onClick={() => setValue('')}
-                aria-label="Clear search"
-              >
-                <X className="size-4" aria-hidden />
-              </Button>
+              />
             </InputGroupAddon>
           )}
         </InputGroup>

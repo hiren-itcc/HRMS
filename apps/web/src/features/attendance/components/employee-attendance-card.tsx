@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@hrms/ui/components/button';
 import {
   Card,
   CardContent,
@@ -12,6 +11,7 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { attendanceApi } from '@/features/attendance/api';
 import { AttendanceCalendar } from '@/features/attendance/components/attendance-calendar';
 import { AttendanceStatusBadge } from '@/features/attendance/components/status-badge';
@@ -69,30 +69,26 @@ export function EmployeeAttendanceCard({ employeeId }: { employeeId: string }) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
+            <IconAction
+              label="Previous month"
+              icon={ChevronLeft}
               size="icon-sm"
-              aria-label="Previous month"
               onClick={() => {
                 setMonth(shiftMonth(month, -1));
                 setSelected(undefined);
               }}
-            >
-              <ChevronLeft className="size-4" aria-hidden />
-            </Button>
+            />
             <span className="min-w-32 text-center font-medium text-sm">{monthLabel(month)}</span>
-            <Button
-              variant="ghost"
+            <IconAction
+              label="Next month"
+              icon={ChevronRight}
               size="icon-sm"
-              aria-label="Next month"
-              disabled={isCurrentMonth}
               onClick={() => {
                 setMonth(shiftMonth(month, 1));
                 setSelected(undefined);
               }}
-            >
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
+              disabled={isCurrentMonth}
+            />
           </div>
         </div>
       </CardHeader>

@@ -44,6 +44,7 @@ import { ActivityTimeline } from '@/components/activity-timeline';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { ErrorState } from '@/components/error-state';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import type { SettlementLine } from '@/features/settlements/api';
 import { formatSettlementMoney, settlementKeys, settlementsApi } from '@/features/settlements/api';
@@ -116,22 +117,18 @@ function LineRows({
                   // Change, and two 36px targets touching is how somebody
                   // deletes a figure they meant to edit.
                   <span className="flex gap-1 print:hidden">
-                    <Button
-                      variant="ghost"
+                    <IconAction
+                      label={`Change ${line.label}`}
+                      icon={Pencil}
                       size="icon"
-                      aria-label={`Change ${line.label}`}
                       onClick={() => onEdit(line)}
-                    >
-                      <Pencil className="size-4" aria-hidden />
-                    </Button>
-                    <Button
-                      variant="ghost"
+                    />
+                    <IconAction
+                      label={`Remove ${line.label}`}
+                      icon={Trash2}
                       size="icon"
-                      aria-label={`Remove ${line.label}`}
                       onClick={() => onRemove(line)}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
+                    />
                   </span>
                 )}
               </dd>

@@ -34,6 +34,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CheckCheck, Megaphone, Plus, Search, X } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { type Announcement, announcementsApi } from '@/features/announcements/api';
@@ -210,14 +211,12 @@ function AnnouncementsView() {
           />
           {searchInput && (
             <InputGroupAddon align="inline-end">
-              <Button
-                variant="ghost"
+              <IconAction
+                label="Clear search"
+                icon={X}
                 size="icon-sm"
                 onClick={() => setSearchInput('')}
-                aria-label="Clear search"
-              >
-                <X className="size-4" aria-hidden />
-              </Button>
+              />
             </InputGroupAddon>
           )}
         </InputGroup>

@@ -19,6 +19,7 @@ import { LogOut, Moon, Search, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useEffect, useMemo, useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { useSession } from '@/components/session-provider';
 import { useOrgSettings } from '@/features/settings/api';
@@ -126,15 +127,13 @@ export function CommandPalette() {
       </Button>
 
       {/* Icon-only below md, where a 224px field would crowd out the brand */}
-      <Button
-        variant="ghost"
+      <IconAction
+        label="Search"
+        icon={Search}
         size="icon"
-        onClick={() => setOpen(true)}
-        aria-label="Search"
         className="md:hidden"
-      >
-        <Search className="size-5" aria-hidden />
-      </Button>
+        onClick={() => setOpen(true)}
+      />
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandDialogPopup>

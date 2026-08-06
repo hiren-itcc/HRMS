@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@hrms/ui/components/button';
 import {
   Card,
   CardContent,
@@ -12,6 +11,7 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarOff, ChevronLeft, ChevronRight, Palmtree } from 'lucide-react';
 import { useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { currentMonth, shiftMonth } from '@/features/attendance/api';
@@ -61,22 +61,20 @@ export default function LeaveCalendarPage() {
                 <CardDescription>Approved leave visible to you</CardDescription>
               </div>
               <div className="flex items-center gap-1">
-                <Button
+                <IconAction
+                  label="Previous month"
+                  icon={ChevronLeft}
                   variant="outline"
                   size="icon"
-                  aria-label="Previous month"
                   onClick={() => setMonth(shiftMonth(month, -1))}
-                >
-                  <ChevronLeft className="size-4" aria-hidden />
-                </Button>
-                <Button
+                />
+                <IconAction
+                  label="Next month"
+                  icon={ChevronRight}
                   variant="outline"
                   size="icon"
-                  aria-label="Next month"
                   onClick={() => setMonth(shiftMonth(month, 1))}
-                >
-                  <ChevronRight className="size-4" aria-hidden />
-                </Button>
+                />
               </div>
             </div>
           </CardHeader>

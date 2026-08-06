@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { SidebarNav } from '@/components/app-sidebar';
 import { CommandPalette } from '@/components/command-palette';
+import { IconAction } from '@/components/icon-action';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/user-menu';
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
@@ -30,6 +31,11 @@ export function AppHeader() {
         <div className="flex items-center gap-2">
           {/* Mobile: slide-over navigation */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            {/*
+              No tooltip: `lg:hidden` means this button only exists on screens
+              small enough not to have a pointer, and a hover label nobody can
+              hover is dead weight. The aria-label is the label here.
+            */}
             <SheetTrigger
               render={
                 <Button
@@ -72,19 +78,14 @@ export function AppHeader() {
           </Link>
 
           {/* Desktop: collapse toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
+          <IconAction
+            label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            icon={sidebarCollapsed ? PanelLeftOpen : PanelLeftClose}
+            iconClassName="size-4.5"
             className="hidden lg:inline-flex"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="size-4.5" aria-hidden />
-            ) : (
-              <PanelLeftClose className="size-4.5" aria-hidden />
-            )}
-          </Button>
+            expanded={!sidebarCollapsed}
+            onClick={toggleSidebar}
+          />
         </div>
 
         <div className="flex items-center gap-1">

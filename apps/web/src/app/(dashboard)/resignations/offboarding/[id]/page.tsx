@@ -29,6 +29,7 @@ import { ActivityTimeline } from '@/components/activity-timeline';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { ErrorState } from '@/components/error-state';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { initials } from '@/features/employees/types';
@@ -135,10 +136,11 @@ export default function OffboardingDetailPage() {
       <FadeInItem>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" render={<Link href="/resignations/offboarding" />}>
-              <ArrowLeft className="size-4" aria-hidden />
-              <span className="sr-only">Back to offboarding</span>
-            </Button>
+            <IconAction
+              label="Back to offboarding"
+              icon={ArrowLeft}
+              render={<Link href="/resignations/offboarding" />}
+            />
             <Avatar className="size-10">
               {record.employee.avatarUrl && <AvatarImage src={record.employee.avatarUrl} alt="" />}
               <AvatarFallback>{initials(record.employee)}</AvatarFallback>

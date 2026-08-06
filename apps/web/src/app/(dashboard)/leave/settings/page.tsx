@@ -14,6 +14,7 @@ import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
 import { FormCheckbox, FormInput } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { type LeaveBalance, type LeaveType, leaveApi } from '@/features/leave/api';
 import { useApiMutation } from '@/hooks/use-crud';
@@ -247,14 +248,12 @@ function LeaveSettingsView() {
           onPageChange={params.setPage}
           emptyTitle="No balances for this year"
           actions={(b) => (
-            <Button
-              variant="ghost"
+            <IconAction
+              label="Adjust balance"
+              icon={Pencil}
               size="icon"
-              aria-label="Adjust balance"
               onClick={() => openAdjust(b)}
-            >
-              <Pencil className="size-4" aria-hidden />
-            </Button>
+            />
           )}
         />
       </FadeInItem>

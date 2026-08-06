@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@hrms/ui/components/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@hrms/ui/components/tooltip';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -14,12 +15,19 @@ export function ThemeToggle() {
   const { setTheme } = useTheme();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" aria-label="Change theme" />}
-      >
-        <Sun className="size-4 dark:hidden" aria-hidden />
-        <Moon className="hidden size-4 dark:block" aria-hidden />
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon" aria-label="Change theme" />}
+            />
+          }
+        >
+          <Sun className="size-4 dark:hidden" aria-hidden />
+          <Moon className="hidden size-4 dark:block" aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>Change theme</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => setTheme('light')}>
           <Sun aria-hidden /> Light

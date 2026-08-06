@@ -12,6 +12,7 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, ChevronLeft, ChevronRight, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import {
   attendanceApi,
@@ -96,9 +97,7 @@ function DayPanel({
               <CalendarPlus className="size-4" aria-hidden /> Request correction
             </Button>
           )}
-          <Button variant="ghost" size="icon" aria-label="Close day details" onClick={onClose}>
-            <X className="size-4" aria-hidden />
-          </Button>
+          <IconAction label="Close day details" icon={X} size="icon" onClick={onClose} />
         </div>
       </div>
 
@@ -188,29 +187,27 @@ export default function MyAttendancePage() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
+                    <IconAction
+                      label="Previous month"
+                      icon={ChevronLeft}
                       variant="outline"
                       size="icon"
-                      aria-label="Previous month"
                       onClick={() => {
                         setMonth(shiftMonth(month, -1));
                         setSelectedDate(null);
                       }}
-                    >
-                      <ChevronLeft className="size-4" aria-hidden />
-                    </Button>
-                    <Button
+                    />
+                    <IconAction
+                      label="Next month"
+                      icon={ChevronRight}
                       variant="outline"
                       size="icon"
-                      aria-label="Next month"
-                      disabled={month >= currentMonth()}
                       onClick={() => {
                         setMonth(shiftMonth(month, 1));
                         setSelectedDate(null);
                       }}
-                    >
-                      <ChevronRight className="size-4" aria-hidden />
-                    </Button>
+                      disabled={month >= currentMonth()}
+                    />
                   </div>
                 </div>
               </CardHeader>

@@ -37,6 +37,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { CardColumns } from '@/components/card-columns';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
@@ -382,180 +383,185 @@ function EmployeeDetailView() {
         </div>
       </div>
 
-      <Stagger className="grid items-start gap-6 lg:grid-cols-2">
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Contact</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="divide-y">
-                <Row
-                  label="Work email"
-                  value={
-                    <a href={`mailto:${e.workEmail}`} className="hover:underline">
-                      {e.workEmail}
-                    </a>
-                  }
-                />
-                <Row label="Personal email" value={e.personalEmail} />
-                <Row label="Phone" value={e.phone} />
-                <Row
-                  label="Address"
-                  value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
-                />
-              </dl>
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Job</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="divide-y">
-                <Row label="Department" value={e.department?.name} />
-                <Row label="Location" value={e.location?.name} />
-                <Row label="Employment type" value={e.employmentType?.name} />
-                <Row label="Shift" value={e.shift?.name} />
-                <Row
-                  label="Reporting manager"
-                  value={
-                    e.manager ? (
-                      <Link href={`/employees/${e.manager.id}`} className="hover:underline">
-                        {fullName(e.manager)}
-                      </Link>
-                    ) : null
-                  }
-                />
-                <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
-                <Row
-                  label="Login"
-                  value={e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'}
-                />
-                <RoleRow employee={e} />
-              </dl>
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        <FadeInItem>
-          <LifecycleCard employee={e} />
-        </FadeInItem>
-
-        {/* Renders nothing unless this person is mid-onboarding. */}
-        <FadeInItem>
-          <InviteCard employeeId={e.id} />
-        </FadeInItem>
-
-        <FadeInItem>
-          <BankCard employee={e} />
-        </FadeInItem>
-
-        {/* Same permissions the endpoint requires, so the card is never a 403. */}
-        {(can('attendance.read') || can('attendance.read.team')) && (
-          <FadeInItem>
-            <EmployeeAttendanceCard employeeId={e.id} />
-          </FadeInItem>
-        )}
-
-        {/* Gates itself on asset.read — every manager of this person can open
-            this record, and what they were issued is the register's business. */}
-        <FadeInItem>
-          <EmployeeAssetsCard employeeId={e.id} />
-        </FadeInItem>
-
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents</CardTitle>
-              <CardDescription>Contracts, ID proofs and certificates on file</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DocumentsBrowser employeeId={e.id} compact />
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        {(can('letter.read') || can('letter.issue')) && (
+      <Stagger>
+        <CardColumns>
           <FadeInItem>
             <Card>
               <CardHeader>
-                <CardTitle>Letters</CardTitle>
-                <CardDescription>
-                  Offer, appointment, relieving, experience and salary letters issued to this
-                  employee
-                </CardDescription>
+                <CardTitle>Contact</CardTitle>
               </CardHeader>
               <CardContent>
-                <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+                <dl className="divide-y">
+                  <Row
+                    label="Work email"
+                    value={
+                      <a href={`mailto:${e.workEmail}`} className="hover:underline">
+                        {e.workEmail}
+                      </a>
+                    }
+                  />
+                  <Row label="Personal email" value={e.personalEmail} />
+                  <Row label="Phone" value={e.phone} />
+                  <Row
+                    label="Address"
+                    value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
+                  />
+                </dl>
               </CardContent>
             </Card>
           </FadeInItem>
-        )}
 
-        {/*
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle>Job</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="divide-y">
+                  <Row label="Department" value={e.department?.name} />
+                  <Row label="Location" value={e.location?.name} />
+                  <Row label="Employment type" value={e.employmentType?.name} />
+                  <Row label="Shift" value={e.shift?.name} />
+                  <Row
+                    label="Reporting manager"
+                    value={
+                      e.manager ? (
+                        <Link href={`/employees/${e.manager.id}`} className="hover:underline">
+                          {fullName(e.manager)}
+                        </Link>
+                      ) : null
+                    }
+                  />
+                  <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
+                  <Row
+                    label="Login"
+                    value={
+                      e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'
+                    }
+                  />
+                  <RoleRow employee={e} />
+                </dl>
+              </CardContent>
+            </Card>
+          </FadeInItem>
+
+          <FadeInItem>
+            <LifecycleCard employee={e} />
+          </FadeInItem>
+
+          {/* Renders nothing unless this person is mid-onboarding. */}
+          <FadeInItem>
+            <InviteCard employeeId={e.id} />
+          </FadeInItem>
+
+          <FadeInItem>
+            <BankCard employee={e} />
+          </FadeInItem>
+
+          {/* Same permissions the endpoint requires, so the card is never a 403. */}
+          {(can('attendance.read') || can('attendance.read.team')) && (
+            <FadeInItem>
+              <EmployeeAttendanceCard employeeId={e.id} />
+            </FadeInItem>
+          )}
+
+          {/* Gates itself on asset.read — every manager of this person can open
+            this record, and what they were issued is the register's business. */}
+          <FadeInItem>
+            <EmployeeAssetsCard employeeId={e.id} />
+          </FadeInItem>
+
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+                <CardDescription>Contracts, ID proofs and certificates on file</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsBrowser employeeId={e.id} compact />
+              </CardContent>
+            </Card>
+          </FadeInItem>
+
+          {(can('letter.read') || can('letter.issue')) && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Letters</CardTitle>
+                  <CardDescription>
+                    Offer, appointment, relieving, experience and salary letters issued to this
+                    employee
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
+
+          {/*
           Shown to anyone who can open this record, not gated further. An
           emergency contact that only HR can reach is not much use on the day it
           is needed, and it is three fields the person volunteered for exactly
           this purpose.
         */}
-        {e.emergencyContacts.length > 0 && (
-          <FadeInItem>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Phone className="size-4 text-muted-foreground" aria-hidden /> Emergency contacts
-                </CardTitle>
-                <CardDescription>Who to call if something happens at work</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="divide-y">
-                  {e.emergencyContacts.map((c) => (
-                    <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-sm">{c.name}</p>
-                        <p className="truncate text-muted-foreground text-xs">{c.relation}</p>
-                      </div>
-                      <a href={`tel:${c.phone}`} className="shrink-0 text-sm hover:underline">
-                        {c.phone}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          </FadeInItem>
-        )}
+          {e.emergencyContacts.length > 0 && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Phone className="size-4 text-muted-foreground" aria-hidden /> Emergency
+                    contacts
+                  </CardTitle>
+                  <CardDescription>Who to call if something happens at work</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y">
+                    {e.emergencyContacts.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-sm">{c.name}</p>
+                          <p className="truncate text-muted-foreground text-xs">{c.relation}</p>
+                        </div>
+                        <a href={`tel:${c.phone}`} className="shrink-0 text-sm hover:underline">
+                          {c.phone}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
 
-        {e.reports.length > 0 && (
-          <FadeInItem>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
-                  {e.reports.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {e.reports.map((r) => (
-                  <Link
-                    key={r.id}
-                    href={`/employees/${r.id}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                  >
-                    <span className="font-medium">{fullName(r)}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {r.designation?.title ?? r.employeeCode}
-                    </span>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          </FadeInItem>
-        )}
+          {e.reports.length > 0 && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
+                    {e.reports.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {e.reports.map((r) => (
+                    <Link
+                      key={r.id}
+                      href={`/employees/${r.id}`}
+                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                    >
+                      <span className="font-medium">{fullName(r)}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {r.designation?.title ?? r.employeeCode}
+                      </span>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
+        </CardColumns>
       </Stagger>
     </div>
   );

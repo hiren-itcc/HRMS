@@ -23,7 +23,7 @@ import {
 } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
-import { Info, Loader2, LogOut, Pencil, Undo2 } from 'lucide-react';
+import { Eye, Info, Loader2, LogOut, Pencil, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
@@ -82,7 +82,7 @@ function ResignationCard({ resignation }: { resignation: Resignation }) {
               size="sm"
               render={<Link href={`/resignations/${resignation.id}`} />}
             >
-              View details
+              <Eye className="size-4" aria-hidden /> View details
             </Button>
           </div>
         </CardHeader>

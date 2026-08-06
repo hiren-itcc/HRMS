@@ -23,6 +23,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ActivityTimeline } from '@/components/activity-timeline';
 import { ErrorState } from '@/components/error-state';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { initials } from '@/features/employees/types';
@@ -160,10 +161,11 @@ export default function ResignationDetailPage() {
       <FadeInItem>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" render={<Link href="/resignations/approvals" />}>
-              <ArrowLeft className="size-4" aria-hidden />
-              <span className="sr-only">Back to approvals</span>
-            </Button>
+            <IconAction
+              label="Back to approvals"
+              icon={ArrowLeft}
+              render={<Link href="/resignations/approvals" />}
+            />
             <Avatar className="size-10">
               {r.employee.avatarUrl && <AvatarImage src={r.employee.avatarUrl} alt="" />}
               <AvatarFallback>{initials(r.employee)}</AvatarFallback>

@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import { useApiMutation } from '@/hooks/use-crud';
@@ -90,17 +91,14 @@ export default function SalaryTimelinePage() {
                 <div className="flex items-center gap-1">
                   <span className="text-muted-foreground text-sm">{revision.effectiveFrom}</span>
                   {can('payroll.salary.manage') && (
-                    <Button
-                      variant="ghost"
+                    <IconAction
+                      label={`Remove the revision effective ${revision.effectiveFrom}`}
+                      icon={Trash2}
                       size="icon-sm"
                       className="text-destructive hover:text-destructive"
-                      aria-label={`Remove the revision effective ${revision.effectiveFrom}`}
-                      title="Remove this revision — refused once its month's payroll is settled"
-                      disabled={remove.isPending}
                       onClick={() => remove.mutate(revision.id)}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
+                      disabled={remove.isPending}
+                    />
                   )}
                 </div>
               </div>

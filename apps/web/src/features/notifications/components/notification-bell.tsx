@@ -4,6 +4,7 @@ import { Button } from '@hrms/ui/components/button';
 import { Popover, PopoverPopup, PopoverTrigger } from '@hrms/ui/components/popover';
 import { ScrollArea } from '@hrms/ui/components/scroll-area';
 import { Skeleton } from '@hrms/ui/components/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@hrms/ui/components/tooltip';
 import { cn } from '@hrms/ui/lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
@@ -141,26 +142,35 @@ export function NotificationBell() {
         if (next) queryClient.invalidateQueries({ queryKey: notificationKeys.list(PAGE) });
       }}
     >
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
-          />
-        }
-      >
-        <Bell className="size-4.5" aria-hidden />
-        {count > 0 && (
-          <span
-            className="-top-0.5 -right-0.5 absolute flex min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums"
-            aria-hidden
-          >
-            {count > 9 ? '9+' : count}
-          </span>
-        )}
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
+                />
+              }
+            />
+          }
+        >
+          <Bell className="size-4.5" aria-hidden />
+          {count > 0 && (
+            <span
+              className="-top-0.5 -right-0.5 absolute flex min-w-4 items-center justify-center rounded-full bg-primary px-1 font-medium text-[10px] text-primary-foreground tabular-nums"
+              aria-hidden
+            >
+              {count > 9 ? '9+' : count}
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          {count > 0 ? `Notifications — ${count} unread` : 'Notifications'}
+        </TooltipContent>
+      </Tooltip>
 
       <PopoverPopup align="end" className="w-80 flex-col p-0 sm:w-96">
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">

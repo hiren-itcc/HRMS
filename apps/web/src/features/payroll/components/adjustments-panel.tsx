@@ -23,6 +23,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { employeesApi } from '@/features/employees/api';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import { useApiMutation, useOptions } from '@/hooks/use-crud';
@@ -158,16 +159,14 @@ export function AdjustmentsPanel({
                     {formatMoney(a.amount)}
                   </Badge>
                   {editable && (
-                    <Button
-                      variant="ghost"
+                    <IconAction
+                      label={`Remove ${a.component.name} for ${a.employee.firstName}`}
+                      icon={Trash2}
                       size="icon-sm"
                       className="text-destructive hover:text-destructive"
-                      aria-label={`Remove ${a.component.name} for ${a.employee.firstName}`}
-                      disabled={remove.isPending}
                       onClick={() => remove.mutate(a.id)}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
+                      disabled={remove.isPending}
+                    />
                   )}
                 </div>
               </li>

@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
 import { errorMessage, useApiMutation, useOptions } from '@/hooks/use-crud';
 import { type Announcement, announcementsApi } from '../api';
@@ -297,16 +298,13 @@ export function ComposeDialog({ open, onOpenChange, editing }: ComposeProps) {
                 className="flex items-center justify-between gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs"
               >
                 <span className="truncate">{att.name}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
+                <IconAction
+                  label={`Remove ${att.name}`}
+                  icon={X}
                   size="icon"
                   className="size-6 text-destructive hover:text-destructive"
-                  aria-label={`Remove ${att.name}`}
                   onClick={() => detach.mutate(att.id)}
-                >
-                  <X className="size-3.5" aria-hidden />
-                </Button>
+                />
               </li>
             ))}
           </ul>

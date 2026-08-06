@@ -2,7 +2,6 @@
 
 import { RESIGNATION_REASON_LABELS } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
-import { Button } from '@hrms/ui/components/button';
 import {
   Select,
   SelectContent,
@@ -11,9 +10,11 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
+import { Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { resignationKeys, resignationsApi } from '@/features/resignations/api';
 import { ResignationStatusBadge } from '@/features/resignations/components/resignation-status';
@@ -136,9 +137,16 @@ export default function ResignationApprovalsPage() {
             : 'Nobody has filed a resignation.'
         }
         actions={(row) => (
-          <Button variant="outline" size="sm" render={<Link href={`/resignations/${row.id}`} />}>
-            {row.awaitingDesk ? 'Review' : 'View'}
-          </Button>
+          /*
+            The words carried the distinction — a row waiting on you said
+            "Review", the rest said "View". The tooltip carries it now, so
+            collapsing to an icon costs nothing.
+          */
+          <IconAction
+            label={`${row.awaitingDesk ? 'Review' : 'View'} ${row.employee.firstName} ${row.employee.lastName}’s resignation`}
+            icon={Eye}
+            render={<Link href={`/resignations/${row.id}`} />}
+          />
         )}
       />
     </div>
