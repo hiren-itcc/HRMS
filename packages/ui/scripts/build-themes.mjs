@@ -177,8 +177,6 @@ function fitChroma(L, C, H) {
   return lo;
 }
 
-const linToSrgb = (v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
-
 /** WCAG relative luminance of an OKLCH colour, via clamped sRGB. */
 function luminance(L, C, H) {
   const [r, g, b] = oklchToLinearRgb(L, C, H).map(clamp01);
