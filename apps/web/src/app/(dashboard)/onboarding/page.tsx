@@ -191,6 +191,7 @@ export default function OnboardingPage() {
               <FormInput
                 control={profileForm.control}
                 name="phone"
+                placeholder="+91 98765 43210"
                 label="Phone"
                 type="tel"
                 disabled={!open}
@@ -198,13 +199,21 @@ export default function OnboardingPage() {
               <FormInput
                 control={profileForm.control}
                 name="addressLine"
+                placeholder="12 Satellite Road"
                 label="Address"
                 disabled={!open}
               />
-              <FormInput control={profileForm.control} name="city" label="City" disabled={!open} />
+              <FormInput
+                control={profileForm.control}
+                name="city"
+                label="City"
+                disabled={!open}
+                placeholder="Ahmedabad"
+              />
               <FormInput
                 control={profileForm.control}
                 name="country"
+                placeholder="India"
                 label="Country"
                 disabled={!open}
               />
@@ -267,18 +276,32 @@ export default function OnboardingPage() {
               <FormInput
                 control={bankForm.control}
                 name="accountHolderName"
+                placeholder="Exactly as the bank has it"
                 label="Account holder"
                 disabled={!open}
               />
-              <FormInput control={bankForm.control} name="bankName" label="Bank" disabled={!open} />
+              <FormInput
+                control={bankForm.control}
+                name="bankName"
+                label="Bank"
+                disabled={!open}
+                placeholder="HDFC Bank"
+              />
               <FormInput
                 control={bankForm.control}
                 name="accountNumber"
+                placeholder="50100123456789"
                 label="Account number"
                 inputMode="numeric"
                 disabled={!open}
               />
-              <FormInput control={bankForm.control} name="ifscCode" label="IFSC" disabled={!open} />
+              <FormInput
+                control={bankForm.control}
+                name="ifscCode"
+                label="IFSC"
+                disabled={!open}
+                placeholder="HDFC0001234"
+              />
               {open && (
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={saveBank.isPending}>

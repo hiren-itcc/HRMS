@@ -113,17 +113,34 @@ export function MyHrProfile() {
             className="space-y-3"
             noValidate
           >
-            <FormInput control={form.control} name="phone" label="Phone" type="tel" />
+            <FormInput
+              control={form.control}
+              name="phone"
+              label="Phone"
+              type="tel"
+              placeholder="+91 98765 43210"
+            />
             <FormInput
               control={form.control}
               name="personalEmail"
+              placeholder="priya.nair@gmail.com"
               label="Personal email"
               type="email"
             />
-            <FormInput control={form.control} name="addressLine" label="Address" />
+            <FormInput
+              control={form.control}
+              name="addressLine"
+              label="Address"
+              placeholder="12 Satellite Road"
+            />
             <div className="grid grid-cols-2 gap-3">
-              <FormInput control={form.control} name="city" label="City" />
-              <FormInput control={form.control} name="country" label="Country" />
+              <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+              <FormInput
+                control={form.control}
+                name="country"
+                label="Country"
+                placeholder="India"
+              />
             </div>
             <Separator />
 
@@ -160,6 +177,7 @@ export function MyHrProfile() {
                       <FormInput
                         control={form.control}
                         name={`emergencyContacts.${i}.name`}
+                        placeholder="Meera Nair"
                         label="Name"
                       />
                       <FormInput
@@ -171,6 +189,7 @@ export function MyHrProfile() {
                       <FormInput
                         control={form.control}
                         name={`emergencyContacts.${i}.phone`}
+                        placeholder="+91 98765 43210"
                         label="Phone"
                         type="tel"
                       />

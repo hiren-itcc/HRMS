@@ -183,11 +183,12 @@ export default function CandidatesPage() {
         submitLabel="Add"
         onSubmit={form.handleSubmit((values) => create.mutate(values))}
       >
-        <FormInput control={form.control} name="firstName" label="First name" />
-        <FormInput control={form.control} name="lastName" label="Last name" />
+        <FormInput control={form.control} name="firstName" label="First name" placeholder="Nadia" />
+        <FormInput control={form.control} name="lastName" label="Last name" placeholder="Rahman" />
         <FormInput
           control={form.control}
           name="email"
+          placeholder="nadia.rahman@example.com"
           label="Email"
           type="email"
           hint="Unique per organization — it is what makes a re-applicant the same person."

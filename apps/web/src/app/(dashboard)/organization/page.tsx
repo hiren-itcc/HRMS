@@ -77,6 +77,7 @@ export default function CompanyPage() {
           <FormInput
             control={form.control}
             name="name"
+            placeholder="Acme Industries"
             label="Company name"
             disabled={!canManage}
           />

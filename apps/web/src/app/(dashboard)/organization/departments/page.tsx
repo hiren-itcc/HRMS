@@ -118,10 +118,17 @@ function DepartmentsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <FormInput control={form.control} name="name" label="Name" autoFocus />
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="Engineering"
+        />
         <FormInput
           control={form.control}
           name="code"
+          placeholder="ENG"
           label="Code"
           hint="Optional short code, e.g. ENG"
         />

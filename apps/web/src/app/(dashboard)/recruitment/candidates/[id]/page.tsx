@@ -300,7 +300,12 @@ export default function CandidateDetailPage() {
         submitLabel="Submit"
         onSubmit={form.handleSubmit((values) => submit.mutate(values))}
       >
-        <FormSelect control={form.control} name="recommendation" label="Recommendation">
+        <FormSelect
+          control={form.control}
+          name="recommendation"
+          label="Recommendation"
+          placeholder="Say what you would do"
+        >
           {INTERVIEW_RECOMMENDATIONS.map((r) => (
             <SelectItem key={r} value={r}>
               {INTERVIEW_RECOMMENDATION_LABELS[r]}

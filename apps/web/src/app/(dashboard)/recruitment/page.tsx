@@ -312,6 +312,7 @@ export default function OpeningsPage() {
         <FormInput
           control={form.control}
           name="headcount"
+          placeholder="1"
           label="How many to hire"
           type="number"
           min={1}

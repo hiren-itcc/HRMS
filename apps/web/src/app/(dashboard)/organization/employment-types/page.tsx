@@ -100,8 +100,20 @@ function EmploymentTypesView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <FormInput control={form.control} name="name" label="Name" autoFocus />
-        <FormInput control={form.control} name="code" label="Code" hint="Optional, e.g. FT" />
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="Full-time"
+        />
+        <FormInput
+          control={form.control}
+          name="code"
+          label="Code"
+          hint="Optional, e.g. FT"
+          placeholder="FT"
+        />
       </FormDialog>
     </CrudShell>
   );

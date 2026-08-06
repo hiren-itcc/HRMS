@@ -87,12 +87,24 @@ function OnboardForm() {
               className="grid gap-4 sm:grid-cols-2"
               onSubmit={form.handleSubmit((v) => onboard.mutate(v))}
             >
-              <FormInput control={form.control} name="firstName" label="First name" autoFocus />
-              <FormInput control={form.control} name="lastName" label="Last name" />
+              <FormInput
+                control={form.control}
+                name="firstName"
+                label="First name"
+                autoFocus
+                placeholder="Priya"
+              />
+              <FormInput
+                control={form.control}
+                name="lastName"
+                label="Last name"
+                placeholder="Nair"
+              />
 
               <FormInput
                 control={form.control}
                 name="personalEmail"
+                placeholder="priya.nair@gmail.com"
                 label="Personal email"
                 hint="Where the invitation goes — they cannot read the work mailbox yet"
                 type="email"
@@ -100,6 +112,7 @@ function OnboardForm() {
               <FormInput
                 control={form.control}
                 name="workEmail"
+                placeholder="priya.nair@acme.com"
                 label="Work email"
                 hint="Becomes their sign-in"
                 type="email"

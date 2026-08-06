@@ -174,7 +174,13 @@ export default function DocumentFoldersPage() {
         submitting={renameFolder.isPending}
         submitLabel="Save name"
       >
-        <FormInput control={renameForm.control} name="name" label="Folder name" autoFocus />
+        <FormInput
+          control={renameForm.control}
+          name="name"
+          label="Folder name"
+          autoFocus
+          placeholder="Certificates"
+        />
       </FormDialog>
     </Stagger>
   );

@@ -252,6 +252,7 @@ export default function OfferDetailPage() {
         <FormInput
           control={hireForm.control}
           name="workEmail"
+          placeholder="nadia.rahman@acme.com"
           label="Work email"
           type="email"
           hint={`The only thing that has to be typed — everything else comes from the offer. The invite itself goes to ${candidate.email}.`}

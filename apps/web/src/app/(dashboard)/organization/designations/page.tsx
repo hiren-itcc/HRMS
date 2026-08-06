@@ -108,10 +108,17 @@ function DesignationsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <FormInput control={form.control} name="title" label="Title" autoFocus />
+        <FormInput
+          control={form.control}
+          name="title"
+          label="Title"
+          autoFocus
+          placeholder="Software Engineer"
+        />
         <FormInput
           control={form.control}
           name="level"
+          placeholder="4"
           label="Level"
           hint="0–20, higher = more senior"
           type="number"

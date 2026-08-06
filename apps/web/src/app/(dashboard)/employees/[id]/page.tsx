@@ -235,17 +235,38 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
         submitting={save.isPending}
         submitLabel="Save"
       >
-        <FormInput control={form.control} name="accountHolderName" label="Account holder" />
-        <FormInput control={form.control} name="bankName" label="Bank name" />
+        <FormInput
+          control={form.control}
+          name="accountHolderName"
+          label="Account holder"
+          placeholder="Exactly as the bank has it"
+        />
+        <FormInput
+          control={form.control}
+          name="bankName"
+          label="Bank name"
+          placeholder="HDFC Bank"
+        />
         <FormInput
           control={form.control}
           name="accountNumber"
+          placeholder="50100123456789"
           label="Account number"
           inputMode="numeric"
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormInput control={form.control} name="ifscCode" label="IFSC code" />
-          <FormInput control={form.control} name="branch" label="Branch" />
+          <FormInput
+            control={form.control}
+            name="ifscCode"
+            label="IFSC code"
+            placeholder="HDFC0001234"
+          />
+          <FormInput
+            control={form.control}
+            name="branch"
+            label="Branch"
+            placeholder="Prahladnagar"
+          />
         </div>
       </FormDialog>
     </Card>

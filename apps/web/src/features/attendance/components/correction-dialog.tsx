@@ -55,8 +55,20 @@ export function CorrectionDialog({ open, onOpenChange, date }: CorrectionDialogP
          * Five, not fifteen: a correction states the minute somebody actually
          * arrived, which is rarely on a quarter hour.
          */}
-        <FormTimePicker control={form.control} name="requestedIn" label="Clock in" step={5} />
-        <FormTimePicker control={form.control} name="requestedOut" label="Clock out" step={5} />
+        <FormTimePicker
+          control={form.control}
+          name="requestedIn"
+          label="Clock in"
+          step={5}
+          placeholder="09:30"
+        />
+        <FormTimePicker
+          control={form.control}
+          name="requestedOut"
+          label="Clock out"
+          step={5}
+          placeholder="18:30"
+        />
       </div>
       <FormTextarea
         control={form.control}

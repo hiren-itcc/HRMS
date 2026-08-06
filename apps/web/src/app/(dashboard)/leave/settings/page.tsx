@@ -266,12 +266,19 @@ function LeaveSettingsView() {
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormInput control={typeForm.control} name="name" label="Name" autoFocus />
+          <FormInput
+            control={typeForm.control}
+            name="name"
+            label="Name"
+            autoFocus
+            placeholder="Casual leave"
+          />
           <FormInput control={typeForm.control} name="code" label="Code" placeholder="CL" />
         </div>
         <FormInput
           control={typeForm.control}
           name="daysPerYear"
+          placeholder="12"
           label="Days per year"
           type="number"
           step="0.5"
@@ -319,6 +326,7 @@ function LeaveSettingsView() {
           <FormInput
             control={typeForm.control}
             name="maxCarryForward"
+            placeholder="Blank for no cap"
             label="Maximum carried forward"
             type="number"
             step="0.5"
@@ -344,6 +352,7 @@ function LeaveSettingsView() {
           <FormInput
             control={adjustForm.control}
             name="allocated"
+            placeholder="12"
             label="Allocated"
             type="number"
             step="0.5"
@@ -352,6 +361,7 @@ function LeaveSettingsView() {
           <FormInput
             control={adjustForm.control}
             name="carriedOver"
+            placeholder="0"
             label="Carried over"
             type="number"
             step="0.5"

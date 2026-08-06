@@ -200,7 +200,13 @@ function LocationsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <FormInput control={form.control} name="name" label="Name" autoFocus />
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="Ahmedabad HQ"
+        />
         <FormSelect control={form.control} name="type" label="Type">
           {Object.entries(TYPE_LABEL).map(([value, label]) => (
             <SelectItem key={value} value={value}>
@@ -208,10 +214,15 @@ function LocationsView() {
             </SelectItem>
           ))}
         </FormSelect>
-        <FormInput control={form.control} name="address" label="Address" />
+        <FormInput
+          control={form.control}
+          name="address"
+          label="Address"
+          placeholder="4th Floor, Titanium One"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormInput control={form.control} name="city" label="City" />
-          <FormInput control={form.control} name="country" label="Country" />
+          <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+          <FormInput control={form.control} name="country" label="Country" placeholder="India" />
         </div>
         {/* TimezoneField is a local composite, so it uses the escape hatch. */}
         <FormField
@@ -229,7 +240,6 @@ function LocationsView() {
             />
           )}
         </FormField>
-
         <div className="space-y-3 rounded-lg border p-3">
           <p className="font-medium text-sm">Attendance geofence</p>
           <p className="text-muted-foreground text-xs">
@@ -256,6 +266,7 @@ function LocationsView() {
           <FormInput
             control={form.control}
             name="geofenceRadiusMeters"
+            placeholder="200"
             label="Radius in metres"
             hint="How far from the coordinates still counts as being here"
             inputMode="numeric"

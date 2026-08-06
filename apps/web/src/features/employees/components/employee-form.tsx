@@ -183,16 +183,41 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           <CardDescription>Identity and contact information</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <FormInput control={form.control} name="firstName" label="First name" autoFocus />
-          <FormInput control={form.control} name="lastName" label="Last name" required />
-          <FormInput control={form.control} name="workEmail" label="Work email" type="email" />
+          <FormInput
+            control={form.control}
+            name="firstName"
+            label="First name"
+            autoFocus
+            placeholder="Priya"
+          />
+          <FormInput
+            control={form.control}
+            name="lastName"
+            label="Last name"
+            required
+            placeholder="Nair"
+          />
+          <FormInput
+            control={form.control}
+            name="workEmail"
+            label="Work email"
+            type="email"
+            placeholder="priya.nair@acme.com"
+          />
           <FormInput
             control={form.control}
             name="personalEmail"
+            placeholder="priya.nair@gmail.com"
             label="Personal email"
             type="email"
           />
-          <FormInput control={form.control} name="phone" label="Phone" type="tel" />
+          <FormInput
+            control={form.control}
+            name="phone"
+            label="Phone"
+            type="tel"
+            placeholder="+91 98765 43210"
+          />
           <FormDatePicker
             control={form.control}
             name="dateOfBirth"
@@ -215,9 +240,14 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
               </SelectItem>
             ))}
           </FormSelect>
-          <FormInput control={form.control} name="addressLine" label="Address" />
-          <FormInput control={form.control} name="city" label="City" />
-          <FormInput control={form.control} name="country" label="Country" />
+          <FormInput
+            control={form.control}
+            name="addressLine"
+            label="Address"
+            placeholder="12 Satellite Road"
+          />
+          <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+          <FormInput control={form.control} name="country" label="Country" placeholder="India" />
         </CardContent>
       </Card>
 

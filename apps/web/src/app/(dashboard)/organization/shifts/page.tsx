@@ -126,14 +126,31 @@ function ShiftsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <FormInput control={form.control} name="name" label="Name" autoFocus />
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="General"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormTimePicker control={form.control} name="startTime" label="Start time" />
-          <FormTimePicker control={form.control} name="endTime" label="End time" />
+          <FormTimePicker
+            control={form.control}
+            name="startTime"
+            label="Start time"
+            placeholder="09:30"
+          />
+          <FormTimePicker
+            control={form.control}
+            name="endTime"
+            label="End time"
+            placeholder="18:30"
+          />
         </div>
         <FormInput
           control={form.control}
           name="graceMinutes"
+          placeholder="15"
           label="Grace period (minutes)"
           hint="Late arrivals within this window aren't flagged"
           type="number"

@@ -579,10 +579,17 @@ export default function OpeningDetailPage() {
           ))}
         </FormSelect>
         <FormDatePicker control={interviewForm.control} name="date" label="Day" min={today()} />
-        <FormTimePicker control={interviewForm.control} name="time" label="Time" step={15} />
+        <FormTimePicker
+          control={interviewForm.control}
+          name="time"
+          label="Time"
+          step={15}
+          placeholder="10:00"
+        />
         <FormInput
           control={interviewForm.control}
           name="durationMinutes"
+          placeholder="45"
           label="Minutes"
           type="number"
           min={5}
@@ -608,6 +615,7 @@ export default function OpeningDetailPage() {
         <FormInput
           control={offerForm.control}
           name="monthlyCtc"
+          placeholder="120000"
           label="Monthly cost to company"
           type="number"
           min={1}
