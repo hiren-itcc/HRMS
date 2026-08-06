@@ -6,6 +6,8 @@
  * before any other statement, which would put the themes above `:root` again.
  */
 @import "@hrms/ui/themes.css";
+/* Last, so paper wins over every theme. See print.css. */
+@import "@hrms/ui/print.css";
 
 /* Tailwind must also scan the shared UI package's source for class names. */
 @source "../../../../packages/ui/src";

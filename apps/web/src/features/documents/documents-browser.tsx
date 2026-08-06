@@ -525,7 +525,7 @@ function FolderChip({
       className={cn(
         'flex items-center gap-2 whitespace-nowrap rounded-xl border px-3.5 py-2 text-sm transition-colors',
         active
-          ? 'gradient-primary border-transparent text-white shadow-indigo-500/20 shadow-md'
+          ? 'gradient-primary border-transparent text-white shadow-primary/20 shadow-md'
           : 'hover:border-primary/40 hover:bg-accent',
       )}
     >

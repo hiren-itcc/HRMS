@@ -89,7 +89,7 @@ export function SidebarNav({
                 <motion.span
                   layoutId="sidebar-active-pill"
                   aria-hidden
-                  className="gradient-primary -z-10 absolute inset-0 rounded-xl shadow-indigo-500/25 shadow-lg"
+                  className="gradient-primary -z-10 absolute inset-0 rounded-xl shadow-primary/25 shadow-lg"
                   transition={
                     reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 32 }
                   }
@@ -134,7 +134,7 @@ export function AppSidebar() {
         className={cn('flex h-16 items-center gap-2.5 px-5', collapsed && 'justify-center px-2')}
         aria-label="HRMS home"
       >
-        <span className="gradient-primary flex size-8 shrink-0 items-center justify-center rounded-lg text-white shadow-indigo-500/30 shadow-lg">
+        <span className="gradient-primary flex size-8 shrink-0 items-center justify-center rounded-lg text-white shadow-primary/30 shadow-lg">
           <ShieldCheck className="size-4.5" aria-hidden />
         </span>
         {!collapsed && (

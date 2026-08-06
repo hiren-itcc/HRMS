@@ -5,6 +5,7 @@
   "exports": {
     "./globals.css": "./src/styles/globals.css",
     "./themes.css": "./src/styles/themes.css",
+    "./print.css": "./src/styles/print.css",
     "./postcss.config": "./postcss.config.mjs",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
