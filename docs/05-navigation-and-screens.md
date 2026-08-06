@@ -39,6 +39,7 @@ switched on in Settings.
 | Documents | `/documents` | module on |
 | Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
 | Assets | `/assets` | `asset.read` — module on |
+| Recruitment | `/recruitment` | `recruitment.read` \| `recruitment.read.team` |
 | Announcements | `/announcements` | module on |
 | Reports | `/reports` | `report.view` \| `report.view.team` |
 | Settings | `/settings` | `settings.manage` \| `role.manage` \| `audit.read` \| `org.manage` |
@@ -224,6 +225,35 @@ outstanding items **by tag** instead of a checkbox, each linking to the asset.
 "2 outstanding" would send somebody hunting for which two. Its *Clear* button is
 not rendered at all — the API refuses a hand-tick — while *Not applicable*
 stays, because waiving with a reason is the honest escape hatch.
+
+### Recruitment (5)
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 50 | Openings | `/recruitment` | Search by title, status filter, and a live-application count against the headcount — how many people are in this pipeline *now*, not how many ever applied. Raising one is a dialog; it starts as a draft |
+| 51 | Opening pipeline | `/recruitment/openings/[id]` | The four live stages as columns, candidates as cards. Per card: expected pay, notice, interviews so far, and the offer if there is one. Actions are explicit buttons rather than drag-and-drop, so each one is reachable from a keyboard and says what it does |
+| 52 | Candidates | `/recruitment/candidates` | The pool. One record per person, not per application — the email is unique per organization, which is what makes a re-applicant the same human |
+| 53 | Candidate | `/recruitment/candidates/[id]` | Their details, every application, every interview and what was said. Feedback is written here, and says on its face that submitting freezes it |
+| 54 | Offer | `/recruitment/offers/[id]` | The agreed job and pay, mark-as-sent, record-their-answer, and **Hire** |
+
+**The endings are not columns.** REJECTED, WITHDRAWN and HIRED get a *Closed
+out* list below the board with the reason beside each name, rather than a card
+still sitting in the pipeline pretending to be in play.
+
+**The move dialog does not offer HIRED.** Hiring is not something you choose
+there; it is what converting an accepted offer produces. Listing it would put a
+control on screen whose only outcome is a refusal.
+
+**The hire dialog asks for one thing** — the work email — and prints the start
+date and the pay it is about to use underneath, because everything else comes
+off the offer and the candidate. It says the invite is going to the *personal*
+address, since the work mailbox is created by this very act. Afterwards it
+reports whether the mail actually went: `onboard()` deliberately does not fail
+the hire when it does not, and "done" and "done, now go and chase this" are
+different sentences.
+
+**An opening with no band advertised shows "Not advertised", never ₹0.** The
+API sends `null` rather than zero for exactly this reason, and the seed carries
+one such opening so the case is always on screen.
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |

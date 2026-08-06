@@ -94,6 +94,67 @@ reads from it.
 
 ---
 
+## Before they join: recruitment
+
+Everything above starts with HR typing a person in. Recruitment is the part
+that comes before that — the job, the people applying for it, who interviewed
+them and what was said.
+
+**A job opening** is raised with a title and as much of the rest as is settled:
+department, location, employment type, how many people to hire, and a salary
+band. Most of that is optional, because an opening is usually raised before all
+of it is agreed. It starts as a **draft** and nothing can be applied to it
+until somebody publishes it. Later it can be paused, closed, or marked filled —
+and closing an opening that still has people live in its pipeline is refused,
+because that would quietly orphan them.
+
+**A candidate is a person, once.** Their email is unique within the company, so
+somebody applying for a second role is the same human with a second
+application, not a duplicate record. They are not an employee and the system is
+careful about that: a candidate who is never hired leaves no employee record
+behind, and a rejected application is not a deleted person.
+
+**An application moves through four stages** — applied, screening, interview,
+offer — and can end in three ways: rejected, withdrawn, or hired. It can also
+move *backwards* while it is live, because a round being redone is ordinary and
+refusing it would teach people to reject somebody and re-add them, which throws
+away the reason the rejection was recorded.
+
+**Rejecting asks why.** "Rejected" on its own answers nothing three months
+later, and the reason is the only thing that tells a bad advert from a bad
+interview loop. Choosing *Something else* additionally requires a sentence.
+
+**Interview feedback is written once.** The interviewer records a
+recommendation and their notes, and submitting **freezes** them. A
+recommendation that can be rewritten after the decision is evidence of nothing.
+If somebody's view genuinely changes, that is a second interview, not an edit.
+
+**An offer** carries the agreed job and pay and a start date. It is drafted,
+then marked sent, then their answer is recorded. Declining — or the company
+withdrawing it — closes the application. Accepting does **not**, because the
+person has not actually joined yet.
+
+### Hiring is a conversion, not a second way in
+
+The last step turns an accepted offer into a member of staff, and it goes
+through **exactly the same onboarding** described in the next section. It is
+the same code path: the employee code, the login that cannot be signed into,
+the onboarding record, and the single-use invite to their **personal** address
+all happen the way they do for any other new starter.
+
+The only thing anybody has to type is the **work email**, because a candidate
+does not have one. The name comes off the candidate, the job and the start date
+off the offer. Nothing is retyped, and there is one path into the company
+rather than two that could drift apart.
+
+Because it creates a login, hiring needs the invite permission as well as the
+hiring one — and the system says so plainly rather than refusing for what looks
+like the wrong reason.
+
+**A hiring manager sees their own openings and nobody else's.** They can give
+interview feedback on the people they meet. They cannot make the offer, and
+they cannot do the hire.
+
 ## A new person joins
 
 HR creates the employee record: name, contact details, join date, which
@@ -695,6 +756,17 @@ Being straight about this is more useful than a feature list:
 - **Nobody signs for an asset.** IT records what was handed over; the employee
   can read the list but does not confirm it. In a dispute the record is one
   side's, not both.
+- **There is no public careers page.** Recruitment is internal only: HR adds a
+  candidate, or puts a referral forward. Nobody can apply from outside, and
+  nothing accepts a CV upload from a stranger yet — that is the one part of the
+  product that would take writes from the public, and it deserves its own
+  change rather than the tail end of this one.
+- **Interviews are not on anybody's calendar.** An interview carries a time and
+  an interviewer, and the system tells nobody. Sending the invite, and syncing
+  with Google or Outlook, is an integration that does not exist.
+- **There is no offer letter.** The offer holds the agreed terms; producing the
+  document is still a manual job, even though the letters module already issues
+  documents from templates.
 - **There is no mobile app.**
 - **Companies cannot sign themselves up.** A new company has to be created on
   the server (see [14-production-setup.md](./14-production-setup.md)).

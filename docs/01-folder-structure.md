@@ -89,7 +89,7 @@ hrms/
 1. **Dependency direction:** `apps/* → packages/*` only. `packages/ui → packages/{types,config}`. No package imports an app; apps never import each other.
 2. **Feature-first frontend:** a route file in `app/` may only compose from `features/<x>` and `components/`. If a component is used by one feature, it lives in that feature — promotion to `packages/ui` requires a second consumer.
 3. **Module-first backend:** every NestJS module owns its controllers/services/DTOs. Cross-module access goes through the exported service, never another module's repository/Prisma calls.
-4. **Adding a future module** (Recruitment, Performance…) = one folder under `apps/api/src/modules/`, one under `apps/web/src/features/`, one route segment, plus seed rows for its permissions. No existing file should need more than an import line.
+4. **Adding a future module** (Performance, Expenses…) = one folder under `apps/api/src/modules/`, one under `apps/web/src/features/`, one route segment, plus seed rows for its permissions. No existing file should need more than an import line. Recruitment was the last one built and cost exactly that, plus one line: `OnboardingModule` gained `exports: [OnboardingService]` so a hire could convert through the existing invite instead of becoming a second way to create an employee. Nothing inside it changed.
 
    Payroll is the worked example: it added seven tables, a system role and nine
    screens without editing another module's internals. The one exception is

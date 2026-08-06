@@ -373,6 +373,70 @@ reason still works. `assertCleared` is unchanged: it already refused completion
 while any required task was `PENDING`, which is all this needed. The dependency
 runs `Offboarding → Assets` only, with no `forwardRef`.
 
+### Recruitment (`/recruitment`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/recruitment` — openings, with a live-application count each | `recruitment.read` · `.read.team` |
+| POST / PATCH | `/recruitment` · `/recruitment/:id` | `recruitment.opening.manage` |
+| GET | `/recruitment/:id` — one opening and its whole pipeline | `recruitment.read` · `.read.team` |
+| PATCH | `/recruitment/:id/status` — publish, pause, close, fill | `recruitment.opening.manage` |
+| GET | `/recruitment/candidates` · `/recruitment/candidates/:id` | `recruitment.read` · `.read.team` |
+| POST / PATCH | `/recruitment/candidates` · `/recruitment/candidates/:id` | `recruitment.candidate.manage` |
+| POST | `/recruitment/applications` — put a candidate forward | `recruitment.candidate.manage` |
+| PATCH | `/recruitment/applications/:id/stage` — move it, or end it | `recruitment.candidate.manage` |
+| POST | `/recruitment/interviews` — book a round | `recruitment.candidate.manage` |
+| PATCH | `/recruitment/interviews/:id/feedback` — once; it freezes | `recruitment.interview.submit` |
+| POST | `/recruitment/offers` · GET `/recruitment/offers/:id` | `recruitment.offer.manage` / read |
+| PATCH | `/recruitment/offers/:id/send` · `/respond` | `recruitment.offer.manage` |
+| POST | `/recruitment/offers/:id/hire` | `recruitment.hire` **and** `employee.invite` |
+
+**A hire converts; it does not create.** `POST /recruitment/offers/:id/hire`
+reads the accepted offer and calls `OnboardingService.onboard` — the same
+method HR's *Onboard a hire* screen calls. That already generates the employee
+code, writes the `INVITED` user with an unusable password hash, creates the
+`Onboarding` row and mails a single-use invite to the **personal** address,
+because the work mailbox does not exist until this moment. A second path would
+have been a second copy of those four things and one of them would have
+drifted. The only field the route asks for is the work email; the name and
+personal email come off the candidate, the job and the join date off the offer.
+
+**Hiring spends two permissions, and says so.** Without the explicit
+`employee.invite` check the caller reaches `onboard()` and gets *its* refusal,
+which is correct but reads as though the recruitment permission was the
+problem.
+
+**Seven codes rather than one.** Raising an opening, adding a candidate, giving
+feedback, making an offer and converting one into staff are five different
+jobs, and in most organizations not all the same person's. `recruitment.hire`
+is separate from `recruitment.offer.manage` for the reason
+`employee.onboarding.approve` is separate from `employee.update`: converting a
+person into staff creates a login and a payroll subject.
+
+**The rules are their own file.** `application.stage.ts` is pure — no Prisma,
+no clock — on the model of `asset.status.ts` and `settlement.calc.ts`. The
+service fetches what the rules need and writes their answer down rather than
+re-deciding: which transitions are legal, that REJECTED and WITHDRAWN are
+terminal, that an offer cannot exist before the OFFER stage, that HIRED needs
+an accepted one, and that closing an opening over live applications is refused.
+
+**Backwards is allowed while an application is live.** A rescheduled round is
+ordinary, and refusing it teaches people to reject-and-re-add, which loses the
+history the rejection reason exists to keep.
+
+**A declined or withdrawn offer ends the application; an accepted one does
+not** — the hire has not happened yet, and the offer screen is where it does.
+
+**The list counts *live* applications, not all of them.** How many people are
+in this pipeline now is the number the screen is read for.
+
+**Static segments before `:id`.** `candidates`, `applications`, `interviews`
+and `offers` are all declared before `/:id`, which is an opening.
+
+**Money crosses the wire as a number.** See doc 02 — `recruitment.mapper.ts`
+converts Prisma's `Decimal` at the boundary, and `null` stays `null` rather
+than becoming `0`.
+
 ### Announcements (`/announcements`)
 | Method | Path |
 |---|---|

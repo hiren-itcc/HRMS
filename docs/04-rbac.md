@@ -18,6 +18,8 @@ Notes:
 - One role per user in Phase 1 (simplicity first). The join table `RolePermission` already supports multi-role/custom roles later without schema change.
 - **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default. The same three permissions carry the full & final settlement, which is why it has no codes of its own: HR prepares, Finance releases, and that is already the split.
 - **`asset.assign` is separate from `asset.manage` for the same reason `offboarding.clearance` is separate from `employee.offboard`.** Buying and retiring equipment is an admin job; handing a laptop to a joiner is not. Assets give `IT_ADMIN` its second reason to exist as a composed role — there is still no seeded one, so those clearance items keep falling to `employee.offboard` holders until an organization makes one. Every role holds `asset.read.own`, including a leaver: somebody who cannot see their own list cannot return it.
+- **A hiring manager gets `recruitment.read.team` and `recruitment.interview.submit`, and nothing else.** Their own openings, and feedback on the people they interview — not the offer, and not the hire. The scope resolves through `JobOpening.hiringManagerId` using the same `'__none__'` sentinel every other team scope uses: a manager with no employee record must match nothing, where an `undefined` would drop the filter and show them every opening in the company.
+- **`recruitment.hire` is separate from `recruitment.offer.manage`** for the reason `employee.onboarding.approve` is separate from `employee.update`: converting a person into staff creates a login and a payroll subject, and an organization may well want that held by someone other than whoever negotiates the offer. It is also the one permission in the catalogue that is not sufficient on its own — hiring runs through the ordinary onboarding invite, so it spends `employee.invite` too, and the service says so rather than letting the caller discover it from the wrong refusal.
 - Roles are **per organization** (migration `20260801050000_role_per_organization`): editing HR's grants in one tenant does not touch another's.
 
 ## Permission catalog
@@ -68,6 +70,13 @@ letter.read            letter.issue             letter.template.manage
 asset.read.own
 asset.read             asset.manage             asset.assign        (issue, take back)
 
+recruitment.read.team  (a hiring manager's own openings)
+recruitment.read       recruitment.opening.manage
+recruitment.candidate.manage                     (add a candidate, put them forward, move a stage)
+recruitment.interview.submit                     (feedback — once; it freezes)
+recruitment.offer.manage                         (draft, send, record the answer)
+recruitment.hire       (convert an accepted offer into staff — also spends employee.invite)
+
 announcement.read      announcement.manage
 
 org.read               org.manage               (departments, designations, locations, holidays)
@@ -112,6 +121,8 @@ settings.manage        role.manage              audit.read
 | `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
 | `asset.read.own` (what I am holding) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `asset.read` / `asset.manage` / `asset.assign` | ✅ | ✅ | — | — | — |
+| `recruitment.read.team` (own openings) / `recruitment.interview.submit` | ✅ | ✅ | — | ✅ | — |
+| `recruitment.read` / `opening.manage` / `candidate.manage` / `offer.manage` / `hire` | ✅ | ✅ | — | — | — |
 | `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `wfh.read.team` / `wfh.approve.team` | ✅ | ✅ | — | ✅ | — |
 | `wfh.read` / `wfh.approve` | ✅ | ✅ | — | — | — |

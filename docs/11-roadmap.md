@@ -57,7 +57,7 @@ The architecture reserves an explicit seam for each planned module — adding on
 | Module | Lands as | Touches existing schema | New infra |
 |---|---|---|---|
 | ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
-| **Recruitment** | own module; Candidate is *not* Employee — a hire *converts* into the existing create-employee flow | none | public careers endpoints (unauthenticated segment already exists in web) |
+| ~~**Recruitment**~~ | ✅ **Shipped, internal half.** Five tables, six enums, seven permission codes, fourteen routes and five screens. The prediction held exactly: `Candidate` is not `Employee`, and `POST /recruitment/offers/:id/hire` *converts* by calling the same `OnboardingService.onboard` that HR's own screen calls, so employee-code generation, the INVITED user and the invite to the **personal** address stay in one place | none — five new tables FK to Employee, Department, Designation, Location, EmploymentType and Document | none yet; the public careers page is deliberately a second change, being the only unauthenticated write surface in the product |
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
 | ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
 | ~~**WFH / Hybrid**~~ | ✅ **Shipped.** One table, one nullable column on Employee, six permission codes. Attendance already detected who worked remotely; this is only the forward half — asking, agreeing, and a weekly cap | one nullable column, `Employee.remoteDaysPerWeek` | none |
@@ -88,6 +88,23 @@ column, `OffboardingTask.kind`. That is still additive rather than a redesign,
 and the seam it uses was left deliberately: `assertCleared`'s own comment said
 the gate was generic "so Asset Management can later make one of these items
 compute itself without the gate changing at all". It did not change.
+
+Recruitment is the cleanest confirmation so far, because the prediction in this
+very table was written before the code and turned out to be checkable. It
+promised that a hire would *convert* rather than create, and the seam it
+converts through — `OnboardingService.onboard` — needed one line added to make
+it available: `exports: [OnboardingService]`. Nothing inside it changed. The
+alternative, a second path that created an `Employee` and a `User` directly,
+would have been a second copy of the code-generation, the unusable-password
+hash, the onboarding row and the invite — and one of those four would have
+drifted.
+
+It did surface a defect of its own kind, worth recording because it is the sort
+that does not fail loudly: money left the API as a `Decimal`, which serializes
+to JSON as a string, while the web side declared it a number. `NaN` on a screen
+is not a stack trace. `recruitment.mapper.ts` converts at the boundary, as
+payroll's mapper already did — the lesson being that "every module converts its
+own Decimals" is a convention nothing enforces.
 
 ## Payroll — what is deliberately not built yet
 

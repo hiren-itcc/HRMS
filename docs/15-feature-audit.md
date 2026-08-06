@@ -280,7 +280,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | Announcements | ✅ | ✅ |
 | Reports | ✅ 4 + dashboard | ✅ + custom report builder |
 | Onboarding | ✅ invite → self-serve → HR review | ✅ |
-| **Recruitment / ATS** | ❌ | ✅ all four |
+| ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
 | **Performance / goals / OKR** | ❌ | ✅ all four |
 | **Expense & reimbursement** | ❌ | ✅ all four |
 | **Asset management** | ❌ | ✅ Keka, Darwinbox |
@@ -406,7 +406,10 @@ which other documents were citing.
 
 ### P3 — differentiators, once the above is settled
 
-23. Recruitment / ATS (`11:60`)
+23. ~~Recruitment / ATS~~ ✅ **built** — openings, candidates, applications,
+    interviews and offers, with the hire converting through the existing
+    onboarding invite. **The public careers page remains absent**, so nobody
+    can apply from outside; HR or a referrer enters every candidate.
 24. Helpdesk, LMS, engagement surveys
 25. Mobile app (`07:55` designs the auth variant)
 26. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)

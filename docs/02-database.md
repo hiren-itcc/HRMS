@@ -73,6 +73,11 @@ erDiagram
 `Notification` is not on this diagram. The table exists and nothing reads or
 writes it — see the model below.
 
+**The diagram stops at Payroll.** Exits, assets, remote work and recruitment
+are not on it — twenty-odd tables added after it was drawn. It is kept as a map
+of the core rather than being grown into an unreadable one; the model list
+below is complete and is what to read for anything later than Payroll.
+
 ## Prisma models
 
 `apps/api/prisma/schema.prisma` is the source of truth. What follows is its
@@ -1035,6 +1040,141 @@ model AssetAssignment {
   notes        String?
 }
 
+// ─── Recruitment ──────────────────────────────────────────────────────
+// The front of the lifecycle. A Candidate is a person the organization is
+// talking to, not a member of staff — see "Notable design calls" for why the
+// FK points the way it does.
+
+enum OpeningStatus  { DRAFT  OPEN  ON_HOLD  CLOSED  FILLED }
+enum ApplicationStage { APPLIED  SCREENING  INTERVIEW  OFFER  HIRED  REJECTED  WITHDRAWN }
+enum RejectionReason { SKILLS  EXPERIENCE  COMPENSATION  LOCATION  NOTICE_PERIOD  CULTURE_FIT  POSITION_CLOSED  CANDIDATE_WITHDREW  OTHER }
+enum InterviewMode   { IN_PERSON  VIDEO  PHONE }
+enum InterviewRecommendation { STRONG_YES  YES  NO  STRONG_NO }
+enum OfferStatus     { DRAFT  SENT  ACCEPTED  DECLINED  WITHDRAWN  EXPIRED }
+
+/// A role being recruited for. Every job field is nullable because an
+/// opening is often raised before the department or the band is settled.
+model JobOpening {
+  id String @id @default(cuid())
+  organizationId String
+  title          String
+  status         OpeningStatus @default(DRAFT)
+
+  departmentId     String?
+  designationId    String?
+  locationId       String?
+  employmentTypeId String?
+  /// Gets `recruitment.read.team` over this opening without org-wide access.
+  hiringManagerId  String?
+
+  headcount     Int      @default(1)
+  description   String?
+  minMonthlyCtc Decimal? @db.Decimal(14, 2)
+  maxMonthlyCtc Decimal? @db.Decimal(14, 2)
+
+  openedOn DateTime? @db.Date
+  closedOn DateTime? @db.Date
+
+  applications Application[]
+}
+
+/// A person, once. Unique per org on email, so somebody applying for a
+/// second role is the same human with a second application rather than a
+/// duplicate record.
+model Candidate {
+  id String @id @default(cuid())
+  organizationId String
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  currentEmployer    String?
+  currentTitle       String?
+  noticePeriodDays   Int?
+  expectedMonthlyCtc Decimal? @db.Decimal(14, 2)
+  source             String?
+  /// The colleague who put them forward, if anybody did.
+  referrerId         String?
+  notes              String?
+
+  applications Application[]
+
+  @@unique([organizationId, email])
+}
+
+/// One candidate against one opening.
+model Application {
+  id String @id @default(cuid())
+  /// Denormalised off the opening so the pipeline scopes and counts without
+  /// a join, the way every other module here scopes by organization.
+  organizationId String
+  candidateId    String
+  openingId      String
+
+  stage           ApplicationStage @default(APPLIED)
+  rejectionReason RejectionReason?
+  /// Required by the service when the reason is OTHER, the way Resignation
+  /// already requires remarks.
+  rejectionNote   String?
+
+  appliedOn DateTime  @default(now())
+  decidedAt DateTime?
+  /// The CV as a Document, so it goes through the same storage adapter, size
+  /// and type checks and streaming download as every other file.
+  resumeDocumentId String? @unique
+
+  interviews Interview[]
+  offer      Offer?
+
+  /// Applying twice is the same application moving, not a second one.
+  @@unique([candidateId, openingId])
+}
+
+/// A round, and what the interviewer made of them.
+model Interview {
+  id String @id @default(cuid())
+  applicationId  String
+  interviewerId  String?
+  scheduledFor    DateTime
+  durationMinutes Int      @default(45)
+  mode            InterviewMode @default(VIDEO)
+  round           String?
+
+  recommendation InterviewRecommendation?
+  notes          String?
+  /// The freeze. Set on submit; the service refuses a second write. Same
+  /// rule as Letter.variables and Offboarding.snapshot* — a recommendation
+  /// that can be rewritten after the decision is evidence of nothing.
+  submittedAt DateTime?
+  cancelledAt DateTime?
+}
+
+/// The agreed job and pay, and the one place recruitment meets Employee.
+model Offer {
+  id String @id @default(cuid())
+  organizationId String
+  applicationId  String @unique
+
+  designationId    String?
+  departmentId     String?
+  locationId       String?
+  employmentTypeId String?
+  monthlyCtc Decimal  @db.Decimal(14, 2)
+  joinDate   DateTime @db.Date
+  expiresOn  DateTime? @db.Date
+
+  status      OfferStatus @default(DRAFT)
+  sentAt      DateTime?
+  respondedAt DateTime?
+  notes       String?
+
+  /// Nullable, and pointing *at* Employee. Set only once the offer has been
+  /// accepted and converted; a candidate who is never hired leaves no
+  /// employee row behind.
+  hiredEmployeeId String? @unique
+}
+
 // ─── Payroll ──────────────────────────────────────────────────────────
 // Money is Decimal(14,2) throughout. See "Notable design calls" below for
 // why payslips snapshot rather than join.
@@ -1324,6 +1464,39 @@ model AuditLog {
   same reasoning that makes `EmployeeSalary` its own revision history.
 
 - **Reports need no tables** — they are read-model queries over attendance/leave/employees, exported server-side (doc 03).
+
+### Recruitment
+
+- **`Candidate` is deliberately not `Employee`, and the FK direction says so.**
+  `Offer.hiredEmployeeId` is nullable and points *at* `Employee`. Somebody who
+  is never hired leaves no employee row behind, and a rejected application is
+  not a deleted person — which is the whole reason the two are separate tables
+  rather than a `status` on one.
+
+- **The stage is a column, not a table.** A configurable pipeline per opening
+  is the feature every ATS grows and the one that makes every query a join. A
+  fixed `ApplicationStage` enum is what the reporting actually needs. If
+  per-opening stages are wanted later they go in `Setting` as a typed group,
+  the way the exit checklist already does.
+
+- **`@@unique([candidateId, openingId])`** makes "applying twice is the same
+  application moving" a database invariant. Without it a re-application is a
+  second row and the pipeline counts one person twice.
+
+- **`Interview.submittedAt` freezes the feedback**, the same rule as
+  `Letter.variables` and `Offboarding.snapshot*`. The reason is sharper here: a
+  recommendation that can be edited after the decision is evidence of nothing.
+
+- **`Application.organizationId` is denormalised** off the opening. Every other
+  module scopes by organization without a join and this one does too; the
+  alternative is a join on every pipeline count.
+
+- **Money leaves this module as a number.** `Decimal` serializes to JSON as a
+  string, and the web side declares salary as a number — a mismatch that
+  formats as `NaN` rather than throwing. `recruitment.mapper.ts` converts at
+  the boundary. It does not borrow payroll's `toMoney`, which returns `0` for
+  a missing value: right for a payslip line, wrong for an unset salary band,
+  because an opening with no band advertised is not one that pays nothing.
 
 ### Payroll
 
