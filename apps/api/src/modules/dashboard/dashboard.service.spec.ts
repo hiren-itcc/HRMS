@@ -8,6 +8,8 @@ interface Over {
   /** Rows the celebrations scan returns. */
   people?: object[];
   count?: number;
+  /** Rows the leave balance read returns. */
+  balances?: object[];
 }
 
 function makeService(over: Over = {}) {
@@ -25,6 +27,7 @@ function makeService(over: Over = {}) {
     remoteWorkRequest: { count: jest.fn().mockResolvedValue(6) },
     payrollRun: { count: jest.fn().mockResolvedValue(7) },
     settlement: { count: jest.fn().mockResolvedValue(8) },
+    leaveBalance: { findMany: jest.fn().mockResolvedValue(over.balances ?? []) },
   };
   const policy = { contextFor: async () => ({ todayKey: TODAY }) };
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
@@ -180,6 +183,98 @@ describe('exits, as one story', () => {
     expect(summary.exits?.leaving).toBe(3);
     expect(summary.exits?.pendingResignations).toBe(2);
     expect(summary.exits?.offboardingInProgress).toBe(1);
+  });
+});
+
+describe('your own figures', () => {
+  const balance = (name: string, allocated: number, used: number, carriedOver = 0) => ({
+    allocated,
+    used,
+    carriedOver,
+    leaveType: { name },
+  });
+
+  const ownPerms = ['leave.read.own', 'attendance.read.own', 'wfh.read.own'];
+
+  it('adds up what is left to book, most available first', async () => {
+    const { service } = makeService({
+      balances: [balance('Sick', 6, 4), balance('Annual', 12, 2, 3)],
+    });
+    const summary = await service.summary(claims(['leave.read.own']));
+
+    // Annual: 12 + 3 − 2 = 13. Sick: 6 − 4 = 2.
+    expect(summary.me?.leave).toEqual({
+      available: 15,
+      byType: [
+        { name: 'Annual', available: 13 },
+        { name: 'Sick', available: 2 },
+      ],
+    });
+  });
+
+  /*
+   * A type with nothing left is the answer to "can I take sick leave", and
+   * dropping it would leave the headline unexplained by the list under it.
+   */
+  it('keeps a type with nothing left in the breakdown', async () => {
+    const { service } = makeService({ balances: [balance('Sick', 6, 6)] });
+    const summary = await service.summary(claims(['leave.read.own']));
+
+    expect(summary.me?.leave?.byType).toEqual([{ name: 'Sick', available: 0 }]);
+  });
+
+  it('reads this year, not last', async () => {
+    const { service, prisma } = makeService();
+    await service.summary(claims(['leave.read.own']));
+
+    expect(prisma.leaveBalance.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employeeId: 'mgr1', year: 2026 } }),
+    );
+  });
+
+  it('counts what they are waiting on somebody else to decide', async () => {
+    const { service } = makeService();
+    const summary = await service.summary(claims(ownPerms));
+
+    // 4 leave + 5 attendance + 6 remote, all raised by them.
+    expect(summary.me?.requests).toEqual({ total: 15, leave: 4, attendance: 5, remoteWork: 6 });
+  });
+
+  it('counts only the kinds they could open', async () => {
+    const { service } = makeService();
+    const summary = await service.summary(claims(['leave.read.own']));
+
+    expect(summary.me?.requests).toEqual({ total: 4, leave: 4, attendance: 0, remoteWork: 0 });
+  });
+
+  /* Their own, never the org's — this is the mirror of the approvals tile. */
+  it('scopes every count to the person asking', async () => {
+    const { service, prisma } = makeService();
+    await service.summary(claims(ownPerms));
+
+    expect(prisma.leaveRequest.count).toHaveBeenCalledWith({
+      where: { employeeId: 'mgr1', status: 'PENDING' },
+    });
+  });
+
+  /*
+   * The bootstrap admin. A row of zeroes would read as "you have used all your
+   * leave" rather than as "you do not have any".
+   */
+  it('is null for an account with no employee record', async () => {
+    const { service, prisma } = makeService();
+    const summary = await service.summary({ ...claims(ownPerms), employeeId: undefined });
+
+    expect(summary.me).toBeNull();
+    expect(prisma.leaveBalance.findMany).not.toHaveBeenCalled();
+  });
+
+  it('asks for no balance without the code to read one', async () => {
+    const { service, prisma } = makeService();
+    const summary = await service.summary(claims(['attendance.read.own']));
+
+    expect(summary.me?.leave).toBeNull();
+    expect(prisma.leaveBalance.findMany).not.toHaveBeenCalled();
   });
 });
 

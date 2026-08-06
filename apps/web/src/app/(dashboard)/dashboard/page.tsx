@@ -15,10 +15,12 @@ import { motion, useReducedMotion } from 'framer-motion';
 import {
   BadgeCheck,
   Building2,
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
   Clock3,
   DoorOpen,
+  Hourglass,
   House,
   Inbox,
   Palmtree,
@@ -34,7 +36,7 @@ import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
 import { AnnouncementsWidget } from '@/features/announcements/components/announcements-widget';
-import { attendanceApi } from '@/features/attendance/api';
+import { attendanceApi, currentMonth, formatDuration } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
 import { dashboardApi, dashboardKeys } from '@/features/dashboard/api';
 import { CelebrationsCard } from '@/features/dashboard/components/celebrations-card';
@@ -85,6 +87,19 @@ export default function DashboardPage() {
     staleTime: 30_000,
   });
 
+  /*
+   * Somebody with no team to look at gets their own month instead. Sharing the
+   * attendance page's key rather than inventing one, so opening that page after
+   * the dashboard costs nothing and a punch invalidates both.
+   */
+  const seesOwnMonth = !canTeamAttendance && can('attendance.read.own');
+  const myMonth = useQuery({
+    queryKey: ['attendance', 'me', currentMonth()],
+    queryFn: () => attendanceApi.myMonth(currentMonth()),
+    enabled: seesOwnMonth,
+    staleTime: 60_000,
+  });
+
   const holidays = useQuery({
     queryKey: ['org-holidays', 'upcoming'],
     queryFn: () =>
@@ -119,7 +134,7 @@ export default function DashboardPage() {
    * earns its place by being something somebody acts on — which is why
    * Departments and Locations are gone, having never once changed.
    */
-  const stats = [
+  const orgStats = [
     summary.data?.approvals != null && {
       key: 'approvals',
       card: (
@@ -277,6 +292,93 @@ export default function DashboardPage() {
       ),
     },
   ].filter(Boolean) as { key: string; card: React.ReactNode }[];
+
+  const myLeave = summary.data?.me?.leave;
+  const myRequests = summary.data?.me?.requests;
+  const myAttendance = myMonth.data?.summary;
+
+  /*
+   * The same figures an employee came to the dashboard for, in the same tiles
+   * everybody else gets. Without these the row is empty for the largest role
+   * in the product: every tile above is an organizational one.
+   */
+  const personalStats = [
+    myLeave != null && {
+      key: 'my-leave',
+      card: (
+        <StatCard
+          label="Leave days left"
+          value={myLeave.available}
+          hint={
+            myLeave.byType.length === 0
+              ? 'Nothing allocated this year'
+              : myLeave.byType
+                  .filter((type) => type.available > 0)
+                  .slice(0, 2)
+                  .map((type) => `${type.name} ${type.available}`)
+                  .join(' · ') || 'Nothing left this year'
+          }
+          icon={Palmtree}
+          gradient="emerald"
+          loading={summary.isLoading}
+        />
+      ),
+    },
+    myRequests != null && {
+      key: 'my-requests',
+      card: (
+        <StatCard
+          label="Your requests"
+          /* The mirror of "Waiting on you" — what somebody else has to decide. */
+          value={myRequests.total}
+          hint={
+            myRequests.total === 0
+              ? 'Nothing pending'
+              : [
+                  myRequests.leave && `${myRequests.leave} leave`,
+                  myRequests.attendance && `${myRequests.attendance} attendance`,
+                  myRequests.remoteWork && `${myRequests.remoteWork} remote`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+          }
+          icon={Hourglass}
+          gradient="amber"
+          loading={summary.isLoading}
+        />
+      ),
+    },
+    seesOwnMonth && {
+      key: 'my-month',
+      card: (
+        <StatCard
+          label="Present this month"
+          value={myAttendance?.present}
+          hint={
+            myAttendance
+              ? [
+                  myAttendance.workedMinutes > 0 && `${formatDuration(myAttendance.workedMinutes)}`,
+                  myAttendance.lateMarks > 0 && `${myAttendance.lateMarks} late`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'Nothing logged yet'
+              : undefined
+          }
+          icon={CalendarCheck}
+          gradient="sky"
+          loading={myMonth.isLoading}
+        />
+      ),
+    },
+  ].filter(Boolean) as { key: string; card: React.ReactNode }[];
+
+  /*
+   * Your own figures fill the row when nothing organizational does. A manager's
+   * row is already a list of things waiting on them and their leave balance is
+   * not the most urgent item on it; an employee has no such row, and this is
+   * the one they came for.
+   */
+  const stats = orgStats.length > 0 ? orgStats : personalStats;
 
   const actions: QuickAction[] = [
     {

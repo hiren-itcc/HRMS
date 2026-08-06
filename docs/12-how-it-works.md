@@ -172,9 +172,18 @@ The landing page, and it is meant to answer one question: **is anything waiting
 on me?**
 
 What each person sees depends on what they may do. An employee gets their clock
-card, announcements, the holiday calendar and celebrations. A manager also gets
-what is waiting on them to approve, who is in today, who is remote, who is late,
-and who is leaving. HR sees the headcount; finance sees payroll that is stuck.
+card and three figures about themselves — how much leave they have left this
+year, how many of their own requests are still waiting on a decision, and how
+many days they have been in this month — plus announcements, the holiday
+calendar and celebrations. A manager also gets what is waiting on them to
+approve, who is in today, who is remote, who is late, and who is leaving. HR
+sees the headcount; finance sees payroll that is stuck.
+
+A manager does not get the personal three on top of all that. Their row is
+already a list of things waiting on them, and their own leave balance is not the
+most urgent item on it — it is one click away on the leave screen. The personal
+tiles fill the row for people who have no such list, which until now meant an
+employee arrived at no tiles at all.
 
 Nothing is shown that the person cannot act on. Counts of departments and
 offices used to sit here and were removed — they change a few times a year and

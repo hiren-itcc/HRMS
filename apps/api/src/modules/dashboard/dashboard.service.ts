@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { addDays, dateKeyOf, toDate } from '../../common/utils/calendar';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { availableDays, round1 } from '../leave/leave.util';
 import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 
 /**
@@ -64,6 +65,30 @@ export interface DashboardSummary {
     birthdays: Celebrant[];
     anniversaries: (Celebrant & { years: number })[];
   };
+  /**
+   * The signed-in person's own figures — what a dashboard with no approvals,
+   * no payroll and no headcount on it is made of.
+   *
+   * Null when the account has no employee record behind it. The bootstrap
+   * admin has no leave to book and no requests to chase, and a row of zeroes
+   * would say they had used everything rather than that the question does not
+   * arise for them.
+   */
+  me: {
+    leave: {
+      /** Days still bookable this calendar year, across every type. */
+      available: number;
+      /** Every type they hold a balance in, most available first. */
+      byType: { name: string; available: number }[];
+    } | null;
+    /** Raised by them and still waiting on somebody else. */
+    requests: {
+      total: number;
+      leave: number;
+      attendance: number;
+      remoteWork: number;
+    } | null;
+  } | null;
 }
 
 /**
@@ -107,13 +132,14 @@ export class DashboardService {
       ...(teamOnly ? { managerId: me } : {}),
     };
 
-    const [people, exits, approvals, payroll, upcoming, celebrations] = await Promise.all([
+    const [people, exits, approvals, payroll, upcoming, celebrations, mine] = await Promise.all([
       seesPeople ? this.people(scope, today) : null,
       this.exits(perms, orgId, scope, seesResignations, seesExits, me),
       this.approvals(perms, orgId, me),
       this.payroll(perms, orgId),
       seesPeople ? this.upcomingExits(scope, today, ctx.todayKey) : Promise.resolve([]),
       this.celebrations(perms, orgId, ctx.todayKey),
+      this.mine(perms, claims.employeeId, ctx.todayKey),
     ]);
 
     return {
@@ -126,6 +152,7 @@ export class DashboardService {
       payroll,
       upcomingLastWorkingDates: upcoming,
       celebrations,
+      me: mine,
     };
   }
 
@@ -299,6 +326,93 @@ export class DashboardService {
       settlementsToApprove,
       settlementsToPay,
     };
+  }
+
+  // ── your own figures ──────────────────────────────────────────────────
+
+  /**
+   * Everything on the dashboard that is about the reader rather than the
+   * organization. Scoped by employee id alone — the `.own` codes need no
+   * `'__none__'` sentinel because there is no record to match against.
+   */
+  private async mine(
+    perms: Set<string>,
+    employeeId: string | undefined,
+    todayKey: string,
+  ): Promise<DashboardSummary['me']> {
+    if (!employeeId) return null;
+
+    const [leave, requests] = await Promise.all([
+      perms.has('leave.read.own')
+        ? this.leaveBalance(employeeId, Number(todayKey.slice(0, 4)))
+        : null,
+      this.myRequests(perms, employeeId),
+    ]);
+    return { leave, requests };
+  }
+
+  /**
+   * What is left to book this year.
+   *
+   * Types with nothing left are kept rather than filtered: a balance at zero
+   * is the answer to "can I take sick leave", and dropping it would leave the
+   * headline unexplained by the breakdown beneath it. A type can go negative
+   * where leave was granted beyond the allocation, and that is summed too —
+   * a total that quietly floored at zero would overstate what is bookable.
+   */
+  private async leaveBalance(employeeId: string, year: number) {
+    const rows = await this.prisma.leaveBalance.findMany({
+      where: { employeeId, year },
+      select: {
+        allocated: true,
+        carriedOver: true,
+        used: true,
+        leaveType: { select: { name: true } },
+      },
+    });
+
+    const byType = rows
+      .map((row) => ({
+        name: row.leaveType.name,
+        available: availableDays({
+          allocated: Number(row.allocated),
+          carriedOver: Number(row.carriedOver),
+          used: Number(row.used),
+        }),
+      }))
+      .sort((a, b) => b.available - a.available);
+
+    return {
+      available: round1(byType.reduce((sum, type) => sum + type.available, 0)),
+      byType,
+    };
+  }
+
+  /**
+   * The mirror of `approvals()`: what this person is waiting on somebody else
+   * to decide. Counted per permission, so somebody in a custom role without
+   * `wfh.read.own` is not told about remote requests they cannot open.
+   */
+  private async myRequests(
+    perms: Set<string>,
+    employeeId: string,
+  ): Promise<NonNullable<DashboardSummary['me']>['requests']> {
+    const seesLeave = perms.has('leave.read.own');
+    const seesAttendance = perms.has('attendance.read.own');
+    const seesWfh = perms.has('wfh.read.own');
+    if (!seesLeave && !seesAttendance && !seesWfh) return null;
+
+    const [leave, attendance, remoteWork] = await Promise.all([
+      seesLeave ? this.prisma.leaveRequest.count({ where: { employeeId, status: 'PENDING' } }) : 0,
+      seesAttendance
+        ? this.prisma.attendanceRequest.count({ where: { employeeId, status: 'PENDING' } })
+        : 0,
+      seesWfh
+        ? this.prisma.remoteWorkRequest.count({ where: { employeeId, status: 'PENDING' } })
+        : 0,
+    ]);
+
+    return { total: leave + attendance + remoteWork, leave, attendance, remoteWork };
   }
 
   // ── celebrations ──────────────────────────────────────────────────────

@@ -79,7 +79,7 @@ Rows struck through or marked **not built** are the gap between this list and
 | 4 | Accept invite | `/invite?token=` | Set password → auto-login |
 
 ### Dashboard (3 variants, one route)
-| 5 | Employee dashboard | `/dashboard` | Check-in/out card w/ live timer, announcements, upcoming holidays, **celebrations** |
+| 5 | Employee dashboard | `/dashboard` | Check-in/out card w/ live timer, **Leave days left · Your requests · Present this month**, announcements, upcoming holidays, **celebrations** |
 | 6 | Manager add-ons | ″ | + Waiting on you, Present/Remote/Late today, Leaving, On probation |
 | 7 | HR/Admin add-ons | ″ | + Total employees; Finance additionally sees Payroll |
 
@@ -89,9 +89,19 @@ earns its place by being something somebody acts on — which is why Departments
 and Locations were removed, having never once changed and having cost a list
 call each on every load purely to read `meta.total`.
 
+**Your own figures fill the row when nothing organizational does.** Every tile
+in rows 6 and 7 is about the organization, so an employee — the largest role in
+the product — arrived at an empty row. They now get three tiles of their own:
+leave still bookable this year, requests they are waiting on somebody else to
+decide, and days present this month. A manager does not get them on top: their
+row is already a list of things waiting on them, and their own leave balance is
+not the most urgent item on it.
+
 One call feeds them all (`/dashboard/summary`), and every figure comes back
 null when the caller may not see it, so a tile checks for null rather than
-re-deriving a permission. The page makes three requests where it made five.
+re-deriving a permission. The page makes three requests, or four for somebody
+with no team, whose own month comes from `/attendance/me` — the same key the
+attendance page uses, so opening it afterwards costs nothing.
 
 **Celebrations** — birthdays and work anniversaries in the next 30 days — sit
 beside the holidays panel and are visible to everyone, because the point of the

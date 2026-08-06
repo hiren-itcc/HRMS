@@ -275,6 +275,21 @@ cannot be read off the response even by somebody looking at the network tab.
 Anniversaries carry `years`, because that is the substance of one. Celebrations
 are gated on `directory.read`, which every seeded role holds.
 
+**`me` carries the reader's own figures** — leave still bookable this year with
+the per-type breakdown behind it, and the requests they have raised and are
+waiting on somebody else to decide. It is the mirror of `approvals`, scoped by
+employee id alone: the `.own` codes need no `'__none__'` sentinel because there
+is no record to match against. The whole block is null for an account with no
+employee record, because a row of zeroes would read as "you have used all your
+leave" rather than as "the question does not arise for you". A leave type with
+nothing left is kept in the breakdown — it is the answer to "can I take sick
+leave", and dropping it would leave the total unexplained by the list under it.
+
+Days present this month are deliberately **not** here: deriving a month of day
+statuses needs the holiday calendar, the working week and approved leave, which
+is `AttendanceService`'s job and already an endpoint. The dashboard asks
+`/attendance/me` for it rather than growing a second copy of that derivation.
+
 `attendance/stats` also gained `remote` and `remoteUnplanned` — the second is
 what puts the unapproved-remote-day flag somewhere a manager meets it without
 opening the day view.

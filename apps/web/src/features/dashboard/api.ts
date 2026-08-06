@@ -43,6 +43,11 @@ export interface DashboardSummary {
     birthdays: Celebrant[];
     anniversaries: (Celebrant & { years: number })[];
   };
+  /** The reader's own figures. Null for an account with no employee record. */
+  me: {
+    leave: { available: number; byType: { name: string; available: number }[] } | null;
+    requests: { total: number; leave: number; attendance: number; remoteWork: number } | null;
+  } | null;
 }
 
 export const dashboardKeys = {
