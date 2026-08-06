@@ -11,7 +11,7 @@ import {
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
-import { LogIn, LogOut, MapPinOff, Timer } from 'lucide-react';
+import { Loader2, LogIn, LogOut, MapPinOff, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { errorMessage } from '@/hooks/use-crud';
@@ -74,9 +74,14 @@ export function ClockCard() {
     return () => clearInterval(id);
   }, [working]);
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['attendance'] });
-  };
+  /*
+   * Awaited by both punches rather than fired and forgotten. React Query marks
+   * a mutation settled only once `onSuccess` resolves, so waiting here keeps
+   * the spinner up until the card can actually tell you which side of the
+   * punch you are on — otherwise the button snaps back to "Clock in" for a
+   * beat after you have already clocked in, which invites a second press.
+   */
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['attendance'] });
 
   /*
    * The position is asked for when the button is pressed, never on page load.
@@ -101,18 +106,18 @@ export function ClockCard() {
 
   const clockIn = useMutation({
     mutationFn: async () => attendanceApi.checkIn(await requirePosition()),
-    onSuccess: (entry) => {
-      invalidate();
+    onSuccess: async (entry) => {
       toast.success(entry.isLate ? 'Clocked in — marked late' : 'Clocked in');
+      await invalidate();
     },
     onError: (err) => onPunchError(err, 'Could not clock in'),
   });
 
   const clockOut = useMutation({
     mutationFn: async () => attendanceApi.checkOut(await requirePosition()),
-    onSuccess: (entry) => {
-      invalidate();
+    onSuccess: async (entry) => {
       toast.success(`Clocked out — ${formatDuration(entry.workMinutes)} logged today`);
+      await invalidate();
     },
     onError: (err) => onPunchError(err, 'Could not clock out'),
   });
@@ -193,7 +198,12 @@ export function ClockCard() {
               disabled={clockOut.isPending}
               onClick={() => clockOut.mutate()}
             >
-              <LogOut className="size-4.5" aria-hidden /> Clock out
+              {clockOut.isPending ? (
+                <Loader2 className="size-4.5 animate-spin" aria-hidden />
+              ) : (
+                <LogOut className="size-4.5" aria-hidden />
+              )}
+              Clock out
             </Button>
           ) : (
             <Button
@@ -202,7 +212,11 @@ export function ClockCard() {
               disabled={clockIn.isPending}
               onClick={() => clockIn.mutate()}
             >
-              <LogIn className="size-4.5" aria-hidden />
+              {clockIn.isPending ? (
+                <Loader2 className="size-4.5 animate-spin" aria-hidden />
+              ) : (
+                <LogIn className="size-4.5" aria-hidden />
+              )}
               {state.sessions.length ? 'Clock back in' : 'Clock in'}
             </Button>
           )}
