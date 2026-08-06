@@ -45,16 +45,68 @@ those read as leftovers rather than as the brand.
 ### The contrast gate
 
 `packages/ui/scripts/contrast-gate.mjs` measures every text and boundary pair
-in both themes and exits non-zero on a failure. Run it against the **compiled**
-stylesheet, not the source — the source is `var()` chains, `--alpha()` and
-`color-mix()` that only Tailwind resolves:
+in every theme and mode, and exits non-zero on a failure. Run it against the
+**compiled** stylesheet, not the source — the source is `var()` chains,
+`--alpha()` and `color-mix()` that only Tailwind resolves:
 
 ```bash
-pnpm --filter @hrms/ui contrast <path-to-built.css>
+pnpm --filter @hrms/web build
+pnpm --filter @hrms/ui contrast apps/web/.next/static/chunks/<hash>.css
 ```
 
-56 pairs currently pass. It is a gate rather than a report: a token change that
-breaks contrast should fail, not be noticed later.
+**336 pairs** — 28 pairs × 6 themes × 2 modes — of which 36 are accepted
+deviations. It is a gate rather than a report: a token change that breaks
+contrast should fail, not be noticed later.
+
+**It was measuring nothing.** The doc said "56 pairs currently pass"; in fact
+every pair was SKIPping and the script exited 0 regardless. Lightning CSS
+compiles each `oklch()` twice — a hex fallback at the top level and a `lab()`
+version inside `@supports (color: lab(0% 0 0))` — both in a `:root` block. The
+collector keeps the last value it sees, `lab()` is not a syntax it parses, and
+so every token resolved to null. It now strips `@supports` along with
+`@media print` and measures the hex fallbacks, which are the sRGB values WCAG
+ratios are defined against.
+
+Three pairs fail on the base theme and are listed in `ACCEPTED` with the reason
+and a 3:1 floor, so they cannot silently get worse:
+
+| Pair | Why |
+|---|---|
+| primary button label | 3.90:1. `globals.css` records the trade: brand fidelity over the darker red that would have reached 4.50:1. Clears 3:1 for large text and UI components |
+| active sidebar pill | `--sidebar-primary` is unused by any component |
+| destructive button label | **Known defect, dark mode only** — white on the dark theme's red is 3.76:1. Fixing it means darkening the base palette, not a theme |
+
+A `QUANTISATION` allowance of 0.05 absorbs hex rounding in the compiled output
+and the non-linearity of compositing a tint in gamma-encoded sRGB. `globals.css`
+already noted that solving to exactly 4.50 landed at 4.48 after rounding.
+
+### Colour themes
+
+Six, chosen from the avatar menu and stored per person in `localStorage`:
+Terracotta (the default, and `:root` itself), Indigo, Emerald, Violet, Amber
+and Slate. Each carries its own radius, and two carry a second font family.
+
+**A theme is a rotation, not a palette.** `scripts/build-themes.mjs` derives
+every theme from the audited base by moving hue and chroma, and writes
+`src/styles/themes.css` — generated, but committed, because CSS is what a
+person debugs at 2am. Hand-picking five more palettes would be ~550 values with
+none of the base's reasoning behind them.
+
+**Rotation matches luminance, not lightness**, and that distinction is the
+whole feature. OKLCH `L` is *perceptual* lightness; WCAG contrast is *relative
+luminance*, and the two diverge with hue. Holding `L` and rotating terracotta
+to emerald took white-on-primary from 3.90:1 to 3.48:1 — a real regression on
+every primary button. Matching luminance instead preserves every ratio the
+token takes part in, and the gate confirms each theme now tracks the base
+within 0.02.
+
+Status colours (success/warning/info/destructive) and chart slots 2–5 are
+deliberately **not** themed: they are categorical, and a scale that moves with
+the chrome stops telling things apart.
+
+Ordering in `apps/web/src/app/globals.css` is load-bearing — `themes.css` is
+imported *after* the base, because a theme block and `:root` have equal
+specificity and the later one wins.
 
 ### Typography
 
@@ -100,6 +152,19 @@ families and loading them twice ships a family nothing references.
 - No decorative scroll choreography anywhere in the app shell.
 
 ### Iconography
+
+**The webfonts had never loaded.** `globals.css` asked for `"Inter"` and
+`"Geist Mono"`, while Fontsource registers the families as `Inter Variable`
+and `Geist Mono Variable`. The `@import` shipped the files and no rule could
+match them, so every screen rendered in whatever the OS resolves for
+`sans-serif`. Both stacks now name the variable family first.
+
+The stacks live in `--font-sans-stack` / `--font-heading-stack` on `:root`, and
+`@theme inline` points at them. That indirection is required, not tidiness:
+written as a literal inside `@theme inline`, Tailwind inlines the string into
+every `font-sans` utility and a theme overriding `--font-sans` changes nothing.
+Mono is deliberately not themed — code, keyboard keys and masked account
+numbers all depend on the figures lining up.
 
 **Lucide** exclusively — outline, 20px in nav and buttons, 16px inline,
 `stroke-width` 2. Icon-only buttons require `aria-label`; decorative glyphs get

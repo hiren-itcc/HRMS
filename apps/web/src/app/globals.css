@@ -1,4 +1,11 @@
 @import "@hrms/ui/globals.css";
+/*
+ * After the base, and that ordering is the whole rule. A theme block and
+ * `:root` have the same specificity, so a theme imported first would simply
+ * lose. The base file cannot import this itself either — CSS requires @import
+ * before any other statement, which would put the themes above `:root` again.
+ */
+@import "@hrms/ui/themes.css";
 
 /* Tailwind must also scan the shared UI package's source for class names. */
 @source "../../../../packages/ui/src";
