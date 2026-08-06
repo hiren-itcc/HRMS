@@ -175,7 +175,19 @@
   --muted-foreground: oklch(0.7713 0.0169 99.0657); /* 7.36:1 on bg, 8.38:1 on muted */
   --accent: oklch(0.213 0.0078 95.4245);
   --accent-foreground: oklch(0.9663 0.008 98.8792);
-  --destructive: oklch(0.6368 0.2078 25.3313);
+  /* CORRECTED — supplied oklch(0.6368 0.2078 25.3313), which is red-500. The
+     solid destructive button and badge both hardcode `text-white`, and white
+     on red-500 reads 3.76:1 here: under AA on every Delete button in dark
+     mode. Darkened until white clears it (4.56:1) with the hue and chroma
+     untouched, which lands between red-500 and red-600.
+
+     Everything else that reads this token improved with it: the /8 badge tint
+     went 5.08 → 5.18 and the /15 chip 4.49 → 4.66. The only pair that loses is
+     `destructive/32`, which is the *hover* border on the outline variant — its
+     resting border is --input, and that still clears 3:1.
+
+     Light mode is untouched: white on it already reads 4.83:1. */
+  --destructive: oklch(0.5903 0.2078 25.3313);
   /* NOT white — same coss semantics as light mode; see the :root comment. */
   --destructive-foreground: var(--color-red-400);
   --border: oklch(0.3618 0.0101 106.8928);

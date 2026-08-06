@@ -54,7 +54,7 @@ pnpm --filter @hrms/web build
 pnpm --filter @hrms/ui contrast apps/web/.next/static/chunks/<hash>.css
 ```
 
-**336 pairs** — 28 pairs × 6 themes × 2 modes — of which 36 are accepted
+**336 pairs** — 28 pairs × 6 themes × 2 modes — of which 24 are accepted
 deviations. It is a gate rather than a report: a token change that breaks
 contrast should fail, not be noticed later.
 
@@ -67,18 +67,24 @@ so every token resolved to null. It now strips `@supports` along with
 `@media print` and measures the hex fallbacks, which are the sRGB values WCAG
 ratios are defined against.
 
-Three pairs fail on the base theme and are listed in `ACCEPTED` with the reason
+Two pairs fail on the base theme and are listed in `ACCEPTED` with the reason
 and a 3:1 floor, so they cannot silently get worse:
 
 | Pair | Why |
 |---|---|
 | primary button label | 3.90:1. `globals.css` records the trade: brand fidelity over the darker red that would have reached 4.50:1. Clears 3:1 for large text and UI components |
 | active sidebar pill | `--sidebar-primary` is unused by any component |
-| destructive button label | **Known defect, dark mode only** — white on the dark theme's red is 3.76:1. Fixing it means darkening the base palette, not a theme |
 
-A `QUANTISATION` allowance of 0.05 absorbs hex rounding in the compiled output
-and the non-linearity of compositing a tint in gamma-encoded sRGB. `globals.css`
-already noted that solving to exactly 4.50 landed at 4.48 after rounding.
+The destructive button label used to be a third entry, at 3.76:1 in dark mode.
+It was fixed rather than accepted: the dark theme's `--destructive` was
+darkened from red-500 until white cleared 4.5:1, which also lifted the error
+badge and chip. An entry leaving this table is the point of it.
+
+A `QUANTISATION` allowance of **0.02** absorbs hex rounding in the compiled
+output; `globals.css` already noted that solving to exactly 4.50 landed at 4.48
+after rounding. It has been ratcheted down twice — from 0.05, where it was wide
+enough to hide themed chips genuinely rendering at 4.46:1. Tightening it to
+0.01 fails a pair, so it is the floor rather than a comfort margin.
 
 ### Colour themes
 

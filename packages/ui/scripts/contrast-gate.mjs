@@ -316,11 +316,14 @@ const ACCEPTED = {
   'active sidebar pill':
     '--sidebar-primary is unused by any component; globals.css says so. It is set ' +
     'to the brand so it is correct if the active-nav pill ever adopts it.',
-  'destructive button label':
-    'KNOWN DEFECT, dark mode only: white on --destructive is 3.76:1. The solid ' +
-    'destructive button hardcodes text-white. Fixing it means darkening the dark ' +
-    'theme’s red, which is a change to the base palette rather than to a theme.',
 };
+
+/*
+ * `destructive button label` used to be listed here at 3.76:1 in dark mode.
+ * It was fixed rather than accepted — the dark theme's red was darkened until
+ * white cleared 4.5:1 — so the exception is gone and the pair is measured like
+ * any other. An entry removed is the point of the table.
+ */
 
 /** Floors, so an accepted deviation cannot quietly get worse. */
 const FLOOR = 3.0;
@@ -331,14 +334,17 @@ const FLOOR = 3.0;
  * exactly 4.50 lands a hundredth or two under. globals.css already records
  * hitting that.
  *
- * 0.03, not more. It was 0.05 for one draft, and at that width it was quietly
- * covering themed `--primary-text` values that genuinely rendered at 4.46:1 —
- * an allowance wide enough to hide a real shortfall is not an allowance. Those
- * are now solved against their own chip in build-themes.mjs, and what is left
- * under 4.50 is the base theme's own `info-text` and `destructive-text`, at
- * 4.48–4.50.
+ * 0.02, and it has been ratcheted down twice. It started at 0.05, which was
+ * wide enough to cover themed `--primary-text` values genuinely rendering at
+ * 4.46:1 — an allowance that hides a real shortfall is not an allowance. Those
+ * are solved against their own chip now, and the dark theme's red was darkened
+ * rather than excused, which took the worst residual from 4.46 to 4.49.
+ *
+ * What is left is float noise: five pairs at 4.49–4.50 against a 4.5 floor,
+ * every one a token deliberately solved to exactly 4.50. Tightening to 0.01
+ * fails one of them, so this is the floor, not a comfort margin.
  */
-const QUANTISATION = 0.03;
+const QUANTISATION = 0.02;
 
 function resolve(name, vars, surface) {
   if (name.startsWith('#')) return parseColor(name, vars);
