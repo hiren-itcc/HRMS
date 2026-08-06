@@ -18,7 +18,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@hrms/ui/components/alert-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
   Card,
@@ -37,6 +36,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { CardColumns } from '@/components/card-columns';
 import { FormDialog } from '@/components/crud/form-dialog';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
@@ -322,10 +322,12 @@ function EmployeeDetailView() {
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Avatar className="size-14">
-            {e.avatarUrl && <AvatarImage src={e.avatarUrl} alt="" />}
-            <AvatarFallback className="text-lg">{initials(e)}</AvatarFallback>
-          </Avatar>
+          <EmployeeAvatar
+            src={e.avatarUrl}
+            fallback={initials(e)}
+            className="size-14"
+            fallbackClassName="text-lg"
+          />
           <div>
             <h1 className="flex flex-wrap items-center gap-2">
               {fullName(e)} <EmployeeStatusBadge status={e.status} />{' '}

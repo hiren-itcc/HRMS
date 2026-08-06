@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
   Select,
@@ -15,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { DataTable } from '@/components/data-table';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { employeesApi } from '@/features/employees/api';
@@ -149,10 +149,7 @@ function EmployeesView() {
                   href={`/employees/${e.id}`}
                   className="flex items-center gap-3 hover:underline"
                 >
-                  <Avatar className="size-8">
-                    {e.avatarUrl && <AvatarImage src={e.avatarUrl} alt="" />}
-                    <AvatarFallback className="text-xs">{initials(e)}</AvatarFallback>
-                  </Avatar>
+                  <EmployeeAvatar src={e.avatarUrl} fallback={initials(e)} />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{fullName(e)}</span>
                     <span className="block truncate text-muted-foreground text-xs">

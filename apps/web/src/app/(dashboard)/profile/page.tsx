@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
 import {
   Card,
@@ -11,6 +10,7 @@ import {
 } from '@hrms/ui/components/card';
 import { Separator } from '@hrms/ui/components/separator';
 import { CardColumns } from '@/components/card-columns';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { displayName, userInitials } from '@/components/user-menu';
@@ -46,12 +46,12 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-4">
-                  <Avatar className="size-14">
-                    {user.employee?.avatarUrl && (
-                      <AvatarImage src={user.employee.avatarUrl} alt="" />
-                    )}
-                    <AvatarFallback className="text-lg">{userInitials(user)}</AvatarFallback>
-                  </Avatar>
+                  <EmployeeAvatar
+                    src={user.employee?.avatarUrl}
+                    fallback={userInitials(user)}
+                    className="size-14"
+                    fallbackClassName="text-lg"
+                  />
                   <div className="min-w-0">
                     <CardTitle className="truncate text-lg">{displayName(user)}</CardTitle>
                     <CardDescription className="truncate">{user.email}</CardDescription>

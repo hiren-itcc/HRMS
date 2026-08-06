@@ -1,12 +1,12 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
 import { Card, CardContent } from '@hrms/ui/components/card';
 import { cn } from '@hrms/ui/lib/utils';
 import { CalendarClock, Download, Eye, Paperclip, Pencil, Pin, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { IconAction } from '@/components/icon-action';
 import { type Announcement, announcementsApi, CATEGORY_STYLE, PRIORITY_STYLE } from '../api';
 import { Markdown } from './markdown';
@@ -170,10 +170,12 @@ export function AnnouncementCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
           <span className="flex items-center gap-1.5">
-            <Avatar className="size-5">
-              {a.author.avatarUrl && <AvatarImage src={a.author.avatarUrl} alt="" />}
-              <AvatarFallback className="text-[9px]">{initials(a.author.name)}</AvatarFallback>
-            </Avatar>
+            <EmployeeAvatar
+              src={a.author.avatarUrl}
+              fallback={initials(a.author.name)}
+              className="size-5"
+              fallbackClassName="text-[9px]"
+            />
             {a.author.name}
           </span>
           <span>· {dateFmt.format(new Date(a.publishAt))}</span>

@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
 import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
@@ -8,9 +7,11 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
 import { IconAction } from '@/components/icon-action';
+import { initials } from '@/features/employees/types';
 import { companyApi, type OrgChartNode } from '@/features/organization/api';
 
 /**
@@ -20,10 +21,6 @@ import { companyApi, type OrgChartNode } from '@/features/organization/api';
  * phone, and it works with a keyboard. A canvas org chart is prettier and is
  * the thing nobody can use on the device they actually have.
  */
-
-function initialsOf(node: OrgChartNode): string {
-  return `${node.firstName[0] ?? ''}${node.lastName[0] ?? ''}`.toUpperCase();
-}
 
 function matches(node: OrgChartNode, needle: string): boolean {
   const hay =
@@ -70,10 +67,7 @@ function Node({
           <span className="size-8 shrink-0" aria-hidden />
         )}
 
-        <Avatar className="size-8 shrink-0">
-          {node.avatarUrl && <AvatarImage src={node.avatarUrl} alt="" />}
-          <AvatarFallback className="text-xs">{initialsOf(node)}</AvatarFallback>
-        </Avatar>
+        <EmployeeAvatar src={node.avatarUrl} fallback={initials(node)} />
 
         <div className="min-w-0 flex-1">
           <Link

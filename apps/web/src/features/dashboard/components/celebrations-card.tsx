@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import {
   Card,
   CardContent,
@@ -10,6 +9,7 @@ import {
 } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { Cake, PartyPopper } from 'lucide-react';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import type { Celebrant, DashboardSummary } from '../api';
 
 /**
@@ -46,10 +46,7 @@ function Row({ person, suffix }: { person: Celebrant; suffix?: string }) {
   const soon = person.inDays <= 1;
   return (
     <li className="flex items-center gap-2.5">
-      <Avatar className="size-8">
-        <AvatarImage src={person.avatarUrl ?? undefined} alt="" />
-        <AvatarFallback>{initialsOf(person.name)}</AvatarFallback>
-      </Avatar>
+      <EmployeeAvatar src={person.avatarUrl} fallback={initialsOf(person.name)} />
       <span className="min-w-0 flex-1 truncate text-sm">
         {person.name}
         {suffix && <span className="text-muted-foreground"> · {suffix}</span>}

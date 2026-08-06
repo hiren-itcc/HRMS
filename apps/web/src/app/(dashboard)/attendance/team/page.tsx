@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
@@ -15,6 +14,7 @@ import { ChevronLeft, ChevronRight, Clock3, Timer, UserCheck, UserX } from 'luci
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { DataTable } from '@/components/data-table';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
@@ -216,12 +216,10 @@ function TeamAttendanceView() {
                     href={`/employees/${row.employee.id}`}
                     className="flex items-center gap-3 hover:underline"
                   >
-                    <Avatar className="size-8">
-                      {row.employee.avatarUrl && (
-                        <AvatarImage src={row.employee.avatarUrl} alt="" />
-                      )}
-                      <AvatarFallback className="text-xs">{initials(row.employee)}</AvatarFallback>
-                    </Avatar>
+                    <EmployeeAvatar
+                      src={row.employee.avatarUrl}
+                      fallback={initials(row.employee)}
+                    />
                     <span className="min-w-0">
                       <span className="block truncate font-medium">
                         {row.employee.firstName} {row.employee.lastName}

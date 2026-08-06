@@ -6,7 +6,6 @@ import {
   type OffboardingStatusCode,
 } from '@hrms/shared';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -27,6 +26,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { ActivityTimeline } from '@/components/activity-timeline';
 import { FormDialog } from '@/components/crud/form-dialog';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { ErrorState } from '@/components/error-state';
 import { Field } from '@/components/field';
 import { IconAction } from '@/components/icon-action';
@@ -141,10 +141,11 @@ export default function OffboardingDetailPage() {
               icon={ArrowLeft}
               render={<Link href="/resignations/offboarding" />}
             />
-            <Avatar className="size-10">
-              {record.employee.avatarUrl && <AvatarImage src={record.employee.avatarUrl} alt="" />}
-              <AvatarFallback>{initials(record.employee)}</AvatarFallback>
-            </Avatar>
+            <EmployeeAvatar
+              src={record.employee.avatarUrl}
+              fallback={initials(record.employee)}
+              className="size-10"
+            />
             <div>
               <h1 className="flex flex-wrap items-center gap-2 text-lg">
                 {employeeName}

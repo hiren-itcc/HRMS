@@ -1,7 +1,6 @@
 'use client';
 
 import type { RoleCodeInput } from '@hrms/shared';
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
   DropdownMenu,
@@ -14,6 +13,7 @@ import {
 import { LogOut, MonitorSmartphone, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { useSession } from '@/components/session-provider';
 import { ACCOUNT_LABEL } from '@/features/employees/role-options';
 
@@ -57,10 +57,11 @@ export function UserMenu() {
           voice control ("click Asha Verma"). The sr-only span names the
           button when the visible name is hidden below sm. */}
       <DropdownMenuTrigger render={<Button variant="ghost" className="gap-2 px-2" />}>
-        <Avatar className="size-7">
-          {user.employee?.avatarUrl && <AvatarImage src={user.employee.avatarUrl} alt="" />}
-          <AvatarFallback className="text-xs">{userInitials(user)}</AvatarFallback>
-        </Avatar>
+        <EmployeeAvatar
+          src={user.employee?.avatarUrl}
+          fallback={userInitials(user)}
+          className="size-7"
+        />
         <span className="hidden max-w-40 truncate text-sm sm:inline">{displayName(user)}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@hrms/ui/components/card';
 import { Skeleton } from '@hrms/ui/components/skeleton';
@@ -8,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Building2, Mail, MapPin, Phone, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { EmptyState } from '@/components/empty-state';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
@@ -83,10 +83,12 @@ export default function DirectoryProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <Avatar className="size-16">
-              <AvatarImage src={p.avatarUrl ?? undefined} alt="" />
-              <AvatarFallback className="text-lg">{initials(p)}</AvatarFallback>
-            </Avatar>
+            <EmployeeAvatar
+              src={p.avatarUrl}
+              fallback={initials(p)}
+              className="size-16"
+              fallbackClassName="text-lg"
+            />
             <div className="min-w-0">
               <CardTitle className="text-xl">{fullName(p)}</CardTitle>
               <p className="text-muted-foreground text-sm">
