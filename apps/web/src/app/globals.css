@@ -11,3 +11,137 @@
 
 /* Tailwind must also scan the shared UI package's source for class names. */
 @source "../../../../packages/ui/src";
+
+/*
+ * The org chart's connectors.
+ *
+ * Plain CSS rather than Tailwind arbitrary variants because every rule here is
+ * sibling-aware — `:first-child`'s left half of the horizontal rule has to be
+ * trimmed, `:last-child`'s right half has to be trimmed, and an only child
+ * gets no horizontal rule at all. Written as bracket soup it would be one
+ * unreadable line per rule and nowhere to say why.
+ *
+ * The markup is unchanged: a `<ul>` of `<li>`s that a screen reader walks as
+ * a nested list, whatever this paints on top.
+ *
+ * Below `md` none of it applies and the chart is an indented list, which is
+ * the only shape a deep tree has ever had on a phone.
+ */
+.org-tree ul {
+  margin-left: --spacing(4);
+  border-left: 1px solid var(--border);
+  padding-left: --spacing(3);
+}
+
+@media (width >= 48rem) {
+  .org-tree,
+  .org-tree ul {
+    display: flex;
+    justify-content: center;
+    margin-left: 0;
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  /* The stem dropping from a parent card into its children's row. */
+  .org-tree ul {
+    position: relative;
+    padding-top: --spacing(5);
+  }
+
+  .org-tree ul::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    height: --spacing(5);
+    border-left: 1px solid var(--border);
+  }
+
+  .org-tree li {
+    position: relative;
+    padding: --spacing(5) --spacing(2) 0;
+  }
+
+  /*
+   * Two halves of the rule that spans a row of siblings: `::before` reaches
+   * left from the card's centre, `::after` reaches right and also carries the
+   * short drop into the card.
+   */
+  .org-tree li::before,
+  .org-tree li::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 50%;
+    width: 50%;
+    height: --spacing(5);
+    border-top: 1px solid var(--border);
+  }
+
+  .org-tree li::after {
+    right: auto;
+    left: 50%;
+    border-left: 1px solid var(--border);
+  }
+
+  /* An only child needs a straight drop, not a rule spanning nothing. */
+  .org-tree li:only-child {
+    padding-top: 0;
+  }
+
+  .org-tree li:only-child::before,
+  .org-tree li:only-child::after {
+    display: none;
+  }
+
+  /* Nothing to reach towards past the ends of the row. */
+  .org-tree li:first-child::before,
+  .org-tree li:last-child::after {
+    border: 0 none;
+  }
+
+  .org-tree li:last-child::before {
+    border-right: 1px solid var(--border);
+    border-top-right-radius: var(--radius-sm);
+  }
+
+  .org-tree li:first-child::after {
+    border-top-left-radius: var(--radius-sm);
+  }
+
+  /*
+   * The roots row hangs off nothing, so it gets no stem and no top padding.
+   *
+   * `width: max-content` is not cosmetic. A centred flex row wider than its
+   * scrolling parent overflows in *both* directions, and the left overflow is
+   * unreachable — you can scroll right and never get back to the first root.
+   * Sizing to the content instead means the row is exactly as wide as it needs
+   * to be, `margin-inline: auto` centres it while it fits, and the parent
+   * scrolls honestly once it does not.
+   */
+  .org-tree {
+    padding-top: 0;
+    width: max-content;
+    margin-inline: auto;
+  }
+
+  .org-tree > li {
+    padding-top: 0;
+  }
+
+  .org-tree > li::before,
+  .org-tree > li::after {
+    display: none;
+  }
+
+  /* The card. Its own box only once there is a tree to hang it in. */
+  .org-tree .org-card {
+    width: --spacing(64);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background-color: var(--card);
+    padding: --spacing(2) --spacing(3);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+}

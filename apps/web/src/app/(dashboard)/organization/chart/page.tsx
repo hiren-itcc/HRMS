@@ -17,9 +17,16 @@ import { companyApi, type OrgChartNode } from '@/features/organization/api';
 /**
  * Screen 16 — the reporting tree, specified since the beginning.
  *
- * A tree rather than a graph drawing on purpose: it collapses, it reads on a
- * phone, and it works with a keyboard. A canvas org chart is prettier and is
- * the thing nobody can use on the device they actually have.
+ * Top-down boxes with connectors, which is what an org chart is expected to
+ * look like — but still a `<ul>` of `<li>`s, still collapsing, still operable
+ * from a keyboard, and still an indented list below `md` where a wide tree
+ * would need two-finger scrolling. The connectors are drawn by CSS pseudo-
+ * elements (`.org-tree` in `globals.css`), so nothing here is a canvas, an SVG
+ * or a layout library, and the markup a screen reader walks is unchanged.
+ *
+ * That is the whole trick: the earlier version of this comment argued against
+ * a canvas org chart because it "is the thing nobody can use on the device
+ * they actually have". Still true. This is the picture without the canvas.
  */
 
 function matches(node: OrgChartNode, needle: string): boolean {
@@ -53,7 +60,12 @@ function Node({
 
   return (
     <li>
-      <div className="flex items-center gap-2 py-1.5">
+      {/*
+        `org-card` is the box and its connector anchor; everything else here is
+        ordinary Tailwind. On a phone the border and background fall away and
+        this is a row in an indented list again.
+      */}
+      <div className="org-card flex items-center gap-2 py-1.5">
         {hasReports ? (
           <IconAction
             label={`${isOpen ? 'Collapse' : 'Expand'} ${node.firstName} ${node.lastName}'s reports`}
@@ -64,15 +76,15 @@ function Node({
           />
         ) : (
           // Keeps names in one column whether or not somebody has reports.
-          <span className="size-8 shrink-0" aria-hidden />
+          <span className="size-8 shrink-0 md:hidden" aria-hidden />
         )}
 
-        <EmployeeAvatar src={node.avatarUrl} fallback={initials(node)} />
+        <EmployeeAvatar src={node.avatarUrl} fallback={initials(node)} className="size-9" />
 
         <div className="min-w-0 flex-1">
           <Link
             href={`/directory/${node.id}`}
-            className="truncate font-medium text-sm hover:underline"
+            className="block truncate font-medium text-sm hover:underline"
           >
             {node.firstName} {node.lastName}
           </Link>
@@ -90,7 +102,7 @@ function Node({
       </div>
 
       {hasReports && isOpen && (
-        <ul className="ml-4 border-l pl-3">
+        <ul>
           {node.reports.map((child) => (
             <Node key={child.id} node={child} depth={depth + 1} expandAll={expandAll} />
           ))}
@@ -145,13 +157,17 @@ export default function OrgChartPage() {
           }
         />
       ) : (
-        // Searching expands everything: a hit three levels down is no use
-        // hidden inside a collapsed branch.
-        <ul className="rounded-xl border p-2">
-          {roots.map((root) => (
-            <Node key={root.id} node={root} depth={0} expandAll={needle.length > 0} />
-          ))}
-        </ul>
+        // Two things at once: searching expands everything, because a hit
+        // three levels down is no use hidden inside a collapsed branch — and
+        // the tree scrolls sideways rather than squashing, because a wide org
+        // is wide and shrinking the cards to fit makes none of them readable.
+        <div className="overflow-x-auto pb-2">
+          <ul className="org-tree">
+            {roots.map((root) => (
+              <Node key={root.id} node={root} depth={0} expandAll={needle.length > 0} />
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );
