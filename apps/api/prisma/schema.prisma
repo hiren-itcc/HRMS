@@ -367,6 +367,13 @@ model Employee {
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
   @@index([organizationId, departmentId])
+  /// The other three filters the employee list offers. `departmentId` and
+  /// `status` had indexes and these did not, which is an inconsistency rather
+  /// than a decision — the same screen filters on all five. `locationId`
+  /// carries the directory's filter as well.
+  @@index([organizationId, locationId])
+  @@index([organizationId, designationId])
+  @@index([organizationId, employmentTypeId])
   @@index([managerId])
   /// Both scanned by the daily lifecycle tick and by the dashboard counts,
   /// which ask "whose probation ends soon" and "who is leaving soon".
@@ -395,6 +402,10 @@ model EmergencyContact {
   phone      String
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  /// Read on every profile view and every employee record, always by this
+  /// column, and the table had nothing but its primary key.
+  @@index([employeeId])
 }
 
 // ─── Attendance ───────────────────────────────────────────────────────

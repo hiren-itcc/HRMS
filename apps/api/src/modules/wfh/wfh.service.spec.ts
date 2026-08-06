@@ -211,6 +211,49 @@ describe('filing', () => {
     expect(prisma.remoteWorkRequest.create).toHaveBeenCalled();
   });
 
+  /*
+   * A performance guarantee, kept as a test because it is invisible otherwise.
+   *
+   * Working out which days are already spoken for used to read the settings
+   * and the holiday calendar once *per overlapping request* — two round trips
+   * each, all asking the same organization about overlapping dates. Nothing
+   * about the answers changed when it was fixed, so only a query count can
+   * tell whether it stays fixed.
+   */
+  it('reads the holiday calendar once however many requests overlap', async () => {
+    const { service, prisma } = makeService({
+      remoteDaysPerWeek: 5,
+      held: [
+        [TUE, TUE],
+        [WED, WED],
+        [THU, THU],
+      ],
+    });
+    await service.apply(employee, apply(MON));
+
+    /*
+     * Exactly two: one for the requested range, one covering all three held
+     * rows together. The old shape made four — the same first read, then one
+     * per row — so this number is what fails if the loop comes back.
+     */
+    expect(prisma.holiday.findMany.mock.calls.length).toBe(2);
+  });
+
+  /*
+   * The correctness half of that change. A held request can start before the
+   * window the query widened to, and a holiday calendar fetched only for the
+   * window would count its outlying days as working ones — which surfaces as a
+   * cap refusal nobody can explain.
+   */
+  it('still sees holidays inside a held request that starts before the window', async () => {
+    const { service } = makeService({
+      remoteDaysPerWeek: 5,
+      held: [['2026-08-03', TUE]],
+      holidays: ['2026-08-05'],
+    });
+    await expect(service.apply(employee, apply(MON))).resolves.toBeDefined();
+  });
+
   /* Their own arrangement wins over the company's. */
   it('lets somebody with their own allowance book a full week', async () => {
     const { service, prisma } = makeService({ remoteDaysPerWeek: 5 });

@@ -500,13 +500,41 @@ export class WfhService {
       select: { startDate: true, endDate: true },
     });
 
-    const days: string[] = [];
-    for (const row of rows) {
-      days.push(
-        ...(await this.workingDaysOf(orgId, dateKeyOf(row.startDate), dateKeyOf(row.endDate))),
-      );
-    }
-    return days;
+    if (rows.length === 0) return [];
+
+    /*
+     * One settings read and one holiday read for all of them.
+     *
+     * This used to call `workingDaysOf` per row, and that method fetches the
+     * settings *and* the holiday calendar every time — two queries per
+     * overlapping request, on every apply and every amend, all asking the same
+     * organization about overlapping dates. Somebody with four requests in the
+     * surrounding weeks paid eight round trips to answer one question.
+     *
+     * The span is widened to the rows' own extremes rather than reusing
+     * `[from, to]`: a request that starts before the window or ends after it
+     * still matched, and a holiday calendar that stopped at the window edge
+     * would count its outlying holidays as working days — which shows up as a
+     * cap refusal nobody can explain.
+     */
+    const starts = rows.map((r) => dateKeyOf(r.startDate));
+    const ends = rows.map((r) => dateKeyOf(r.endDate));
+    const spanFrom = [from, ...starts].sort()[0] as string;
+    const spanTo = [to, ...ends].sort().at(-1) as string;
+
+    const settings = await this.settings.get(orgId);
+    const holidays = await this.holidayKeys(orgId, spanFrom, spanTo);
+
+    return rows.flatMap(
+      (row) =>
+        calculateLeaveDays(
+          dateKeyOf(row.startDate),
+          dateKeyOf(row.endDate),
+          holidays,
+          null,
+          settings.workingWeek.weekOffDays,
+        ).workingDays,
+    );
   }
 
   /** Every refusal a new or amended request can earn, each saying why. */

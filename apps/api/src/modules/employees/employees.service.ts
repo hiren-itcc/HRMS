@@ -731,8 +731,21 @@ export class EmployeesService {
         'Manager',
       ],
     ];
-    for (const [value, find, label] of checks) {
-      if (value && !(await find())) throw new NotFoundException(`${label} not found`);
+    /*
+     * All at once, then judged in order.
+     *
+     * These six are independent — nothing here depends on another's answer —
+     * but awaiting them in the loop made them six serial round trips to a
+     * database in another region on every create and every edit. Judging the
+     * results in declaration order afterwards keeps the *first* wrong
+     * reference the one that gets named, which is what a form filled in top to
+     * bottom expects to be told about.
+     */
+    const asked = checks.filter(([value]) => Boolean(value));
+    const found = await Promise.all(asked.map(([, find]) => find()));
+    const missing = asked.findIndex((_, i) => !found[i]);
+    if (missing !== -1) {
+      throw new NotFoundException(`${asked[missing]?.[2]} not found`);
     }
   }
 
