@@ -45,25 +45,32 @@ export default function ProfilePage() {
           <FadeInItem>
             <Card>
               <CardHeader>
-                <div className="min-w-0">
-                  <CardTitle className="truncate text-lg">{displayName(user)}</CardTitle>
-                  <CardDescription className="truncate">{user.email}</CardDescription>
+                {/*
+                  The avatar goes inside the title block, not beside it:
+                  CardHeader is a grid whose first row is that block, so a
+                  second child would land on its own row underneath.
+                */}
+                <div className="flex items-center gap-3">
+                  {/*
+                    An account with no employee record has nowhere to hang a
+                    photo — the column is on Employee, not User.
+                  */}
+                  {user.employee && (
+                    <AvatarPicker
+                      src={user.employee.avatarUrl}
+                      fallback={userInitials(user)}
+                      endpoint="/me/avatar"
+                      canEdit={can('employee.update.own')}
+                      onDone={reload}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <CardTitle className="truncate text-lg">{displayName(user)}</CardTitle>
+                    <CardDescription className="truncate">{user.email}</CardDescription>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
-                {/*
-                  An account with no employee record has nowhere to hang a
-                  photo — the column is on Employee, not User.
-                */}
-                {user.employee && (
-                  <AvatarPicker
-                    src={user.employee.avatarUrl}
-                    fallback={userInitials(user)}
-                    endpoint="/me/avatar"
-                    canEdit={can('employee.update.own')}
-                    onDone={reload}
-                  />
-                )}
                 <dl className="space-y-3">
                   <Row
                     label="Role"
