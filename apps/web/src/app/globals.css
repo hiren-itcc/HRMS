@@ -150,13 +150,55 @@
     display: none;
   }
 
-  /* The card. Its own box only once there is a tree to hang it in. */
+  /*
+   * The card. Its own box only once there is a tree to hang it in.
+   *
+   * Portrait, and narrow, because the width of a level is the sum of every
+   * expanded branch in it — so with several branches now openable at once the
+   * card's own width is the single biggest thing deciding whether the chart
+   * fits on a screen. The 16rem landscape card this replaced made a row of
+   * eight siblings about 2,200px wide; at 7rem the same row is about 850.
+   *
+   * `flex-direction` is the only structural difference between the two shapes.
+   * The markup is identical, and below md it stays a row — the chart is an
+   * indented list down there, and a portrait card in a list would waste the
+   * whole width to say the same thing.
+   */
   .org-tree .org-card {
-    width: --spacing(64);
+    position: relative;
+    width: --spacing(28);
+    flex-direction: column;
+    padding: --spacing(2) --spacing(1.5) --spacing(3);
     border: 1px solid var(--border);
+    /* The accent bar across the top. */
+    border-top: 3px solid var(--primary);
     border-radius: var(--radius);
     background-color: var(--card);
-    padding: --spacing(2) --spacing(3);
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  /*
+   * The disclosure circle, hanging on the stem below the card instead of
+   * sitting inside it. A 7rem card has no room for a button beside the text,
+   * and the line below the card is where the eye already is when it asks
+   * whether there is anything further down.
+   *
+   * `bottom` is half the button's own height — `icon-sm` is `size-7` at this
+   * breakpoint, so 14px — which straddles the card's lower edge and lands the
+   * circle on the start of the 5-unit drop `.org-tree ul::before` draws. The
+   * card's extra bottom padding is what keeps it off the job title.
+   *
+   * Below md none of this applies and the toggle stays inline at the left,
+   * which is where an indented list needs it.
+   */
+  .org-tree .org-toggle {
+    position: absolute;
+    bottom: --spacing(-3.5);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    background-color: var(--card);
   }
 }

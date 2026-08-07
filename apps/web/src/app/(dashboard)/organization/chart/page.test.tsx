@@ -74,11 +74,12 @@ describe('OrgChartPage', () => {
   });
 
   /*
-   * The whole point of the change, and invisible to every other assertion here:
-   * opening one branch has to close the other, or the chart grows sideways
-   * until it is unreadable — which is exactly what the first version did.
+   * The inversion. Branches used to close each other, because at 16rem a card
+   * the second open branch pushed the first off the screen. Portrait cards and
+   * a zoomable viewport removed that constraint, and this is the assertion that
+   * proves the exclusivity is really gone — nothing else here can see it.
    */
-  it('closes the open branch when another is opened', async () => {
+  it('keeps both branches open when a second one is expanded', async () => {
     chartOf([node('a', [node('a-report')]), node('b', [node('b-report')])], 4);
     render(<OrgChartPage />);
 
@@ -87,18 +88,61 @@ describe('OrgChartPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /Expand b Person/i }));
     expect(await findPerson('b-report Person')).toBeInTheDocument();
-    expect(person('a-report Person')).not.toBeInTheDocument();
+    expect(person('a-report Person')).toBeInTheDocument();
   });
 
-  it('collapses an open branch again', async () => {
-    chartOf([node('ceo', [node('cto')])], 2);
+  it('collapses an open branch again, and leaves its sibling alone', async () => {
+    chartOf([node('a', [node('a-report')]), node('b', [node('b-report')])], 4);
+    render(<OrgChartPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand a Person/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /Expand b Person/i }));
+    expect(await findPerson('a-report Person')).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Collapse a Person/i }));
+    expect(person('a-report Person')).not.toBeInTheDocument();
+    expect(person('b-report Person')).toBeInTheDocument();
+  });
+
+  /*
+   * Closing a branch forgets only that one card. Its descendants keep the state
+   * they had, so re-drilling four levels to get back where you were is not the
+   * price of collapsing something.
+   */
+  it('restores a branch to the shape it was left in', async () => {
+    chartOf([node('ceo', [node('cto', [node('dev')])])], 3);
     render(<OrgChartPage />);
 
     await userEvent.click(await screen.findByRole('button', { name: /Expand ceo Person/i }));
-    expect(await findPerson('cto Person')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /Expand cto Person/i }));
+    expect(await findPerson('dev Person')).toBeInTheDocument();
 
     await userEvent.click(await screen.findByRole('button', { name: /Collapse ceo Person/i }));
     expect(person('cto Person')).not.toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand ceo Person/i }));
+    // Two levels back, not one: 'cto' was open when 'ceo' was folded.
+    expect(await findPerson('dev Person')).toBeInTheDocument();
+  });
+
+  it('expands the whole company, and collapses back to the top level', async () => {
+    chartOf([node('ceo', [node('cto', [node('dev', [node('intern')])])])], 4);
+    render(<OrgChartPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Expand all/i }));
+    // Four levels down, without four clicks to get there.
+    expect(await findPerson('intern Person')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Collapse all/i }));
+    expect(await findPerson('ceo Person')).toBeInTheDocument();
+    expect(person('cto Person')).not.toBeInTheDocument();
+  });
+
+  /* The portrait card has room for it, and it is how HR refers to people. */
+  it('shows the employee code on the card', async () => {
+    chartOf([node('ceo')], 1);
+    render(<OrgChartPage />);
+    expect(await screen.findByText('EMP-ceo')).toBeInTheDocument();
   });
 
   /*
@@ -180,5 +224,70 @@ describe('OrgChartPage', () => {
     vi.mocked(companyApi.chart).mockRejectedValue(new Error('boom'));
     render(<OrgChartPage />);
     expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+});
+
+/**
+ * The viewport's toolbar, exercised through the page because that is the only
+ * place it is ever mounted.
+ *
+ * What is *not* tested here is whether fit-to-screen picks a sensible number.
+ * jsdom has no layout engine, so every width it reports is zero and there is no
+ * ratio to compute — that one is on the verification list for a real browser.
+ */
+describe('OrgChartPage zoom', () => {
+  const zoomIn = () => screen.getByRole('button', { name: /Zoom in/i });
+  const zoomOut = () => screen.getByRole('button', { name: /Zoom out/i });
+
+  beforeEach(() => chartOf([node('ceo', [node('cto')])], 2));
+
+  it('zooms in and back out again', async () => {
+    render(<OrgChartPage />);
+    expect(await screen.findByText('100%')).toBeInTheDocument();
+
+    await userEvent.click(zoomIn());
+    expect(screen.getByText('110%')).toBeInTheDocument();
+
+    await userEvent.click(zoomOut());
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  /*
+   * Both ends are clamped, and the buttons say so rather than going quietly
+   * dead. The rounding matters as much as the clamp: adding 0.1 seven times
+   * leaves float dust, and 1.0000000000000002 renders as "100%" while failing
+   * every `>= MAX` check — so the button would never disable.
+   */
+  it('stops zooming out at 30%', async () => {
+    render(<OrgChartPage />);
+    await screen.findByText('100%');
+
+    for (let i = 0; i < 7; i++) await userEvent.click(zoomOut());
+
+    expect(screen.getByText('30%')).toBeInTheDocument();
+    expect(zoomOut()).toBeDisabled();
+  });
+
+  it('stops zooming in at 150%', async () => {
+    render(<OrgChartPage />);
+    await screen.findByText('100%');
+
+    for (let i = 0; i < 5; i++) await userEvent.click(zoomIn());
+
+    expect(screen.getByText('150%')).toBeInTheDocument();
+    expect(zoomIn()).toBeDisabled();
+  });
+
+  /*
+   * With nothing measurable, fit has to do nothing. The guard it leans on is
+   * what stops `viewportWidth / 0` becoming `zoom: NaN`, which renders the
+   * chart as a blank box rather than as an error anybody would notice.
+   */
+  it('leaves the zoom alone when there is nothing to measure', async () => {
+    render(<OrgChartPage />);
+    await screen.findByText('100%');
+
+    await userEvent.click(screen.getByRole('button', { name: /Fit to screen/i }));
+    expect(screen.getByText('100%')).toBeInTheDocument();
   });
 });

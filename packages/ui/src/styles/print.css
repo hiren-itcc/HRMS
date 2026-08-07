@@ -93,6 +93,14 @@
     display: none;
   }
 
+  /* The org chart's zoom is an inline style, so this needs the same !important
+     the transform reset above does. Somebody who zoomed out to 40% to read the
+     whole company on screen did not thereby ask for 40% ink on paper. */
+  .org-zoom {
+    /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
+    zoom: 1 !important;
+  }
+
   .break-inside-avoid,
   table {
     break-inside: avoid;
