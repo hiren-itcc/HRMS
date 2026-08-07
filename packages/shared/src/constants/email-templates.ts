@@ -1,10 +1,10 @@
 /**
  * Built-in email templates. These are the fallback that ships in the binary:
- * a template row can be edited or switched off from Settings, and the sender
- * drops back to the default here rather than sending nothing.
+ * a template row can be edited from Settings, and the sender drops back to the
+ * default here rather than sending nothing.
  *
- * Only `password_reset` has a live sender today; the rest are seeded inactive
- * so the copy can be written before the feature that sends them exists.
+ * Rows are created lazily — the first edit upserts one — so most organizations
+ * have no rows at all and every send uses the copy below.
  */
 export interface EmailTemplateDefault {
   key: string;
@@ -14,8 +14,21 @@ export interface EmailTemplateDefault {
   bodyHtml: string;
   /** Names usable as {{variable}} in the subject and body. */
   variables: string[];
-  /** False for templates whose sender is not built yet. */
+  /** Whether it sends before anybody has touched it in Settings. */
   active: boolean;
+  /**
+   * Whether switching it off in Settings actually stops the mail.
+   *
+   * `false` means it does — these are notifications, and an organization that
+   * turns one off has said what it wants.
+   *
+   * `true` means it does not: the send falls back to the shipped copy and goes
+   * out anyway. A password reset nobody receives is an account nobody can get
+   * back into, and an invite nobody receives is a hire who cannot start. A bad
+   * edit — or a switch flicked without thinking about it — must not be able to
+   * cause either.
+   */
+  required: boolean;
 }
 
 export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
@@ -33,6 +46,7 @@ export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
     ].join('\n'),
     variables: ['orgName', 'email', 'resetUrl', 'expiryMinutes'],
     active: true,
+    required: true,
   },
   {
     key: 'employee_invite',
@@ -50,6 +64,7 @@ export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
     ].join('\n'),
     variables: ['orgName', 'firstName', 'inviterName', 'inviteUrl', 'workEmail', 'expiryDays'],
     active: true,
+    required: true,
   },
   {
     key: 'leave_approved',
@@ -70,7 +85,8 @@ export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
       'days',
       'approverName',
     ],
-    active: false,
+    active: true,
+    required: false,
   },
   {
     key: 'leave_rejected',
@@ -92,7 +108,24 @@ export const EMAIL_TEMPLATES: EmailTemplateDefault[] = [
       'approverName',
       'approverNote',
     ],
-    active: false,
+    active: true,
+    required: false,
+  },
+  {
+    key: 'notification_generic',
+    name: 'Notification',
+    description:
+      'The email behind every in-app notification that has no template of its own — a resignation moving through approval, an exit completing, a claim decided. Switching it off leaves the bell working and stops the mail.',
+    subject: '{{title}}',
+    bodyHtml: [
+      '<p>{{title}}</p>',
+      '<p>{{body}}</p>',
+      '<p><a href="{{linkUrl}}">Open it in {{orgName}}</a></p>',
+      '<p>— {{orgName}}</p>',
+    ].join('\n'),
+    variables: ['orgName', 'title', 'body', 'linkUrl'],
+    active: true,
+    required: false,
   },
 ];
 

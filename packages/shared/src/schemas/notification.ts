@@ -39,6 +39,19 @@ export interface NotificationInput {
   linkPath?: string | null;
 }
 
+/**
+ * Whether the bell is also an email.
+ *
+ * Per person, and the organization has its own switch — `EmailTemplate.isActive`
+ * on `notification_generic` in Settings. Either one being off stops the mail;
+ * neither affects the bell. Password resets and invites ignore both, because an
+ * account nobody can get back into is not a preference anybody expressed.
+ */
+export const notificationPreferencesSchema = z.object({
+  emailNotifications: z.boolean(),
+});
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
+
 export interface NotificationEntry {
   id: string;
   type: string;

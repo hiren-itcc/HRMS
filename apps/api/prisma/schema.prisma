@@ -61,6 +61,12 @@ model User {
   /// succeeds but the app sends them straight to change it, so a predictable
   /// credential is never a usable one for long.
   mustChangePassword Boolean    @default(false)
+  /// Whether in-app notifications are also emailed to this person. The
+  /// organization's own switch is `EmailTemplate.isActive` on
+  /// `notification_generic`; this is the individual's, and either one being
+  /// off is enough. Password resets and invites ignore both — see `required`
+  /// in the email template catalogue.
+  emailNotifications Boolean    @default(true)
   roleId             String
   lastLoginAt        DateTime?
   createdAt          DateTime   @default(now())

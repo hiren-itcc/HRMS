@@ -19,6 +19,7 @@ import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { AvatarPicker } from '@/features/employees/components/avatar-picker';
 import { MyHrProfile } from '@/features/employees/components/my-hr-profile';
 import { ROLE_LABEL } from '@/features/employees/role-options';
+import { EmailNotificationPreference } from '@/features/notifications/components/email-preference';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -105,6 +106,8 @@ export default function ProfilePage() {
                     </>
                   )}
                 </dl>
+                <Separator />
+                <EmailNotificationPreference />
               </CardContent>
             </Card>
           </FadeInItem>

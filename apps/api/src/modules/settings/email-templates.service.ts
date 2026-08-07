@@ -20,8 +20,18 @@ export interface EmailTemplateView {
   updatedAt: string | null;
 }
 
-/** Only password reset has a live sender today (auth.service.ts). */
-const WIRED_KEYS = new Set(['password_reset', 'employee_invite']);
+/**
+ * Which templates something actually sends. Drives the "nothing sends this
+ * yet" label, so it has to be kept honest when a sender is built — the leave
+ * pair sat here unwired long enough for the feature audit to record it.
+ */
+const WIRED_KEYS = new Set([
+  'password_reset', // auth.service.ts
+  'employee_invite', // invite.service.ts
+  'leave_approved', // leave-requests.service.ts
+  'leave_rejected', // leave-requests.service.ts
+  'notification_generic', // notifications.service.ts — every other module
+]);
 
 @Injectable()
 export class EmailTemplatesService {
