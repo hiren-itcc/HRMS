@@ -19,6 +19,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
@@ -59,6 +60,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
     ResignationsModule,
     OffboardingModule,
     AssetsModule,
+    ExpensesModule,
     LifecycleJobsModule,
     DashboardModule,
     AttendanceModule,

@@ -22,6 +22,7 @@ export * from './schemas/auth';
 export * from './schemas/common';
 export * from './schemas/document';
 export * from './schemas/employee';
+export * from './schemas/expense';
 export * from './schemas/leave';
 export * from './schemas/letter';
 export * from './schemas/notification';

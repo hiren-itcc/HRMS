@@ -39,6 +39,7 @@ switched on in Settings.
 | Documents | `/documents` | module on |
 | Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
 | Assets | `/assets` | `asset.read` — module on |
+| Expenses | `/expenses` | any expense read, incl. `.own` — module on |
 | Recruitment | `/recruitment` | `recruitment.read` \| `recruitment.read.team` |
 | Announcements | `/announcements` | module on |
 | Reports | `/reports` | `report.view` \| `report.view.team` |

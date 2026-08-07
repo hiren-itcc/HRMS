@@ -285,7 +285,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | Onboarding | ✅ invite → self-serve → HR review | ✅ |
 | ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
 | **Performance / goals / OKR** | ❌ | ✅ all four |
-| **Expense & reimbursement** | ❌ | ✅ all four |
+| ~~**Expense & reimbursement**~~ ✅ built — categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line · **no mileage rates, per-diems, corporate cards or multi-currency** | ⚠️ | ✅ all four |
 | ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
 | **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
@@ -390,7 +390,29 @@ which other documents were citing.
     `PayrollRun`. **Tax on a settlement is still entered by hand** — the system
     projects tax nowhere, and a settlement is not where a tax engine should
     first appear.
-16. Expense & reimbursement
+16. ~~Expense & reimbursement~~ ✅ **built** — three tables, one enum, seven
+    permission codes, thirteen routes and four screens. The payslip end already
+    existed: `PayComponent.taxable` carried the note "Reimbursements and
+    employer contributions do not", and `PayrollAdjustment` was already keyed
+    (employee, month, component), so an approved claim becomes a payroll row and
+    the calculation engine needed no change at all.
+
+    Three things worth recording:
+
+    - **No `PAID` state.** Whether the money arrived is whether the payroll run
+      for the claim's month was published, which payroll already knows, so it is
+      derived on read. A stored copy is the one that goes stale — the same
+      bargain attendance's day-close and announcement expiry make.
+    - **One approval stage**, not manager-then-finance. Leave, WFH and
+      resignation are all single-stage; a second would be two more states and
+      two more checks for no asked-for gain.
+    - **`isRunEditable()` finally has a caller.** It is listed above under
+      "implemented, zero callers outside their own specs" — approving a claim
+      into a locked month is what now reaches it, through
+      `PayrollAdjustmentsService`.
+
+    **Not built**: mileage rates, per-diems, corporate-card feeds, multi-currency,
+    and any advance-against-expenses flow.
 17. ~~WFH / hybrid working~~ ✅ **built** — remote-day requests with a weekly
     cap, an org default and a per-employee allowance. **Nothing is enforced at
     clock-in**: a remote day nobody approved is still recorded, and flagged on

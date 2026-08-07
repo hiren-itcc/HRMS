@@ -52,8 +52,20 @@ export class PayrollAdjustmentsService {
    * point: two "Bonus" rows would print two payslip lines with the same code
    * and no way to tell them apart. Raising the single figure is the sane edit,
    * so entering it twice does that instead of failing.
+   *
+   * `mode: 'add'` sums into the existing figure instead of replacing it, for
+   * callers where a second amount is genuinely a second thing rather than a
+   * correction — two expense claims approved into the same month on the same
+   * category. Replacing would silently lose the first one's money. Added as an
+   * optional argument rather than a field on `PayrollAdjustmentInput`, so it
+   * stays a decision the calling service makes and never something an API
+   * client can send.
    */
-  async upsert(ctx: { orgId: string; userId: string }, input: PayrollAdjustmentInput) {
+  async upsert(
+    ctx: { orgId: string; userId: string },
+    input: PayrollAdjustmentInput,
+    options: { mode?: 'set' | 'add' } = {},
+  ) {
     const employee = await this.prisma.employee.findFirst({
       where: { id: input.employeeId, organizationId: ctx.orgId, deletedAt: null },
       select: { id: true },
@@ -99,7 +111,13 @@ export class PayrollAdjustmentsService {
         note: input.note ?? null,
         createdById: ctx.userId,
       },
-      update: { amount: input.amount, note: input.note ?? null },
+      update:
+        options.mode === 'add'
+          ? // `increment` rather than read-then-write: two claims approved at
+            // the same moment would otherwise both read the old figure and the
+            // second would overwrite the first.
+            { amount: { increment: input.amount }, note: input.note ?? null }
+          : { amount: input.amount, note: input.note ?? null },
     });
 
     await auditMutation(this.prisma, ctx, 'payroll.adjustment.set', 'PayrollAdjustment', row.id, {

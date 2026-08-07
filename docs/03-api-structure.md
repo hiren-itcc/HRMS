@@ -343,6 +343,42 @@ violation the software should adjudicate.
 on the way in and only collide once one is approved, because the first decision
 is what makes those days real. Refusals name the week and the count.
 
+### Expenses (`/expenses`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/expenses` — claims; `scope=own\|team\|all`, filter status | `expense.read.own` |
+| GET | `/expenses/:id` — one claim with its lines | `expense.read.own` |
+| POST | `/expenses` — start a claim | `expense.submit.own` |
+| PATCH | `/expenses/:id` — edit a draft; **lines are replaced wholesale** | `expense.submit.own` |
+| POST | `/expenses/:id/submit` — send for approval | `expense.submit.own` |
+| POST | `/expenses/:id/withdraw` — pull it back before a decision | `expense.submit.own` |
+| POST | `/expenses/:id/approve` — needs `payrollMonth` | `expense.approve.team` |
+| POST | `/expenses/:id/reject` | `expense.approve.team` |
+| GET | `/expenses/categories` — what can be claimed for | `expense.read.own` |
+| GET | `/expenses/categories/all` — including deactivated | `expense.manage` |
+| POST / PATCH / DELETE | `/expenses/categories` · `/expenses/categories/:id` | `expense.manage` |
+
+**The read routes carry the weakest code that could reach them.** A guard cannot
+know *whose* claim an id belongs to, so `expense.read.own` gets you to the
+handler and the service narrows from the token — the same arrangement the
+avatar routes and the leave list use. Somebody else's claim answers **404, not
+403**: whether a claim exists is itself information about a person's spending.
+
+**Approving requires a month, and it is the approver's choice.** Which month
+somebody is paid in is a judgement, and a claim filed on the 31st is usually
+next month's.
+
+**An approved claim becomes a payslip line** through
+`PayrollAdjustmentsService`, not a direct write — so the statutory-component
+refusal and the locked-month check live in one place. Two claims approved into
+one month against one category **sum into a single adjustment**, because
+`PayrollAdjustment` is unique per (employee, month, component) and two rows
+would be two payslip lines with the same code.
+
+There is no "mark paid" route. Whether the money arrived is whether the payroll
+run for the claim's month was published, and that is derived on read.
+
 ### Assets (`/assets`)
 
 | Method | Path | Permission |

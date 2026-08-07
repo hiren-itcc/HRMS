@@ -58,6 +58,7 @@ The architecture reserves an explicit seam for each planned module — adding on
 |---|---|---|---|
 | ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
 | ~~**Recruitment**~~ | ✅ **Shipped, internal half.** Five tables, six enums, seven permission codes, fourteen routes and five screens. The prediction held exactly: `Candidate` is not `Employee`, and `POST /recruitment/offers/:id/hire` *converts* by calling the same `OnboardingService.onboard` that HR's own screen calls, so employee-code generation, the INVITED user and the invite to the **personal** address stay in one place | none — five new tables FK to Employee, Department, Designation, Location, EmploymentType and Document | none yet; the public careers page is deliberately a second change, being the only unauthenticated write surface in the product |
+| ~~**Expenses**~~ | ✅ **Shipped.** Three tables, one enum, seven permission codes, thirteen routes and four screens. The prediction held again: a claim becomes a payslip line through `PayrollAdjustmentsService`, so the calculation engine needed no change — the payslip end was already built, and `PayComponent.taxable` had carried the note "Reimbursements and employer contributions do not" since payroll shipped | none — three new tables FK to Organization, Employee, PayComponent and Document | none |
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
 | ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
 | ~~**WFH / Hybrid**~~ | ✅ **Shipped.** One table, one nullable column on Employee, six permission codes. Attendance already detected who worked remotely; this is only the forward half — asking, agreeing, and a weekly cap | one nullable column, `Employee.remoteDaysPerWeek` | none |
@@ -88,6 +89,22 @@ column, `OffboardingTask.kind`. That is still additive rather than a redesign,
 and the seam it uses was left deliberately: `assertCleared`'s own comment said
 the gate was generic "so Asset Management can later make one of these items
 compute itself without the gate changing at all". It did not change.
+
+Expenses is the first module to change an existing *signature*, and it is worth
+being precise about what that means. `PayrollAdjustmentsService.upsert` gained
+an optional third argument, `{ mode: 'add' }`, because it *replaced* the amount
+for a given (employee, month, component) — which is right for a bonus typed
+twice, and silently loses money when two separate expense claims are approved
+into the same month against the same category.
+
+That is the same shape as `auditMutation` gaining an optional `meta`: additive,
+default-unchanged, and every existing caller behaves exactly as before. It is
+deliberately **not** a field on `PayrollAdjustmentInput`, so it stays a decision
+a calling service makes and never something an API client can send.
+
+The alternative — expenses writing `prisma.payrollAdjustment` itself — would
+have been a second copy of the statutory-component refusal and the locked-month
+check, and one of the two would have drifted.
 
 Recruitment is the cleanest confirmation so far, because the prediction in this
 very table was written before the code and turned out to be checkable. It
