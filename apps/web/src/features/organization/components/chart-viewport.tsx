@@ -131,8 +131,14 @@ export function ChartViewport({
   return (
     <div className="relative">
       {/* Floats over the chart at the top right, the way the reference does.
-          Hidden below md, where there is nothing to zoom. */}
-      <div className="absolute top-2 right-2 z-10 hidden items-center gap-0.5 rounded-lg border bg-card/95 p-1 shadow-sm backdrop-blur md:flex">
+          Hidden below md, where there is nothing to zoom.
+
+          `right-3` rather than `right-2` so it clears the horizontal
+          scrollbar's corner on the platforms that reserve one. It used to sit
+          on top of the vertical scrollbar; that scrollbar should no longer
+          exist at all — see the viewport below — but two pixels of clearance
+          costs nothing and this is a control people have to hit. */}
+      <div className="absolute top-2 right-3 z-10 hidden items-center gap-0.5 rounded-lg border bg-card/95 p-1 shadow-sm backdrop-blur md:flex">
         <IconAction label="Fit to screen" icon={Maximize2} size="icon-sm" onClick={fitToScreen} />
         <IconAction
           label="Zoom out"
@@ -155,12 +161,24 @@ export function ChartViewport({
         />
       </div>
 
+      {/*
+        Horizontal only, and no height cap.
+
+        A tree grows downward, and the page already scrolls — capping this at
+        70vh bought a second, nested scrollbar that appeared on any window
+        shorter than the chart, sat under the zoom controls, and scrolled the
+        chart when somebody meant to scroll the page. Width is the axis that
+        genuinely needs its own scroller, because a row of siblings is wider
+        than the screen long before the tree is taller than it.
+
+        `overflow-y` computes to `auto` rather than `visible` once `overflow-x`
+        is set — that is the spec, not an oversight — so the tree's own
+        bottom padding is what keeps the disclosure circles inside the box and
+        the vertical scrollbar away.
+      */}
       <div
         ref={viewport}
-        className={cn(
-          'overflow-auto pb-2 md:max-h-[70vh] md:cursor-grab',
-          grabbing && 'md:cursor-grabbing',
-        )}
+        className={cn('overflow-x-auto pb-2 md:cursor-grab', grabbing && 'md:cursor-grabbing')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

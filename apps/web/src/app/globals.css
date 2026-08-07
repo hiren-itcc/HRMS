@@ -136,7 +136,18 @@
    * scrolls honestly once it does not.
    */
   .org-tree {
+    /*
+     * No padding above, and room below for the disclosure circle.
+     *
+     * The circle sits `bottom: -3.5` — half its own height past the card's
+     * lower edge. An intermediate card has its children's `<ul>` underneath,
+     * whose 5-unit top padding absorbs that. A card at the very bottom of the
+     * tree has nothing underneath at all, so its circle overflowed the scroll
+     * container: the arrow was clipped, *and* the 14px of overflow was enough
+     * to raise a vertical scrollbar on a chart that otherwise fitted.
+     */
     padding-top: 0;
+    padding-bottom: --spacing(5);
     width: max-content;
     margin-inline: auto;
   }
