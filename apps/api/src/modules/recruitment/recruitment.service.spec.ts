@@ -59,8 +59,11 @@ function makeService(over: Over = {}) {
     }),
   };
   const policy = { contextFor: async () => ({ todayKey: '2026-08-06' }) };
+  // Only `ensureSlug` is reached from here — the public URL an opening gets
+  // when it is first published.
+  const careers = { ensureSlug: jest.fn().mockResolvedValue('a-role') };
   // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
-  const service = new RecruitmentService(prisma, onboarding as any, policy as any);
+  const service = new RecruitmentService(prisma, onboarding as any, policy as any, careers as any);
   return { service, prisma, onboarding };
 }
 

@@ -433,8 +433,18 @@ which other documents were citing.
 
 23. ~~Recruitment / ATS~~ ✅ **built** — openings, candidates, applications,
     interviews and offers, with the hire converting through the existing
-    onboarding invite. **The public careers page remains absent**, so nobody
-    can apply from outside; HR or a referrer enters every candidate.
+    onboarding invite. ~~The public careers page remains absent~~ ✅ **also
+    built**: `/careers` and `/careers/:slug`, with an apply form that accepts a
+    CV. It is the product's first unauthenticated write surface, so most of the
+    work was refusals rather than features — a mapper that never spreads an
+    opening, 404 for closed and unpublished alike, the same success reported to
+    a repeat applicant, 5 posts a minute per IP, and a CV checked on both its
+    content type and its extension.
+
+    `JobOpening.slug` is nullable, and that is the safety story: every opening
+    that predates this gets NULL and stays unpublished. **Not built**: a careers
+    page per organization — the service serves the single tenant and says so
+    plainly if a second appears.
 24. Helpdesk, LMS, engagement surveys
 25. Mobile app (`07:55` designs the auth variant)
 26. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)

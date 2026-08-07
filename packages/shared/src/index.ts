@@ -19,6 +19,7 @@ export * from './schemas/asset';
 export * from './schemas/attendance';
 export * from './schemas/audit';
 export * from './schemas/auth';
+export * from './schemas/careers';
 export * from './schemas/common';
 export * from './schemas/document';
 export * from './schemas/employee';

@@ -589,7 +589,10 @@ model Document {
   mimeType       String
   sizeBytes      Int
   visibility     DocVisibility @default(PRIVATE)
-  uploadedById   String                  // User id
+  /// Nullable: a CV arriving through the public careers page is uploaded by
+  /// somebody with no account, no employee record and no session. Same call
+  /// `AuditLog.actorId` makes for the lifecycle tick.
+  uploadedById   String?                  // User id
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
 
@@ -1542,6 +1545,25 @@ model AuditLog {
   upload. The key's extension is what the read route declares as
   `Content-Type`, so taking it from the client would let the client choose that
   header. `X-Content-Type-Options: nosniff` is set on the way out as well.
+
+### The public careers page
+
+- **`JobOpening.slug` is nullable, and that is the whole safety story.** Every
+  opening that predates the careers page gets NULL, which the public list reads
+  as "not published". A column defaulted to something derived from the title
+  would have put existing DRAFT and CLOSED roles on the open internet the moment
+  it deployed. Postgres treats NULLs as distinct, so the unique index tolerates
+  any number of unpublished openings.
+
+- **A slug is minted when a role is first opened, not when it is created.** A
+  DRAFT has nothing to link to, and generating one early means a title edit
+  either breaks a link that was never live or leaves one matching nothing. It is
+  kept through CLOSED, so a shared link reaches a "no longer open" page rather
+  than a 404 that reads as the role having been deleted.
+
+- **The public response is built field by field.** Spreading a `JobOpening`
+  would publish `minMonthlyCtc`, `maxMonthlyCtc`, `hiringManagerId` and
+  `headcount`.
 
 ### Expenses
 

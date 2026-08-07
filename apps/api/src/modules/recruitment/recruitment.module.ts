@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { LifecycleModule } from '../lifecycle/lifecycle.module';
 import { OnboardingModule } from '../onboarding/onboarding.module';
+import { CareersController } from './careers.controller';
+import { CareersService } from './careers.service';
 import { RecruitmentController } from './recruitment.controller';
 import { RecruitmentService } from './recruitment.service';
 
@@ -14,7 +16,12 @@ import { RecruitmentService } from './recruitment.service';
  */
 @Module({
   imports: [OnboardingModule, LifecycleModule],
-  controllers: [RecruitmentController],
-  providers: [RecruitmentService],
+  /*
+   * `CareersController` is the public half and shares this module only because
+   * it reads the same tables. It carries no `@ApiBearerAuth`, returns its own
+   * mapped shape, and never touches `RecruitmentService`.
+   */
+  controllers: [RecruitmentController, CareersController],
+  providers: [RecruitmentService, CareersService],
 })
 export class RecruitmentModule {}

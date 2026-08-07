@@ -343,6 +343,47 @@ violation the software should adjudicate.
 on the way in and only collide once one is approved, because the first decision
 is what makes those days real. Refusals name the week and the count.
 
+### Careers (`/careers`) — **public, no token**
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/careers` — open roles that have been published | **none** |
+| GET | `/careers/:slug` — one role | **none** |
+| POST | `/careers/:slug/apply` — multipart, optional `cv` | **none** |
+
+The only unauthenticated **write** surface in the product. Everything else
+behind `/api/v1` requires a token, so every assumption the rest of the API makes
+about a caller — an organization, a permission set, an audit identity — is false
+here. What follows from that:
+
+- **Two conditions to be visible**, not one: `status = OPEN` *and* a non-null
+  `slug`. Open is the decision to hire; a slug is the decision to say so
+  publicly. Openings that predate this have no slug, which is why the column is
+  nullable — a derived default would have published every old DRAFT on deploy.
+- **Its own mapper, which never spreads a row.** The internal opening carries
+  `minMonthlyCtc`, `maxMonthlyCtc`, `hiringManagerId` and `headcount`. There is a
+  test that serialises the response and greps it, because that is the failure
+  that matters and it is invisible in a diff.
+- **No enumeration.** A closed role, an unpublished one and one that never
+  existed all answer 404. Applying twice reports the same success as applying
+  once — "you have already applied" is a way to test whether an address is in
+  the database, and this is the one endpoint anybody at all can ask.
+- **5 applications a minute per IP**, against the global 100. Reads keep the
+  global limit: a job board being scraped is not an attack.
+- **The CV is checked on content type *and* extension.** A browser sends
+  whatever type it likes and an extension is chosen by the uploader; neither
+  alone is a check. PDF and DOCX only, 5 MB, stored under `<orgId>/careers/` in
+  the same private bucket, and the `Document` row carries no `employeeId` and no
+  `uploadedById` because there is neither.
+- **Attribution is not accepted from the applicant.** `source` is always
+  `Careers page` and `referrerId` is never written — a stranger inventing their
+  own referral is a stranger inventing a referral bonus.
+
+One tenant only, for now. The service resolves the single organization and
+refuses plainly if a second ever exists; the roadmap's answer is a per-org
+subdomain, and guessing would publish one company's vacancies under another's
+URL.
+
 ### Expenses (`/expenses`)
 
 | Method | Path | Permission |

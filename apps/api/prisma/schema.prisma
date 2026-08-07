@@ -697,7 +697,13 @@ model Document {
   mimeType       String
   sizeBytes      Int
   visibility     DocVisibility @default(PRIVATE)
-  uploadedById   String
+  /// Nullable because some uploads genuinely have no user behind them: a CV
+  /// arriving through the public careers page is posted by somebody with no
+  /// account, no employee record and no session. `AuditLog.actorId` is
+  /// nullable for the same reason — the daily lifecycle tick has no actor
+  /// either — and before this the only way to record one was to attribute it
+  /// to somebody who had not done it.
+  uploadedById   String?
   deletedAt      DateTime?
   createdAt      DateTime      @default(now())
 
@@ -1827,6 +1833,15 @@ model JobOpening {
   /// manager is settled.
   hiringManagerId  String?
 
+  /// The public URL for this role, e.g. `senior-backend-engineer`. Generated
+  /// from the title and unique per organization.
+  ///
+  /// Nullable because every opening that predates the careers page has none,
+  /// and a role is perfectly usable internally without one — a null simply
+  /// means "not published", which is also the safe default for a column added
+  /// to rows nobody reviewed.
+  slug String?
+
   headcount     Int           @default(1)
   status        OpeningStatus @default(DRAFT)
   description   String?
@@ -1850,6 +1865,7 @@ model JobOpening {
   hiringManager  Employee?       @relation("OpeningsOwned", fields: [hiringManagerId], references: [id])
   applications   Application[]
 
+  @@unique([organizationId, slug])
   @@index([organizationId, status])
   @@index([hiringManagerId, status])
 }
