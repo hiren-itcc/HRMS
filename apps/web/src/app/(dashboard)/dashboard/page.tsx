@@ -13,31 +13,36 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
+  BadgeCheck,
   Building2,
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
   Clock3,
-  MapPin,
-  Network,
+  DoorOpen,
+  Hourglass,
+  House,
+  Inbox,
   Palmtree,
   UserCheck,
   UserPlus,
   UserRound,
   Users,
+  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
+import { CardColumns } from '@/components/card-columns';
 import { EmptyState } from '@/components/empty-state';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
 import { displayName } from '@/components/user-menu';
 import { AnnouncementsWidget } from '@/features/announcements/components/announcements-widget';
-import { attendanceApi } from '@/features/attendance/api';
+import { attendanceApi, currentMonth, formatDuration } from '@/features/attendance/api';
 import { ClockCard } from '@/features/attendance/components/clock-card';
-import { employeesApi } from '@/features/employees/api';
-import { departmentsApi, holidaysApi, locationsApi } from '@/features/organization/api';
+import { dashboardApi, dashboardKeys } from '@/features/dashboard/api';
+import { CelebrationsCard } from '@/features/dashboard/components/celebrations-card';
+import { holidaysApi } from '@/features/organization/api';
 import { HeadcountWidget } from '@/features/reports/components/headcount-widget';
-
-const ONE_PAGE = { page: 1, limit: 1 };
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -71,7 +76,6 @@ export default function DashboardPage() {
   const { user, can } = useSession();
   const reduceMotion = useReducedMotion();
 
-  const canEmployees = can('employee.read');
   const canOrg = can('org.read');
   const canTeamAttendance = can('attendance.read') || can('attendance.read.team');
 
@@ -84,24 +88,19 @@ export default function DashboardPage() {
     staleTime: 30_000,
   });
 
-  const employees = useQuery({
-    queryKey: ['employees', 'stat'],
-    queryFn: () => employeesApi.list(ONE_PAGE),
-    enabled: canEmployees,
+  /*
+   * Somebody with no team to look at gets their own month instead. Sharing the
+   * attendance page's key rather than inventing one, so opening that page after
+   * the dashboard costs nothing and a punch invalidates both.
+   */
+  const seesOwnMonth = !canTeamAttendance && can('attendance.read.own');
+  const myMonth = useQuery({
+    queryKey: ['attendance', 'me', currentMonth()],
+    queryFn: () => attendanceApi.myMonth(currentMonth()),
+    enabled: seesOwnMonth,
     staleTime: 60_000,
   });
-  const departments = useQuery({
-    queryKey: ['org-departments', 'stat'],
-    queryFn: () => departmentsApi.list(ONE_PAGE),
-    enabled: canOrg,
-    staleTime: 60_000,
-  });
-  const locations = useQuery({
-    queryKey: ['org-locations', 'stat'],
-    queryFn: () => locationsApi.list(ONE_PAGE),
-    enabled: canOrg,
-    staleTime: 60_000,
-  });
+
   const holidays = useQuery({
     queryKey: ['org-holidays', 'upcoming'],
     queryFn: () =>
@@ -110,12 +109,84 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
+  /*
+   * One call for everything the tiles show. Each figure comes back null when
+   * the caller may not see it, so a tile checks for null rather than for a
+   * permission — the API decides once and this page follows.
+   *
+   * It replaced three calls: the lifecycle stats, plus a Departments and a
+   * Locations list fetched only to read `meta.total` off the envelope for two
+   * tiles that never changed.
+   */
+  const summary = useQuery({
+    queryKey: dashboardKeys.summary(),
+    queryFn: dashboardApi.summary,
+    staleTime: 60_000,
+  });
+
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = holidays.data?.data.filter((h) => h.date.slice(0, 10) >= today) ?? [];
 
   if (!user) return null;
 
-  const stats = [
+  /*
+   * Ordered by urgency rather than by module: what is waiting on you, then
+   * money that is stuck, then today, then the slower people figures. A tile
+   * earns its place by being something somebody acts on — which is why
+   * Departments and Locations are gone, having never once changed.
+   */
+  const orgStats = [
+    summary.data?.approvals != null && {
+      key: 'approvals',
+      card: (
+        <StatCard
+          label="Waiting on you"
+          value={summary.data.approvals.total}
+          hint={
+            summary.data.approvals.total === 0
+              ? 'Nothing to decide'
+              : [
+                  summary.data.approvals.leave && `${summary.data.approvals.leave} leave`,
+                  summary.data.approvals.attendance &&
+                    `${summary.data.approvals.attendance} attendance`,
+                  summary.data.approvals.remoteWork &&
+                    `${summary.data.approvals.remoteWork} remote`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+          }
+          icon={Inbox}
+          gradient="primary"
+          loading={summary.isLoading}
+        />
+      ),
+    },
+    summary.data?.payroll != null && {
+      key: 'payroll',
+      card: (
+        <StatCard
+          label="Payroll"
+          value={summary.data.payroll.total}
+          hint={
+            summary.data.payroll.total === 0
+              ? 'Nothing outstanding'
+              : [
+                  summary.data.payroll.runsNeedingAction &&
+                    `${summary.data.payroll.runsNeedingAction} run${summary.data.payroll.runsNeedingAction === 1 ? '' : 's'}`,
+                  summary.data.payroll.settlementsToApprove &&
+                    `${summary.data.payroll.settlementsToApprove} to approve`,
+                  summary.data.payroll.settlementsToPay &&
+                    `${summary.data.payroll.settlementsToPay} to pay`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+          }
+          icon={Wallet}
+          gradient="amber"
+          loading={summary.isLoading}
+        />
+      ),
+    },
     canTeamAttendance && {
       key: 'present',
       card: (
@@ -132,6 +203,24 @@ export default function DashboardPage() {
       ),
     },
     canTeamAttendance && {
+      key: 'remote',
+      card: (
+        <StatCard
+          label="Remote today"
+          value={attendance.data?.remote}
+          /* The WFH flag, where a manager will actually meet it. */
+          hint={
+            attendance.data?.remoteUnplanned
+              ? `${attendance.data.remoteUnplanned} unplanned`
+              : 'All planned'
+          }
+          icon={House}
+          gradient="sky"
+          loading={attendance.isLoading}
+        />
+      ),
+    },
+    canTeamAttendance && {
       key: 'late',
       card: (
         <StatCard
@@ -139,52 +228,158 @@ export default function DashboardPage() {
           value={attendance.data?.late}
           hint={attendance.data ? `${attendance.data.notMarked} not marked` : undefined}
           icon={Clock3}
-          gradient="amber"
+          gradient="rose"
           loading={attendance.isLoading}
         />
       ),
     },
-    canEmployees && {
+    summary.data?.headcount != null && {
       key: 'employees',
       card: (
         <StatCard
           label="Total employees"
-          value={employees.data?.meta.total}
-          hint="Active records"
+          value={summary.data.headcount}
+          hint={
+            summary.data.exits?.leaving
+              ? `${summary.data.exits.leaving} serving notice`
+              : 'Currently employed'
+          }
           icon={Users}
           gradient="primary"
-          loading={employees.isLoading}
+          loading={summary.isLoading}
         />
       ),
     },
-    canOrg && {
-      key: 'departments',
+    summary.data?.exits != null && {
+      key: 'exits',
       card: (
         <StatCard
-          label="Departments"
-          value={departments.data?.meta.total}
-          hint="Across the organization"
-          icon={Network}
-          gradient="sky"
-          loading={departments.isLoading}
+          label="Leaving"
+          /*
+           * One tile where there were three. Serving notice, offboarding and
+           * pending resignations are one story, and summing them would count
+           * most people twice — somebody on notice almost always has an
+           * offboarding open too.
+           */
+          value={summary.data.exits.leaving}
+          hint={
+            summary.data.exits.pendingResignations
+              ? `${summary.data.exits.pendingResignations} awaiting a decision`
+              : summary.data.upcomingLastWorkingDates.length
+                ? `Next: ${summary.data.upcomingLastWorkingDates[0]?.name}`
+                : 'Nothing pending'
+          }
+          icon={DoorOpen}
+          gradient="rose"
+          loading={summary.isLoading}
         />
       ),
     },
-    canOrg &&
-      !canTeamAttendance && {
-        key: 'locations',
-        card: (
-          <StatCard
-            label="Locations"
-            value={locations.data?.meta.total}
-            hint="Offices & branches"
-            icon={MapPin}
-            gradient="rose"
-            loading={locations.isLoading}
-          />
-        ),
-      },
+    summary.data?.onProbation != null && {
+      key: 'probation',
+      card: (
+        <StatCard
+          label="On probation"
+          value={summary.data.onProbation}
+          hint={
+            summary.data.probationOverdue
+              ? `${summary.data.probationOverdue} past their end date`
+              : 'All on track'
+          }
+          icon={BadgeCheck}
+          gradient="sky"
+          loading={summary.isLoading}
+        />
+      ),
+    },
   ].filter(Boolean) as { key: string; card: React.ReactNode }[];
+
+  const myLeave = summary.data?.me?.leave;
+  const myRequests = summary.data?.me?.requests;
+  const myAttendance = myMonth.data?.summary;
+
+  /*
+   * The same figures an employee came to the dashboard for, in the same tiles
+   * everybody else gets. Without these the row is empty for the largest role
+   * in the product: every tile above is an organizational one.
+   */
+  const personalStats = [
+    myLeave != null && {
+      key: 'my-leave',
+      card: (
+        <StatCard
+          label="Leave days left"
+          value={myLeave.available}
+          hint={
+            myLeave.byType.length === 0
+              ? 'Nothing allocated this year'
+              : myLeave.byType
+                  .filter((type) => type.available > 0)
+                  .slice(0, 2)
+                  .map((type) => `${type.name} ${type.available}`)
+                  .join(' · ') || 'Nothing left this year'
+          }
+          icon={Palmtree}
+          gradient="emerald"
+          loading={summary.isLoading}
+        />
+      ),
+    },
+    myRequests != null && {
+      key: 'my-requests',
+      card: (
+        <StatCard
+          label="Your requests"
+          /* The mirror of "Waiting on you" — what somebody else has to decide. */
+          value={myRequests.total}
+          hint={
+            myRequests.total === 0
+              ? 'Nothing pending'
+              : [
+                  myRequests.leave && `${myRequests.leave} leave`,
+                  myRequests.attendance && `${myRequests.attendance} attendance`,
+                  myRequests.remoteWork && `${myRequests.remoteWork} remote`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+          }
+          icon={Hourglass}
+          gradient="amber"
+          loading={summary.isLoading}
+        />
+      ),
+    },
+    seesOwnMonth && {
+      key: 'my-month',
+      card: (
+        <StatCard
+          label="Present this month"
+          value={myAttendance?.present}
+          hint={
+            myAttendance
+              ? [
+                  myAttendance.workedMinutes > 0 && `${formatDuration(myAttendance.workedMinutes)}`,
+                  myAttendance.lateMarks > 0 && `${myAttendance.lateMarks} late`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'Nothing logged yet'
+              : undefined
+          }
+          icon={CalendarCheck}
+          gradient="sky"
+          loading={myMonth.isLoading}
+        />
+      ),
+    },
+  ].filter(Boolean) as { key: string; card: React.ReactNode }[];
+
+  /*
+   * Your own figures fill the row when nothing organizational does. A manager's
+   * row is already a list of things waiting on them and their leave balance is
+   * not the most urgent item on it; an employee has no such row, and this is
+   * the one they came for.
+   */
+  const stats = orgStats.length > 0 ? orgStats : personalStats;
 
   const actions: QuickAction[] = [
     {
@@ -273,7 +468,7 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <CardColumns>
         <Card className="hover-lift">
           <CardHeader>
             <CardTitle>Quick actions</CardTitle>
@@ -301,6 +496,8 @@ export default function DashboardPage() {
         <AnnouncementsWidget />
 
         <HeadcountWidget />
+
+        <CelebrationsCard celebrations={summary.data?.celebrations} loading={summary.isLoading} />
 
         {canOrg && (
           <Card className="hover-lift">
@@ -353,7 +550,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </CardColumns>
     </div>
   );
 }

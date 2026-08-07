@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { CalcType, SalaryStructure } from '@/features/payroll/types';
 
@@ -256,35 +257,26 @@ export function StructureForm({ existing }: { existing?: SalaryStructure }) {
               )}
 
               <div className="flex items-end gap-1 pb-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
+                <IconAction
+                  label={`Move line ${index + 1} up`}
+                  icon={ArrowUp}
                   size="icon-sm"
-                  aria-label={`Move line ${index + 1} up`}
-                  disabled={index === 0}
                   onClick={() => move(index, -1)}
-                >
-                  <ArrowUp className="size-4" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
+                  disabled={index === 0}
+                />
+                <IconAction
+                  label={`Move line ${index + 1} down`}
+                  icon={ArrowDown}
                   size="icon-sm"
-                  aria-label={`Move line ${index + 1} down`}
-                  disabled={index === lines.length - 1}
                   onClick={() => move(index, 1)}
-                >
-                  <ArrowDown className="size-4" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
+                  disabled={index === lines.length - 1}
+                />
+                <IconAction
+                  label={`Remove line ${index + 1}`}
+                  icon={Trash2}
                   size="icon-sm"
-                  aria-label={`Remove line ${index + 1}`}
                   onClick={() => setLines((rows) => rows.filter((_, i) => i !== index))}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
+                />
               </div>
             </div>
           ))}

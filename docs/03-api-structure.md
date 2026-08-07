@@ -21,9 +21,18 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 | POST | `/auth/logout` | Revoke current session (authed) |
 | POST | `/auth/forgot-password` | Send reset email (always 200) |
 | POST | `/auth/reset-password` | Token + new password |
+| GET | `/auth/invite/:token` | Is this invitation still usable, and whose is it? |
 | POST | `/auth/accept-invite` | Invite token + password → activates user |
+| POST | `/auth/change-password` | Returns a **fresh** access token — the old one still asserts `mustChangePassword` (authed) |
 | GET | `/auth/me` | Current user + role + permissions + employee summary (authed) |
 | GET | `/auth/sessions` · DELETE `/auth/sessions/:id` | List / revoke own sessions (authed) |
+
+Sessions carry no permission: the subject comes from the JWT and is never read
+from a parameter, so another user's session id matches nothing. They sit under
+`/auth` rather than `/me` because the refresh cookie is scoped to
+`Path=/api/v1/auth` — anywhere else the browser would not send it, and the list
+could not mark which device you are reading it on. Revoking your own session is
+allowed and clears the cookie with it.
 
 ### Organization (`/organization`)
 | Method | Path |
@@ -33,19 +42,159 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 | GET / POST | `/organization/designations` · PATCH/DELETE `/organization/designations/:id` |
 | GET / POST | `/organization/locations` · PATCH/DELETE `/organization/locations/:id` |
 | GET / POST | `/organization/holidays` · PATCH/DELETE `/organization/holidays/:id` |
-| GET | `/organization/chart` — org-chart tree (department → employees) |
+| GET | `/organization/chart` — reporting tree, work contact facts only; `org.read` |
 
 ### Employees (`/employees`)
 | Method | Path |
 |---|---|
 | GET | `/employees` — list (filters: department, location, status, type, search) |
-| POST | `/employees` — create record (optionally `sendInvite: true`) |
+| GET | `/employees/options` — id + label pairs for pickers |
+| POST | `/employees` — create record; `createLogin` (default true) and `loginRole` decide whether a sign-in comes with it (doc 07) |
 | GET / PATCH | `/employees/:id` |
+| PATCH | `/employees/:id/role` — change the role on their login; `role.manage` |
+| PUT | `/employees/:id/bank` — bank details; `employee.update` |
 | DELETE | `/employees/:id` — soft delete (Admin only) |
-| POST | `/employees/:id/invite` — (re)send login invite |
-| POST | `/employees/:id/offboard` — set ON_NOTICE/EXITED + exitDate |
-| GET | `/employees/:id/reports` — direct reports |
-| GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, address, emergency contacts) |
+| GET / PATCH | `/me/profile` — self view/edit of editable subset (phone, personal email, address) |
+| GET | `/employees/:id/avatar` — the photo itself; `directory.read` |
+| POST / DELETE | `/employees/:id/avatar` — set or take down; `employee.update` |
+| POST / DELETE | `/me/avatar` — your own; `employee.update.own` |
+
+| POST | `/employees/:id/offboard` — put on notice, mark exited, or withdraw a resignation; `employee.offboard` |
+| POST | `/employees/:id/confirm` — off probation; `employee.confirm` |
+| POST | `/employees/:id/extend-probation` — push the end date back, with a reason; `employee.confirm` |
+| GET | `/employees/:id/activity` — employment history, from the audit trail |
+
+**Neither avatar write carries `@RequirePermissions`, and that is deliberate.**
+Whether setting a photo costs `employee.update.own` or `employee.update`
+depends on whose record the id belongs to, and the guard cannot see that — it
+sees a permission, not a subject. The service decides, which is also what stops
+self-service being a way to put a photo on a colleague.
+
+The read is gated on `directory.read`, which every role holds. That width is
+correct: the directory and the org chart already show every colleague's face to
+everybody, and a stricter gate would leave photo-shaped holes in both for
+ordinary staff. A photo nobody has set is a 404, so the browser falls back to
+initials rather than being handed a placeholder.
+
+**Offboarding is not deletion.** `DELETE` archives a record that should not have
+existed; offboarding records that somebody left, and keeps everything. Only
+`EXITED` touches the sign-in (suspended, sessions revoked) — `ON_NOTICE` leaves
+it alone, because somebody working their notice is still an employee.
+`ACTIVE` withdraws a resignation and revives a login **only** from `SUSPENDED`,
+never from `INVITED`.
+
+### Notifications (`/notifications`)
+
+| Method | Path |
+|---|---|
+| GET | `/notifications` · `/notifications/unread-count` |
+| POST | `/notifications/:id/read` · `/notifications/read-all` |
+
+**No permission on any route**, and no endpoint that creates one. Every route is
+scoped to the JWT subject and never reads whose data it is from a parameter —
+the same rule `/auth/sessions` and `/me/profile` follow. A permission here
+would be weaker: it would be something an administrator could grant one person
+over another's notifications. A notification is a consequence of something else
+happening, never a thing anybody posts.
+
+Retention is a 90-day query bound rather than a pruning job, for the same reason
+the lifecycle tick hangs off a request: there is no scheduler.
+
+### Exits (`/resignations`, `/offboardings`, `/lifecycle`)
+
+| Method | Path |
+|---|---|
+| GET | `/resignations/me` · `/resignations/me/eligibility` — own requests, and the notice owed |
+| POST | `/resignations` — file one for yourself; `resignation.request.own` |
+| PATCH | `/resignations/:id` · POST `/resignations/:id/withdraw` — own, while it is still with you |
+| GET | `/resignations` — org-wide or direct reports; `resignation.read` or `.read.team` |
+| GET | `/resignations/:id` · `/resignations/:id/activity` |
+| POST | `/resignations/:id/decision` — approve, reject or send back; `resignation.approve` or `.approve.team` |
+| GET / POST | `/offboardings` — everyone leaving; start a termination or contract end; `employee.offboard` |
+| GET / PATCH | `/offboardings/:id` — detail; move the last working date |
+| POST | `/offboardings/:id/complete` · `/offboardings/:id/cancel` |
+| PATCH | `/offboardings/tasks/:taskId` — sign a clearance item off, waive it, reopen it; `offboarding.clearance` |
+| GET / PUT | `/offboardings/:id/interview` — the exit conversation; `employee.offboard` only |
+| GET | `/offboardings/:id/activity` — the trail for this exit |
+| GET | `/lifecycle/stats` — dashboard counts, each null when the caller may not see it |
+| GET / POST | `/lifecycle/status` · `/lifecycle/run`; `settings.manage` |
+
+**Completion is gated on clearance.** `complete` refuses while any *required*
+`OffboardingTask` is still `PENDING`, and names them. That one rule is
+"employees cannot complete an exit until required assets are returned" —
+generic, so it also covers the handover and the outstanding dues.
+
+**`offboarding.clearance` is not `employee.offboard`.** Finance and Managers
+sign items off without being able to schedule or complete anybody's exit. Which
+exit a Manager may touch is a question the guard cannot answer, so the service
+checks they are that employee's manager. `IT_ADMIN` items fall to
+`employee.offboard` holders until an IT role exists.
+
+**The exit interview is HR-only**, and deliberately not readable by the
+leaver's own manager — who is very often the subject of the answers.
+
+**Two entry points, one exit.** An employee resigning and HR recording a
+termination both produce an `Offboarding`; only the first has a `Resignation`
+behind it. Neither writes `Employee.status` or `exitDate` — both go through
+`EmploymentTransitionService`, which is also what `POST /employees/:id/offboard`
+has always used. There is exactly one place employment state changes.
+
+**One decision endpoint, not three.** Which desk a caller is acting from comes
+from the record's own status and routing, never from the request body.
+
+**`/lifecycle/run` is idempotent** and carries no scheduler. The tick fires at
+most once a day off `GET /auth/me`, because the instance sleeps and a timer
+that silently does not fire is worse than none — see docs/08.
+
+`exitDate` is the mechanism; `status` is the label. Attendance, payroll and
+reports all filter on the date, which is why an employee who leaves mid-month
+still gets their final part-month payslip.
+
+`PATCH /me/profile` takes **`emergencyContacts` as a replace-all array**, capped
+at five. Omitting the key leaves the existing rows alone — a patch that only
+changes a phone number must not wipe somebody's next of kin. Sending `[]` clears
+them. The replace runs in a transaction, so there is no window where a person
+has no emergency contact at all. They are returned on the employee detail
+response too: an emergency contact only HR can reach is no use on the day it is
+needed.
+
+**Not built:** `GET /employees/:id/reports` was specified here and never
+implemented — direct reports come back on the employee detail response
+([15-feature-audit.md](./15-feature-audit.md)).
+
+### Onboarding (`/employees/onboard`, `/onboarding`, `/me/onboarding`)
+
+Invite a new hire, let them fill in their own details, and have HR review it
+before the account works. The alternative to creating them on a shared default
+password — doc 07 covers when to use which.
+
+**HR side**
+
+| Method | Path |
+|---|---|
+| POST | `/employees/onboard` — create the hire + an INVITED login, mint a token, email the hire's *personal* address; `employee.create` **and** `employee.invite` |
+| GET / POST | `/employees/:id/invite` — read invite state / resend, revoking the outstanding link |
+| GET | `/onboarding` — review queue, filterable by status |
+| GET | `/onboarding/:id` — one submission with its documents |
+| POST | `/onboarding/:id/approve` — validate deferred job fields, flip the employee to ACTIVE, revoke sessions so the stale `onboarding` claim dies; `employee.onboarding.approve` |
+| POST | `/onboarding/:id/request-changes` — send it back with a note; same permission |
+
+**Hire side** — all carry `@AllowDuringOnboarding()`, because `OnboardingGuard`
+otherwise refuses every route to an account in this state.
+
+| Method | Path |
+|---|---|
+| GET | `/me/onboarding` — checklist and current state |
+| PATCH | `/me/onboarding/profile` |
+| PUT | `/me/onboarding/bank` |
+| POST | `/me/onboarding/documents` — upload against a checklist item |
+| POST | `/me/onboarding/submit` — hand to HR |
+
+`Onboarding.status` runs `IN_PROGRESS → SUBMITTED → APPROVED`, with
+request-changes returning it to `IN_PROGRESS`. Submit and both review actions
+use optimistic `updateMany` guards, so two reviewers acting at once cannot both
+win. The employee sits at `EmployeeStatus.ONBOARDING` until approval and the
+user at `INVITED`, which `login()` refuses — the account gates itself.
 
 ### Directory (`/directory`)
 
@@ -108,6 +257,201 @@ rewrite a letter someone is already holding.
 | GET | `/letters/:id` | service: own, or `letter.read` (+ `payroll.read` when it quotes pay) |
 | POST | `/letters/:id/void` — withdraws with a reason; never deletes | `letter.issue` |
 
+### Dashboard (`/dashboard`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/dashboard/summary` | any signed-in user |
+
+**No `@RequirePermissions` on the route, deliberately.** Every signed-in person
+has a dashboard, and what they may see differs field by field rather than route
+by route — a permission here would be either too strict to let an employee load
+the page or too loose to mean anything. **Every figure is `null` when the caller
+may not see it**, so a tile checks for null rather than for a permission and the
+page cannot drift from the API's answer. A zero would be a lie: it reads as
+"nothing is waiting on you" when the truth is "you may not know".
+
+This module reads other modules' tables through Prisma directly, which is what
+`SettlementsService` and `AssetClearanceService` already do. The screen's
+question — "is anything waiting on me?" — is not any one domain's.
+
+**`/lifecycle/stats` was deleted, not kept alongside.** It had exactly one
+consumer, this page, so it was never an API anybody depended on; it was this
+screen's backend under a name that stopped being true once the figures stopped
+being about lifecycle.
+
+**Exits are one figure and the headline is not a sum.** Somebody serving notice
+almost always has an offboarding open too, so adding the three would count most
+people twice — and a pending resignation is somebody who has *asked*, not
+somebody who is leaving.
+
+**A birthday's year never leaves the API.** `monthDay` is `"MM-DD"`, so age
+cannot be read off the response even by somebody looking at the network tab.
+Anniversaries carry `years`, because that is the substance of one. Celebrations
+are gated on `directory.read`, which every seeded role holds.
+
+**`me` carries the reader's own figures** — leave still bookable this year with
+the per-type breakdown behind it, and the requests they have raised and are
+waiting on somebody else to decide. It is the mirror of `approvals`, scoped by
+employee id alone: the `.own` codes need no `'__none__'` sentinel because there
+is no record to match against. The whole block is null for an account with no
+employee record, because a row of zeroes would read as "you have used all your
+leave" rather than as "the question does not arise for you". A leave type with
+nothing left is kept in the breakdown — it is the answer to "can I take sick
+leave", and dropping it would leave the total unexplained by the list under it.
+
+Days present this month are deliberately **not** here: deriving a month of day
+statuses needs the holiday calendar, the working week and approved leave, which
+is `AttendanceService`'s job and already an endpoint. The dashboard asks
+`/attendance/me` for it rather than growing a second copy of that derivation.
+
+`attendance/stats` also gained `remote` and `remoteUnplanned` — the second is
+what puts the unapproved-remote-day flag somewhere a manager meets it without
+opening the day view.
+
+### Work from home (`/wfh`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/wfh/preview?startDate=&endDate=` — working days, and any week it would fill | `wfh.request.own` |
+| GET | `/wfh/me` | `wfh.read.own` |
+| GET | `/wfh` — `scope=own\|inbox\|all` | `wfh.read` \| `.read.team` \| `.approve.team` |
+| GET | `/wfh/:id` | read scope on the record |
+| POST | `/wfh` — ask for a range | `wfh.request.own` |
+| PATCH | `/wfh/:id` — own, while still pending | `wfh.request.own` |
+| POST | `/wfh/:id/cancel` — own; approved days still to come | `wfh.request.own` \| `wfh.approve` |
+| POST | `/wfh/:id/approve` · `/wfh/:id/reject` | `wfh.approve` \| `.approve.team` |
+
+Mirrors `leave.controller.ts` route for route: an employee asks, their manager
+agrees, and the record is what somebody points at afterwards. Which requests a
+`.team` holder may act on comes from `Employee.managerId` in the service, never
+from a query parameter.
+
+**Attendance asks this module exactly one question**, through
+`approvedDaysIn(orgId, employeeIds, from, to)`: which employee-days were agreed,
+as a set, for a range it is already fetching. `monthFor` and `dayView` each call
+it once and mark any `WFH` day that is missing. The dependency runs
+`Attendance → WFH` only — WFH never asks whether somebody actually worked from
+home, which keeps a permission out of every clock-in.
+
+**Nothing is enforced at the punch.** A remote day nobody approved is recorded
+exactly as before and flagged on read. Refusing the clock-in would lose the
+record of a day somebody worked, and a burst pipe at 7am is not a policy
+violation the software should adjudicate.
+
+**The cap is per week, and re-checked at approval.** Two requests can each pass
+on the way in and only collide once one is approved, because the first decision
+is what makes those days real. Refusals name the week and the count.
+
+### Assets (`/assets`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/assets` — register; filter category/status, search tag/serial/name | `asset.read` |
+| GET | `/assets/me` — what I am holding | `asset.read.own` |
+| GET / POST | `/assets/categories` · PATCH/DELETE `/assets/categories/:id` | `asset.read` / `asset.manage` |
+| GET | `/assets/employee/:employeeId` — what one person still holds | `asset.read` |
+| GET | `/assets/:id` · `/assets/:id/activity` | `asset.read` |
+| POST / PATCH | `/assets` · `/assets/:id` | `asset.manage` |
+| DELETE | `/assets/:id` — refused once anybody has held it | `asset.manage` |
+| POST | `/assets/:id/issue` · `/assets/:id/return` | `asset.assign` |
+| POST | `/assets/:id/status` — IN_REPAIR / LOST / RETIRED, with a reason | `asset.manage` |
+
+**`asset.assign` is not `asset.manage`.** Buying and retiring equipment is an
+admin job; handing a laptop to a joiner is not. Same split, and the same
+reasoning, as `offboarding.clearance` versus `employee.offboard`. There is no
+`.team` scope: no manager workflow needs one, and the place the question really
+arises — an exit — is already gated on `employee.offboard`.
+
+**Static segments before `:id`.** `me`, `categories` and `employee` are declared
+first; Nest matches in declaration order, so a static route arriving second
+loses to the parameter above it.
+
+**Per item, not per category.** A stock count cannot answer "who has SN-4471",
+has nowhere to hold a serial or a warranty, and reduces the exit check to a
+number somebody reconciles by hand.
+
+**One open assignment per asset is a partial unique index**, not a service
+check — see doc 02. `Asset.status` is stored rather than derived, so one method
+is its only writer.
+
+**`LOST` is the one status settable while somebody still holds it**, and it
+closes their assignment. "It is gone" is exactly the case where the thing
+cannot be handed back first. `IN_REPAIR` and `RETIRED` are refused there,
+because both claim the company has it and the company does not.
+
+**The exit clearance reads this module.** An `OffboardingTask` with
+`kind: ASSET_RETURN` is settled by `AssetClearanceService` — the single writer
+of that task's status — on issue, on return, on write-off, and once when the
+exit starts. It cannot be ticked to `DONE` by hand; `NOT_APPLICABLE` with a
+reason still works. `assertCleared` is unchanged: it already refused completion
+while any required task was `PENDING`, which is all this needed. The dependency
+runs `Offboarding → Assets` only, with no `forwardRef`.
+
+### Recruitment (`/recruitment`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/recruitment` — openings, with a live-application count each | `recruitment.read` · `.read.team` |
+| POST / PATCH | `/recruitment` · `/recruitment/:id` | `recruitment.opening.manage` |
+| GET | `/recruitment/:id` — one opening and its whole pipeline | `recruitment.read` · `.read.team` |
+| PATCH | `/recruitment/:id/status` — publish, pause, close, fill | `recruitment.opening.manage` |
+| GET | `/recruitment/candidates` · `/recruitment/candidates/:id` | `recruitment.read` · `.read.team` |
+| POST / PATCH | `/recruitment/candidates` · `/recruitment/candidates/:id` | `recruitment.candidate.manage` |
+| POST | `/recruitment/applications` — put a candidate forward | `recruitment.candidate.manage` |
+| PATCH | `/recruitment/applications/:id/stage` — move it, or end it | `recruitment.candidate.manage` |
+| POST | `/recruitment/interviews` — book a round | `recruitment.candidate.manage` |
+| PATCH | `/recruitment/interviews/:id/feedback` — once; it freezes | `recruitment.interview.submit` |
+| POST | `/recruitment/offers` · GET `/recruitment/offers/:id` | `recruitment.offer.manage` / read |
+| PATCH | `/recruitment/offers/:id/send` · `/respond` | `recruitment.offer.manage` |
+| POST | `/recruitment/offers/:id/hire` | `recruitment.hire` **and** `employee.invite` |
+
+**A hire converts; it does not create.** `POST /recruitment/offers/:id/hire`
+reads the accepted offer and calls `OnboardingService.onboard` — the same
+method HR's *Onboard a hire* screen calls. That already generates the employee
+code, writes the `INVITED` user with an unusable password hash, creates the
+`Onboarding` row and mails a single-use invite to the **personal** address,
+because the work mailbox does not exist until this moment. A second path would
+have been a second copy of those four things and one of them would have
+drifted. The only field the route asks for is the work email; the name and
+personal email come off the candidate, the job and the join date off the offer.
+
+**Hiring spends two permissions, and says so.** Without the explicit
+`employee.invite` check the caller reaches `onboard()` and gets *its* refusal,
+which is correct but reads as though the recruitment permission was the
+problem.
+
+**Seven codes rather than one.** Raising an opening, adding a candidate, giving
+feedback, making an offer and converting one into staff are five different
+jobs, and in most organizations not all the same person's. `recruitment.hire`
+is separate from `recruitment.offer.manage` for the reason
+`employee.onboarding.approve` is separate from `employee.update`: converting a
+person into staff creates a login and a payroll subject.
+
+**The rules are their own file.** `application.stage.ts` is pure — no Prisma,
+no clock — on the model of `asset.status.ts` and `settlement.calc.ts`. The
+service fetches what the rules need and writes their answer down rather than
+re-deciding: which transitions are legal, that REJECTED and WITHDRAWN are
+terminal, that an offer cannot exist before the OFFER stage, that HIRED needs
+an accepted one, and that closing an opening over live applications is refused.
+
+**Backwards is allowed while an application is live.** A rescheduled round is
+ordinary, and refusing it teaches people to reject-and-re-add, which loses the
+history the rejection reason exists to keep.
+
+**A declined or withdrawn offer ends the application; an accepted one does
+not** — the hire has not happened yet, and the offer screen is where it does.
+
+**The list counts *live* applications, not all of them.** How many people are
+in this pipeline now is the number the screen is read for.
+
+**Static segments before `:id`.** `candidates`, `applications`, `interviews`
+and `offers` are all declared before `/:id`, which is an opening.
+
+**Money crosses the wire as a number.** See doc 02 — `recruitment.mapper.ts`
+converts Prisma's `Decimal` at the boundary, and `null` stays `null` rather
+than becoming `0`.
+
 ### Announcements (`/announcements`)
 | Method | Path |
 |---|---|
@@ -116,8 +460,16 @@ rewrite a letter someone is already holding.
 | POST | `/announcements/:id/read` — mark read |
 | GET | `/announcements/:id/reads` — read receipts (author/HR) |
 
-### Notifications (`/notifications`)
-| GET `/notifications?unread=` · POST `/notifications/read-all` · POST `/notifications/:id/read` |
+### Notifications — **not built**
+
+No `/notifications` endpoints exist. A `Notification` table is in the schema
+with zero reads and zero writes, and there is no module, service or bell.
+
+The unread/mark-read capability this section once specified was absorbed by
+Announcements, which is the only thing that ever needed it:
+`GET /announcements/unread-count`, `POST /announcements/:id/read` and
+`POST /announcements/read-all`. A general notification feed would be a new
+module — see [15-feature-audit.md](./15-feature-audit.md).
 
 ### Reports (`/reports`) — read-only aggregates
 All four take `?from=&to=` (an arbitrary range, capped at 366 days) plus an
@@ -151,6 +503,9 @@ endpoint — it is the same query surface.
 | GET | `/payroll/salaries/me` · `/payroll/salaries/:employeeId` — revision timeline | `payroll.read.own` (+ scope) |
 | POST | `/payroll/salaries` — assign or revise | `payroll.salary.manage` |
 | DELETE | `/payroll/salaries/:id` — only if no settled payroll depends on it | `payroll.salary.manage` |
+| GET | `/payroll/adjustments?month=&employeeId=` — one-offs for a month | `payroll.read` \| `payroll.process` |
+| POST | `/payroll/adjustments` — set a bonus, incentive or recovery | `payroll.process` |
+| DELETE | `/payroll/adjustments/:id` — before the month is settled | `payroll.process` |
 | GET / POST | `/payroll/runs` · GET `/payroll/runs/:id` | `payroll.read` / `payroll.process` |
 | GET | `/payroll/runs/:id/preflight` — what would block calculation | `payroll.process` |
 | POST | `/payroll/runs/:id/actions` — every state transition | per action (below) |
@@ -187,6 +542,52 @@ built from the payslips of a run rather than recalculated, so a report and the
 payslip it summarises can never disagree. The bank-transfer report excludes
 payslips with no account rather than emitting blank rows, and reports how many
 it dropped.
+
+### Settlements (`/payroll/settlements`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/settlements` — the queue | `payroll.read` |
+| GET | `/payroll/settlements/for-offboarding/:offboardingId` — null if none | `payroll.read` |
+| GET | `/payroll/settlements/:id` · `/payroll/settlements/:id/activity` | `payroll.read` |
+| POST | `/payroll/settlements` — prepare one for an exit | `payroll.process` |
+| POST | `/payroll/settlements/:id/recompute` — destructive, drafts only | `payroll.process` |
+| POST / PATCH / DELETE | `/payroll/settlements/:id/lines[/:lineId]` — add, override, remove | `payroll.process` |
+| POST | `/payroll/settlements/:id/approve` · `/cancel` | `payroll.approve` |
+| POST | `/payroll/settlements/:id/pay` — with a bank reference | `payroll.pay` |
+
+**Mounted under `/payroll`, not `/offboardings`, and that is the access
+decision.** Finance holds `payroll.approve` and `payroll.pay` but not
+`employee.offboard`; routing settlements through the exit record would have
+meant granting Finance read on every offboarding in the company to release one
+payment. `for-offboarding/:id` is declared before `:id` so the static segment
+is never read as a settlement id.
+
+**No new permission codes.** `payroll.process` prepares and edits,
+`payroll.approve` approves, `payroll.pay` releases — the separation of duties
+payroll already runs on, and it fits exactly: HR prepares, Finance releases.
+
+```
+DRAFT ──approve──> APPROVED ──pay──> PAID
+  └──────────── cancel ────────────> CANCELLED   (from DRAFT or APPROVED)
+```
+
+`PAID` and `CANCELLED` accept nothing. Lines can only be touched while `DRAFT`,
+the same bargain `calculate` makes: an approval on record has to be an approval
+of figures somebody can still see. Recompute drops and rebuilds the computed
+lines and **keeps manual ones** — a negotiated bonus cannot be derived twice.
+
+**A settlement is not a payroll run**, deliberately. A run is unique per company
+per month, prorates by working days, and computes statutory deductions on gross;
+a settlement lands weeks after the last working day and its amounts must stay
+outside that base, because ESI is a cliff rather than a taper and a payout added
+to monthly gross would switch it off for the month. Tax is entered by hand, as
+monthly TDS already is.
+
+**Completion is not gated on settlement.** It routinely lands weeks late, and
+blocking would keep somebody's access open until Finance pays. A company that
+wants the coupling uses the finance-owned "clear outstanding dues" clearance
+item, which is on the default checklist.
 
 ### Settings & Admin (`/settings`, `/roles`, `/audit`)
 | Method | Path | Permission |

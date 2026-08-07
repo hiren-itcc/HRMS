@@ -1,8 +1,10 @@
 import type { OrgSettings, Permission } from '@hrms/shared';
 import {
   BarChart3,
+  Boxes,
   CalendarClock,
   Contact,
+  DoorOpen,
   FileText,
   LayoutDashboard,
   type LucideIcon,
@@ -10,6 +12,7 @@ import {
   Network,
   Palmtree,
   Settings,
+  UserSearch,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -46,6 +49,29 @@ export const NAV_ITEMS: NavItem[] = [
     // read.own is enough to reach the module: every employee has a salary page.
     perms: ['payroll.read', 'payroll.read.team', 'payroll.read.own'],
     module: 'payroll',
+  },
+  {
+    href: '/recruitment',
+    label: 'Recruitment',
+    icon: UserSearch,
+    // A hiring manager holds only the team read and must still get in — the API
+    // narrows them to their own openings once they are there.
+    perms: ['recruitment.read', 'recruitment.read.team'],
+  },
+  {
+    href: '/resignations',
+    label: 'Exits',
+    icon: DoorOpen,
+    // Everyone can reach it: the first tab is their own resignation. The
+    // approvals and offboarding tabs gate themselves.
+    perms: ['resignation.read.own', 'resignation.read.team', 'resignation.read'],
+  },
+  {
+    href: '/assets',
+    label: 'Assets',
+    icon: Boxes,
+    perms: ['asset.read'],
+    module: 'assets',
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {

@@ -1,6 +1,7 @@
 import type {
   EmployeeSalaryInput,
   PaymentUpdateInput,
+  PayrollAdjustmentInput,
   PayrollRunActionInput,
   PayrollRunCreateInput,
   SalaryStructureCreateInput,
@@ -31,6 +32,17 @@ const qs = (params: Record<string, string | number | undefined>) => {
 
 export const payrollApi = {
   components: () => api<PayComponent[]>('/payroll/components'),
+
+  /** One-off amounts for a month: bonuses, incentives, loan instalments. */
+  adjustments: (month: string, employeeId?: string) =>
+    api<PayrollAdjustment[]>(`/payroll/adjustments${qs({ month, employeeId })}`),
+  setAdjustment: (input: PayrollAdjustmentInput) =>
+    api<{ id: string }>('/payroll/adjustments', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  deleteAdjustment: (id: string) =>
+    api<{ id: string }>(`/payroll/adjustments/${id}`, { method: 'DELETE' }),
 
   structures: (params: Record<string, string | number | undefined> = {}) =>
     api<Paginated<SalaryStructure>>(`/payroll/structures${qs(params)}`),
@@ -81,16 +93,35 @@ export const payrollApi = {
     api<PayrollReport>(`/payroll/reports/${kind}${qs(params)}`),
 };
 
-/** Query keys, grouped so a run action can invalidate everything it touches. */
+/**
+ * Query keys, grouped so a run action can invalidate everything it touches.
+ *
+ * Every key here starts with 'payroll' on purpose: `all` is what the run
+ * actions invalidate, and it only reaches a key that sits underneath it. A
+ * single payslip used to be fetched as `['payslip', id]`, outside this tree,
+ * so marking one paid never refreshed its own page.
+ */
 export const payrollKeys = {
-  all: ['payroll'] as const,
+  all: () => ['payroll'] as const,
   structures: () => ['payroll', 'structures'] as const,
+  structure: (id: string) => ['payroll', 'structures', id] as const,
   salaries: () => ['payroll', 'salaries'] as const,
   runs: () => ['payroll', 'runs'] as const,
   run: (id: string) => ['payroll', 'runs', id] as const,
   payslips: () => ['payroll', 'payslips'] as const,
+  payslip: (id: string) => ['payroll', 'payslips', id] as const,
   reports: () => ['payroll', 'reports'] as const,
+  adjustments: (month: string) => ['payroll', 'adjustments', month] as const,
 };
+
+export interface PayrollAdjustment {
+  id: string;
+  month: string;
+  amount: number;
+  note: string | null;
+  component: { id: string; code: string; name: string; kind: string };
+  employee: { id: string; firstName: string; lastName: string; employeeCode: string };
+}
 
 /** Money, in the org currency. Compact so tables stay readable. */
 export function formatMoney(amount: number, currency = 'INR'): string {

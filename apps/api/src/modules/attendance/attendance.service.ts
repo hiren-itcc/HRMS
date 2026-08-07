@@ -12,6 +12,7 @@ import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { SettingsService } from '../settings/settings.service';
+import { WfhService } from '../wfh/wfh.service';
 import {
   type DerivedStatus,
   dateKeyInTz,
@@ -103,6 +104,15 @@ export interface DayEntry {
   note: string | null;
   /** The day rolled up: all one way, or OFFICE when the sittings were mixed. */
   workMode: WorkModeValue | null;
+  /**
+   * Whether a remote day was agreed in advance. Null when the question does
+   * not arise — an office day has nothing to approve.
+   *
+   * Derived on read from approved remote-work requests, never stored: an
+   * unapproved remote day is recorded exactly as any other, because refusing
+   * the punch would lose the record of a day somebody worked.
+   */
+  remoteApproved: boolean | null;
   sessions: DaySession[];
 }
 
@@ -111,6 +121,12 @@ export class AttendanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    /*
+     * One direction only: attendance asks WFH which days were agreed. WFH
+     * never asks whether somebody actually worked from home — it is not its
+     * business, and not asking keeps a permission out of every clock-in.
+     */
+    private readonly wfh: WfhService,
   ) {}
 
   /** Org working week — drives which days derive as WEEK_OFF. */
@@ -413,14 +429,29 @@ export class AttendanceService {
     const to = toDate(days[days.length - 1] as string);
     const todayKey = dateKeyInTz(new Date(), ctx.timeZone);
 
-    const [records, holidays, leave, weekOff] = await Promise.all([
+    // The working week and the holidays are wanted twice — once here and once
+    // by the remote-day lookup — so they are fetched first and handed over,
+    // rather than each caller paying for them.
+    const [holidays, weekOff] = await Promise.all([
+      this.holidayKeys(ctx.organizationId, from, to),
+      this.weekOffDays(ctx.organizationId),
+    ]);
+
+    const [records, leave, remote] = await Promise.all([
       this.prisma.attendanceRecord.findMany({
         where: { employeeId: ctx.employeeId, date: { gte: from, lte: to } },
         include: WITH_SESSIONS,
       }),
-      this.holidayKeys(ctx.organizationId, from, to),
       this.leaveKeys([ctx.employeeId], from, to),
-      this.weekOffDays(ctx.organizationId),
+      // Derived, never stored. A remote day nobody approved is still recorded
+      // exactly as it was — this is the only place that fact is noticed.
+      this.wfh.approvedDaysIn(
+        ctx.organizationId,
+        [ctx.employeeId],
+        days[0] as string,
+        days[days.length - 1] as string,
+        { weekOffDays: weekOff, holidays },
+      ),
     ]);
     const byDate = new Map(records.map((r) => [dateKeyOf(r.date), r]));
 
@@ -433,6 +464,7 @@ export class AttendanceService {
         ctx.employment,
         leave.has(`${ctx.employeeId}|${dateKey}`),
         weekOff,
+        this.remoteVerdict(byDate.get(dateKey) ?? null, remote, ctx.employeeId, dateKey),
       ),
     );
     return { month, timeZone: ctx.timeZone, days: entries, summary: summarize(entries) };
@@ -495,13 +527,22 @@ export class AttendanceService {
 
     // Approved leave must win over "absent" here too — without this an
     // employee on sanctioned leave reads as ABSENT to their manager.
-    const [leave, weekOff] = await Promise.all([
+    const weekOff = await this.weekOffDays(claims.orgId);
+    const [leave, remote] = await Promise.all([
       this.leaveKeys(
         employees.map((e) => e.id),
         toDate(dateKey),
         toDate(dateKey),
       ),
-      this.weekOffDays(claims.orgId),
+      // `isHoliday` above already answered the holiday question for this one
+      // day, so the set handed over is simply that answer.
+      this.wfh.approvedDaysIn(
+        claims.orgId,
+        employees.map((e) => e.id),
+        dateKey,
+        dateKey,
+        { weekOffDays: weekOff, holidays: new Set(isHoliday ? [dateKey] : []) },
+      ),
     ]);
 
     const data = employees.map((e) => ({
@@ -524,6 +565,7 @@ export class AttendanceService {
         },
         leave.has(`${e.id}|${dateKey}`),
         weekOff,
+        this.remoteVerdict(e.attendance[0] ?? null, remote, e.id, dateKey),
       ),
     }));
     return { date: dateKey, ...toPaginated(data, total, query) };
@@ -631,7 +673,7 @@ export class AttendanceService {
       this.prisma.employee.count({ where: scope }),
       this.prisma.attendanceRecord.findMany({
         where: { date: toDate(dateKey), employee: scope },
-        select: { status: true, isLate: true, checkOut: true },
+        select: { status: true, isLate: true, checkOut: true, employeeId: true },
       }),
       this.prisma.attendanceRequest.count({
         where: { status: 'PENDING', employee: scope },
@@ -640,6 +682,23 @@ export class AttendanceService {
 
     const present = records.filter((r) => r.status === 'PRESENT' || r.status === 'WFH').length;
     const halfDay = records.filter((r) => r.status === 'HALF_DAY').length;
+
+    /*
+     * Who is working from home today, and how many of them nobody agreed to.
+     *
+     * The remote count is a filter over rows already fetched. The unplanned
+     * count costs one more query — worth it, because this is where a manager
+     * meets the flag: the day view shows it per person, and until now nothing
+     * said "one of today's three was not planned" without opening that screen.
+     */
+    const remoteRecords = records.filter((r) => r.status === 'WFH');
+    const approved = await this.wfh.approvedDaysIn(
+      claims.orgId,
+      remoteRecords.map((r) => r.employeeId),
+      dateKey,
+      dateKey,
+    );
+
     return {
       date: dateKey,
       headcount,
@@ -649,6 +708,9 @@ export class AttendanceService {
       stillIn: records.filter((r) => !r.checkOut).length,
       notMarked: Math.max(0, headcount - records.length),
       pendingRequests,
+      remote: remoteRecords.length,
+      remoteUnplanned: remoteRecords.filter((r) => !approved.has(`${r.employeeId}|${dateKey}`))
+        .length,
     };
   }
 
@@ -704,6 +766,20 @@ export class AttendanceService {
     return new Set(holidays.map((h) => dateKeyOf(h.date)));
   }
 
+  /**
+   * Was this remote day agreed? Null unless they actually worked remotely —
+   * an office day has nothing to approve.
+   */
+  private remoteVerdict(
+    record: { workMode?: WorkModeValue | null } | null,
+    approved: Set<string>,
+    employeeId: string,
+    dateKey: string,
+  ): boolean | null {
+    if (record?.workMode !== 'REMOTE') return null;
+    return approved.has(`${employeeId}|${dateKey}`);
+  }
+
   private toDayEntry(
     dateKey: string,
     record: {
@@ -732,6 +808,12 @@ export class AttendanceService {
     employment?: EmploymentWindow,
     isOnLeave = false,
     weekOffDays?: number[],
+    /**
+     * Whether a remote day was agreed in advance. Null when the question does
+     * not arise — an office day has nothing to approve, and answering "false"
+     * there would read as a refusal rather than as "not applicable".
+     */
+    remoteApproved: boolean | null = null,
   ): DayEntry {
     return {
       date: dateKey,
@@ -750,6 +832,7 @@ export class AttendanceService {
       isLate: record?.isLate ?? false,
       note: record?.note ?? null,
       workMode: record?.workMode ?? null,
+      remoteApproved,
       sessions: (record?.sessions ?? []).map((s) => ({
         id: s.id,
         checkIn: s.checkIn.toISOString(),

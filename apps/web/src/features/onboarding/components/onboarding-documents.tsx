@@ -15,7 +15,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ACCEPTED_TYPES, documentsApi, formatBytes } from '@/features/documents/api';
 import { type OnboardingRecord, onboardingApi, onboardingKeys } from '@/features/onboarding/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 
 /** Which column on the record holds each slot's document id. */
 const SLOT_FIELD = {
@@ -62,8 +62,7 @@ export function OnboardingDocuments({
     mutationFn: (input: { slot: OnboardingDocumentSlot; documentId: string }) =>
       onboardingApi.attach(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: onboardingKeys.all() }),
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not file that document'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not file that document')),
   });
 
   async function uploadFor(slot: OnboardingDocumentSlot, file: File, folderName: string) {
@@ -75,7 +74,7 @@ export function OnboardingDocuments({
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       toast.success(`${file.name} filed`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : `Could not upload ${file.name}`);
+      toast.error(errorMessage(err, `Could not upload ${file.name}`));
     } finally {
       setBusy(null);
     }

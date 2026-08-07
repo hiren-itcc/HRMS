@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
   Select,
@@ -9,20 +8,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { DataTable } from '@/components/data-table';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { employeesApi } from '@/features/employees/api';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { fullName, initials } from '@/features/employees/types';
 import { departmentsApi, locationsApi } from '@/features/organization/api';
-import { useCrudList } from '@/hooks/use-crud';
+import { useCrudList, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const KEY = 'employees';
@@ -53,18 +52,14 @@ function EmployeesView() {
     locationId,
     status,
   });
-  const departments = useQuery({
-    queryKey: ['org-departments', 'options'],
-    queryFn: departmentsApi.options,
-    staleTime: 60_000,
-    enabled: can('org.read'),
-  });
-  const locations = useQuery({
-    queryKey: ['org-locations', 'options'],
-    queryFn: locationsApi.options,
-    staleTime: 60_000,
-    enabled: can('org.read'),
-  });
+  const canReadOrg = { enabled: can('org.read') };
+  const departments = useOptions(
+    'org-departments',
+    departmentsApi.options,
+    (d) => d.name,
+    canReadOrg,
+  );
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name, canReadOrg);
 
   return (
     <div className="space-y-6">
@@ -103,9 +98,9 @@ function EmployeesView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All departments</SelectItem>
-                {departments.data?.map((d) => (
+                {departments.options?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -119,9 +114,9 @@ function EmployeesView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All locations</SelectItem>
-                {locations.data?.map((l) => (
+                {locations.options?.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
-                    {l.name}
+                    {l.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -154,10 +149,7 @@ function EmployeesView() {
                   href={`/employees/${e.id}`}
                   className="flex items-center gap-3 hover:underline"
                 >
-                  <Avatar className="size-8">
-                    {e.avatarUrl && <AvatarImage src={e.avatarUrl} alt="" />}
-                    <AvatarFallback className="text-xs">{initials(e)}</AvatarFallback>
-                  </Avatar>
+                  <EmployeeAvatar src={e.avatarUrl} fallback={initials(e)} />
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{fullName(e)}</span>
                     <span className="block truncate text-muted-foreground text-xs">

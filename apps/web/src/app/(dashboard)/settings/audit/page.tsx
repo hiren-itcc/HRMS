@@ -43,6 +43,11 @@ const FAMILY_TONE: Record<string, string> = {
   org: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
   settings: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
   report: 'bg-teal-500/10 text-teal-700 dark:text-teal-400',
+  // Same recipe as the rest: a 10% tint of the hue, -700 in light and -400 in
+  // dark. Without these two the exit rows fall through to the grey default and
+  // read as though they belong to no module.
+  resignation: 'bg-rose-500/10 text-rose-700 dark:text-rose-400',
+  offboarding: 'bg-orange-500/10 text-orange-700 dark:text-orange-400',
 };
 
 function MetaRow({ entry }: { entry: AuditEntry }) {

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { IconAction } from '@/components/icon-action';
 import {
   documentsApi,
   type EmployeeDocument,
@@ -177,27 +178,25 @@ export function DocumentPreview({ documents, index, onIndexChange }: PreviewProp
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1">
-              <Button
+              <IconAction
+                label="Previous document"
+                icon={ChevronLeft}
                 variant="outline"
                 size="icon"
-                aria-label="Previous document"
-                disabled={index === null || index === 0}
                 onClick={() => step(-1)}
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Button>
+                disabled={index === null || index === 0}
+              />
               <span className="px-1 text-muted-foreground text-sm tabular-nums">
                 {index !== null ? index + 1 : 0} / {documents.length}
               </span>
-              <Button
+              <IconAction
+                label="Next document"
+                icon={ChevronRight}
                 variant="outline"
                 size="icon"
-                aria-label="Next document"
-                disabled={index === null || index >= documents.length - 1}
                 onClick={() => step(1)}
-              >
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
+                disabled={index === null || index >= documents.length - 1}
+              />
             </div>
             <div className="flex gap-2">
               {doc && isImage(doc.mimeType) && (

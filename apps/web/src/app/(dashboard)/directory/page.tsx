@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent } from '@hrms/ui/components/card';
 import { Input } from '@hrms/ui/components/input';
@@ -9,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Mail, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { EmployeeAvatar } from '@/components/employee-avatar';
 import { EmptyState } from '@/components/empty-state';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
@@ -30,10 +30,12 @@ function PersonCard({ person }: { person: DirectoryCard }) {
     >
       <Card className="hover-lift h-full">
         <CardContent className="flex items-start gap-3 p-4">
-          <Avatar className="size-11 shrink-0">
-            <AvatarImage src={person.avatarUrl ?? undefined} alt="" />
-            <AvatarFallback>{initials(person)}</AvatarFallback>
-          </Avatar>
+          <EmployeeAvatar
+            src={person.avatarUrl}
+            fallback={initials(person)}
+            className="size-11"
+            fallbackClassName="text-sm"
+          />
           <div className="min-w-0 space-y-0.5">
             <p className="truncate font-medium text-sm">{fullName(person)}</p>
             <p className="truncate text-muted-foreground text-xs">

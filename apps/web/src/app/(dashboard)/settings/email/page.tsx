@@ -14,10 +14,9 @@ import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { Textarea } from '@hrms/ui/components/textarea';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import {
   type EmailTemplate,
@@ -25,11 +24,12 @@ import {
   previewTemplate,
   SAMPLE_VALUES,
 } from '@/features/settings/email-api';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const KEY = ['email-templates'] as const;
 
 function TemplateEditor({ template }: { template: EmailTemplate }) {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.bodyHtml);
   const [active, setActive] = useState(template.isActive);
@@ -44,22 +44,18 @@ function TemplateEditor({ template }: { template: EmailTemplate }) {
   const dirty =
     subject !== template.subject || body !== template.bodyHtml || active !== template.isActive;
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: () => emailApi.update(template.key, { subject, bodyHtml: body, isActive: active }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEY });
-      toast.success(`${template.name} saved`);
-    },
-    onError: () => toast.error('Could not save the template. Try again.'),
+    invalidate: [KEY],
+    success: (_data) => `${template.name} saved`,
+    error: 'Could not save the template. Try again.',
   });
 
-  const reset = useMutation({
+  const reset = useApiMutation({
     mutationFn: () => emailApi.reset(template.key),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEY });
-      toast.success(`${template.name} restored to the built-in default`);
-    },
-    onError: () => toast.error('Could not reset the template.'),
+    invalidate: [KEY],
+    success: (_data) => `${template.name} restored to the built-in default`,
+    error: 'Could not reset the template.',
   });
 
   const insert = (variable: string) => setBody((b) => `${b}{{${variable}}}`);

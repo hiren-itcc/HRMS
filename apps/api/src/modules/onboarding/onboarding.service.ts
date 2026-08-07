@@ -15,11 +15,13 @@ import {
 } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { auditMutation } from '../../common/utils/audit';
+import { dateKeyOf } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { InviteService } from '../auth/invite.service';
 import { TokenService } from '../auth/token.service';
+import { LifecyclePolicyService } from '../lifecycle/lifecycle-policy.service';
 
 /** Column names on Onboarding, keyed by checklist slot. */
 const SLOT_COLUMN = {
@@ -56,6 +58,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly invites: InviteService,
     private readonly tokens: TokenService,
+    private readonly lifecycle: LifecyclePolicyService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(OnboardingService.name);
@@ -377,9 +380,26 @@ export class OnboardingService {
     });
     if (moved.count !== 1) throw new ConflictException('This has already been reviewed');
 
+    /*
+     * Approval is the moment a hire starts, so it is also the moment their
+     * probation clock starts — not the invite, which they may never accept.
+     * Dated from their join date rather than from today, because that is what
+     * the offer says and payroll already uses it.
+     */
+    const lifecycleCtx = await this.lifecycle.contextFor(claims.orgId);
+    const probationEndDate = this.lifecycle.probationEnd(
+      dateKeyOf(record.employee.joinDate),
+      record.employee.probationMonths,
+      lifecycleCtx,
+    );
+
     await this.prisma.employee.update({
       where: { id: record.employeeId },
-      data: { status: 'ACTIVE' },
+      data: {
+        status: 'ACTIVE',
+        probationEndDate,
+        confirmedOn: probationEndDate ? null : record.employee.joinDate,
+      },
     });
 
     /*

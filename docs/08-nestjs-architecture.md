@@ -9,21 +9,29 @@ AppModule
 ├── ConfigModule        (global) Zod-validated env, typed accessor
 ├── DatabaseModule      (global) PrismaService (+ tx helper)
 ├── LoggerModule        (global) nestjs-pino — request-scoped, redacts auth headers/cookies
-├── AuthModule          strategies/ (jwt, refresh), guards, token+session services
-├── RbacModule          PermissionsGuard, @RequirePermissions, seed catalog
-├── UsersModule         user lifecycle (invite/activate/suspend)
-├── OrganizationModule  org, departments, designations, locations, holidays
-├── EmployeesModule     employee CRUD, offboarding, org-chart query, "me" profile
-├── AttendanceModule    check-in/out, records, requests, shifts, day-close job
-├── LeaveModule         types, balances, requests, year-end job
-├── DocumentsModule     upload/download + StorageService port (S3Adapter | LocalAdapter)
-├── AnnouncementsModule feed, audience resolution, read receipts
-├── NotificationsModule fan-out on domain events (in-process, doc-listed seam for queue)
-├── ReportsModule       read-only aggregate queries + CSV serializer
-├── SettingsModule      typed settings registry over key-value rows
-├── AuditModule         AuditInterceptor + AuditService.log()
-└── MailModule          MailService port (SmtpAdapter; templates)
+├── StorageModule       (global) StorageAdapter port (SupabaseStorage | LocalDiskStorage)
+├── AuthModule          strategies/jwt, guards, token + invite services
+├── RbacModule          PermissionsGuard, @RequirePermissions, role/permission reads
+├── OrganizationModule  org, departments, designations, employment types, locations, shifts, holidays
+├── EmployeesModule     employee CRUD, directory, "me" profile
+├── OnboardingModule    invite a hire, self-serve intake, HR review queue
+├── AttendanceModule    check-in/out, sessions, records, correction requests
+├── LeaveModule         types, balances, requests
+├── DocumentsModule     per-employee upload/download, folders
+├── LettersModule       templates, issue, void
+├── AnnouncementsModule feed, audience resolution, read receipts, attachments
+├── PayrollModule       structures, salaries, runs, payslips, six reports
+├── ReportsModule       read-only aggregate queries + CSV/Excel serializer
+├── SettingsModule      typed settings registry over key-value rows, email templates
+├── AuditModule         audit query + facets (writes go through auditMutation)
+├── MailModule          MailService over a MailTransport port (Resend | logging)
+└── HealthController    liveness + readiness (no module of its own)
 ```
+
+Two entries this map used to carry are **not built**: `UsersModule` — user
+lifecycle lives inside Auth and Employees — and `NotificationsModule`, which is
+covered below. `EmployeesModule` also used to claim offboarding and an org-chart
+query; neither exists (`docs/15-feature-audit.md` §2).
 
 ## Internal module layout (uniform)
 
@@ -50,24 +58,58 @@ helmet/CORS → pino http log → ThrottlerGuard → JwtAuthGuard → Permission
   → HttpExceptionFilter (RFC-7807 shape, maps Prisma known errors → 404/409)
 ```
 
-## Domain events (in-process now, queue-shaped for later)
+## Domain events — designed, not built
 
-Nest `EventEmitter2` with **typed event contracts** in each module's `events.ts`:
+> **Not implemented.** `@nestjs/event-emitter` is not a dependency and no
+> `events.ts` exists in any module. Services call each other directly.
 
-`leave.requested` → notify approver · `leave.decided` → notify employee · `attendance.request.decided` · `employee.invited` → mail · `announcement.published` → notifications fan-out.
+The original design put `EventEmitter2` with typed contracts in each module —
+`leave.requested` → notify approver, `announcement.published` → notifications
+fan-out, and so on — as the seam where BullMQ + Redis would later take over.
 
-Handlers must be idempotent and side-effect-only (no business decisions). This is the exact seam where BullMQ + Redis replaces the emitter when Payroll needs durable jobs — call sites unchanged.
+It was never needed, because the two things it existed to carry both went
+elsewhere. Notifications were not built at all (below), and mail is sent by a
+direct call after the transaction commits, where a failed send can be *returned
+to the caller* rather than swallowed by a listener. For an invite, that is the
+better shape: HR finds out immediately and can resend.
 
-## Scheduled jobs (`@nestjs/schedule`)
+The seam is still the right one if durable background work ever arrives. It is
+recorded here as a design note, not as something the code does.
 
-| Job | When | Does |
-|---|---|---|
-| `attendance.day-close` | nightly per-location TZ | Marks ABSENT/HOLIDAY/WEEK_OFF for unmarked employees; computes workMinutes for missing checkouts (per settings policy) |
-| `leave.year-end` | Jan 1 (org's leave-year from settings) | Writes next-year balances with carry-forward caps |
-| `auth.session-prune` | daily | Deletes expired/revoked sessions past retention |
-| `announcement.expire` | hourly | Unpins/hides expired announcements |
+## Scheduled jobs — one is a real gap, three are not
 
-Jobs are service methods triggered by the scheduler — trivially re-pointed at a queue later.
+> **Not implemented.** `@nestjs/schedule` is not a dependency and there are zero
+> `@Cron` decorators. **Nothing in this system runs on a timer.**
+>
+> That is still true, and one piece of work now depends on it staying true.
+> `LifecycleService` confirms probations that have ended and closes notice
+> periods that have run out — writes no derivation can do. It runs off
+> `GET /auth/me`, at most once a day per organization, guarded by a
+> `lifecycle.lastRunAt` setting row; `POST /lifecycle/run` does the same on
+> demand and is the seam an external scheduler can be pointed at later.
+>
+> A `@Cron` was the obvious answer and is the wrong one here: the instance
+> sleeps after fifteen idle minutes, so a nightly job would silently not fire on
+> any night nobody used the product — no error, no log, just a day that did not
+> happen. Everything the tick writes is **also derived on read**, so no screen
+> depends on it having run; the worst a missed tick causes is a login that stays
+> live a few hours longer than it should.
+
+That is mostly deliberate. The system derives state when it is read rather than
+writing it overnight — see *Nothing is calculated overnight* in
+[12-how-it-works.md](./12-how-it-works.md). A nightly job that has not run yet
+is a source of wrong answers at 00:05; a derivation cannot be stale.
+
+| Originally specified | What actually happens |
+|---|---|
+| `attendance.day-close` — nightly, marks ABSENT/HOLIDAY/WEEK_OFF | **Superseded.** Day status is derived on read, in a defined precedence order. No job needed. |
+| `announcement.expire` — hourly, hides expired posts | **Superseded.** `publishAt`/`expiresAt` are enforced in the query `where`, so an expired post is invisible the moment it expires rather than up to an hour later. |
+| `leave.year-end` — writes next-year balances | **Superseded.** Balances are provisioned lazily the first time a leave year is touched, which also handles an employee joining mid-year. |
+| `auth.session-prune` — deletes expired sessions | **Replaced, not skipped.** `TokenService.pruneExpired` deletes a user's expired rows whenever that user creates a session, so the work happens where the growth does and a dormant account costs nothing. Revoked-but-unexpired rows survive — reuse detection has to find the session to know a replay was a replay. |
+
+The first three are not missing work. Retaining them as a to-do list would keep
+pointing maintainers at jobs that would duplicate logic already in the read
+path, or reintroduce staleness the current design does not have.
 
 ## Data access
 
@@ -77,10 +119,18 @@ Jobs are service methods triggered by the scheduler — trivially re-pointed at 
 
 ## Testing strategy
 
-| Layer | Tool | What |
+| Layer | Tool | Status |
 |---|---|---|
-| Unit | Jest (Nest default) | Services with mocked Prisma — business rules: balance math, rotation/reuse, scope filters, day-close |
-| Integration | Jest + Testcontainers (Postgres) | Module flows against real DB: apply→approve leave, check-in/out invariants |
-| E2E (API) | Supertest | Auth flows + one happy-path per module + 403 matrix spot-checks (each role hits a forbidden route) |
+| Unit | Jest (Nest default) | **Built.** 36 suites, 509 tests — balance math, rotation/reuse, scope filters, payroll calculation, geofencing, offboarding, the org tree. The web app has its own Vitest layer (doc 09); `pnpm turbo run test` runs both. |
+| Integration | Jest + Testcontainers (Postgres) | **Not built.** No Testcontainers dependency; nothing runs against a real database. |
+| E2E (API) | Supertest | **Not built.** `supertest` is installed and imported by no spec. |
 
-Coverage gate: services ≥ 80%. Guards/auth/leave-math are the non-negotiable suites.
+Coverage gate: **not enforced.** `ci.yml` runs `turbo run test` with no coverage
+threshold, so "services ≥ 80%" is an intention rather than a gate.
+
+The unit layer is genuinely strong where the risk is — the pure business rules
+in `payroll.calc.ts`, `attendance.util.ts` and the leave math all have dense
+suites. The weak spot is the opposite corner: the services that touch Prisma.
+`organization` (7 controllers, 7 services), `audit`, and all five payroll
+services have **no spec at all**, which is exactly where an integration layer
+would have paid. See [15-feature-audit.md](./15-feature-audit.md).

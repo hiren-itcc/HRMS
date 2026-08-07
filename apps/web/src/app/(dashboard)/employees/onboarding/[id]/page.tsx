@@ -11,12 +11,11 @@ import {
 } from '@hrms/ui/components/card';
 import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, Info, Loader2, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { ErrorState } from '@/components/error-state';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
@@ -25,7 +24,7 @@ import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
 import { JobDetailsCard } from '@/features/onboarding/components/job-details-card';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -52,7 +51,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export default function OnboardingReviewPage() {
   const { id } = useParams<{ id: string }>();
   const { can, status: authStatus } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [note, setNote] = useState('');
 
   const record = useQuery({
@@ -60,24 +59,21 @@ export default function OnboardingReviewPage() {
     queryFn: () => onboardingApi.detail(id),
   });
 
-  const approve = useMutation({
+  const approve = useApiMutation({
     mutationFn: () => onboardingApi.approve(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Approved — they are now an active employee');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not approve'),
+    invalidate: [onboardingKeys.all(), ['employees']],
+    success: 'Approved — they are now an active employee',
+    error: 'Could not approve',
   });
 
-  const requestChanges = useMutation({
+  const requestChanges = useApiMutation({
     mutationFn: () => onboardingApi.requestChanges(id, note),
+    invalidate: [onboardingKeys.all()],
+    success: 'Sent back with your note',
+    error: 'Could not send it back',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Sent back with your note');
       setNote('');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not send it back'),
   });
 
   if (authStatus === 'authenticated' && !can('employee.read')) {

@@ -1,12 +1,7 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { holidayCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
-import { Checkbox } from '@hrms/ui/components/checkbox';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
-import { Label } from '@hrms/ui/components/label';
 import {
   Select,
   SelectContent,
@@ -14,22 +9,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { Suspense, useId, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Suspense, useState } from 'react';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormCheckbox, FormDatePicker, FormInput, FormSelect } from '@/components/form';
 import { holidaysApi, locationsApi } from '@/features/organization/api';
 import type { Holiday } from '@/features/organization/types';
 import { useCrudList, useCrudMutations, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-holidays';
 const ALL = 'all';
-const ORG_WIDE = 'org-wide';
 type FormValues = z.input<typeof holidayCreateSchema>;
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
@@ -56,13 +50,10 @@ function HolidaysView() {
     locationId: locationFilter,
   });
   const { create, update, remove } = useCrudMutations(KEY, holidaysApi, 'Holiday');
-  const locations = useOptions('org-locations', locationsApi.options);
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
 
   const [editing, setEditing] = useState<Holiday | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(holidayCreateSchema) });
-  const locationId = form.watch('locationId');
-  const isOptional = form.watch('isOptional') ?? false;
-  const optionalId = useId();
+  const form = useZodForm<FormValues>(holidayCreateSchema);
 
   const openNew = () => {
     form.reset({ name: '', date: '', locationId: null, isOptional: false });
@@ -118,9 +109,9 @@ function HolidaysView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All locations</SelectItem>
-              {locations.data?.map((l) => (
+              {locations.options?.map((l) => (
                 <SelectItem key={l.id} value={l.id}>
-                  {l.name}
+                  {l.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -188,57 +179,37 @@ function HolidaysView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Name" error={form.formState.errors.name?.message}>
-          {(a11y) => (
-            <Input
-              {...a11y}
-              autoFocus
-              placeholder="e.g. Independence Day"
-              {...form.register('name')}
-            />
-          )}
-        </Field>
-        <Field label="Date" error={form.formState.errors.date?.message}>
-          {(a11y) => (
-            <DatePicker
-              {...a11y}
-              value={form.watch('date')}
-              onValueChange={(value) => form.setValue('date', value, { shouldDirty: true })}
-              placeholder="Select the holiday date"
-            />
-          )}
-        </Field>
-        <div className="space-y-2">
-          <Label htmlFor="applies-to">Applies to</Label>
-          <Select
-            value={locationId ?? ORG_WIDE}
-            onValueChange={(v) =>
-              form.setValue('locationId', v === ORG_WIDE ? null : v, { shouldDirty: true })
-            }
-          >
-            <SelectTrigger id="applies-to" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ORG_WIDE}>Entire organization</SelectItem>
-              {locations.data?.map((l) => (
-                <SelectItem key={l.id} value={l.id}>
-                  {l.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={optionalId}
-            checked={isOptional}
-            onCheckedChange={(v) => form.setValue('isOptional', v === true, { shouldDirty: true })}
-          />
-          <Label htmlFor={optionalId} className="font-normal">
-            Optional holiday (employees may choose to work)
-          </Label>
-        </div>
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="e.g. Independence Day"
+        />
+        <FormDatePicker
+          control={form.control}
+          name="date"
+          label="Date"
+          placeholder="Select the holiday date"
+        />
+        <FormSelect
+          control={form.control}
+          name="locationId"
+          label="Applies to"
+          emptyLabel="Entire organization"
+          busy={locations.isPending}
+        >
+          {locations.options?.map((l) => (
+            <SelectItem key={l.id} value={l.id}>
+              {l.label}
+            </SelectItem>
+          ))}
+        </FormSelect>
+        <FormCheckbox
+          control={form.control}
+          name="isOptional"
+          label="Optional holiday (employees may choose to work)"
+        />
       </FormDialog>
     </CrudShell>
   );

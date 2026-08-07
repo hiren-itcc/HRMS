@@ -17,16 +17,15 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
 import { attendanceApi, timeIn } from '@/features/attendance/api';
 import { RequestStatusChip } from '@/features/attendance/components/request-status-chip';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
-import { ApiError } from '@/lib/api-client';
 
 const dayLabel = (date: string) =>
   new Intl.DateTimeFormat(undefined, {
@@ -38,7 +37,7 @@ const dayLabel = (date: string) =>
   }).format(new Date(`${date}T00:00:00.000Z`));
 
 function ApprovalsView() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const params = useListParams('date');
   const reduceMotion = useReducedMotion();
   const status = params.get('status') ?? 'PENDING';
@@ -49,17 +48,15 @@ function ApprovalsView() {
     queryFn: () => attendanceApi.requests({ scope: 'inbox', status, page: params.page, limit: 10 }),
   });
 
-  const decide = useMutation({
+  const decide = useApiMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
       action === 'approve'
         ? attendanceApi.approve(id, { note: notes[id] })
         : attendanceApi.reject(id, { note: notes[id] }),
-    onSuccess: (_data, { action }) => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success(action === 'approve' ? 'Correction approved' : 'Request rejected');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not record the decision'),
+    invalidate: [['attendance']],
+    success: (_data, { action }) =>
+      action === 'approve' ? 'Correction approved' : 'Request rejected',
+    error: 'Could not record the decision',
   });
 
   const rows = requests.data?.data ?? [];

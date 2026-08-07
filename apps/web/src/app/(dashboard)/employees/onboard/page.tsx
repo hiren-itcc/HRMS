@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type EmployeeOnboardInput, employeeOnboardSchema } from '@hrms/shared';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
@@ -11,21 +10,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
-import { useMutation } from '@tanstack/react-query';
 import { Loader2, Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { FormDatePicker, FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
-import { onboardingApi } from '@/features/onboarding/api';
-import { ApiError } from '@/lib/api-client';
+import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
+import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 /**
  * Inviting a new hire.
@@ -37,13 +33,19 @@ import { ApiError } from '@/lib/api-client';
  */
 function OnboardForm() {
   const router = useRouter();
-  const form = useForm<EmployeeOnboardInput>({
-    resolver: zodResolver(employeeOnboardSchema),
+  const form = useZodForm<EmployeeOnboardInput>(employeeOnboardSchema, {
     defaultValues: { joinDate: new Date().toISOString().slice(0, 10) },
   });
 
-  const onboard = useMutation({
+  const onboard = useApiMutation({
     mutationFn: onboardingApi.onboard,
+    /*
+     * This invalidated nothing. Inviting somebody creates an employee record,
+     * so the directory, the pickers and the onboarding queue were all a hire
+     * out of date until their entries went stale on their own.
+     */
+    invalidate: [['employees'], onboardingKeys.all()],
+    error: 'Could not create the record',
     onSuccess: (result) => {
       if (result.inviteSent) {
         toast.success('Invitation sent to their personal email');
@@ -61,11 +63,7 @@ function OnboardForm() {
       }
       router.push(`/employees/${result.employee.id}`);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not create the record'),
   });
-
-  const { errors } = form.formState;
 
   return (
     <Stagger className="mx-auto max-w-2xl space-y-6">
@@ -89,45 +87,50 @@ function OnboardForm() {
               className="grid gap-4 sm:grid-cols-2"
               onSubmit={form.handleSubmit((v) => onboard.mutate(v))}
             >
-              <Field label="First name" error={errors.firstName?.message}>
-                {(a11y) => <Input {...a11y} autoFocus {...form.register('firstName')} />}
-              </Field>
-              <Field label="Last name" error={errors.lastName?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('lastName')} />}
-              </Field>
+              <FormInput
+                control={form.control}
+                name="firstName"
+                label="First name"
+                autoFocus
+                placeholder="Priya"
+              />
+              <FormInput
+                control={form.control}
+                name="lastName"
+                label="Last name"
+                placeholder="Nair"
+              />
 
-              <Field
+              <FormInput
+                control={form.control}
+                name="personalEmail"
+                placeholder="priya.nair@gmail.com"
                 label="Personal email"
-                error={errors.personalEmail?.message}
                 hint="Where the invitation goes — they cannot read the work mailbox yet"
-              >
-                {(a11y) => <Input {...a11y} type="email" {...form.register('personalEmail')} />}
-              </Field>
-              <Field
+                type="email"
+              />
+              <FormInput
+                control={form.control}
+                name="workEmail"
+                placeholder="priya.nair@acme.com"
                 label="Work email"
-                error={errors.workEmail?.message}
                 hint="Becomes their sign-in"
-              >
-                {(a11y) => <Input {...a11y} type="email" {...form.register('workEmail')} />}
-              </Field>
+                type="email"
+              />
 
-              <Field label="Joining date" error={errors.joinDate?.message}>
-                {(a11y) => (
-                  <DatePicker
-                    {...a11y}
-                    value={form.watch('joinDate')}
-                    onValueChange={(value) =>
-                      form.setValue('joinDate', value, { shouldDirty: true })
-                    }
-                    placeholder="Select joining date"
-                  />
-                )}
-              </Field>
-              <Field label="Employee code" hint="Left blank, one is generated">
-                {(a11y) => (
-                  <Input {...a11y} placeholder="EMP-0007" {...form.register('employeeCode')} />
-                )}
-              </Field>
+              <FormDatePicker
+                control={form.control}
+                name="joinDate"
+                label="Joining date"
+                placeholder="Select joining date"
+              />
+              <FormInput
+                control={form.control}
+                name="employeeCode"
+                label="Employee code"
+                hint="Left blank, one is generated"
+                placeholder="EMP-0007"
+              />
 
               <div className="sm:col-span-2">
                 <Alert variant="info">

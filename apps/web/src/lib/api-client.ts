@@ -72,7 +72,22 @@ export async function api<T>(path: string, init: RequestInit = {}, isRetry = fal
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+
+  /*
+   * An empty body is an answer, not a failure.
+   *
+   * A Nest handler that returns null sends 200 with nothing in it — which is
+   * what `GET /offboardings/:id/interview` does for an exit nobody has held
+   * the conversation for yet. `res.json()` on that throws "Unexpected end of
+   * JSON input", so the Exit interview card rendered its error state for
+   * every offboarding that did not already have one. The endpoint's own type
+   * says `ExitInterview | null`; the client simply could not produce the null.
+   *
+   * Read as text and parse, rather than trusting `content-length`, which a
+   * chunked response does not send.
+   */
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 /** Multipart upload via XHR — the only way to get real progress events. */

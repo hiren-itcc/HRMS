@@ -1,30 +1,18 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { leaveApplySchema } from '@hrms/shared';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Label } from '@hrms/ui/components/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
-import { Textarea } from '@hrms/ui/components/textarea';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { SelectItem } from '@hrms/ui/components/select';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck, Info } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
-import { ApiError } from '@/lib/api-client';
+import { FormDatePicker, FormSelect, FormTextarea } from '@/components/form';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { formatDays, type LeaveBalance, leaveApi } from '../api';
 
 type FormValues = z.input<typeof leaveApplySchema>;
-const FULL_DAY = 'full';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -35,16 +23,13 @@ interface ApplyDialogProps {
 }
 
 export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogProps) {
-  const queryClient = useQueryClient();
-  const types = useQuery({
-    queryKey: ['leave', 'types', 'options'],
-    queryFn: leaveApi.typeOptions,
-    staleTime: 60_000,
+  const _queryClient = useQueryClient();
+  // Keyed under ['leave'] so that editing a leave type invalidates this too.
+  const types = useOptions(['leave', 'types'], leaveApi.typeOptions, (t) => t.name, {
     enabled: open,
   });
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(leaveApplySchema),
+  const form = useZodForm<FormValues>(leaveApplySchema, {
     defaultValues: {
       leaveTypeId: '',
       startDate: today(),
@@ -87,20 +72,17 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
   const balance = balances.find((b) => b.leaveTypeId === leaveTypeId);
   const shortfall = balance && preview.data ? preview.data.days > balance.available : false;
 
-  const apply = useMutation({
+  const apply = useApiMutation({
     mutationFn: leaveApi.apply,
-    onSuccess: (req) => {
-      queryClient.invalidateQueries({ queryKey: ['leave'] });
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success(
-        req.status === 'APPROVED'
-          ? `Leave booked — ${formatDays(req.days)}`
-          : `Leave requested — ${formatDays(req.days)} pending approval`,
-      );
+    invalidate: [['leave'], ['attendance']],
+    success: (req) =>
+      req.status === 'APPROVED'
+        ? `Leave booked — ${formatDays(req.days)}`
+        : `Leave requested — ${formatDays(req.days)} pending approval`,
+    error: 'Could not submit the request',
+    onSuccess: (_req) => {
       onOpenChange(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not submit the request'),
   });
 
   return (
@@ -113,89 +95,75 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
       submitting={apply.isPending}
       submitLabel="Submit request"
     >
-      <div className="space-y-2">
-        <Label htmlFor="leave-type">Leave type</Label>
-        <Select
-          value={leaveTypeId || null}
-          onValueChange={(v) => form.setValue('leaveTypeId', v, { shouldDirty: true })}
-        >
-          <SelectTrigger
-            id="leave-type"
-            className="w-full"
-            aria-invalid={Boolean(form.formState.errors.leaveTypeId)}
-          >
-            <SelectValue placeholder="Choose a type" />
-          </SelectTrigger>
-          <SelectContent>
-            {types.data?.map((t) => {
-              const b = balances.find((x) => x.leaveTypeId === t.id);
-              return (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                  {b ? ` — ${b.available} left` : ''}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-        {form.formState.errors.leaveTypeId && (
-          <p role="alert" className="text-destructive-text text-sm">
-            {form.formState.errors.leaveTypeId.message}
-          </p>
-        )}
-      </div>
+      <FormSelect
+        control={form.control}
+        name="leaveTypeId"
+        label="Leave type"
+        required
+        placeholder="Choose a type"
+        busy={types.isPending}
+      >
+        {types.options?.map((t) => {
+          const b = balances.find((x) => x.leaveTypeId === t.id);
+          return (
+            <SelectItem key={t.id} value={t.id}>
+              {t.label}
+              {b ? ` — ${b.available} left` : ''}
+            </SelectItem>
+          );
+        })}
+      </FormSelect>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="From" error={form.formState.errors.startDate?.message}>
-          {(a11y) => (
-            <DatePicker
-              {...a11y}
-              value={startDate}
-              onValueChange={(value) => {
-                form.setValue('startDate', value, { shouldDirty: true });
-                // Keep the range valid as the start moves forward
-                if (form.getValues('endDate') < value) {
-                  form.setValue('endDate', value, { shouldDirty: true });
-                }
-              }}
-            />
-          )}
-        </Field>
-        <Field label="To" error={form.formState.errors.endDate?.message}>
-          {(a11y) => (
-            <DatePicker
-              {...a11y}
-              value={form.watch('endDate')}
-              min={startDate}
-              onValueChange={(value) => form.setValue('endDate', value, { shouldDirty: true })}
-            />
-          )}
-        </Field>
+        <FormDatePicker
+          control={form.control}
+          name="startDate"
+          label="From"
+          required
+          onValueChange={(value) => {
+            // Keep the range valid as the start moves forward
+            if (form.getValues('endDate') < value) {
+              form.setValue('endDate', value, { shouldDirty: true });
+            }
+            /*
+             * A half day only makes sense on a single date, and the Duration
+             * select unmounts the moment the range widens — taking the visible
+             * error target with it. Without this clear, picking "First half"
+             * and then extending the range left halfDaySide set, and the
+             * schema's refine refused the submit with nothing on screen to
+             * explain why.
+             */
+            if (form.getValues('endDate') !== value) {
+              form.setValue('halfDaySide', null, { shouldDirty: true });
+            }
+          }}
+        />
+        <FormDatePicker
+          control={form.control}
+          name="endDate"
+          label="To"
+          required
+          min={startDate}
+          onValueChange={(value) => {
+            // Same reason as the start date: widening the range unmounts the
+            // Duration select, so the half-day choice has to go with it.
+            if (value !== form.getValues('startDate')) {
+              form.setValue('halfDaySide', null, { shouldDirty: true });
+            }
+          }}
+        />
       </div>
 
       {singleDay && (
-        <div className="space-y-2">
-          <Label htmlFor="duration">Duration</Label>
-          <Select
-            value={halfDaySide ?? FULL_DAY}
-            onValueChange={(v) =>
-              form.setValue(
-                'halfDaySide',
-                v === FULL_DAY ? null : (v as 'FIRST_HALF' | 'SECOND_HALF'),
-                { shouldDirty: true },
-              )
-            }
-          >
-            <SelectTrigger id="duration" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FULL_DAY}>Full day</SelectItem>
-              <SelectItem value="FIRST_HALF">First half</SelectItem>
-              <SelectItem value="SECOND_HALF">Second half</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <FormSelect
+          control={form.control}
+          name="halfDaySide"
+          label="Duration"
+          emptyLabel="Full day"
+        >
+          <SelectItem value="FIRST_HALF">First half</SelectItem>
+          <SelectItem value="SECOND_HALF">Second half</SelectItem>
+        </FormSelect>
       )}
 
       {preview.data && (
@@ -228,16 +196,13 @@ export function ApplyLeaveDialog({ open, onOpenChange, balances }: ApplyDialogPr
         </div>
       )}
 
-      <Field label="Reason" required error={form.formState.errors.reason?.message}>
-        {(a11y) => (
-          <Textarea
-            {...a11y}
-            rows={3}
-            placeholder="Family function out of town"
-            {...form.register('reason')}
-          />
-        )}
-      </Field>
+      <FormTextarea
+        control={form.control}
+        name="reason"
+        label="Reason"
+        rows={3}
+        placeholder="Family function out of town"
+      />
     </FormDialog>
   );
 }

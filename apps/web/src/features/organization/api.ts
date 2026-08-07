@@ -13,8 +13,8 @@ import type {
   ShiftCreateInput,
   ShiftUpdateInput,
 } from '@hrms/shared';
-import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
+import { crudApi } from '@/lib/crud';
 import type {
   Company,
   Department,
@@ -26,36 +26,30 @@ import type {
   Shift,
 } from './types';
 
-export type ListRequest = Record<string, string | number | undefined>;
+/**
+ * Re-exported so the many `import type { ListRequest } from '@/features/organization/api'`
+ * lines keep working. New code should import from `@/lib/crud` directly —
+ * none of this is organizational.
+ */
+export type { CrudApi, ListRequest } from '@/lib/crud';
 
-function qs(params: ListRequest): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
-}
-
-export interface CrudApi<TRow, TCreate, TUpdate> {
-  list: (params: ListRequest) => Promise<Paginated<TRow>>;
-  create: (input: TCreate) => Promise<TRow>;
-  update: (id: string, input: TUpdate) => Promise<TRow>;
-  remove: (id: string) => Promise<void>;
-}
-
-function crudApi<TRow, TCreate, TUpdate>(base: string): CrudApi<TRow, TCreate, TUpdate> {
-  return {
-    list: (params) => api<Paginated<TRow>>(`${base}${qs(params)}`),
-    create: (input) => api<TRow>(base, { method: 'POST', body: JSON.stringify(input) }),
-    update: (id, input) =>
-      api<TRow>(`${base}/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-    remove: (id) => api<void>(`${base}/${id}`, { method: 'DELETE' }),
-  };
+export interface OrgChartNode {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string;
+  designation: string | null;
+  department: string | null;
+  avatarUrl: string | null;
+  /** Everybody below them, not just direct reports. */
+  totalReports: number;
+  reports: OrgChartNode[];
 }
 
 export const companyApi = {
   get: () => api<Company>('/organization'),
+  /** The reporting tree. Several roots are normal — see the service. */
+  chart: () => api<{ roots: OrgChartNode[]; total: number }>('/organization/chart'),
   update: (input: CompanyUpdateInput) =>
     api<Company>('/organization', { method: 'PATCH', body: JSON.stringify(input) }),
 };
@@ -65,22 +59,34 @@ export const departmentsApi = {
   options: () => api<Option[]>('/organization/departments/options'),
 };
 
-export const designationsApi = crudApi<Designation, DesignationCreateInput, DesignationUpdateInput>(
-  '/organization/designations',
-);
+/**
+ * Designations are the odd one out: the API calls the column `title`, not
+ * `name`. That is why every picker has to say which column its label comes
+ * from — see `useOptions`.
+ */
+export const designationsApi = {
+  ...crudApi<Designation, DesignationCreateInput, DesignationUpdateInput>(
+    '/organization/designations',
+  ),
+  options: () => api<{ id: string; title: string }[]>('/organization/designations/options'),
+};
 
-export const employmentTypesApi = crudApi<
-  EmploymentTypeRow,
-  EmploymentTypeCreateInput,
-  EmploymentTypeUpdateInput
->('/organization/employment-types');
+export const employmentTypesApi = {
+  ...crudApi<EmploymentTypeRow, EmploymentTypeCreateInput, EmploymentTypeUpdateInput>(
+    '/organization/employment-types',
+  ),
+  options: () => api<Option[]>('/organization/employment-types/options'),
+};
 
 export const locationsApi = {
   ...crudApi<Location, LocationCreateInput, LocationUpdateInput>('/organization/locations'),
   options: () => api<(Option & { type: string })[]>('/organization/locations/options'),
 };
 
-export const shiftsApi = crudApi<Shift, ShiftCreateInput, ShiftUpdateInput>('/organization/shifts');
+export const shiftsApi = {
+  ...crudApi<Shift, ShiftCreateInput, ShiftUpdateInput>('/organization/shifts'),
+  options: () => api<Option[]>('/organization/shifts/options'),
+};
 
 export const holidaysApi = crudApi<Holiday, HolidayCreateInput, HolidayUpdateInput>(
   '/organization/holidays',

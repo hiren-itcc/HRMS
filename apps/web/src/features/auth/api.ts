@@ -47,4 +47,21 @@ export const authApi = {
     api<AuthResponse>('/auth/accept-invite', { method: 'POST', body: JSON.stringify(input) }),
 
   me: () => api<SessionUser>('/auth/me'),
+
+  /** Devices still able to refresh this account, newest first. */
+  sessions: () => api<ActiveSession[]>('/auth/sessions'),
+
+  /** Signs one device out. Revoking your own ends this browser's session too. */
+  revokeSession: (id: string) =>
+    api<void>(`/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
+
+export interface ActiveSession {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  expiresAt: string;
+  /** The device this list is being read on. */
+  isCurrent: boolean;
+}

@@ -1,30 +1,20 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type DepartmentCreateInput, departmentCreateSchema } from '@hrms/shared';
-import { Input } from '@hrms/ui/components/input';
-import { Label } from '@hrms/ui/components/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
+import { SelectItem } from '@hrms/ui/components/select';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormInput, FormSelect } from '@/components/form';
 import { departmentsApi } from '@/features/organization/api';
 import type { Department } from '@/features/organization/types';
 import { useCrudList, useCrudMutations, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-departments';
-const NONE = 'none';
 
 function DepartmentsView() {
   const params = useListParams('name');
@@ -36,13 +26,10 @@ function DepartmentsView() {
     order: params.order,
   });
   const { create, update, remove } = useCrudMutations(KEY, departmentsApi, 'Department');
-  const options = useOptions(KEY, departmentsApi.options);
+  const options = useOptions(KEY, departmentsApi.options, (d) => d.name);
 
   const [editing, setEditing] = useState<Department | 'new' | null>(null);
-  const form = useForm<DepartmentCreateInput>({
-    resolver: zodResolver(departmentCreateSchema),
-  });
-  const parentId = form.watch('parentId');
+  const form = useZodForm<DepartmentCreateInput>(departmentCreateSchema);
 
   const openNew = () => {
     form.reset({ name: '', code: '', parentId: null });
@@ -131,39 +118,37 @@ function DepartmentsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Name" error={form.formState.errors.name?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
-        </Field>
-        <Field
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="Engineering"
+        />
+        <FormInput
+          control={form.control}
+          name="code"
+          placeholder="ENG"
           label="Code"
-          error={form.formState.errors.code?.message}
           hint="Optional short code, e.g. ENG"
+        />
+        <FormSelect
+          control={form.control}
+          name="parentId"
+          label="Parent department"
+          placeholder="None"
+          emptyLabel="None (top level)"
+          busy={options.isPending}
         >
-          {(a11y) => <Input {...a11y} {...form.register('code')} />}
-        </Field>
-        <div className="space-y-2">
-          <Label htmlFor="parent-department">Parent department</Label>
-          <Select
-            value={parentId ?? NONE}
-            onValueChange={(v) =>
-              form.setValue('parentId', v === NONE ? null : v, { shouldDirty: true })
-            }
-          >
-            <SelectTrigger id="parent-department" className="w-full">
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>None (top level)</SelectItem>
-              {options.data
-                ?.filter((o) => editing === 'new' || o.id !== (editing as Department)?.id)
-                .map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
+          {/* A department cannot be its own parent. */}
+          {options.options
+            ?.filter((o) => editing === 'new' || o.id !== (editing as Department)?.id)
+            .map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.label}
+              </SelectItem>
+            ))}
+        </FormSelect>
       </FormDialog>
     </CrudShell>
   );

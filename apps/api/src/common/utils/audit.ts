@@ -15,10 +15,17 @@ export interface AuditMeta {
   [key: string]: unknown;
 }
 
-/** One audit row per mutation (docs/02-database.md — AuditLog). */
+/**
+ * One audit row per mutation (docs/02-database.md — AuditLog).
+ *
+ * `userId` is nullable because some rows genuinely have no actor: the daily
+ * lifecycle tick confirms probations and closes notice periods that nobody
+ * pressed a button for. `AuditLog.actorId` has always been nullable; before
+ * this the only way to write one was to lie about the type.
+ */
 export function auditMutation(
   prisma: PrismaService,
-  ctx: { orgId: string; userId: string },
+  ctx: { orgId: string; userId: string | null },
   action: string,
   entity: string,
   entityId: string,

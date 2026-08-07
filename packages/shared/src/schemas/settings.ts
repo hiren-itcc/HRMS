@@ -107,6 +107,210 @@ export const payrollSchema = z.object({
     .prefault({}),
 });
 
+// ── Employment lifecycle ──────────────────────────────────────────────
+
+/**
+ * Company-wide defaults for joining, confirming and leaving.
+ *
+ * Every number here is a *default*, not a rule: `Employee.noticePeriodDays`
+ * and `Employee.probationMonths` override it per person, and null on the
+ * employee means "whatever this says". That is why the pair exists at all —
+ * a senior hire on three months' notice and a graduate on one are the normal
+ * case, not an exception worth a second policy table.
+ *
+ * The two `auto*` switches decide whether the daily tick may act on its own.
+ * An organization that wants a human to press Confirm turns the first off and
+ * the tick then only surfaces the list, it does not change anybody's record.
+ */
+export const lifecycleSchema = z.object({
+  defaultNoticeDays: z.number().int().min(0).max(365).default(30),
+  defaultProbationMonths: z.number().int().min(0).max(24).default(3),
+  /** Confirm at probation end automatically, or wait for HR to press it. */
+  autoConfirmOnProbationEnd: z.boolean().default(true),
+  /** Mark somebody EXITED once their last working date has passed. */
+  autoExitOnLastWorkingDate: z.boolean().default(true),
+  /**
+   * Route a resignation past the reporting manager before HR sees it. Off for
+   * a flat organization; also bypassed per-request when the employee has no
+   * manager, because whoever is at the top of the chart has nobody to review
+   * them and would otherwise be stuck at SUBMITTED forever.
+   */
+  requireManagerApproval: z.boolean().default(true),
+});
+
+// ── Exit checklist ────────────────────────────────────────────────────
+
+/**
+ * Who signs a clearance item off.
+ *
+ * `IT_ADMIN` has no matching system role — the seeded five are Admin, HR,
+ * Finance, Manager and Employee. Those items fall to `employee.offboard`
+ * holders until somebody composes an IT role in Settings → Roles, which the
+ * RBAC editor already allows. Naming the owner anyway is what makes the list
+ * useful to a human, and what lets an IT role start working the day it exists.
+ */
+export const CLEARANCE_OWNERS = ['MANAGER', 'HR', 'FINANCE', 'IT_ADMIN'] as const;
+export const clearanceOwnerSchema = z.enum(CLEARANCE_OWNERS);
+export type ClearanceOwnerCode = (typeof CLEARANCE_OWNERS)[number];
+
+export const CLEARANCE_OWNER_LABELS: Record<ClearanceOwnerCode, string> = {
+  MANAGER: 'Reporting manager',
+  HR: 'HR',
+  FINANCE: 'Finance',
+  IT_ADMIN: 'IT / Admin',
+};
+
+/**
+ * What settles an item.
+ *
+ * `MANUAL` is somebody signing it off. `ASSET_RETURN` reads the asset register
+ * instead: it lists what the leaver still holds, settles itself when the last
+ * thing comes back, and cannot be ticked to DONE by hand. Waiving it as
+ * NOT_APPLICABLE with a reason still works, which is the answer for "they
+ * posted it back" and for a laptop written off.
+ *
+ * Defaults to `MANUAL` on purpose. An organization that saved a checklist
+ * before assets existed keeps hand-signing until it switches this on —
+ * turning a *completion gate* on underneath an exit already in flight is the
+ * one change here that could strand somebody.
+ */
+export const CLEARANCE_KINDS = ['MANUAL', 'ASSET_RETURN'] as const;
+export const clearanceKindSchema = z.enum(CLEARANCE_KINDS);
+export type ClearanceKindCode = (typeof CLEARANCE_KINDS)[number];
+
+export const CLEARANCE_KIND_LABELS: Record<ClearanceKindCode, string> = {
+  MANUAL: 'Signed off by hand',
+  ASSET_RETURN: 'Read from the asset register',
+};
+
+export const clearanceItemSchema = z.object({
+  label: z.string().trim().min(1, 'Give the item a name').max(120),
+  description: z.string().trim().max(300).optional().nullable(),
+  owner: clearanceOwnerSchema,
+  /** Completion is blocked while any required item is outstanding. */
+  required: z.boolean().default(true),
+  kind: clearanceKindSchema.default('MANUAL'),
+});
+export type ClearanceItem = z.infer<typeof clearanceItemSchema>;
+
+/**
+ * The exit checklist **template**.
+ *
+ * Copied onto each offboarding when it starts and never joined to afterwards,
+ * the way `Offboarding`'s snapshot fields and `Letter.variables` already work.
+ * Editing this must not rewrite an exit that is half signed off — somebody who
+ * has already returned their laptop has returned it whatever the list says
+ * next week.
+ *
+ * "Return company assets" now carries `kind: 'ASSET_RETURN'` and reads real
+ * assignments, which is what an earlier version of this comment promised would
+ * happen once asset management existed. The row did not move.
+ */
+export const exitChecklistSchema = z.object({
+  items: z
+    .array(clearanceItemSchema)
+    .max(30, 'That is more clearance steps than anybody will complete')
+    .default([
+      {
+        label: 'Handover of work and responsibilities',
+        description: 'Open work, passwords and anything only they know.',
+        owner: 'MANAGER',
+        required: true,
+        kind: 'MANUAL',
+      },
+      {
+        label: 'Return company assets',
+        description: 'Laptop, access card, phone, SIM and anything else issued.',
+        owner: 'IT_ADMIN',
+        required: true,
+        // The row this whole module was written for. New organizations get the
+        // computed version; existing ones keep MANUAL until they switch it on.
+        kind: 'ASSET_RETURN',
+      },
+      {
+        label: 'Revoke system and email access',
+        owner: 'IT_ADMIN',
+        required: true,
+        kind: 'MANUAL',
+      },
+      {
+        label: 'Clear outstanding dues and advances',
+        owner: 'FINANCE',
+        required: true,
+        kind: 'MANUAL',
+      },
+      {
+        label: 'Exit interview',
+        owner: 'HR',
+        required: false,
+        kind: 'MANUAL',
+      },
+      {
+        label: 'Issue relieving and experience letters',
+        owner: 'HR',
+        required: false,
+        kind: 'MANUAL',
+      },
+    ]),
+});
+
+// ── Full & final settlement ───────────────────────────────────────────
+
+/**
+ * What a day of pay is worth when a settlement prices one.
+ *
+ * 26 is the statutory divisor in the Payment of Gratuity Act and the common
+ * Indian practice for encashment; 30 suits a contract written in calendar
+ * days; the calendar month divides by however many days that month actually
+ * had, so February pays more per day than March.
+ */
+export const PER_DAY_BASES = ['DAYS_26', 'DAYS_30', 'CALENDAR_MONTH'] as const;
+export const perDayBasisSchema = z.enum(PER_DAY_BASES);
+export type PerDayBasis = (typeof PER_DAY_BASES)[number];
+
+export const PER_DAY_BASIS_LABELS: Record<PerDayBasis, string> = {
+  DAYS_26: '26 days (statutory)',
+  DAYS_30: '30 days',
+  CALENDAR_MONTH: 'Days in that month',
+};
+
+/**
+ * Settlement policy.
+ *
+ * Every figure a settlement computes is a *starting point* — each line is
+ * editable before approval, because a real settlement gets negotiated and a
+ * system that produces an unarguable number is one people work around in a
+ * spreadsheet. These settings decide what that starting point is.
+ *
+ * Settlement amounts deliberately sit outside the statutory base: nothing here
+ * feeds `computeStatutory`. An earning added to monthly gross would cross the
+ * ESI threshold, which is a cliff rather than a taper, and switch ESI off for
+ * the month. Tax on a settlement is entered by hand, exactly as monthly TDS
+ * already is.
+ */
+export const settlementSchema = z.object({
+  perDayBasis: perDayBasisSchema.default('DAYS_26'),
+  /** Encashment and recovery are priced off basic unless an org says gross. */
+  rateBasis: z.enum(['BASIC', 'GROSS']).default('BASIC'),
+  /**
+   * Recover pay for notice the employee did not serve. Off for organizations
+   * that waive it as a matter of course. Never applies to an exit the employee
+   * did not choose — see `settlement.calc.ts`.
+   */
+  recoverShortNotice: z.boolean().default(true),
+  gratuity: z
+    .object({
+      enabled: z.boolean().default(true),
+      /** Continuous service before any gratuity is owed. */
+      minYears: z.number().int().min(0).max(20).default(5),
+      daysPerYear: z.number().min(0).max(31).default(15),
+      divisor: z.number().min(1).max(31).default(26),
+      /** ₹20 lakh, the statutory ceiling. Zero means no ceiling. */
+      cap: z.number().min(0).default(2_000_000),
+    })
+    .prefault({}),
+});
+
 // ── Modules ───────────────────────────────────────────────────────────
 
 /**
@@ -121,6 +325,36 @@ export const modulesSchema = z.object({
   announcements: z.boolean().default(true),
   reports: z.boolean().default(true),
   payroll: z.boolean().default(true),
+  assets: z.boolean().default(true),
+  wfh: z.boolean().default(true),
+});
+
+// ── Work from home ────────────────────────────────────────────────────
+
+/**
+ * How much remote working the company allows, and whether it is agreed first.
+ *
+ * The cap is per week rather than per month because that is how hybrid
+ * policies are actually written — "two days a week", not "nine days a month" —
+ * and because a monthly figure lets somebody take the whole of one week off
+ * site and still be inside it.
+ */
+export const wfhSchema = z.object({
+  enabled: z.boolean().default(true),
+  /**
+   * **Zero means zero days, not "no limit"** — deliberately unlike the gratuity
+   * ceiling, which uses zero as a sentinel. `Employee.remoteDaysPerWeek` can
+   * legitimately be zero, because "this person never works remotely" is an
+   * ordinary arrangement, and two meanings for one value would have handed
+   * exactly those people unlimited remote days. No limit is seven.
+   */
+  maxDaysPerWeek: z.number().int().min(0).max(7).default(2),
+  /**
+   * Off means a request is approved the moment it is filed. For a company that
+   * treats remote days as a matter of record rather than permission — which is
+   * still worth recording, because attendance can then say a day was expected.
+   */
+  requireApproval: z.boolean().default(true),
 });
 
 // ── Registry ──────────────────────────────────────────────────────────
@@ -129,6 +363,10 @@ export const orgSettingsSchema = z.object({
   workingWeek: workingWeekSchema,
   leave: leavePolicySchema,
   payroll: payrollSchema,
+  lifecycle: lifecycleSchema,
+  exitChecklist: exitChecklistSchema,
+  settlement: settlementSchema,
+  wfh: wfhSchema,
   modules: modulesSchema,
 });
 
@@ -184,6 +422,10 @@ export const orgSettingsPatchSchema = z
     workingWeek: asPatch(workingWeekSchema).optional(),
     leave: asPatch(leavePolicySchema).optional(),
     payroll: asPatch(payrollSchema).optional(),
+    lifecycle: asPatch(lifecycleSchema).optional(),
+    exitChecklist: asPatch(exitChecklistSchema).optional(),
+    settlement: asPatch(settlementSchema).optional(),
+    wfh: asPatch(wfhSchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -194,7 +436,16 @@ export type OrgSettingsPatch = {
 };
 export type SettingsGroup = keyof OrgSettings;
 
-export const SETTINGS_GROUPS = ['workingWeek', 'leave', 'payroll', 'modules'] as const;
+export const SETTINGS_GROUPS = [
+  'workingWeek',
+  'leave',
+  'payroll',
+  'lifecycle',
+  'exitChecklist',
+  'settlement',
+  'wfh',
+  'modules',
+] as const;
 
 /** Fully-defaulted settings — the shape a fresh organization reads. */
 export function defaultSettings(): OrgSettings {
@@ -202,6 +453,10 @@ export function defaultSettings(): OrgSettings {
     workingWeek: {},
     leave: {},
     payroll: {},
+    lifecycle: {},
+    exitChecklist: {},
+    settlement: {},
+    wfh: {},
     modules: {},
   });
 }

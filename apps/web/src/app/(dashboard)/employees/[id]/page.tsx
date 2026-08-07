@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type BankDetailInput,
   bankDetailSchema,
@@ -19,7 +18,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@hrms/ui/components/alert-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Button } from '@hrms/ui/components/button';
 import {
   Card,
@@ -28,34 +26,34 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
+import { SelectItem } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Landmark, Pencil, ShieldAlert, Trash2, Users } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Landmark, Pencil, Phone, ShieldAlert, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { CardColumns } from '@/components/card-columns';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
+import { EmployeeAssetsCard } from '@/features/assets/components/employee-assets-card';
+import { EmployeeAttendanceCard } from '@/features/attendance/components/employee-attendance-card';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { employeesApi } from '@/features/employees/api';
+import { AvatarPicker } from '@/features/employees/components/avatar-picker';
+import { LifecycleCard } from '@/features/employees/components/lifecycle-card';
+import { OffboardDialog } from '@/features/employees/components/offboard-dialog';
+import { ProbationBadge } from '@/features/employees/components/probation-badge';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
 import { LettersPanel } from '@/features/letters/components/letters-panel';
 import { InviteCard } from '@/features/onboarding/components/invite-card';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -83,16 +81,15 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  */
 function RoleRow({ employee }: { employee: EmployeeDetail }) {
   const { can, user: me } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const form = useForm<EmployeeRoleChangeInput>({
-    resolver: zodResolver(employeeRoleChangeSchema),
-  });
+  const form = useZodForm<EmployeeRoleChangeInput>(employeeRoleChangeSchema);
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: (input: EmployeeRoleChangeInput) => employeesApi.setRole(employee.id, input),
+    invalidate: [['employees']],
+    error: 'Could not change role',
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success(`Role changed to ${ROLE_LABEL[result.roleCode]}`, {
         description: result.sessionsRevoked
           ? 'They have been signed out and pick up the new role next time they sign in.'
@@ -100,7 +97,6 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
       });
       setOpen(false);
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not change role'),
   });
 
   const current = employee.user?.role?.code;
@@ -140,27 +136,13 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
         submitting={save.isPending}
         submitLabel="Change role"
       >
-        <Field label="Role" error={form.formState.errors.roleCode?.message}>
-          {(a11y) => (
-            <Select
-              value={form.watch('roleCode')}
-              onValueChange={(value) =>
-                form.setValue('roleCode', value as EmployeeRoleChangeInput['roleCode'])
-              }
-            >
-              <SelectTrigger id={a11y.id} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map(({ value, label }) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </Field>
+        <FormSelect control={form.control} name="roleCode" label="Role">
+          {ROLE_OPTIONS.map(({ value, label }) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </FormSelect>
         {form.watch('roleCode') === 'ADMIN' && (
           <Alert variant="info">
             <ShieldAlert aria-hidden />
@@ -180,20 +162,19 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
 
 function BankCard({ employee }: { employee: EmployeeDetail }) {
   const { can } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const form = useForm<BankDetailInput>({ resolver: zodResolver(bankDetailSchema) });
+  const form = useZodForm<BankDetailInput>(bankDetailSchema);
   const bank = employee.bankDetail;
 
-  const save = useMutation({
+  const save = useApiMutation({
     mutationFn: (input: BankDetailInput) => employeesApi.upsertBank(employee.id, input),
+    invalidate: [['employees']],
+    success: 'Bank details saved',
+    error: 'Could not save bank details',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Bank details saved');
       setOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not save bank details'),
   });
 
   // undefined = hidden by the API (no permission); null = none stored yet
@@ -254,22 +235,38 @@ function BankCard({ employee }: { employee: EmployeeDetail }) {
         submitting={save.isPending}
         submitLabel="Save"
       >
-        <Field label="Account holder" error={form.formState.errors.accountHolderName?.message}>
-          {(a11y) => <Input {...a11y} {...form.register('accountHolderName')} />}
-        </Field>
-        <Field label="Bank name" error={form.formState.errors.bankName?.message}>
-          {(a11y) => <Input {...a11y} {...form.register('bankName')} />}
-        </Field>
-        <Field label="Account number" error={form.formState.errors.accountNumber?.message}>
-          {(a11y) => <Input {...a11y} inputMode="numeric" {...form.register('accountNumber')} />}
-        </Field>
+        <FormInput
+          control={form.control}
+          name="accountHolderName"
+          label="Account holder"
+          placeholder="Exactly as the bank has it"
+        />
+        <FormInput
+          control={form.control}
+          name="bankName"
+          label="Bank name"
+          placeholder="HDFC Bank"
+        />
+        <FormInput
+          control={form.control}
+          name="accountNumber"
+          placeholder="50100123456789"
+          label="Account number"
+          inputMode="numeric"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="IFSC code" error={form.formState.errors.ifscCode?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('ifscCode')} />}
-          </Field>
-          <Field label="Branch" error={form.formState.errors.branch?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('branch')} />}
-          </Field>
+          <FormInput
+            control={form.control}
+            name="ifscCode"
+            label="IFSC code"
+            placeholder="HDFC0001234"
+          />
+          <FormInput
+            control={form.control}
+            name="branch"
+            label="Branch"
+            placeholder="Prahladnagar"
+          />
         </div>
       </FormDialog>
     </Card>
@@ -288,14 +285,14 @@ function EmployeeDetailView() {
     retry: false,
   });
 
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: () => employeesApi.remove(id),
+    invalidate: [['employees']],
+    success: 'Employee removed',
+    error: 'Could not delete',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-      toast.success('Employee removed');
       router.replace('/employees');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
   });
 
   if (employee.isLoading) {
@@ -346,13 +343,23 @@ function EmployeeDetailView() {
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Avatar className="size-14">
-            {e.avatarUrl && <AvatarImage src={e.avatarUrl} alt="" />}
-            <AvatarFallback className="text-lg">{initials(e)}</AvatarFallback>
-          </Avatar>
+          {/*
+            HR sets a photo from the record they already edit everything else
+            on. Without `employee.update` this is the plain avatar — the picker
+            renders read-only rather than being hidden, so the face is still
+            there.
+          */}
+          <AvatarPicker
+            src={e.avatarUrl}
+            fallback={initials(e)}
+            endpoint={`/employees/${e.id}/avatar`}
+            canEdit={can('employee.update')}
+            onDone={() => queryClient.invalidateQueries({ queryKey: ['employees'] })}
+          />
           <div>
             <h1 className="flex flex-wrap items-center gap-2">
-              {fullName(e)} <EmployeeStatusBadge status={e.status} />
+              {fullName(e)} <EmployeeStatusBadge status={e.status} />{' '}
+              <ProbationBadge probation={e.probation} />
             </h1>
             <p className="text-muted-foreground text-sm">
               {e.designation?.title ?? 'No designation'} ·{' '}
@@ -365,6 +372,9 @@ function EmployeeDetailView() {
             <Button variant="outline" render={<Link href={`/employees/${e.id}/edit`} />}>
               <Pencil className="size-4" aria-hidden /> Edit
             </Button>
+          )}
+          {can('employee.offboard') && (
+            <OffboardDialog employeeId={e.id} employeeName={fullName(e)} currentStatus={e.status} />
           )}
           {can('employee.delete') && (
             <AlertDialog>
@@ -400,128 +410,185 @@ function EmployeeDetailView() {
         </div>
       </div>
 
-      <Stagger className="grid items-start gap-6 lg:grid-cols-2">
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Contact</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="divide-y">
-                <Row
-                  label="Work email"
-                  value={
-                    <a href={`mailto:${e.workEmail}`} className="hover:underline">
-                      {e.workEmail}
-                    </a>
-                  }
-                />
-                <Row label="Personal email" value={e.personalEmail} />
-                <Row label="Phone" value={e.phone} />
-                <Row
-                  label="Address"
-                  value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
-                />
-              </dl>
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Job</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="divide-y">
-                <Row label="Department" value={e.department?.name} />
-                <Row label="Location" value={e.location?.name} />
-                <Row label="Employment type" value={e.employmentType?.name} />
-                <Row label="Shift" value={e.shift?.name} />
-                <Row
-                  label="Reporting manager"
-                  value={
-                    e.manager ? (
-                      <Link href={`/employees/${e.manager.id}`} className="hover:underline">
-                        {fullName(e.manager)}
-                      </Link>
-                    ) : null
-                  }
-                />
-                <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
-                <Row
-                  label="Login"
-                  value={e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'}
-                />
-                <RoleRow employee={e} />
-              </dl>
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        {/* Renders nothing unless this person is mid-onboarding. */}
-        <FadeInItem>
-          <InviteCard employeeId={e.id} />
-        </FadeInItem>
-
-        <FadeInItem>
-          <BankCard employee={e} />
-        </FadeInItem>
-
-        <FadeInItem>
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents</CardTitle>
-              <CardDescription>Contracts, ID proofs and certificates on file</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DocumentsBrowser employeeId={e.id} compact />
-            </CardContent>
-          </Card>
-        </FadeInItem>
-
-        {(can('letter.read') || can('letter.issue')) && (
+      <Stagger>
+        <CardColumns>
           <FadeInItem>
             <Card>
               <CardHeader>
-                <CardTitle>Letters</CardTitle>
-                <CardDescription>
-                  Offer, appointment, experience and salary letters issued to this employee
-                </CardDescription>
+                <CardTitle>Contact</CardTitle>
               </CardHeader>
               <CardContent>
-                <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+                <dl className="divide-y">
+                  <Row
+                    label="Work email"
+                    value={
+                      <a href={`mailto:${e.workEmail}`} className="hover:underline">
+                        {e.workEmail}
+                      </a>
+                    }
+                  />
+                  <Row label="Personal email" value={e.personalEmail} />
+                  <Row label="Phone" value={e.phone} />
+                  <Row
+                    label="Address"
+                    value={[e.addressLine, e.city, e.country].filter(Boolean).join(', ') || null}
+                  />
+                </dl>
               </CardContent>
             </Card>
           </FadeInItem>
-        )}
 
-        {e.reports.length > 0 && (
           <FadeInItem>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
-                  {e.reports.length})
-                </CardTitle>
+                <CardTitle>Job</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-1">
-                {e.reports.map((r) => (
-                  <Link
-                    key={r.id}
-                    href={`/employees/${r.id}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                  >
-                    <span className="font-medium">{fullName(r)}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {r.designation?.title ?? r.employeeCode}
-                    </span>
-                  </Link>
-                ))}
+              <CardContent>
+                <dl className="divide-y">
+                  <Row label="Department" value={e.department?.name} />
+                  <Row label="Location" value={e.location?.name} />
+                  <Row label="Employment type" value={e.employmentType?.name} />
+                  <Row label="Shift" value={e.shift?.name} />
+                  <Row
+                    label="Reporting manager"
+                    value={
+                      e.manager ? (
+                        <Link href={`/employees/${e.manager.id}`} className="hover:underline">
+                          {fullName(e.manager)}
+                        </Link>
+                      ) : null
+                    }
+                  />
+                  <Row label="Joining date" value={dateFmt.format(new Date(e.joinDate))} />
+                  <Row
+                    label="Login"
+                    value={
+                      e.user ? `${e.user.email} (${e.user.status.toLowerCase()})` : 'No account'
+                    }
+                  />
+                  <RoleRow employee={e} />
+                </dl>
               </CardContent>
             </Card>
           </FadeInItem>
-        )}
+
+          <FadeInItem>
+            <LifecycleCard employee={e} />
+          </FadeInItem>
+
+          {/* Renders nothing unless this person is mid-onboarding. */}
+          <FadeInItem>
+            <InviteCard employeeId={e.id} />
+          </FadeInItem>
+
+          <FadeInItem>
+            <BankCard employee={e} />
+          </FadeInItem>
+
+          {/* Same permissions the endpoint requires, so the card is never a 403. */}
+          {(can('attendance.read') || can('attendance.read.team')) && (
+            <FadeInItem>
+              <EmployeeAttendanceCard employeeId={e.id} />
+            </FadeInItem>
+          )}
+
+          {/* Gates itself on asset.read — every manager of this person can open
+            this record, and what they were issued is the register's business. */}
+          <FadeInItem>
+            <EmployeeAssetsCard employeeId={e.id} />
+          </FadeInItem>
+
+          <FadeInItem>
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+                <CardDescription>Contracts, ID proofs and certificates on file</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DocumentsBrowser employeeId={e.id} compact />
+              </CardContent>
+            </Card>
+          </FadeInItem>
+
+          {(can('letter.read') || can('letter.issue')) && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Letters</CardTitle>
+                  <CardDescription>
+                    Offer, appointment, relieving, experience and salary letters issued to this
+                    employee
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <LettersPanel employeeId={e.id} employeeName={fullName(e)} />
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
+
+          {/*
+          Shown to anyone who can open this record, not gated further. An
+          emergency contact that only HR can reach is not much use on the day it
+          is needed, and it is three fields the person volunteered for exactly
+          this purpose.
+        */}
+          {e.emergencyContacts.length > 0 && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Phone className="size-4 text-muted-foreground" aria-hidden /> Emergency
+                    contacts
+                  </CardTitle>
+                  <CardDescription>Who to call if something happens at work</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y">
+                    {e.emergencyContacts.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-sm">{c.name}</p>
+                          <p className="truncate text-muted-foreground text-xs">{c.relation}</p>
+                        </div>
+                        <a href={`tel:${c.phone}`} className="shrink-0 text-sm hover:underline">
+                          {c.phone}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
+
+          {e.reports.length > 0 && (
+            <FadeInItem>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="size-4 text-muted-foreground" aria-hidden /> Direct reports (
+                    {e.reports.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {e.reports.map((r) => (
+                    <Link
+                      key={r.id}
+                      href={`/employees/${r.id}`}
+                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                    >
+                      <span className="font-medium">{fullName(r)}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {r.designation?.title ?? r.employeeCode}
+                      </span>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            </FadeInItem>
+          )}
+        </CardColumns>
       </Stagger>
     </div>
   );

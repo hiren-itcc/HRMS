@@ -24,6 +24,8 @@ import { serializeReport } from '../reports/report-export';
 import {
   EmployeeSalaryDto,
   PaymentUpdateDto,
+  PayrollAdjustmentDto,
+  PayrollAdjustmentQueryDto,
   PayrollReportQueryDto,
   PayrollRunActionDto,
   PayrollRunCreateDto,
@@ -35,6 +37,7 @@ import {
   SalaryStructureUpdateDto,
 } from './dto/payroll.dto';
 import { EmployeeSalariesService } from './employee-salaries.service';
+import { PayrollAdjustmentsService } from './payroll-adjustments.service';
 import { PayrollReportsService } from './payroll-reports.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsService } from './payslips.service';
@@ -50,6 +53,7 @@ export class PayrollController {
     private readonly runs: PayrollRunsService,
     private readonly payslips: PayslipsService,
     private readonly reports: PayrollReportsService,
+    private readonly adjustmentsService: PayrollAdjustmentsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -152,6 +156,31 @@ export class PayrollController {
   @ApiOperation({ summary: 'Remove a salary revision that has not been paid against' })
   deleteSalary(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
     return this.salaries.remove(ctx(user), id);
+  }
+
+  // ── adjustments ───────────────────────────────────────────────────────
+  // One-offs for a single month. Gated on payroll.process rather than
+  // salary.manage: this changes what one run pays, not what somebody earns.
+
+  @Get('adjustments')
+  @RequirePermissions('payroll.read', 'payroll.process')
+  @ApiOperation({ summary: 'One-off adjustments entered for a month' })
+  adjustments(@CurrentUser() user: AccessTokenClaims, @Query() query: PayrollAdjustmentQueryDto) {
+    return this.adjustmentsService.list(user.orgId, query);
+  }
+
+  @Post('adjustments')
+  @RequirePermissions('payroll.process')
+  @ApiOperation({ summary: 'Set a bonus, incentive or recovery for one employee and month' })
+  setAdjustment(@CurrentUser() user: AccessTokenClaims, @Body() dto: PayrollAdjustmentDto) {
+    return this.adjustmentsService.upsert(ctx(user), dto);
+  }
+
+  @Delete('adjustments/:id')
+  @RequirePermissions('payroll.process')
+  @ApiOperation({ summary: 'Remove an adjustment before the month is settled' })
+  deleteAdjustment(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
+    return this.adjustmentsService.remove(ctx(user), id);
   }
 
   // ── runs ──────────────────────────────────────────────────────────────

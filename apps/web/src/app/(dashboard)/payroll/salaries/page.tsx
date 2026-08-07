@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@hrms/ui/components/button';
 import { DatePicker } from '@hrms/ui/components/date-picker';
 import { Input } from '@hrms/ui/components/input';
 import {
@@ -10,17 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@hrms/ui/components/select';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { type Column, DataTable } from '@/components/data-table';
 import { Field } from '@/components/field';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { formatMoney, payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { SalaryRow } from '@/features/payroll/types';
+import { useApiMutation, useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const REVISION_TYPES = [
@@ -61,12 +61,15 @@ export default function SalariesPage() {
     queryKey: [...payrollKeys.salaries(), listQuery],
     queryFn: () => payrollApi.salaries(listQuery),
   });
-  const structures = useQuery({
-    queryKey: [...payrollKeys.structures(), 'options'],
-    queryFn: payrollApi.structureOptions,
-  });
+  // Keyed under payrollKeys.structures() so editing a structure reaches it.
+  const structures = useOptions(
+    payrollKeys.structures(),
+    payrollApi.structureOptions,
+    (s) => s.name,
+  );
 
-  const assign = useMutation({
+  const assign = useApiMutation({
+    error: 'Could not save the salary',
     mutationFn: () =>
       payrollApi.assignSalary({
         employeeId: editing?.employeeId as string,
@@ -78,18 +81,17 @@ export default function SalariesPage() {
         reason: form.reason || null,
         paymentMethod: 'BANK_TRANSFER',
       }),
+    success: 'Salary saved',
     onSuccess: () => {
-      toast.success('Salary saved');
       setEditing(null);
       queryClient.invalidateQueries({ queryKey: payrollKeys.salaries() });
     },
-    onError: (error: Error) => toast.error(error.message),
   });
 
   const openFor = (row: SalaryRow) => {
     setEditing(row);
     setForm({
-      structureId: row.current?.structureId ?? structures.data?.[0]?.id ?? '',
+      structureId: row.current?.structureId ?? structures.options?.[0]?.id ?? '',
       effectiveFrom: new Date().toISOString().slice(0, 10),
       monthlyCtc: row.current ? String(row.current.monthlyCtc) : '',
       monthlyTds: row.current ? String(row.current.monthlyTds) : '0',
@@ -161,9 +163,9 @@ export default function SalariesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All structures</SelectItem>
-              {structures.data?.map((structure) => (
+              {structures.options?.map((structure) => (
                 <SelectItem key={structure.id} value={structure.id}>
-                  {structure.name}
+                  {structure.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -187,22 +189,18 @@ export default function SalariesPage() {
             can('payroll.salary.manage')
               ? (row) => (
                   <>
-                    <Button
-                      variant="ghost"
+                    <IconAction
+                      label={`Revise salary for ${row.name}`}
+                      icon={Pencil}
                       size="icon-sm"
-                      aria-label={`Revise salary for ${row.name}`}
                       onClick={() => openFor(row)}
-                    >
-                      <Pencil className="size-4" aria-hidden />
-                    </Button>
-                    <Button
-                      variant="ghost"
+                    />
+                    <IconAction
+                      label={`Salary history for ${row.name}`}
+                      icon={History}
                       size="icon-sm"
-                      aria-label={`Salary history for ${row.name}`}
                       render={<a href={`/payroll/salaries/${row.employeeId}`} />}
-                    >
-                      <History className="size-4" aria-hidden />
-                    </Button>
+                    />
                   </>
                 )
               : undefined
@@ -232,9 +230,9 @@ export default function SalariesPage() {
                 <SelectValue placeholder="Choose a structure" />
               </SelectTrigger>
               <SelectContent>
-                {structures.data?.map((structure) => (
+                {structures.options?.map((structure) => (
                   <SelectItem key={structure.id} value={structure.id}>
-                    {structure.name}
+                    {structure.label}
                   </SelectItem>
                 ))}
               </SelectContent>

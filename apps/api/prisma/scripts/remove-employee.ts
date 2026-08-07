@@ -1,8 +1,9 @@
 import 'dotenv/config';
-import { unlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../src/generated/prisma/client';
+import { LocalDiskStorage } from '../../src/modules/storage/local-disk.storage';
+import type { StorageAdapter } from '../../src/modules/storage/storage.adapter';
+import { SupabaseStorage } from '../../src/modules/storage/supabase.storage';
 
 /**
  * Permanently removes one employee and everything attached to them.
@@ -32,7 +33,25 @@ const prisma = new PrismaClient({
   }),
 });
 
-const UPLOAD_DIR = resolve(process.env.UPLOAD_DIR ?? './uploads');
+/**
+ * The same choice the API's StorageModule makes, made again here because a
+ * script has no Nest container. Duplicated deliberately and kept to two lines;
+ * the alternative is booting the whole application to delete some rows.
+ */
+function buildStorage(): StorageAdapter {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url && key) {
+    return new SupabaseStorage(url, key, process.env.SUPABASE_STORAGE_BUCKET ?? 'documents');
+  }
+  return new LocalDiskStorage(process.env.UPLOAD_DIR ?? './uploads');
+}
+
+function storageLabel(): string {
+  return process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? `Supabase bucket “${process.env.SUPABASE_STORAGE_BUCKET ?? 'documents'}”`
+    : (process.env.UPLOAD_DIR ?? './uploads');
+}
 
 async function main() {
   const email = process.argv[2]?.trim().toLowerCase();
@@ -79,15 +98,20 @@ async function main() {
   });
 
   /*
-   * Outside the transaction: files are not transactional, and a failed unlink
+   * Outside the transaction: files are not transactional, and a failed delete
    * must not roll back a correct database delete. Nothing else in this
-   * codebase ever removes bytes — StorageService.remove exists but no document
-   * path calls it — so without this the uploads are orphaned forever.
+   * codebase removes a document's bytes, so without this they are orphaned.
+   *
+   * Goes through the same adapter the API uses, so it deletes from wherever
+   * the files actually are. Reading UPLOAD_DIR directly, as this used to, went
+   * on "succeeding" against an empty local folder once storage moved to
+   * Supabase — silently leaving every object behind.
    */
+  const storage = buildStorage();
   let removed = 0;
   for (const key of fileKeys) {
     try {
-      await unlink(join(UPLOAD_DIR, key));
+      await storage.remove(key);
       removed += 1;
     } catch {
       // Already gone, or never written (a seeded row has no bytes behind it).
@@ -96,7 +120,7 @@ async function main() {
 
   console.log(
     `Removed ${name}: ${employee.documents.length} document rows, ` +
-      `${removed} file(s) unlinked from ${UPLOAD_DIR}` +
+      `${removed} file(s) deleted from ${storageLabel()}` +
       `${employee.userId ? ', login deleted' : ', no login attached'}`,
   );
 }

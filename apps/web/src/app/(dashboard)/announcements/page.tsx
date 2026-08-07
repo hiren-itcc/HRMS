@@ -30,18 +30,18 @@ import {
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CheckCheck, Megaphone, Plus, Search, X } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { type Announcement, announcementsApi } from '@/features/announcements/api';
 import { AnnouncementCard } from '@/features/announcements/components/announcement-card';
 import { ComposeDialog } from '@/features/announcements/components/compose-dialog';
+import { useApiMutation } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
-import { ApiError } from '@/lib/api-client';
 
 const ALL = 'all';
 
@@ -99,28 +99,24 @@ function AnnouncementsView() {
     enabled: Boolean(receiptsFor),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['announcements'] });
-
-  const markAllRead = useMutation({
+  const markAllRead = useApiMutation({
     mutationFn: announcementsApi.markAllRead,
-    onSuccess: (r) => {
-      invalidate();
-      toast.success(r.marked > 0 ? `${r.marked} marked as read` : 'Nothing new to read');
-    },
+    invalidate: [['announcements']],
+    success: (r) => (r.marked > 0 ? `${r.marked} marked as read` : 'Nothing new to read'),
   });
 
-  const remove = useMutation({
+  const remove = useApiMutation({
     mutationFn: announcementsApi.remove,
-    onSuccess: () => {
-      invalidate();
-      setDeleting(null);
-      toast.success('Announcement deleted');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
+    invalidate: [['announcements']],
+    success: 'Announcement deleted',
+    error: 'Could not delete',
+    onSuccess: () => setDeleting(null),
   });
 
   // Opening the feed marks what you can see as read
-  const markRead = useMutation({ mutationFn: announcementsApi.markRead });
+  const markRead = useApiMutation({
+    mutationFn: announcementsApi.markRead,
+  });
   useEffect(() => {
     const unread = feed.data?.data.filter((a) => !a.isRead && !a.isScheduled) ?? [];
     if (unread.length === 0) return;
@@ -215,14 +211,12 @@ function AnnouncementsView() {
           />
           {searchInput && (
             <InputGroupAddon align="inline-end">
-              <Button
-                variant="ghost"
+              <IconAction
+                label="Clear search"
+                icon={X}
                 size="icon-sm"
                 onClick={() => setSearchInput('')}
-                aria-label="Clear search"
-              >
-                <X className="size-4" aria-hidden />
-              </Button>
+              />
             </InputGroupAddon>
           )}
         </InputGroup>

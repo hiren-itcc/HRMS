@@ -1,11 +1,8 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { locationCreateSchema } from '@hrms/shared';
 import type { LocationType } from '@hrms/types';
 import { Badge } from '@hrms/ui/components/badge';
-import { Input } from '@hrms/ui/components/input';
-import { Label } from '@hrms/ui/components/label';
 import {
   Select,
   SelectContent,
@@ -15,18 +12,18 @@ import {
 } from '@hrms/ui/components/select';
 import { TriangleAlert } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormField, FormInput, FormSelect } from '@/components/form';
 import { TimezoneField } from '@/components/timezone-field';
 import { locationsApi } from '@/features/organization/api';
 import type { Location } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-locations';
 const ALL = 'all';
@@ -53,8 +50,7 @@ function LocationsView() {
   const { create, update, remove } = useCrudMutations(KEY, locationsApi, 'Location');
 
   const [editing, setEditing] = useState<Location | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(locationCreateSchema) });
-  const type = form.watch('type') ?? 'BRANCH';
+  const form = useZodForm<FormValues>(locationCreateSchema);
 
   const openNew = () => {
     form.reset({
@@ -204,53 +200,46 @@ function LocationsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Name" error={form.formState.errors.name?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
-        </Field>
-        <div className="space-y-2">
-          <Label htmlFor="type">Type</Label>
-          <Select
-            value={type}
-            onValueChange={(v) => form.setValue('type', v as LocationType, { shouldDirty: true })}
-          >
-            <SelectTrigger id="type" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(TYPE_LABEL).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Field label="Address" error={form.formState.errors.address?.message}>
-          {(a11y) => <Input {...a11y} {...form.register('address')} />}
-        </Field>
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="Ahmedabad HQ"
+        />
+        <FormSelect control={form.control} name="type" label="Type">
+          {Object.entries(TYPE_LABEL).map(([value, label]) => (
+            <SelectItem key={value} value={value}>
+              {label}
+            </SelectItem>
+          ))}
+        </FormSelect>
+        <FormInput
+          control={form.control}
+          name="address"
+          label="Address"
+          placeholder="4th Floor, Titanium One"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="City" error={form.formState.errors.city?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('city')} />}
-          </Field>
-          <Field label="Country" error={form.formState.errors.country?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('country')} />}
-          </Field>
+          <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+          <FormInput control={form.control} name="country" label="Country" placeholder="India" />
         </div>
-        <Field
+        {/* TimezoneField is a local composite, so it uses the escape hatch. */}
+        <FormField
+          control={form.control}
+          name="timezone"
           label="Timezone"
-          error={form.formState.errors.timezone?.message}
           hint="Optional — overrides the company default"
         >
-          {(a11y) => (
+          {({ field, a11y }) => (
             <TimezoneField
               {...a11y}
-              value={form.watch('timezone')}
-              onValueChange={(value) => form.setValue('timezone', value, { shouldDirty: true })}
+              value={field.value}
+              onValueChange={field.onChange}
               placeholder="Same as company default"
             />
           )}
-        </Field>
-
+        </FormField>
         <div className="space-y-3 rounded-lg border p-3">
           <p className="font-medium text-sm">Attendance geofence</p>
           <p className="text-muted-foreground text-xs">
@@ -259,36 +248,29 @@ function LocationsView() {
             anyone.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Latitude" error={form.formState.errors.latitude?.message}>
-              {(a11y) => (
-                <Input
-                  {...a11y}
-                  inputMode="decimal"
-                  placeholder="23.0225"
-                  {...form.register('latitude')}
-                />
-              )}
-            </Field>
-            <Field label="Longitude" error={form.formState.errors.longitude?.message}>
-              {(a11y) => (
-                <Input
-                  {...a11y}
-                  inputMode="decimal"
-                  placeholder="72.5714"
-                  {...form.register('longitude')}
-                />
-              )}
-            </Field>
+            <FormInput
+              control={form.control}
+              name="latitude"
+              label="Latitude"
+              inputMode="decimal"
+              placeholder="23.0225"
+            />
+            <FormInput
+              control={form.control}
+              name="longitude"
+              label="Longitude"
+              inputMode="decimal"
+              placeholder="72.5714"
+            />
           </div>
-          <Field
+          <FormInput
+            control={form.control}
+            name="geofenceRadiusMeters"
+            placeholder="200"
             label="Radius in metres"
-            error={form.formState.errors.geofenceRadiusMeters?.message}
             hint="How far from the coordinates still counts as being here"
-          >
-            {(a11y) => (
-              <Input {...a11y} inputMode="numeric" {...form.register('geofenceRadiusMeters')} />
-            )}
-          </Field>
+            inputMode="numeric"
+          />
         </div>
       </FormDialog>
     </CrudShell>

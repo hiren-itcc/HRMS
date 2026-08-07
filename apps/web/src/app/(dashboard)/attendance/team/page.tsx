@@ -1,9 +1,7 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
-import { Button } from '@hrms/ui/components/button';
 import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
+import { MonthPicker } from '@hrms/ui/components/month-picker';
 import {
   Select,
   SelectContent,
@@ -16,6 +14,8 @@ import { ChevronLeft, ChevronRight, Clock3, Timer, UserCheck, UserX } from 'luci
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { DataTable } from '@/components/data-table';
+import { EmployeeAvatar } from '@/components/employee-avatar';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { StatCard } from '@/components/stat-card';
@@ -30,6 +30,7 @@ import { AttendanceStatusBadge } from '@/features/attendance/components/status-b
 import { VerificationChip, WorkModeChip } from '@/features/attendance/components/work-mode-chip';
 import { initials } from '@/features/employees/types';
 import { departmentsApi } from '@/features/organization/api';
+import { useOptions } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
 
 const ALL = 'all';
@@ -50,10 +51,7 @@ function TeamAttendanceView() {
   const view = params.get('view') === 'monthly' ? 'monthly' : 'daily';
 
   const stats = useQuery({ queryKey: ['attendance', 'stats'], queryFn: attendanceApi.stats });
-  const departments = useQuery({
-    queryKey: ['org-departments', 'options'],
-    queryFn: departmentsApi.options,
-    staleTime: 60_000,
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name, {
     enabled: can('org.read'),
   });
 
@@ -136,14 +134,13 @@ function TeamAttendanceView() {
 
           {view === 'daily' ? (
             <div className="flex items-center gap-1">
-              <Button
+              <IconAction
+                label="Previous day"
+                icon={ChevronLeft}
                 variant="outline"
                 size="icon"
-                aria-label="Previous day"
                 onClick={() => params.setFilter('date', shiftDay(date, -1))}
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Button>
+              />
               <DatePicker
                 value={date}
                 max={today}
@@ -151,43 +148,39 @@ function TeamAttendanceView() {
                 className="w-44"
                 aria-label="Attendance date"
               />
-              <Button
+              <IconAction
+                label="Next day"
+                icon={ChevronRight}
                 variant="outline"
                 size="icon"
-                aria-label="Next day"
-                disabled={date >= today}
                 onClick={() => params.setFilter('date', shiftDay(date, 1))}
-              >
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
+                disabled={date >= today}
+              />
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <Button
+              <IconAction
+                label="Previous month"
+                icon={ChevronLeft}
                 variant="outline"
                 size="icon"
-                aria-label="Previous month"
                 onClick={() => params.setFilter('month', shiftMonth(month, -1))}
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-              </Button>
-              <Input
-                type="month"
+              />
+              <MonthPicker
                 value={month}
                 max={currentMonth()}
-                onChange={(e) => params.setFilter('month', e.target.value || undefined)}
-                className="w-40"
+                onValueChange={(next) => params.setFilter('month', next || undefined)}
+                className="w-44"
                 aria-label="Attendance month"
               />
-              <Button
+              <IconAction
+                label="Next month"
+                icon={ChevronRight}
                 variant="outline"
                 size="icon"
-                aria-label="Next month"
-                disabled={month >= currentMonth()}
                 onClick={() => params.setFilter('month', shiftMonth(month, 1))}
-              >
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
+                disabled={month >= currentMonth()}
+              />
             </div>
           )}
 
@@ -201,9 +194,9 @@ function TeamAttendanceView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All departments</SelectItem>
-                {departments.data?.map((d) => (
+                {departments.options?.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
-                    {d.name}
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -222,12 +215,10 @@ function TeamAttendanceView() {
                     href={`/employees/${row.employee.id}`}
                     className="flex items-center gap-3 hover:underline"
                   >
-                    <Avatar className="size-8">
-                      {row.employee.avatarUrl && (
-                        <AvatarImage src={row.employee.avatarUrl} alt="" />
-                      )}
-                      <AvatarFallback className="text-xs">{initials(row.employee)}</AvatarFallback>
-                    </Avatar>
+                    <EmployeeAvatar
+                      src={row.employee.avatarUrl}
+                      fallback={initials(row.employee)}
+                    />
                     <span className="min-w-0">
                       <span className="block truncate font-medium">
                         {row.employee.firstName} {row.employee.lastName}
@@ -288,7 +279,13 @@ function TeamAttendanceView() {
               {
                 key: 'status',
                 header: 'Status',
-                render: (row) => <AttendanceStatusBadge status={row.status} isLate={row.isLate} />,
+                render: (row) => (
+                  <AttendanceStatusBadge
+                    status={row.status}
+                    isLate={row.isLate}
+                    remoteApproved={row.remoteApproved}
+                  />
+                ),
               },
             ]}
             rows={daily.data?.data}

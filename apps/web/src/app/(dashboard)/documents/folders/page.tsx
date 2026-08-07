@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { documentCategoryCreateSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -10,28 +9,28 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FolderPlus, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormDialog } from '@/components/crud/form-dialog';
-import { Field } from '@/components/field';
+import { FormInput } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { NoAccess } from '@/components/no-access';
 import { useSession } from '@/components/session-provider';
 import { documentsApi } from '@/features/documents/api';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 type FolderValues = z.input<typeof documentCategoryCreateSchema>;
 
 /** Folder administration — the org-wide taxonomy every employee files into. */
 export default function DocumentFoldersPage() {
   const { can, status } = useSession();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const [folderOpen, setFolderOpen] = useState(false);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const canManage = can('document.manage');
 
   const folders = useQuery({
@@ -40,27 +39,43 @@ export default function DocumentFoldersPage() {
     enabled: canManage,
   });
 
-  const form = useForm<FolderValues>({ resolver: zodResolver(documentCategoryCreateSchema) });
+  const form = useZodForm<FolderValues>(documentCategoryCreateSchema);
+  const renameForm = useZodForm<FolderValues>(documentCategoryCreateSchema);
 
-  const createFolder = useMutation({
+  const createFolder = useApiMutation({
     mutationFn: documentsApi.createFolder,
+    invalidate: [['documents']],
+    success: 'Folder created',
+    error: 'Could not create the folder',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Folder created');
       setFolderOpen(false);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not create the folder'),
   });
 
-  const removeFolder = useMutation({
+  const removeFolder = useApiMutation({
     mutationFn: documentsApi.removeFolder,
+    invalidate: [['documents']],
+    success: 'Folder deleted',
+    error: 'Could not delete the folder',
+  });
+
+  /*
+   * Renaming was the one folder operation with an endpoint and no button. It
+   * matters more than it looks: a folder cannot be deleted while documents are
+   * in it, so a badly-named folder that people have already filed into could
+   * only be fixed by emptying it first.
+   *
+   * Documents point at the folder by id, so a rename moves nothing.
+   */
+  const renameFolder = useApiMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      documentsApi.renameFolder(id, { name }),
+    invalidate: [['documents']],
+    success: 'Folder renamed',
+    error: 'Could not rename the folder',
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      toast.success('Folder deleted');
+      setRenaming(null);
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete the folder'),
   });
 
   if (status === 'authenticated' && !canManage) return <NoAccess what="document folders" />;
@@ -105,16 +120,25 @@ export default function DocumentFoldersPage() {
                     {f.documentCount} document{f.documentCount === 1 ? '' : 's'} across the org
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive"
-                  aria-label={`Delete folder ${f.name}`}
-                  disabled={removeFolder.isPending}
-                  onClick={() => removeFolder.mutate(f.id)}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <IconAction
+                    label={`Rename folder ${f.name}`}
+                    icon={Pencil}
+                    size="icon"
+                    onClick={() => {
+                      renameForm.reset({ name: f.name });
+                      setRenaming(f);
+                    }}
+                  />
+                  <IconAction
+                    label={`Delete folder ${f.name}`}
+                    icon={Trash2}
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => removeFolder.mutate(f.id)}
+                    disabled={removeFolder.isPending}
+                  />
+                </div>
               </div>
             ))}
           </CardContent>
@@ -130,11 +154,33 @@ export default function DocumentFoldersPage() {
         submitting={createFolder.isPending}
         submitLabel="Create folder"
       >
-        <Field label="Folder name" error={form.formState.errors.name?.message}>
-          {(a11y) => (
-            <Input {...a11y} autoFocus placeholder="Certificates" {...form.register('name')} />
-          )}
-        </Field>
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Folder name"
+          autoFocus
+          placeholder="Certificates"
+        />
+      </FormDialog>
+
+      <FormDialog
+        open={renaming !== null}
+        onOpenChange={(open) => !open && setRenaming(null)}
+        title="Rename folder"
+        description="Documents point at the folder by id, so nothing moves and nothing is refiled."
+        onSubmit={renameForm.handleSubmit((v) =>
+          renaming ? renameFolder.mutate({ id: renaming.id, name: v.name }) : undefined,
+        )}
+        submitting={renameFolder.isPending}
+        submitLabel="Save name"
+      >
+        <FormInput
+          control={renameForm.control}
+          name="name"
+          label="Folder name"
+          autoFocus
+          placeholder="Certificates"
+        />
       </FormDialog>
     </Stagger>
   );

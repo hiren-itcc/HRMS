@@ -5,7 +5,6 @@ import type { Env } from '../../config/env';
 import { DocumentCategoriesService } from './document-categories.service';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
-import { StorageService } from './storage.service';
 
 /** Employee documents (docs/03-api-structure.md §documents) — local-disk storage adapter. */
 @Module({
@@ -20,6 +19,6 @@ import { StorageService } from './storage.service';
     }),
   ],
   controllers: [DocumentsController],
-  providers: [DocumentsService, DocumentCategoriesService, StorageService],
+  providers: [DocumentsService, DocumentCategoriesService],
 })
 export class DocumentsModule {}

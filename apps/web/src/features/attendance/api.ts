@@ -6,6 +6,7 @@ import type {
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
 import { api } from '@/lib/api-client';
+import { qs } from '@/lib/crud';
 
 export type DerivedStatus =
   | 'PRESENT'
@@ -52,6 +53,12 @@ export interface DayEntry {
   note: string | null;
   /** The day rolled up: all one way, or OFFICE when the sittings were mixed. */
   workMode: WorkMode | null;
+  /**
+   * Whether a remote day was agreed in advance. Null when the question does
+   * not arise — an office day has nothing to approve, so false there would
+   * read as a refusal rather than as "not applicable".
+   */
+  remoteApproved: boolean | null;
   sessions: DaySession[];
 }
 
@@ -105,6 +112,10 @@ export interface AttendanceStats {
   stillIn: number;
   notMarked: number;
   pendingRequests: number;
+  /** Worked from home today. */
+  remote: number;
+  /** Of those, how many had no approved request behind them. */
+  remoteUnplanned: number;
 }
 
 export interface AttendanceRequestRow {
@@ -118,15 +129,6 @@ export interface AttendanceRequestRow {
   actedAt: string | null;
   createdAt: string;
   employee: { id: string; firstName: string; lastName: string; employeeCode: string };
-}
-
-function qs(params: Record<string, string | number | undefined>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
-  }
-  const s = search.toString();
-  return s ? `?${s}` : '';
 }
 
 export const attendanceApi = {
@@ -252,7 +254,10 @@ export function timeIn(iso: string | null, timeZone?: string): string {
 }
 
 export function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  // Local, not UTC. `toISOString` on the 1st of a month before 05:30 in India
+  // still reads as the previous month, which made the current one unselectable.
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /** Today's YYYY-MM-DD in the given timezone — mirrors the server's day key. */

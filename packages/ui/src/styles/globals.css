@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/inter";
+/* The second family, for the two themes that carry one. Two rather than six:
+   a page should not download fonts it never renders. */
+@import "@fontsource-variable/plus-jakarta-sans";
 /* coss ships `@import "geist"`, but that package is next/font-only and exports
    no stylesheet, so PostCSS cannot resolve it. Fontsource serves the same
    family as a plain webfont, which is what a CSS @import needs. */
@@ -21,6 +24,30 @@
 
 :root {
   --radius: 0.5rem;
+
+  /*
+   * The default face. `themes.css` moves this for the themes that carry a
+   * second family; everything else reads it through --font-sans.
+   *
+   * "Inter Variable" first, and that is the fix rather than a flourish:
+   * @fontsource-variable/inter registers the family as `Inter Variable`, and
+   * this file asked for `Inter`. The @import loaded 40kB of webfont that no
+   * rule could ever match, and every screen has been rendering in whatever the
+   * OS resolves for sans-serif. "Inter" stays behind it for anyone who has the
+   * static family installed locally.
+   */
+  --font-sans-stack: "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-heading-stack: "Inter Variable", "Inter", system-ui, sans-serif;
+
+  /* The .gradient-primary ramp, as tokens so a theme can move it. Every stop
+     is darker than --primary on purpose — all 13 consumers put `text-white`
+     on this surface, and these three clear 4.5:1 (7.07 / 5.61 / 4.53) where
+     --primary itself only reaches 3.90:1. Expressed in OKLCH rather than the
+     original hexes so a theme rotates the hue and inherits the lightness,
+     which is what keeps that property true. */
+  --brand-ramp-1: oklch(0.4757 0.115 30.24);
+  --brand-ramp-2: oklch(0.5293 0.1327 36.09);
+  --brand-ramp-3: oklch(0.5808 0.1379 42.04);
 
   --background: oklch(0.9818 0.0054 95.0986);
   --foreground: oklch(0.3438 0.0269 95.7226);
@@ -148,7 +175,19 @@
   --muted-foreground: oklch(0.7713 0.0169 99.0657); /* 7.36:1 on bg, 8.38:1 on muted */
   --accent: oklch(0.213 0.0078 95.4245);
   --accent-foreground: oklch(0.9663 0.008 98.8792);
-  --destructive: oklch(0.6368 0.2078 25.3313);
+  /* CORRECTED — supplied oklch(0.6368 0.2078 25.3313), which is red-500. The
+     solid destructive button and badge both hardcode `text-white`, and white
+     on red-500 reads 3.76:1 here: under AA on every Delete button in dark
+     mode. Darkened until white clears it (4.56:1) with the hue and chroma
+     untouched, which lands between red-500 and red-600.
+
+     Everything else that reads this token improved with it: the /8 badge tint
+     went 5.08 → 5.18 and the /15 chip 4.49 → 4.66. The only pair that loses is
+     `destructive/32`, which is the *hover* border on the outline variant — its
+     resting border is --input, and that still clears 3:1.
+
+     Light mode is untouched: white on it already reads 4.83:1. */
+  --destructive: oklch(0.5903 0.2078 25.3313);
   /* NOT white — same coss semantics as light mode; see the :root comment. */
   --destructive-foreground: var(--color-red-400);
   --border: oklch(0.3618 0.0101 106.8928);
@@ -201,7 +240,15 @@
 }
 
 @theme inline {
-  --font-sans: "Inter", sans-serif;
+  /*
+   * One level of indirection, and it is load-bearing. Written as a literal
+   * here — `--font-sans: "Inter", sans-serif` — Tailwind inlines the string
+   * into every `font-sans` utility, and a `[data-theme]` block overriding
+   * `--font-sans` at runtime changes nothing at all. Pointing at a var makes
+   * the utility emit `var(--font-sans-stack)`, which a theme can move.
+   * The stacks themselves live in :root below, with the rest of the tokens.
+   */
+  --font-sans: var(--font-sans-stack);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -251,8 +298,12 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Clamped at zero. `--radius` is now per-theme, and Slate's 0.125rem made
+     `--radius-sm` compute to -2px — an invalid border-radius, which browsers
+     drop entirely. The result happened to look right, by way of a declaration
+     the browser threw away. max() makes the sharp corner deliberate. */
+  --radius-sm: max(0px, calc(var(--radius) - 4px));
+  --radius-md: max(0px, calc(var(--radius) - 2px));
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
@@ -279,8 +330,12 @@
   --animate-toast-success-even: toast-success-even 0.32s cubic-bezier(0.5, 1, 0.89, 1);
   --animate-toast-error-odd: toast-error-odd 0.28s cubic-bezier(0.5, 1, 0.89, 1);
   --animate-toast-error-even: toast-error-even 0.28s cubic-bezier(0.5, 1, 0.89, 1);
-  --font-heading: "Inter", sans-serif;
-  --font-mono: "Geist Mono", monospace;
+  --font-heading: var(--font-heading-stack);
+  /* Mono is not themed: code, keyboard keys and the masked account numbers all
+     depend on the figures lining up, and one monospace is enough.
+     Same name correction as the sans — Fontsource registers the family as
+     `Geist Mono Variable`, so `Geist Mono` matched nothing. */
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
   --color-code-highlight: var(--code-highlight);
   --code-foreground: var(--code-foreground);
   --color-code: var(--code);
@@ -422,13 +477,19 @@
 
 @layer utilities {
   /* Gradient set from the redesign brief — used by stat cards & hero CTAs.
-     .gradient-primary was retuned from indigo to the brand terracotta; the
-     four accent gradients below are categorical, not brand, so they stay.
-     Every stop is darker than --primary on purpose: all 13 consumers put
-     `text-white` on this surface, and these stops clear 4.5:1 (7.07 / 5.61 /
-     4.53) where --primary itself only reaches 3.90:1. */
+     .gradient-primary follows the brand and therefore the theme; the four
+     accent gradients below are categorical, not brand, so they stay put in
+     every theme. Their whole job is to tell five things apart, and a
+     categorical scale that moves with the chrome stops doing it.
+     The ramp tokens and the reason they are darker than --primary are in
+     :root; `themes.css` overrides them per theme. */
   .gradient-primary {
-    background-image: linear-gradient(135deg, #923f33 0%, #aa4a30 55%, #bc5a31 100%);
+    background-image: linear-gradient(
+      135deg,
+      var(--brand-ramp-1) 0%,
+      var(--brand-ramp-2) 55%,
+      var(--brand-ramp-3) 100%
+    );
   }
   /* 600-shades: keeps white text ≥ ~4:1 (ui-ux-pro-max accessibility note) */
   .gradient-sky {
@@ -530,95 +591,5 @@
    "Export → PDF" is the browser's print-to-PDF, so the printed page has to
    stand on its own: no app chrome, light tokens regardless of the on-screen
    theme, and charts that actually render ink. */
-@media print {
-  /* Every colour token, not just the surfaces: a dark-mode page used to print
-     its light-indigo --primary and translucent --accent onto white paper. */
-  :root,
-  .dark {
-    --background: #faf9f5;
-    --foreground: #3d3929;
-    --card: #faf9f5;
-    --card-foreground: #141413;
-    --popover: #ffffff;
-    --popover-foreground: #28261b;
-    --primary: #c96442;
-    --primary-foreground: #ffffff;
-    --primary-text: #a25035;
-    --secondary: #e9e6dc;
-    --secondary-foreground: #535146;
-    --muted: #ede9de;
-    --muted-foreground: #696864; /* 4.60:1 on --muted; #6a6a65 read 4.48:1 */
-    --accent: #e9e6dc;
-    --accent-foreground: #28261b;
-    --destructive: #dc2626;
-    /* Paper has no tint behind it, so unlike on screen this one IS the label
-       colour on a solid destructive fill. */
-    --destructive-foreground: #ffffff;
-    --destructive-text: #c02121;
-    --border: #dad9d4;
-    --input: #8f8c80;
-    --ring: #c96442;
-    --skeleton: #cdccc5;
-    --success: #0a7854;
-    --success-foreground: #ffffff;
-    --success-text: #0a7854;
-    --warning: #956007;
-    --warning-foreground: #ffffff;
-    --warning-text: #956007;
-    --info: #2e65bf;
-    --info-foreground: #ffffff;
-    --info-text: #2e65bf;
-    --sidebar: #faf9f5;
-    --sidebar-foreground: #3d3d3a;
-    --sidebar-primary: #c96442;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #e9e6dc;
-    --sidebar-accent-foreground: #343434;
-    --sidebar-border: #dad9d4;
-    --sidebar-ring: #c96442;
-    --chart-1: #c96442;
-    --chart-2: #2691bf;
-    --chart-3: #aa800d;
-    --chart-4: #946fd0;
-    --chart-5: #449c6e;
-  }
-
-  /* Without this, browsers drop background fills — every stat tile and bar
-     would print as an empty outline. */
-  *,
-  *::before,
-  *::after {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-
-  /* Framer Motion writes opacity/transform as *inline* styles, so only
-     !important can reach them. Anything caught mid-animation would otherwise
-     print as a blank rectangle — a silent failure on paper. */
-  /* `:not(svg *)` matters: SVG `transform` is a presentation attribute mapped
-     to the CSS property, so an unscoped reset would re-centre every Recharts
-     legend swatch (they are positioned with translate()) on the icon origin. */
-  body *:not(svg *) {
-    /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
-    opacity: 1 !important;
-    /* biome-ignore lint/complexity/noImportantStyles: inline styles are only reachable with !important */
-    transform: none !important;
-  }
-
-  [data-sonner-toaster] {
-    display: none;
-  }
-
-  .break-inside-avoid,
-  table {
-    break-inside: avoid;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  @page {
-    margin: 14mm;
-  }
-}
+/* Print styles moved to print.css — it must load after themes.css to win the
+   cascade. See the comment at the top of that file. */

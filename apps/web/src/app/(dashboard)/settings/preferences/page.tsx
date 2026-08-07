@@ -1,7 +1,7 @@
 'use client';
 
 import type { OrgSettings, OrgSettingsPatch } from '@hrms/shared';
-import { WEEKDAYS } from '@hrms/shared';
+import { PER_DAY_BASES, PER_DAY_BASIS_LABELS, WEEKDAYS } from '@hrms/shared';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { Checkbox } from '@hrms/ui/components/checkbox';
+import { Input } from '@hrms/ui/components/input';
 import { Label } from '@hrms/ui/components/label';
 import {
   Select,
@@ -37,6 +38,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
+import { ExitChecklistEditor } from '@/features/lifecycle/components/exit-checklist-editor';
+import { LifecycleRunPanel } from '@/features/lifecycle/components/lifecycle-run-panel';
 import { SETTINGS_KEY, settingsApi, useOrgSettings } from '@/features/settings/api';
 
 const MONTHS = [
@@ -61,6 +64,18 @@ const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: s
   { key: 'announcements', label: 'Announcements', hint: 'Company-wide posts' },
   { key: 'reports', label: 'Reports', hint: 'Analytics and exports' },
 ];
+
+/**
+ * A number input hands back a string, and an empty one hands back `''`.
+ * `Number('')` is 0, which would silently save "no notice period" the moment
+ * somebody cleared the field to retype it — so an unparseable value keeps the
+ * low end of the range instead.
+ */
+function clamp(raw: string, min: number, max: number): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return min;
+  return Math.min(max, Math.max(min, parsed));
+}
 
 export default function PreferencesPage() {
   const { can } = useSession();
@@ -266,6 +281,416 @@ export default function PreferencesPage() {
             </div>
 
             {saveBar('leave', 'Save leave policy')}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
+      {/* ── Employment lifecycle ─────────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Employment lifecycle</CardTitle>
+            <CardDescription>
+              Defaults for joining, confirming and leaving. Every number here can be overridden on
+              an individual employee — this is what applies when theirs is left blank.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="notice-days">Notice period (days)</Label>
+                <Input
+                  id="notice-days"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={365}
+                  className="w-32"
+                  disabled={!canManage}
+                  value={draft.lifecycle.defaultNoticeDays}
+                  onChange={(e) =>
+                    set('lifecycle', { defaultNoticeDays: clamp(e.target.value, 0, 365) })
+                  }
+                />
+                <p className="text-muted-foreground text-xs">
+                  Calendar days from the day a resignation is filed.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="probation-months">Probation (months)</Label>
+                <Input
+                  id="probation-months"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={24}
+                  className="w-32"
+                  disabled={!canManage}
+                  value={draft.lifecycle.defaultProbationMonths}
+                  onChange={(e) =>
+                    set('lifecycle', { defaultProbationMonths: clamp(e.target.value, 0, 24) })
+                  }
+                />
+                <p className="text-muted-foreground text-xs">
+                  Zero means new hires start confirmed. Existing employees are unaffected.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="auto-confirm"
+                checked={draft.lifecycle.autoConfirmOnProbationEnd}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { autoConfirmOnProbationEnd: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-confirm">Confirm automatically at the end of probation</Label>
+                <p className="text-muted-foreground text-xs">
+                  Off means the date passes and the employee waits on the Probation ending list
+                  until HR presses Confirm.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="auto-exit"
+                checked={draft.lifecycle.autoExitOnLastWorkingDate}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { autoExitOnLastWorkingDate: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-exit">Mark leavers exited after their last working day</Label>
+                <p className="text-muted-foreground text-xs">
+                  Suspends the sign-in and signs every device out. Off means somebody who has left
+                  keeps working access until HR completes the offboarding by hand.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="manager-approval"
+                checked={draft.lifecycle.requireManagerApproval}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('lifecycle', { requireManagerApproval: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="manager-approval">
+                  Route resignations past the manager before HR
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  Skipped anyway for anyone with no reporting manager, who would otherwise have
+                  nobody to review them.
+                </p>
+              </div>
+            </div>
+
+            {saveBar('lifecycle', 'Save lifecycle')}
+
+            {canManage && <LifecycleRunPanel />}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
+      {/* ── Exit checklist ───────────────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Exit checklist</CardTitle>
+            <CardDescription>
+              What has to be cleared before somebody's exit can be closed. Each item is copied onto
+              an exit when it starts, so this is a template rather than a live list.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ExitChecklistEditor
+              items={draft.exitChecklist.items}
+              disabled={!canManage}
+              onChange={(items) => set('exitChecklist', { items })}
+            />
+            {saveBar('exitChecklist', 'Save checklist')}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
+      {/* ── Work from home ───────────────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Work from home</CardTitle>
+            <CardDescription>
+              How many remote days people may book, and whether somebody has to agree first.
+              Attendance records a remote day either way — this decides which ones were planned.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="wfh-enabled"
+                checked={draft.wfh.enabled}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('wfh', { enabled: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="wfh-enabled">Allow remote-work requests</Label>
+                <p className="text-muted-foreground text-xs">
+                  Off means nobody can ask. Days already agreed keep their approval.
+                </p>
+              </div>
+            </div>
+
+            {draft.wfh.enabled && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wfh-cap">Remote days a week</Label>
+                  <Input
+                    id="wfh-cap"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={7}
+                    className="w-32"
+                    disabled={!canManage}
+                    value={draft.wfh.maxDaysPerWeek}
+                    onChange={(e) => set('wfh', { maxDaysPerWeek: clamp(e.target.value, 0, 7) })}
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    {draft.wfh.maxDaysPerWeek === 0
+                      ? 'Nobody may book a remote day. This is a real setting, not "no limit".'
+                      : draft.wfh.maxDaysPerWeek === 7
+                        ? 'Seven is every day there is — effectively no limit.'
+                        : 'An individual can be given their own allowance on their record.'}
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="wfh-approval"
+                    checked={draft.wfh.requireApproval}
+                    disabled={!canManage}
+                    onCheckedChange={(v) => set('wfh', { requireApproval: v === true })}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="wfh-approval">Route requests past the manager</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off means a request is agreed the moment it is filed — still worth recording,
+                      because attendance can then say a day was planned.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {saveBar('wfh', 'Save remote work')}
+          </CardContent>
+        </Card>
+      </FadeInItem>
+
+      {/* ── Full & final settlement ──────────────────────────────────── */}
+      <FadeInItem>
+        <Card>
+          <CardHeader>
+            <CardTitle>Full &amp; final settlement</CardTitle>
+            <CardDescription>
+              How a leaver's dues are priced. These are read when a settlement is prepared and
+              frozen onto it — changing them will not rewrite a settlement that already exists.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="per-day-basis">A day's pay is</Label>
+                <Select
+                  value={draft.settlement.perDayBasis}
+                  onValueChange={(v) =>
+                    set('settlement', {
+                      perDayBasis: v as OrgSettings['settlement']['perDayBasis'],
+                    })
+                  }
+                  disabled={!canManage}
+                >
+                  <SelectTrigger id="per-day-basis">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PER_DAY_BASES.map((basis) => (
+                      <SelectItem key={basis} value={basis}>
+                        {PER_DAY_BASIS_LABELS[basis]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  Monthly pay is divided by this for both encashment and recovery.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="rate-basis">Priced off</Label>
+                <Select
+                  value={draft.settlement.rateBasis}
+                  onValueChange={(v) =>
+                    set('settlement', { rateBasis: v as OrgSettings['settlement']['rateBasis'] })
+                  }
+                  disabled={!canManage}
+                >
+                  <SelectTrigger id="rate-basis">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BASIC">Basic salary</SelectItem>
+                    <SelectItem value="GROSS">Gross salary</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  Basic is the common practice; gross is the more generous reading.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="recover-notice"
+                checked={draft.settlement.recoverShortNotice}
+                disabled={!canManage}
+                onCheckedChange={(v) => set('settlement', { recoverShortNotice: v === true })}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="recover-notice">Recover pay for notice that was not served</Label>
+                <p className="text-muted-foreground text-xs">
+                  Resignations only. Nothing is recovered when the company ended the employment — a
+                  termination owes notice rather than collecting it.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id="gratuity-enabled"
+                checked={draft.settlement.gratuity.enabled}
+                disabled={!canManage}
+                onCheckedChange={(v) =>
+                  set('settlement', {
+                    gratuity: { ...draft.settlement.gratuity, enabled: v === true },
+                  })
+                }
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="gratuity-enabled">Compute gratuity</Label>
+                <p className="text-muted-foreground text-xs">
+                  Off means it is left off the settlement entirely. HR can still add it by hand.
+                </p>
+              </div>
+            </div>
+
+            {draft.settlement.gratuity.enabled && (
+              <div className="grid gap-4 border-border border-l-2 pl-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="gratuity-min-years">Minimum service (years)</Label>
+                  <Input
+                    id="gratuity-min-years"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={20}
+                    className="w-32"
+                    disabled={!canManage}
+                    value={draft.settlement.gratuity.minYears}
+                    onChange={(e) =>
+                      set('settlement', {
+                        gratuity: {
+                          ...draft.settlement.gratuity,
+                          minYears: clamp(e.target.value, 0, 20),
+                        },
+                      })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Five is the statutory qualifying period.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="gratuity-cap">Ceiling (₹)</Label>
+                  <Input
+                    id="gratuity-cap"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={100_000}
+                    className="w-40"
+                    disabled={!canManage}
+                    value={draft.settlement.gratuity.cap}
+                    onChange={(e) =>
+                      set('settlement', {
+                        gratuity: {
+                          ...draft.settlement.gratuity,
+                          cap: clamp(e.target.value, 0, 100_000_000),
+                        },
+                      })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    ₹20,00,000 is the statutory ceiling. Zero means no ceiling.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="gratuity-days">Days per year</Label>
+                  <Input
+                    id="gratuity-days"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={31}
+                    className="w-32"
+                    disabled={!canManage}
+                    value={draft.settlement.gratuity.daysPerYear}
+                    onChange={(e) =>
+                      set('settlement', {
+                        gratuity: {
+                          ...draft.settlement.gratuity,
+                          daysPerYear: clamp(e.target.value, 0, 31),
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="gratuity-divisor">Divisor</Label>
+                  <Input
+                    id="gratuity-divisor"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={31}
+                    className="w-32"
+                    disabled={!canManage}
+                    value={draft.settlement.gratuity.divisor}
+                    onChange={(e) =>
+                      set('settlement', {
+                        gratuity: {
+                          ...draft.settlement.gratuity,
+                          divisor: clamp(e.target.value, 1, 31),
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                <p className="text-muted-foreground text-xs sm:col-span-2">
+                  {draft.settlement.gratuity.daysPerYear}/{draft.settlement.gratuity.divisor} of a
+                  month's pay for every completed year. A part year over six months counts as a
+                  whole one.
+                </p>
+              </div>
+            )}
+
+            {saveBar('settlement', 'Save settlement')}
           </CardContent>
         </Card>
       </FadeInItem>

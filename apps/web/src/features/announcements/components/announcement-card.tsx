@@ -1,12 +1,13 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@hrms/ui/components/avatar';
 import { Badge } from '@hrms/ui/components/badge';
-import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent } from '@hrms/ui/components/card';
 import { cn } from '@hrms/ui/lib/utils';
 import { CalendarClock, Download, Eye, Paperclip, Pencil, Pin, Trash2, Users } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
+import { EmployeeAvatar } from '@/components/employee-avatar';
+import { IconAction } from '@/components/icon-action';
 import { type Announcement, announcementsApi, CATEGORY_STYLE, PRIORITY_STYLE } from '../api';
 import { Markdown } from './markdown';
 
@@ -112,36 +113,35 @@ export function AnnouncementCard({
                 />
               )}
             </div>
-            <h3 className="font-semibold text-base leading-snug">{a.title}</h3>
+            {/* Linked so a post can be pointed at — the feed was the only way in. */}
+            <h3 className="font-semibold text-base leading-snug">
+              <Link href={`/announcements/${a.id}`} className="hover:underline">
+                {a.title}
+              </Link>
+            </h3>
           </div>
 
           {canManage && (onEdit || onDelete || onViewReads) && (
             <div className="flex shrink-0 gap-0.5">
               {onViewReads && (
-                <Button
-                  variant="ghost"
+                <IconAction
+                  label={`Read receipts for ${a.title}`}
+                  icon={Eye}
                   size="icon"
                   onClick={onViewReads}
-                  aria-label={`Read receipts for ${a.title}`}
-                >
-                  <Eye className="size-4" aria-hidden />
-                </Button>
+                />
               )}
               {onEdit && (
-                <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${a.title}`}>
-                  <Pencil className="size-4" aria-hidden />
-                </Button>
+                <IconAction label={`Edit ${a.title}`} icon={Pencil} size="icon" onClick={onEdit} />
               )}
               {onDelete && (
-                <Button
-                  variant="ghost"
+                <IconAction
+                  label={`Delete ${a.title}`}
+                  icon={Trash2}
                   size="icon"
                   className="text-destructive hover:text-destructive"
                   onClick={onDelete}
-                  aria-label={`Delete ${a.title}`}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </Button>
+                />
               )}
             </div>
           )}
@@ -170,10 +170,12 @@ export function AnnouncementCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
           <span className="flex items-center gap-1.5">
-            <Avatar className="size-5">
-              {a.author.avatarUrl && <AvatarImage src={a.author.avatarUrl} alt="" />}
-              <AvatarFallback className="text-[9px]">{initials(a.author.name)}</AvatarFallback>
-            </Avatar>
+            <EmployeeAvatar
+              src={a.author.avatarUrl}
+              fallback={initials(a.author.name)}
+              className="size-5"
+              fallbackClassName="text-[9px]"
+            />
             {a.author.name}
           </span>
           <span>· {dateFmt.format(new Date(a.publishAt))}</span>

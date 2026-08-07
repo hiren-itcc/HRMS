@@ -7,6 +7,7 @@ import { useSession } from '@/components/session-provider';
 
 const TABS = [
   { href: '/organization', label: 'Company' },
+  { href: '/organization/chart', label: 'Org chart' },
   { href: '/organization/departments', label: 'Departments' },
   { href: '/organization/designations', label: 'Designations' },
   { href: '/organization/employment-types', label: 'Employment types' },

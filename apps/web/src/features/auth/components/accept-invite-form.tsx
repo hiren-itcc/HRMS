@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { passwordSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -16,12 +15,12 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Field } from '@/components/field';
+import { FormField } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { authApi } from '@/features/auth/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 import { PasswordInput } from './password-input';
 
 const formSchema = z
@@ -67,11 +66,10 @@ export function AcceptInviteForm() {
     retry: false,
   });
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useZodForm<FormValues>(formSchema, {
     defaultValues: { password: '', confirmPassword: '' },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
 
   if (!token) {
     return (
@@ -109,7 +107,7 @@ export function AcceptInviteForm() {
       // Straight into the wizard — they are signed in already.
       router.replace('/onboarding');
     } catch (err) {
-      setServerError(err instanceof ApiError ? err.message : 'Could not set your password');
+      setServerError(errorMessage(err, 'Could not set your password'));
     }
   });
 
@@ -126,12 +124,27 @@ export function AcceptInviteForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="Password" error={errors.password?.message}>
-            {(a11y) => <PasswordInput {...a11y} autoFocus {...form.register('password')} />}
-          </Field>
-          <Field label="Confirm password" error={errors.confirmPassword?.message}>
-            {(a11y) => <PasswordInput {...a11y} {...form.register('confirmPassword')} />}
-          </Field>
+          <FormField control={form.control} name="password" label="Password">
+            {({ field, a11y }) => (
+              <PasswordInput
+                {...a11y}
+                {...field}
+                value={field.value ?? ''}
+                autoComplete="new-password"
+                autoFocus
+              />
+            )}
+          </FormField>
+          <FormField control={form.control} name="confirmPassword" label="Confirm password">
+            {({ field, a11y }) => (
+              <PasswordInput
+                {...a11y}
+                {...field}
+                value={field.value ?? ''}
+                autoComplete="new-password"
+              />
+            )}
+          </FormField>
 
           {serverError && <p className="text-destructive text-sm">{serverError}</p>}
 

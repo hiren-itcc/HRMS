@@ -36,7 +36,27 @@ export const envSchema = z.object({
    * have (1 behind a single load balancer).
    */
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
+  /**
+   * Where uploaded files go when no object store is configured. A container
+   * whose filesystem is replaced on deploy — Render, Fly, most PaaS — loses
+   * every document, so set the Supabase variables below in any real
+   * deployment and treat this as the local-development path.
+   */
   UPLOAD_DIR: z.string().default('./uploads'),
+  /**
+   * Supabase Storage, on the same project that already serves Postgres. Both
+   * of these must be set for it to be used; either missing falls back to
+   * UPLOAD_DIR, which is what keeps dev and CI working without credentials.
+   */
+  SUPABASE_URL: z.string().url().optional(),
+  /**
+   * The `service_role` key, not the anon key. It bypasses row-level security,
+   * so it belongs to the API and must never reach the browser — which is also
+   * why the bucket stays private and files stream through the API, where
+   * `ensureEmployeeAccess` still decides who may read them.
+   */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_STORAGE_BUCKET: z.string().default('documents'),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(10),
   /**
    * Password a newly created employee's login starts with.

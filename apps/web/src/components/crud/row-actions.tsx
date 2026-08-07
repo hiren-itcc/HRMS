@@ -13,7 +13,9 @@ import {
   AlertDialogTrigger,
 } from '@hrms/ui/components/alert-dialog';
 import { Button } from '@hrms/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@hrms/ui/components/tooltip';
 import { Pencil, Trash2 } from 'lucide-react';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 
 interface RowActionsProps {
@@ -42,25 +44,28 @@ export function RowActions({
 
   return (
     <>
-      {canEdit && (
-        <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${name}`}>
-          <Pencil className="size-4" aria-hidden />
-        </Button>
-      )}
+      {canEdit && <IconAction label={`Edit ${name}`} icon={Pencil} onClick={onEdit} />}
       {canDelete && (
         <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:text-destructive"
-                aria-label={`Delete ${name}`}
-              />
-            }
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </AlertDialogTrigger>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`Delete ${name}`}
+                    />
+                  }
+                />
+              }
+            >
+              <Trash2 className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>Delete {name}</TooltipContent>
+          </Tooltip>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete “{name}”?</AlertDialogTitle>

@@ -31,7 +31,7 @@ someone cannot link to is a table they will screenshot instead.
 ## TanStack Query conventions
 
 - **Key factory per feature:** `employeeKeys.list(filters)`, `employeeKeys.detail(id)` — no ad-hoc string keys.
-- Defaults: `staleTime` 30 s; the dashboard "today" card 10 s; notifications polled at 30 s (SSE is a future upgrade, doc 11).
+- Defaults: `staleTime` 30 s; the dashboard "today" card 10 s. (There is no notification poll — notifications were never built, doc 03.)
 - **Mutations invalidate by key prefix** (`invalidateQueries(employeeKeys.all)`); optimistic updates only for instant-feel actions: check-in/out, mark-read, cancel-own-request.
 - All hooks live in `features/<x>/hooks/`; components never call the api client directly.
 
@@ -59,8 +59,27 @@ Single typed `fetch` wrapper: base URL from env, credentials included, attaches 
 
 ## Frontend testing
 
-| Layer | Tool | Scope |
+| Layer | Tool | Status |
 |---|---|---|
-| Component | Vitest + Testing Library | `packages/ui` composites: states, a11y roles, keyboard nav |
-| Hooks | Vitest + MSW | Query hooks against mocked API incl. 401→refresh path |
-| E2E | Playwright | 5 golden flows: login→dashboard, check-in/out, apply→approve leave, add employee→invite, publish announcement→read |
+| Unit | Vitest | **Built.** `lib/api-client.ts` — bearer header, 401→refresh→replay, single-flight, retry-once. |
+| Component | Vitest + Testing Library (jsdom) | **Built.** Page-level, mocking the feature `api.ts` module. |
+| E2E | Playwright — 5 golden flows | **Not built.** Needs a seeded database and a running API; CI cannot provide either yet, and a suite that cannot run in CI is not a gate. |
+
+`pnpm turbo run test` runs the API and web suites together, and CI gates on it.
+
+Two deliberate absences:
+
+- **No `@vitejs/plugin-react`.** It supplies Fast Refresh and the Babel
+  pipeline, neither of which a test run uses, and its current major needs Vite 8
+  while Vitest bundles Vite 7 — pinning either gives a type error or
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` at startup. esbuild compiles the JSX;
+  `esbuild: { jsx: 'automatic' }` in `vitest.config.ts` is the whole
+  configuration.
+- **No MSW.** The api client is tested directly against a `fetch` double, which
+  is more precise for refresh-and-replay, and component tests `vi.mock` the
+  feature module. MSW's only contribution was a postinstall for a browser
+  service worker that node tests never load.
+
+The five golden flows remain the target when the infrastructure exists: login →
+dashboard, check-in/out, apply → approve leave, add employee → invite, publish
+announcement → read.

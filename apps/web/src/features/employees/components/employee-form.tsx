@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { employeeCreateSchema } from '@hrms/shared';
 import type { EmployeeStatus, Gender } from '@hrms/types';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
@@ -12,31 +11,26 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Checkbox } from '@hrms/ui/components/checkbox';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
-import { Label } from '@hrms/ui/components/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@hrms/ui/components/select';
-import { useQuery } from '@tanstack/react-query';
+import { SelectItem } from '@hrms/ui/components/select';
+import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
-import { Field } from '@/components/field';
+import { FormCheckbox, FormDatePicker, FormInput, FormSelect } from '@/components/form';
 import { employeesApi } from '@/features/employees/api';
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
 import { fullName } from '@/features/employees/types';
-import { departmentsApi, locationsApi } from '@/features/organization/api';
-import { ApiError, api } from '@/lib/api-client';
+import {
+  departmentsApi,
+  designationsApi,
+  employmentTypesApi,
+  locationsApi,
+  shiftsApi,
+} from '@/features/organization/api';
+import { errorMessage, type Option, useOptions } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
-const NONE = 'none';
 type FormValues = z.input<typeof employeeCreateSchema>;
 
 /**
@@ -62,29 +56,26 @@ interface EmployeeFormProps {
   onSaved: (id: string) => void;
 }
 
-function useOptionsQuery<T>(key: string, fn: () => Promise<T>) {
-  return useQuery({ queryKey: [key, 'options'], queryFn: fn, staleTime: 60_000 });
-}
-
 export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps) {
   const router = useRouter();
   const isEdit = Boolean(employeeId);
 
-  const departments = useOptionsQuery('org-departments', departmentsApi.options);
-  const designations = useOptionsQuery('org-designations', () =>
-    api<{ id: string; title: string }[]>('/organization/designations/options'),
+  const departments = useOptions('org-departments', departmentsApi.options, (d) => d.name);
+  const designations = useOptions('org-designations', designationsApi.options, (d) => d.title);
+  const locations = useOptions('org-locations', locationsApi.options, (l) => l.name);
+  const shifts = useOptions('org-shifts', shiftsApi.options, (s) => s.name);
+  const employmentTypes = useOptions(
+    'org-employment-types',
+    employmentTypesApi.options,
+    (t) => t.name,
   );
-  const locations = useOptionsQuery('org-locations', locationsApi.options);
-  const shifts = useOptionsQuery('org-shifts', () =>
-    api<{ id: string; name: string }[]>('/organization/shifts/options'),
+  const managers = useOptions(
+    'employees',
+    employeesApi.options,
+    (m) => `${fullName(m)} (${m.employeeCode})`,
   );
-  const employmentTypes = useOptionsQuery('org-employment-types', () =>
-    api<{ id: string; name: string }[]>('/organization/employment-types/options'),
-  );
-  const managers = useOptionsQuery('employees', employeesApi.options);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(employeeCreateSchema),
+  const form = useZodForm<FormValues>(employeeCreateSchema, {
     defaultValues: {
       employeeCode: '',
       firstName: '',
@@ -106,22 +97,34 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
       shiftId: '',
       employmentTypeId: '',
       managerId: null,
+      noticePeriodDays: null,
+      probationMonths: null,
       createLogin: true,
       loginRole: 'EMPLOYEE',
       ...initial,
     },
   });
-  const { errors, isSubmitting } = form.formState;
+  const { isSubmitting } = form.formState;
+
+  /*
+   * This form submits directly rather than through a mutation, so nothing was
+   * telling the cache. Adding somebody and landing back on the directory
+   * showed a list without them in it until the entry went stale.
+   */
+  const queryClient = useQueryClient();
+  const invalidateEmployees = () => queryClient.invalidateQueries({ queryKey: ['employees'] });
 
   const submit = form.handleSubmit(async (raw) => {
     const input = employeeCreateSchema.parse(raw);
     try {
       if (isEdit && employeeId) {
         await employeesApi.update(employeeId, input);
+        invalidateEmployees();
         toast.success('Employee updated');
         onSaved(employeeId);
       } else {
         const created = await employeesApi.create(input);
+        invalidateEmployees();
         toast.success(`${fullName(created)} added (${created.employeeCode})`, {
           description: created.loginCreated
             ? `They can sign in as ${created.loginEmail} with the default password.`
@@ -130,70 +133,45 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
         onSaved(created.id);
       }
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save. Try again.');
+      toast.error(errorMessage(err, 'Could not save. Try again.'));
     }
   });
 
-  const selectField = (
-    label: string,
-    field:
-      | 'departmentId'
-      | 'designationId'
-      | 'locationId'
-      | 'managerId'
-      | 'shiftId'
-      | 'employmentTypeId',
-    items: { id: string; label: string }[] | undefined,
-    /*
-     * Manager is the only optional one: somebody has to be at the top of the
-     * org chart, and the first employee in a new organization has nobody to
-     * point at. Everything else must be answered.
-     */
-    options?: { optional?: true; emptyLabel?: string },
-  ) => {
-    const value = form.watch(field);
+  /**
+   * The five required job-detail selects, which differ only in their options.
+   *
+   * All the wiring that used to live here — the id, the four aria props on the
+   * trigger, the error, the NONE sentinel — belongs to `FormSelect` now, and
+   * the `{id, label}` normalisation to `useOptions`. What is left is the one
+   * thing genuinely local: options arrive asynchronously, so an empty list has
+   * to read as "not yet" rather than "there are none".
+   */
+  const OptionSelect = ({
+    label,
+    name,
+    items,
+  }: {
+    label: string;
+    name: 'departmentId' | 'designationId' | 'locationId' | 'shiftId' | 'employmentTypeId';
+    items: Option[] | undefined;
+  }) => {
     const pending = items === undefined;
-    const optional = options?.optional === true;
     return (
-      <Field
+      <FormSelect
+        control={form.control}
+        name={name}
         label={label}
-        required={!optional}
-        error={errors[field]?.message}
+        required
+        busy={pending}
         hint={pending ? 'Loading options…' : undefined}
+        placeholder={pending ? 'Loading…' : `Select ${label.toLowerCase()}`}
       >
-        {(a11y) => (
-          <Select
-            value={value ?? NONE}
-            onValueChange={(v) =>
-              form.setValue(field, v === NONE ? null : v, {
-                shouldDirty: true,
-                // Clears the error the moment it is answered, rather than
-                // leaving it red until the next submit.
-                shouldValidate: true,
-              })
-            }
-          >
-            <SelectTrigger
-              id={a11y.id}
-              aria-describedby={a11y['aria-describedby']}
-              aria-invalid={a11y['aria-invalid']}
-              aria-required={a11y['aria-required']}
-              aria-busy={pending || undefined}
-            >
-              <SelectValue placeholder={pending ? 'Loading…' : `Select ${label.toLowerCase()}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {/* A required select offers no way back to "nothing". */}
-              {optional && <SelectItem value={NONE}>{options?.emptyLabel ?? 'None'}</SelectItem>}
-              {items?.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </Field>
+        {items?.map((item) => (
+          <SelectItem key={item.id} value={item.id}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </FormSelect>
     );
   };
 
@@ -205,65 +183,71 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           <CardDescription>Identity and contact information</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="First name" required error={errors.firstName?.message}>
-            {(a11y) => <Input {...a11y} autoFocus {...form.register('firstName')} />}
-          </Field>
-          <Field label="Last name" required error={errors.lastName?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('lastName')} />}
-          </Field>
-          <Field label="Work email" required error={errors.workEmail?.message}>
-            {(a11y) => <Input {...a11y} type="email" {...form.register('workEmail')} />}
-          </Field>
-          <Field label="Personal email" error={errors.personalEmail?.message}>
-            {(a11y) => <Input {...a11y} type="email" {...form.register('personalEmail')} />}
-          </Field>
-          <Field label="Phone" error={errors.phone?.message}>
-            {(a11y) => <Input {...a11y} type="tel" {...form.register('phone')} />}
-          </Field>
-          <Field label="Date of birth" error={errors.dateOfBirth?.message}>
-            {(a11y) => (
-              <DatePicker
-                {...a11y}
-                value={form.watch('dateOfBirth')}
-                onValueChange={(value) =>
-                  form.setValue('dateOfBirth', value, { shouldDirty: true })
-                }
-                placeholder="Select date of birth"
-              />
-            )}
-          </Field>
-          <div className="space-y-2">
-            <Label htmlFor="gender">Gender</Label>
-            <Select
-              value={form.watch('gender') ?? NONE}
-              onValueChange={(v) =>
-                form.setValue('gender', v === NONE ? undefined : (v as Gender), {
-                  shouldDirty: true,
-                })
-              }
-            >
-              <SelectTrigger id="gender" className="w-full">
-                <SelectValue placeholder="Not specified" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Not specified</SelectItem>
-                {Object.entries(GENDER_LABEL).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Field label="Address" error={errors.addressLine?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('addressLine')} />}
-          </Field>
-          <Field label="City" error={errors.city?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('city')} />}
-          </Field>
-          <Field label="Country" error={errors.country?.message}>
-            {(a11y) => <Input {...a11y} {...form.register('country')} />}
-          </Field>
+          <FormInput
+            control={form.control}
+            name="firstName"
+            label="First name"
+            autoFocus
+            placeholder="Priya"
+          />
+          <FormInput
+            control={form.control}
+            name="lastName"
+            label="Last name"
+            required
+            placeholder="Nair"
+          />
+          <FormInput
+            control={form.control}
+            name="workEmail"
+            label="Work email"
+            type="email"
+            placeholder="priya.nair@acme.com"
+          />
+          <FormInput
+            control={form.control}
+            name="personalEmail"
+            placeholder="priya.nair@gmail.com"
+            label="Personal email"
+            type="email"
+          />
+          <FormInput
+            control={form.control}
+            name="phone"
+            label="Phone"
+            type="tel"
+            placeholder="+91 98765 43210"
+          />
+          <FormDatePicker
+            control={form.control}
+            name="dateOfBirth"
+            label="Date of birth"
+            placeholder="Select date of birth"
+          />
+          {/* Gender is optional, so `undefined` rather than null — the schema
+              has no null branch for it. */}
+          <FormSelect
+            control={form.control}
+            name="gender"
+            label="Gender"
+            placeholder="Not specified"
+            emptyLabel="Not specified"
+            emptyValue={undefined}
+          >
+            {Object.entries(GENDER_LABEL).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </FormSelect>
+          <FormInput
+            control={form.control}
+            name="addressLine"
+            label="Address"
+            placeholder="12 Satellite Road"
+          />
+          <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+          <FormInput control={form.control} name="country" label="Country" placeholder="India" />
         </CardContent>
       </Card>
 
@@ -273,80 +257,86 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
           <CardDescription>Placement in the organization</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field
+          <FormInput
+            control={form.control}
+            name="employeeCode"
             label="Employee ID"
-            error={errors.employeeCode?.message}
             hint={isEdit ? undefined : 'Leave blank to auto-generate (EMP-0001…)'}
+            placeholder="EMP-0001"
+          />
+          <FormDatePicker
+            control={form.control}
+            name="joinDate"
+            label="Joining date"
+            placeholder="Select joining date"
+          />
+          <OptionSelect label="Department" name="departmentId" items={departments.options} />
+          <OptionSelect label="Designation" name="designationId" items={designations.options} />
+          <OptionSelect label="Location" name="locationId" items={locations.options} />
+          {/*
+           * Manager is the only optional one: somebody has to be at the top of
+           * the org chart, and the first employee in a new organization has
+           * nobody to point at. Everything else must be answered.
+           */}
+          <FormSelect
+            control={form.control}
+            name="managerId"
+            label="Reporting manager"
+            emptyLabel="None — top of the organisation"
+            busy={managers.isPending}
+            placeholder="Select reporting manager"
           >
-            {(a11y) => (
-              <Input {...a11y} placeholder="EMP-0001" {...form.register('employeeCode')} />
-            )}
-          </Field>
-          <Field label="Joining date" error={errors.joinDate?.message}>
-            {(a11y) => (
-              <DatePicker
-                {...a11y}
-                value={form.watch('joinDate')}
-                onValueChange={(value) => form.setValue('joinDate', value, { shouldDirty: true })}
-                placeholder="Select joining date"
-              />
-            )}
-          </Field>
-          {selectField(
-            'Department',
-            'departmentId',
-            departments.data?.map((d) => ({ id: d.id, label: d.name })),
-          )}
-          {selectField(
-            'Designation',
-            'designationId',
-            designations.data?.map((d) => ({ id: d.id, label: d.title })),
-          )}
-          {selectField(
-            'Location',
-            'locationId',
-            locations.data?.map((l) => ({ id: l.id, label: l.name })),
-          )}
-          {selectField(
-            'Reporting manager',
-            'managerId',
-            managers.data
+            {managers.options
               ?.filter((m) => m.id !== employeeId)
-              .map((m) => ({ id: m.id, label: `${fullName(m)} (${m.employeeCode})` })),
-            { optional: true, emptyLabel: 'None — top of the organisation' },
-          )}
-          {selectField(
-            'Shift',
-            'shiftId',
-            shifts.data?.map((s) => ({ id: s.id, label: s.name })),
-          )}
-          {selectField(
-            'Employment type',
-            'employmentTypeId',
-            employmentTypes.data?.map((t) => ({ id: t.id, label: t.name })),
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="employment-status">Employment status</Label>
-            <Select
-              value={form.watch('status') ?? 'ACTIVE'}
-              onValueChange={(v) =>
-                form.setValue('status', v as Exclude<EmployeeStatus, 'ONBOARDING'>, {
-                  shouldDirty: true,
-                })
-              }
-            >
-              <SelectTrigger id="employment-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              .map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
+          </FormSelect>
+          <OptionSelect label="Shift" name="shiftId" items={shifts.options} />
+          <OptionSelect
+            label="Employment type"
+            name="employmentTypeId"
+            items={employmentTypes.options}
+          />
+          <FormSelect control={form.control} name="status" label="Employment status">
+            {Object.entries(STATUS_LABEL).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </FormSelect>
+
+          {/*
+           * Both blank by default, and blank is the answer we want on almost
+           * every record: it means "whatever Settings says", so changing the
+           * company policy actually moves everyone it should.
+           */}
+          <FormInput
+            control={form.control}
+            name="noticePeriodDays"
+            label="Notice period (days)"
+            type="number"
+            min={0}
+            max={365}
+            placeholder="Company default"
+            hint="Leave blank to use the company default"
+          />
+          <FormInput
+            control={form.control}
+            name="probationMonths"
+            label="Probation (months)"
+            type="number"
+            min={0}
+            max={24}
+            placeholder="Company default"
+            hint={
+              isEdit
+                ? 'Changing this does not move an existing probation end date — extend it instead'
+                : 'Leave blank to use the company default'
+            }
+          />
         </CardContent>
       </Card>
 
@@ -360,42 +350,28 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="flex items-center gap-2 sm:col-span-2">
-              <Checkbox
-                id="create-login"
-                checked={form.watch('createLogin')}
-                onCheckedChange={(next) =>
-                  form.setValue('createLogin', next === true, { shouldDirty: true })
-                }
+            <div className="sm:col-span-2">
+              <FormCheckbox
+                control={form.control}
+                name="createLogin"
+                label="Create a sign-in for this employee"
               />
-              <label htmlFor="create-login" className="text-sm">
-                Create a sign-in for this employee
-              </label>
             </div>
 
             {form.watch('createLogin') && (
               <>
-                <Field label="Role" hint="Anything beyond self-service is a decision">
-                  {(a11y) => (
-                    <Select
-                      value={form.watch('loginRole')}
-                      onValueChange={(value) =>
-                        form.setValue('loginRole', value as 'EMPLOYEE', { shouldDirty: true })
-                      }
-                    >
-                      <SelectTrigger id={a11y.id} className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map(({ value, label }) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </Field>
+                <FormSelect
+                  control={form.control}
+                  name="loginRole"
+                  label="Role"
+                  hint="Anything beyond self-service is a decision"
+                >
+                  {ROLE_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </FormSelect>
 
                 <Alert variant="info" className="sm:col-span-2">
                   <KeyRound aria-hidden />

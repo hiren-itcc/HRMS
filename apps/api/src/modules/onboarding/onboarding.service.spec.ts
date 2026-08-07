@@ -1,5 +1,6 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
 import { OnboardingService } from './onboarding.service';
 
 type Mock = jest.Mock;
@@ -17,6 +18,10 @@ const complete = {
     id: 'e2',
     userId: 'u2',
     dateOfBirth: new Date('1995-01-01'),
+    // Approval dates their probation from this, so it is no longer optional
+    // in the fixture — the column has always been NOT NULL.
+    joinDate: new Date('2026-08-01'),
+    probationMonths: null,
     bankDetail: { id: 'b1' },
     departmentId: 'dep1',
     designationId: 'des1',
@@ -26,7 +31,10 @@ const complete = {
   },
 };
 
-function makeService(record: Record<string, unknown> = { ...complete }) {
+function makeService(
+  record: Record<string, unknown> = { ...complete },
+  lifecycle: Parameters<typeof lifecycleDouble>[0] = {},
+) {
   // Annotated because `$transaction` hands the double back to itself, and the
   // inferred type would be circular.
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
@@ -59,6 +67,7 @@ function makeService(record: Record<string, unknown> = { ...complete }) {
       invites as any,
       // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
       tokens as any,
+      lifecycleDouble(lifecycle),
       // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
       logger as any,
     ),
@@ -196,10 +205,42 @@ describe('approval', () => {
     await service.approve(hr(), 'ob1');
 
     expect(prisma.employee.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: 'ACTIVE' } }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'ACTIVE' }) }),
     );
     // Their token still says onboarding: true, and the guard reads the claim.
     expect(tokens.revokeAllForUser).toHaveBeenCalledWith('u2');
+  });
+
+  it('starts their probation from the join date, not from today', async () => {
+    const { service, prisma } = makeService({ ...complete, status: 'SUBMITTED' });
+    await service.approve(hr(), 'ob1');
+
+    // Joined 1 August, three-month default → 1 November, and not confirmed.
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          probationEndDate: new Date('2026-11-01T00:00:00.000Z'),
+          confirmedOn: null,
+        }),
+      }),
+    );
+  });
+
+  it('confirms on the join date when the organization runs no probation', async () => {
+    const { service, prisma } = makeService(
+      { ...complete, status: 'SUBMITTED' },
+      { defaultProbationMonths: 0 },
+    );
+    await service.approve(hr(), 'ob1');
+
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          probationEndDate: null,
+          confirmedOn: new Date('2026-08-01'),
+        }),
+      }),
+    );
   });
 
   it('refuses to approve anything not submitted', async () => {

@@ -1,21 +1,18 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { shiftCreateSchema } from '@hrms/shared';
-import { Input } from '@hrms/ui/components/input';
-import { TimePicker } from '@hrms/ui/components/time-picker';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormInput, FormTimePicker } from '@/components/form';
 import { shiftsApi } from '@/features/organization/api';
 import type { Shift } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-shifts';
 type FormValues = z.input<typeof shiftCreateSchema>;
@@ -32,7 +29,7 @@ function ShiftsView() {
   const { create, update, remove } = useCrudMutations(KEY, shiftsApi, 'Shift');
 
   const [editing, setEditing] = useState<Shift | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(shiftCreateSchema) });
+  const form = useZodForm<FormValues>(shiftCreateSchema);
 
   const openNew = () => {
     form.reset({ name: '', startTime: '09:00', endTime: '18:00', graceMinutes: 15 });
@@ -129,38 +126,37 @@ function ShiftsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Name" error={form.formState.errors.name?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...form.register('name')} />}
-        </Field>
+        <FormInput
+          control={form.control}
+          name="name"
+          label="Name"
+          autoFocus
+          placeholder="General"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Start time" error={form.formState.errors.startTime?.message}>
-            {(a11y) => (
-              <TimePicker
-                {...a11y}
-                value={form.watch('startTime')}
-                onValueChange={(value) => form.setValue('startTime', value, { shouldDirty: true })}
-              />
-            )}
-          </Field>
-          <Field label="End time" error={form.formState.errors.endTime?.message}>
-            {(a11y) => (
-              <TimePicker
-                {...a11y}
-                value={form.watch('endTime')}
-                onValueChange={(value) => form.setValue('endTime', value, { shouldDirty: true })}
-              />
-            )}
-          </Field>
+          <FormTimePicker
+            control={form.control}
+            name="startTime"
+            label="Start time"
+            placeholder="09:30"
+          />
+          <FormTimePicker
+            control={form.control}
+            name="endTime"
+            label="End time"
+            placeholder="18:30"
+          />
         </div>
-        <Field
+        <FormInput
+          control={form.control}
+          name="graceMinutes"
+          placeholder="15"
           label="Grace period (minutes)"
-          error={form.formState.errors.graceMinutes?.message}
           hint="Late arrivals within this window aren't flagged"
-        >
-          {(a11y) => (
-            <Input {...a11y} type="number" min={0} max={240} {...form.register('graceMinutes')} />
-          )}
-        </Field>
+          type="number"
+          min={0}
+          max={240}
+        />
       </FormDialog>
     </CrudShell>
   );

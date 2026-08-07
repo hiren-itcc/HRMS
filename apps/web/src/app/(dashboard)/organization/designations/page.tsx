@@ -1,20 +1,18 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { designationCreateSchema } from '@hrms/shared';
-import { Input } from '@hrms/ui/components/input';
 import { Suspense, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { DataTable } from '@/components/data-table';
-import { Field } from '@/components/field';
+import { FormInput } from '@/components/form';
 import { designationsApi } from '@/features/organization/api';
 import type { Designation } from '@/features/organization/types';
 import { useCrudList, useCrudMutations } from '@/hooks/use-crud';
 import { useListParams } from '@/hooks/use-list-params';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const KEY = 'org-designations';
 type FormValues = z.input<typeof designationCreateSchema>;
@@ -31,7 +29,7 @@ function DesignationsView() {
   const { create, update, remove } = useCrudMutations(KEY, designationsApi, 'Designation');
 
   const [editing, setEditing] = useState<Designation | 'new' | null>(null);
-  const form = useForm<FormValues>({ resolver: zodResolver(designationCreateSchema) });
+  const form = useZodForm<FormValues>(designationCreateSchema);
 
   const openNew = () => {
     form.reset({ title: '', level: 0 });
@@ -110,16 +108,23 @@ function DesignationsView() {
         submitting={create.isPending || update.isPending}
         submitLabel={editing === 'new' ? 'Create' : 'Save'}
       >
-        <Field label="Title" error={form.formState.errors.title?.message}>
-          {(a11y) => <Input {...a11y} autoFocus {...form.register('title')} />}
-        </Field>
-        <Field
+        <FormInput
+          control={form.control}
+          name="title"
+          label="Title"
+          autoFocus
+          placeholder="Software Engineer"
+        />
+        <FormInput
+          control={form.control}
+          name="level"
+          placeholder="4"
           label="Level"
-          error={form.formState.errors.level?.message}
           hint="0–20, higher = more senior"
-        >
-          {(a11y) => <Input {...a11y} type="number" min={0} max={20} {...form.register('level')} />}
-        </Field>
+          type="number"
+          min={0}
+          max={20}
+        />
       </FormDialog>
     </CrudShell>
   );

@@ -22,10 +22,35 @@ There are two seed commands and they are **not** interchangeable:
 | Command | What it does | Use in production? |
 |---|---|---|
 | `pnpm db:bootstrap` | Creates one company, the roles, and one administrator. Additive, safe to re-run. | **Yes — this is the one** |
-| `pnpm db:seed` | Demo data: **wipes the company**, then creates 6 fictional employees with invented attendance, leave, payroll runs and announcements. | **No. Never.** |
+| `pnpm db:seed` | Demo data: **wipes the company**, then creates 28 fictional employees with invented attendance, leave, remote work, payroll runs, assets, exits, settlements and letters. | **No, unless you mean it** |
 
-`db:seed` refuses to run against `NODE_ENV=production` unless you override it.
-Do not override it.
+### The guard on `db:seed`
+
+It used to refuse on `NODE_ENV === 'production'`, which protected nothing: the
+checked-in `.env` says `development` while `DATABASE_URL` points at a hosted
+database, so the one configuration that most needed stopping sailed through.
+
+It now looks at **where it is connecting**. A local host runs without ceremony;
+anything else prints the target, the company and the row counts it is about to
+delete, then refuses unless `SEED_ALLOW_RESET=true` is set.
+
+**It was run against production once, deliberately, on 6 August 2026**, to
+replace a nearly-empty workspace with one that exercises every module. Two
+things made that survivable and should accompany any repeat:
+
+1. `prisma/scripts/backup-org.ts` wrote every row of the organization to JSON
+   first. It exists because `pg_dump` is a Postgres client install and the
+   machine doing this may not have one.
+2. `prisma/scripts/drop-org.ts` makes a **rehearsal** possible: the seed is
+   org-scoped, so `SEED_ORG_SLUG=seed-rehearsal pnpm db:seed` proves it against
+   a throwaway tenant in the same database, and `DROP_ORG_SLUG=seed-rehearsal
+   pnpm tsx prisma/scripts/drop-org.ts` clears it away. `drop-org` refuses the
+   `default` slug.
+
+Running the demo seed **deletes the accounts people sign in with**. Afterwards
+the logins are the seeded ones (`admin@hrms.local` and the rest, on
+`SEED_PASSWORD`), and the company is renamed to Acme Industries — rename it
+back under Settings → Organization.
 
 ---
 
@@ -188,7 +213,7 @@ Expected output:
 
 ```
 Organization: created "Your Company Ltd" (default)
-Roles: 5 system roles, 48 permissions, 140 grants
+Roles: 5 system roles, 54 permissions, 158 grants
 Administrator: created admin@yourcompany.com (must change password at first sign-in)
 
 Bootstrap complete. Sign in and change the password immediately.
@@ -197,9 +222,14 @@ Bootstrap complete. Sign in and change the password immediately.
 What it creates — and nothing else:
 
 - 1 organization
-- 5 roles (Admin, HR, Finance, Manager, Employee) with 48 permissions and 140 grants
+- 5 roles (Admin, HR, Finance, Manager, Employee) with 54 permissions and 158 grants
 - 1 administrator, flagged to change password at first sign-in
 - **0** employees, attendance, leave, documents, payslips
+
+The two counts are not constants — bootstrap derives them from `PERMISSIONS` and
+`ROLE_PERMISSIONS` in `packages/shared`, so adding a permission moves them. If
+the run prints different numbers than this page, trust the run and correct the
+page; the grants total is the sum of the per-role lists (54 + 48 + 20 + 22 + 14).
 
 It is **additive**: re-running it never deletes anything, never resets an
 existing administrator's password, and never renames a company you have since
@@ -272,9 +302,98 @@ docker compose run api npx prisma migrate deploy
 - [ ] `NEXT_PUBLIC_API_URL` correct **and the web app rebuilt** after setting it
 - [ ] `pnpm db:deploy` run
 - [ ] `pnpm db:bootstrap` run, sign-in confirmed, password changed
-- [ ] `pnpm db:seed` **not** run
+- [ ] `pnpm db:seed` **not** run — unless a demo workspace is what you want, in
+      which case back up first and read the guard section above
 - [ ] Database backups configured
 - [ ] `/health` and `/health/ready` wired to your monitoring
+
+---
+
+## 8. The live deployment (Render)
+
+Both applications run on Render, in `singapore` — the region closest to the
+Supabase project in `ap-northeast-2`, which every request touches.
+
+| | Service | URL |
+|---|---|---|
+| API | `hrms-api-prod` (`srv-d9oo5jbl550s73f2omig`) | `https://hrms-api-prod-jrul.onrender.com` |
+| Web | `hrms-web-prod` (`srv-d9oo61flk1mc739lcdh0`) | `https://hrms-web-prod-cwy3.onrender.com` |
+
+Neither uses the Dockerfiles in `docker/`; both use Render's Node runtime with
+the build scripts in `render/`. That directory exists because **Render's API
+cannot edit a service's Build Command after creation** — a one-character fix
+there means recreating the service and losing its URL and environment. As
+scripts, build changes are an ordinary commit.
+
+### Pushing does not deploy
+
+**Auto-deploy is off on both services.** Every deploy on this account is
+`trigger: "api"` — somebody or something calls the Render API. `git push` moves
+`origin/master` and changes nothing that is running.
+
+This was discovered the slow way: a phase was pushed, both services were
+assumed to have picked it up, and neither had. Worth stating plainly here
+because the failure is silent — no error anywhere, the site simply keeps
+serving the previous build.
+
+**Deploy the API first.** Its build script ends with `pnpm db:deploy`, so the
+API deploy is what applies pending migrations. Deploying the web first would
+put new screens in front of tables that do not exist yet.
+
+Verifying a deploy needs a probe that can distinguish the new build from the
+old one, and picking that probe is not trivial. A path that "only exists in the
+new build" is worthless if an existing dynamic segment swallows it —
+`/payroll/settlements` returned 200 on the *old* web build because
+`/payroll/[runId]` matched it with `runId="settlements"`. Use a two-segment
+path under the new route, and always check a control path alongside it:
+
+```bash
+# API: the route exists (401) versus does not (404)
+curl -o /dev/null -w '%{http_code}\n' $API/api/v1/<new-route>
+curl -o /dev/null -w '%{http_code}\n' $API/api/v1/<nonsense>   # control
+
+# Web: 404 -> 200 on a path no dynamic segment can match
+curl -o /dev/null -w '%{http_code}\n' $WEB/<section>/<new>/probe
+curl -o /dev/null -w '%{http_code}\n' $WEB/<section>/zzz/probe # control
+```
+
+### The two hosts are cross-site, and that is not a Render detail
+
+`onrender.com` is on the Public Suffix List, exactly as `vercel.app` is, so one
+customer cannot set cookies for another. The consequence is that
+`hrms-web-prod-…` and `hrms-api-prod-…` are cross-site to each other even
+though both end in `onrender.com`.
+
+So the refresh cookie is `SameSite=None; Secure` in production
+(`auth.controller.ts`). A `Lax` cookie is withheld from cross-site XHR, and
+`POST /auth/refresh` is one — login would work and every session would then end
+silently at the 15-minute access-token expiry.
+
+Splitting the front end onto Vercel instead would change nothing here. The
+boundary is the suffix list, not the vendor. What *would* remove it is serving
+both from one hostname — either two custom subdomains of a domain you own, or
+proxying `/api/v1` through Next. The proxy costs real client IPs, which the
+login rate limit and the audit log both record, so it is the worse trade unless
+something else forces it.
+
+### Things about the free plan that are not bugs
+
+- **Services sleep after ~15 minutes idle.** The first request afterwards takes
+  roughly 50 seconds while the instance wakes. Both services sleep
+  independently, so a cold web app and a cold API can stack.
+- The Supabase project pauses after about a week of inactivity too, and the
+  database is on it. Same constraint, not an additional one.
+- Instances have 512 MB RAM; builds run on a larger builder.
+
+### Deploying a change
+
+Auto-deploy is off — see *Deploys are triggered by hand* under Known gaps.
+Push to `master`, then Manual Deploy in the dashboard.
+
+`NEXT_PUBLIC_API_URL` is a **build-time** value: Next inlines `NEXT_PUBLIC_*`
+into the client bundle, so changing it requires rebuilding the web service, not
+restarting it. `render/build-web.sh` fails the build when it is unset rather
+than letting a deployment come up calling `localhost:4000`.
 
 ---
 
@@ -284,35 +403,71 @@ Verified against the code at the time of writing. Each of these will surprise
 someone during a deployment, so they are recorded rather than left to be
 discovered.
 
-### Password reset does not work
+### Email reaches exactly one address until you verify a domain
 
-`apps/api/src/modules/mail/mail.service.ts` has no SMTP adapter — it logs the
-message instead of sending it. The "forgot password" screen appears to work and
-the user is told to check their email, but **no email is ever delivered.**
+Mail is connected. `mail.service.ts` sends through the transport injected at
+`MAIL_TRANSPORT`, and `transport.ts` provides a Resend adapter when
+`RESEND_API_KEY` is set — password resets and onboarding invites are really
+delivered. (This section previously said no adapter existed; that stopped being
+true when Resend was wired.)
 
-Until a mail provider is connected, an administrator must reset passwords
-manually. Plan for that, or connect SMTP before go-live.
+The remaining constraint is the sender. `MAIL_FROM` defaults to
+`onboarding@resend.dev`, Resend's sandbox address, which **delivers only to the
+address that owns the Resend account**. An invite to anyone else is refused by
+Resend with a 403 — the API surfaces the reason in the response rather than
+reporting success, but nothing arrives.
 
-### The automated deploy step is unimplemented
+So before onboarding a real hire: verify a domain in Resend and set `MAIL_FROM`
+to an address on it. Without the key entirely, the transport logs the message
+instead, which is what keeps local development and CI working offline.
+
+Two of the four templates in Settings — `leave_approved` and `leave_rejected` —
+have no sender behind them and are never dispatched. The API reports this
+honestly as `hasSender: false`, and the screen shows it, but the templates are
+editable and look live.
+
+### Deploys are triggered by hand
 
 `.github/workflows/deploy.yml` builds and pushes images correctly, but the
-deploy job itself is a placeholder that prints a message. It needs
-`DEPLOY_HOST`/`DEPLOY_KEY` secrets and a real step. **Deployment is currently
-manual.**
+deploy job itself is a placeholder that prints a message.
 
-### MinIO is provisioned but unused
+The live deployment (§8) does not use it. Render is set to **auto-deploy off**,
+because Render reports no GitHub authorisation for this repository — it can
+clone it, since the repository is public, but it receives no push webhook, so
+"auto-deploy on" would be a setting that quietly never fires. Connecting the
+GitHub account in Render's dashboard is what turns that into a real option.
 
-`docker/compose.yaml` starts MinIO, but the application has no S3 client — file
-storage writes to local disk at `UPLOAD_DIR`. The container is a placeholder for
-future work. Consequence: **`UPLOAD_DIR` must be on persistent storage**, or
-every uploaded document is lost on redeploy.
+Until then a deploy is: push to `master`, then Manual Deploy in the dashboard.
+
+### File storage — resolved, and how to configure it
+
+Uploaded documents used to go to local disk only, which meant `UPLOAD_DIR` had
+to be persistent or every document vanished on redeploy. That is fixed: the
+storage port now has two adapters and picks between them from configuration
+(`apps/api/src/modules/storage/`).
+
+| | when | notes |
+|---|---|---|
+| Supabase Storage | `SUPABASE_URL` **and** `SUPABASE_SERVICE_ROLE_KEY` are both set | the production path — the API is stateless, so no persistent disk |
+| Local disk | otherwise | development and CI, which have no credentials and no network |
+
+Two rules for the Supabase side:
+
+- **The bucket must be private.** Files are streamed through the API so
+  `ensureEmployeeAccess` still decides who may read a document. A public or
+  signed URL handed to the browser would route around it.
+- **It is the `service_role` key, not the anon key**, and it bypasses row-level
+  security — so it belongs to the API's environment only and must never be
+  built into the web app.
+
+MinIO in `docker/compose.yaml` is now genuinely unused and can be removed from
+the compose file whenever someone is tidying.
 
 ### `.env.example` is inaccurate
 
 - It documents `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. **No code reads
   either.** They are left over from an earlier design; the working variables are
   the `BOOTSTRAP_*` ones in section 4.
-- It omits `UPLOAD_DIR` and `MAX_UPLOAD_MB`, which the app does read.
 
 ### No `docker/.env.example`
 

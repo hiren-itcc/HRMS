@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useSession } from '@/components/session-provider';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
-import { ApiError } from '@/lib/api-client';
+import { errorMessage } from '@/hooks/use-crud';
 
 const dateFmt = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -40,14 +40,14 @@ export function InviteCard({ employeeId }: { employeeId: string }) {
   const [lastError, setLastError] = useState<string | null>(null);
 
   const invite = useQuery({
-    queryKey: ['invite-status', employeeId],
+    queryKey: onboardingKeys.invite(employeeId),
     queryFn: () => onboardingApi.inviteStatus(employeeId),
   });
 
   const resend = useMutation({
     mutationFn: () => onboardingApi.resendInvite(employeeId),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['invite-status', employeeId] });
+      // all() covers the invite key now that it lives under 'onboarding'.
       queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
       if (result.inviteSent) {
         setLastError(null);
@@ -57,8 +57,7 @@ export function InviteCard({ employeeId }: { employeeId: string }) {
         toast.error('The invitation still did not go out');
       }
     },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not resend the invitation'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not resend the invitation')),
   });
 
   // Not onboarding — nothing to show.

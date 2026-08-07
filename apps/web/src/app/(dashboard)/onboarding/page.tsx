@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type BankDetailInput,
   bankDetailSchema,
@@ -16,8 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { DatePicker } from '@hrms/ui/components/date-picker';
-import { Input } from '@hrms/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -26,19 +23,18 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Info, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { FormDatePicker, FormField, FormInput, FormSelect } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { PageHeader } from '@/components/page-header';
 import { useSession } from '@/components/session-provider';
 import { DocumentsBrowser } from '@/features/documents/documents-browser';
 import { onboardingApi, onboardingKeys } from '@/features/onboarding/api';
 import { OnboardingDocuments } from '@/features/onboarding/components/onboarding-documents';
-import { ApiError } from '@/lib/api-client';
+import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 /**
  * The new hire's own intake.
@@ -48,15 +44,13 @@ import { ApiError } from '@/lib/api-client';
  * outstanding list comes from the server rather than being re-derived here.
  */
 export default function OnboardingPage() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const { user, reload } = useSession();
 
   const record = useQuery({ queryKey: onboardingKeys.mine(), queryFn: onboardingApi.mine });
 
-  const profileForm = useForm<OnboardingProfileInput>({
-    resolver: zodResolver(onboardingProfileSchema),
-  });
-  const bankForm = useForm<BankDetailInput>({ resolver: zodResolver(bankDetailSchema) });
+  const profileForm = useZodForm<OnboardingProfileInput>(onboardingProfileSchema);
+  const bankForm = useZodForm<BankDetailInput>(bankDetailSchema);
 
   const employee = record.data?.employee;
   useEffect(() => {
@@ -79,32 +73,25 @@ export default function OnboardingPage() {
     }
   }, [employee, record.data?.hasPreviousEmployment, profileForm, bankForm]);
 
-  const saveProfile = useMutation({
+  const saveProfile = useApiMutation({
     mutationFn: onboardingApi.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Details saved');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not save'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Details saved',
+    error: 'Could not save',
   });
 
-  const saveBank = useMutation({
+  const saveBank = useApiMutation({
     mutationFn: onboardingApi.setBank,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Bank details saved');
-    },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not save'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Bank details saved',
+    error: 'Could not save',
   });
 
-  const submit = useMutation({
+  const submit = useApiMutation({
     mutationFn: onboardingApi.submit,
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: onboardingKeys.all() });
-      toast.success('Sent to HR for review');
-    },
-    onError: (err) =>
-      toast.error(err instanceof ApiError ? err.message : 'Could not submit — check the list'),
+    invalidate: [onboardingKeys.all()],
+    success: 'Sent to HR for review',
+    error: 'Could not submit — check the list',
   });
 
   const approvedJustNow = record.data?.status === 'APPROVED';
@@ -182,74 +169,74 @@ export default function OnboardingPage() {
               className="grid gap-4 sm:grid-cols-2"
               onSubmit={profileForm.handleSubmit((v) => saveProfile.mutate(v))}
             >
-              <Field
+              <FormDatePicker
+                control={profileForm.control}
+                name="dateOfBirth"
                 label="Date of birth"
-                error={profileForm.formState.errors.dateOfBirth?.message}
+                disabled={!open}
+                placeholder="Select date of birth"
+              />
+              <FormSelect
+                control={profileForm.control}
+                name="gender"
+                label="Gender"
+                disabled={!open}
+                placeholder="Select"
               >
-                {(a11y) => (
-                  <DatePicker
-                    {...a11y}
-                    disabled={!open}
-                    value={profileForm.watch('dateOfBirth')}
-                    onValueChange={(value) =>
-                      profileForm.setValue('dateOfBirth', value, { shouldDirty: true })
-                    }
-                    placeholder="Select date of birth"
-                  />
-                )}
-              </Field>
-              <Field label="Gender">
-                {(a11y) => (
-                  <Select
-                    value={profileForm.watch('gender') ?? ''}
-                    onValueChange={(v) =>
-                      profileForm.setValue('gender', v as OnboardingProfileInput['gender'])
-                    }
-                    disabled={!open}
-                  >
-                    <SelectTrigger {...a11y} className="w-full">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MALE">Male</SelectItem>
-                      <SelectItem value="FEMALE">Female</SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                      <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </Field>
-              <Field label="Phone">
-                {(a11y) => <Input {...a11y} disabled={!open} {...profileForm.register('phone')} />}
-              </Field>
-              <Field label="Address">
-                {(a11y) => (
-                  <Input {...a11y} disabled={!open} {...profileForm.register('addressLine')} />
-                )}
-              </Field>
-              <Field label="City">
-                {(a11y) => <Input {...a11y} disabled={!open} {...profileForm.register('city')} />}
-              </Field>
-              <Field label="Country">
-                {(a11y) => (
-                  <Input {...a11y} disabled={!open} {...profileForm.register('country')} />
-                )}
-              </Field>
+                <SelectItem value="MALE">Male</SelectItem>
+                <SelectItem value="FEMALE">Female</SelectItem>
+                <SelectItem value="OTHER">Other</SelectItem>
+                <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+              </FormSelect>
+              <FormInput
+                control={profileForm.control}
+                name="phone"
+                placeholder="+91 98765 43210"
+                label="Phone"
+                type="tel"
+                disabled={!open}
+              />
+              <FormInput
+                control={profileForm.control}
+                name="addressLine"
+                placeholder="12 Satellite Road"
+                label="Address"
+                disabled={!open}
+              />
+              <FormInput
+                control={profileForm.control}
+                name="city"
+                label="City"
+                disabled={!open}
+                placeholder="Ahmedabad"
+              />
+              <FormInput
+                control={profileForm.control}
+                name="country"
+                placeholder="India"
+                label="Country"
+                disabled={!open}
+              />
 
-              <Field label="Is this your first job?">
-                {(a11y) => (
+              {/*
+                The escape hatch, and the clearest case for keeping one. The
+                field stores a boolean, offers three states and inverts the
+                sense — "no" means hasPreviousEmployment is true. FormSelect
+                writes back the item's own string, so a parse/format pair would
+                have to live in everyone's component to serve this one caller.
+              */}
+              <FormField
+                control={profileForm.control}
+                name="hasPreviousEmployment"
+                label="Is this your first job?"
+              >
+                {({ field, a11y }) => (
                   <Select
-                    value={
-                      profileForm.watch('hasPreviousEmployment') === undefined
-                        ? ''
-                        : profileForm.watch('hasPreviousEmployment')
-                          ? 'no'
-                          : 'yes'
-                    }
-                    onValueChange={(v) => profileForm.setValue('hasPreviousEmployment', v === 'no')}
+                    value={field.value === undefined ? null : field.value ? 'no' : 'yes'}
+                    onValueChange={(v) => field.onChange(v === 'no')}
                     disabled={!open}
                   >
-                    <SelectTrigger {...a11y} className="w-full">
+                    <SelectTrigger {...a11y} onBlur={field.onBlur} className="w-full">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
@@ -258,7 +245,7 @@ export default function OnboardingPage() {
                     </SelectContent>
                   </Select>
                 )}
-              </Field>
+              </FormField>
 
               {open && (
                 <div className="sm:col-span-2">
@@ -286,28 +273,35 @@ export default function OnboardingPage() {
               className="grid gap-4 sm:grid-cols-2"
               onSubmit={bankForm.handleSubmit((v) => saveBank.mutate(v))}
             >
-              <Field
+              <FormInput
+                control={bankForm.control}
+                name="accountHolderName"
+                placeholder="Exactly as the bank has it"
                 label="Account holder"
-                error={bankForm.formState.errors.accountHolderName?.message}
-              >
-                {(a11y) => (
-                  <Input {...a11y} disabled={!open} {...bankForm.register('accountHolderName')} />
-                )}
-              </Field>
-              <Field label="Bank" error={bankForm.formState.errors.bankName?.message}>
-                {(a11y) => <Input {...a11y} disabled={!open} {...bankForm.register('bankName')} />}
-              </Field>
-              <Field
+                disabled={!open}
+              />
+              <FormInput
+                control={bankForm.control}
+                name="bankName"
+                label="Bank"
+                disabled={!open}
+                placeholder="HDFC Bank"
+              />
+              <FormInput
+                control={bankForm.control}
+                name="accountNumber"
+                placeholder="50100123456789"
                 label="Account number"
-                error={bankForm.formState.errors.accountNumber?.message}
-              >
-                {(a11y) => (
-                  <Input {...a11y} disabled={!open} {...bankForm.register('accountNumber')} />
-                )}
-              </Field>
-              <Field label="IFSC">
-                {(a11y) => <Input {...a11y} disabled={!open} {...bankForm.register('ifscCode')} />}
-              </Field>
+                inputMode="numeric"
+                disabled={!open}
+              />
+              <FormInput
+                control={bankForm.control}
+                name="ifscCode"
+                label="IFSC"
+                disabled={!open}
+                placeholder="HDFC0001234"
+              />
               {open && (
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={saveBank.isPending}>

@@ -30,6 +30,26 @@ export interface BankDetail {
   branch: string | null;
 }
 
+export type ProbationState = 'NONE' | 'PROBATION' | 'EXTENDED' | 'CONFIRMED';
+
+/**
+ * Derived server-side on every read, never stored as a status.
+ *
+ * That is why there is no `probationStatus` column to mirror here: a probation
+ * that ended overnight reads as ended the moment the page opens, whether or
+ * not the nightly tick has run.
+ */
+export interface ProbationView {
+  state: ProbationState;
+  /** The date in force — the extension when there is one. */
+  endDate: string | null;
+  /** The originally agreed end, present only when it was extended. */
+  originalEndDate: string | null;
+  /** Negative once the end date has passed. */
+  daysRemaining: number | null;
+  isOverdue: boolean;
+}
+
 export interface EmployeeDetail extends EmployeeListItem {
   personalEmail: string | null;
   dateOfBirth: string | null;
@@ -58,6 +78,8 @@ export interface EmployeeDetail extends EmployeeListItem {
     employeeCode: string;
     designation: { title: string } | null;
   }[];
+  /** Who to call if something happens at work. Visible to the employee and HR. */
+  emergencyContacts: { id: string; name: string; relation: string; phone: string }[];
   user: {
     id: string;
     email: string;
@@ -65,6 +87,18 @@ export interface EmployeeDetail extends EmployeeListItem {
     role: { id: string; code: RoleCodeInput } | null;
   } | null;
   bankDetail?: BankDetail | null;
+
+  exitDate: string | null;
+  /** Null means "inherit the company default"; `effectiveNoticeDays` resolves it. */
+  noticePeriodDays: number | null;
+  /** Remote days a week. Null is the company default; zero is "never". */
+  remoteDaysPerWeek: number | null;
+  probationMonths: number | null;
+  probationEndDate: string | null;
+  probationExtendedTo: string | null;
+  confirmedOn: string | null;
+  probation: ProbationView;
+  effectiveNoticeDays: number;
 }
 
 export interface EmployeeOption {

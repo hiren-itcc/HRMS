@@ -1,5 +1,17 @@
 import type { AccessTokenClaims } from '@hrms/types';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -8,6 +20,7 @@ import { AllowPasswordChange } from '../../common/decorators/allow-password-chan
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { Env } from '../../config/env';
+import { LifecycleService } from '../lifecycle/lifecycle.service';
 import { AuthService, type RequestMeta } from './auth.service';
 import {
   AcceptInviteDto,
@@ -17,6 +30,7 @@ import {
   ResetPasswordDto,
 } from './dto/auth.dto';
 import { InviteService } from './invite.service';
+import { TokenService } from './token.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -30,6 +44,8 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly invites: InviteService,
+    private readonly tokens: TokenService,
+    private readonly lifecycle: LifecycleService,
     config: ConfigService<Env, true>,
   ) {
     this.isProd = config.get('NODE_ENV', { infer: true }) === 'production';
@@ -157,23 +173,102 @@ export class AuthController {
   @AllowPasswordChange()
   @ApiOperation({ summary: 'Current user with role, permissions and employee summary' })
   me(@CurrentUser() user: AccessTokenClaims) {
+    /*
+     * The daily lifecycle tick, hung off the one request every session makes
+     * on load. Not awaited, and it swallows its own errors: nothing on any
+     * screen depends on it having run — probation state and notice elapse are
+     * derived from the dates on read — so it must never be the reason `me`
+     * is slow or fails.
+     *
+     * This is here rather than in an `@Cron` because the instance sleeps after
+     * fifteen idle minutes, and a timer that silently does not fire is worse
+     * than no timer at all.
+     */
+    void this.lifecycle.tickIfDue(user.orgId);
     return this.auth.getMe(user.sub);
+  }
+
+  /*
+   * Sessions are the caller's own, so there is no permission on either route —
+   * the subject comes from the JWT and is never read from a parameter. This is
+   * the same rule /me/profile follows (docs/04 §Enforcement).
+   *
+   * They live under /auth rather than /me because the refresh cookie is scoped
+   * to `Path=/api/v1/auth`. Anywhere else the browser would not send it, and
+   * the list could not say which device is the one you are reading it on.
+   */
+  @Get('sessions')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Devices currently able to refresh this account' })
+  sessions(@CurrentUser() user: AccessTokenClaims, @Req() req: Request) {
+    return this.tokens.listSessions(user.sub, req.cookies?.[REFRESH_COOKIE]);
+  }
+
+  @Delete('sessions/:id')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Sign one device out' })
+  async revokeSession(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { revoked, wasCurrent } = await this.tokens.revokeSession(
+      user.sub,
+      id,
+      req.cookies?.[REFRESH_COOKIE],
+    );
+    if (!revoked) throw new NotFoundException('Session not found');
+
+    /*
+     * Revoking the session you are signed in with is allowed — "sign out
+     * everywhere, including here" is a reasonable thing to want and refusing it
+     * would be surprising. But the cookie has to go with it, or the browser
+     * keeps presenting a revoked token until the access token expires and then
+     * fails a refresh it cannot explain.
+     */
+    if (wasCurrent) this.clearRefreshCookie(res);
   }
 
   // ── cookie helpers ───────────────────────────────────────────────────
 
+  /*
+   * `sameSite` is a deployment fact, not a preference.
+   *
+   * In development both apps are on localhost, so they are same-site and `lax`
+   * is the stricter, better choice. In production the web app and the API sit
+   * on different hosts — and `onrender.com`, like `vercel.app`, is on the
+   * Public Suffix List, so two subdomains of it are cross-site to each other
+   * exactly as if they were unrelated domains. A `lax` cookie is withheld from
+   * cross-site XHR, which is precisely what `POST /auth/refresh` is: the login
+   * would work, and then every session would end silently at the 15-minute
+   * access-token expiry with no error the user could act on.
+   *
+   * `none` requires `secure`, which is why they move together. What keeps this
+   * safe is not the cookie flag but CORS: another origin can cause a refresh to
+   * fire, but `enableCors({ origin: WEB_ORIGIN, credentials: true })` stops it
+   * reading the response, so the rotated access token never leaves this app.
+   * The worst it can do is rotate a token early.
+   */
   private setRefreshCookie(res: Response, token: string): void {
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
       secure: this.isProd,
-      sameSite: 'lax',
+      sameSite: this.isProd ? 'none' : 'lax',
       path: '/api/v1/auth',
       maxAge: this.refreshTtlDays * 24 * 60 * 60 * 1000,
     });
   }
 
+  /** Must mirror the attributes above — a cookie only clears on an exact match. */
   private clearRefreshCookie(res: Response): void {
-    res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: this.isProd,
+      sameSite: this.isProd ? 'none' : 'lax',
+      path: '/api/v1/auth',
+    });
   }
 }
 

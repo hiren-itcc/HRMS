@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@hrms/ui/components/button';
 import { Textarea } from '@hrms/ui/components/textarea';
 import { cn } from '@hrms/ui/lib/utils';
 import {
@@ -16,6 +15,7 @@ import {
   Quote,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { IconAction } from '@/components/icon-action';
 import { Markdown } from './markdown';
 
 interface Action {
@@ -84,19 +84,16 @@ export function RichTextEditor({ value, onChange, id, ...a11y }: EditorProps) {
       <div className="flex flex-wrap items-center justify-between gap-1 border-b bg-muted/40 p-1">
         <div className="flex flex-wrap items-center gap-0.5">
           {ACTIONS.map((action) => (
-            <Button
+            /* The label was already on hover, as a native `title`; it is the
+               same words in a tooltip that matches the rest of the app. */
+            <IconAction
               key={action.label}
-              type="button"
-              variant="ghost"
-              size="icon"
+              label={action.label}
+              icon={action.icon}
               className="size-8"
-              aria-label={action.label}
-              title={action.label}
               disabled={tab === 'preview'}
               onClick={() => apply(action)}
-            >
-              <action.icon className="size-4" aria-hidden />
-            </Button>
+            />
           ))}
         </div>
         <div className="flex gap-0.5 rounded-md bg-background p-0.5">

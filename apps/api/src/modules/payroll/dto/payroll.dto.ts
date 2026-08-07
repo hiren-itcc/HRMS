@@ -2,6 +2,8 @@ import {
   employeeSalarySchema,
   paginationQuerySchema,
   paymentUpdateSchema,
+  payrollAdjustmentQuerySchema,
+  payrollAdjustmentSchema,
   payrollReportQuerySchema,
   payrollRunActionSchema,
   payrollRunCreateSchema,
@@ -25,4 +27,6 @@ export class PayrollRunActionDto extends createZodDto(payrollRunActionSchema) {}
 export class PayrollRunQueryDto extends createZodDto(payrollRunQuerySchema) {}
 export class PayslipQueryDto extends createZodDto(payslipQuerySchema) {}
 export class PaymentUpdateDto extends createZodDto(paymentUpdateSchema) {}
+export class PayrollAdjustmentDto extends createZodDto(payrollAdjustmentSchema) {}
+export class PayrollAdjustmentQueryDto extends createZodDto(payrollAdjustmentQuerySchema) {}
 export class PayrollReportQueryDto extends createZodDto(payrollReportQuerySchema) {}

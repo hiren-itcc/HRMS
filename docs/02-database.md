@@ -26,6 +26,10 @@ erDiagram
     User }o--|| Role : "has"
     Role }o--o{ Permission : "grants (RolePermission)"
     User ||--o{ RefreshSession : "signs in via"
+    User ||--o{ PasswordResetToken : "resets via"
+
+    Employee ||--o{ EmployeeInvite : "invited by"
+    Employee ||--o| Onboarding : "joins via"
 
     Department ||--o{ Employee : contains
     Department |o--o| Department : "parent of"
@@ -56,17 +60,35 @@ erDiagram
     Employee ||--o{ Payslip : "paid by"
     Payslip ||--o{ PayslipLine : "broken down into"
 
+    Employee ||--o{ Letter : "issued"
+    LetterTemplate ||--o{ Letter : "rendered from"
+
     User ||--o{ Announcement : authors
     Announcement ||--o{ AnnouncementRead : "read by"
+    Announcement ||--o{ AnnouncementAttachment : carries
     User ||--o{ AnnouncementRead : reads
-    User ||--o{ Notification : receives
     User ||--o{ AuditLog : performs
 ```
 
+`Notification` is not on this diagram. The table exists and nothing reads or
+writes it — see the model below.
+
+**The diagram stops at Payroll.** Exits, assets, remote work and recruitment
+are not on it — twenty-odd tables added after it was drawn. It is kept as a map
+of the core rather than being grown into an unreadable one; the model list
+below is complete and is what to read for anything later than Payroll.
+
 ## Prisma models
 
-The schema below is applied — `apps/api/prisma/schema.prisma` is the source of
-truth and this is its narrative form.
+`apps/api/prisma/schema.prisma` is the source of truth. What follows is its
+narrative form: the same models, trimmed of indexes and mapping noise so the
+shape is readable, with the reasoning that the schema file cannot carry.
+
+**Where the two disagree, the schema wins** — and they will disagree, because
+only one of them is compiled. This page has drifted before, badly enough that it
+declared `EmploymentType` as both a table and an enum at once. If you are
+implementing against it, check the model you care about; if you are changing the
+schema, this page is part of the change.
 
 ```prisma
 // ─── Identity & Access ────────────────────────────────────────────────
@@ -93,8 +115,12 @@ model User {
   id             String     @id @default(cuid())
   organizationId String
   email          String     @unique
-  passwordHash   String                    // Argon2id
+  passwordHash   String                    // Argon2id. For an invited hire this is
+                                            // 32 random bytes nobody can reproduce —
+                                            // there is no password until they set one.
   status         UserStatus @default(INVITED)
+  mustChangePassword Boolean @default(false) // Set when created on the shared
+                                            // default; cleared by any password change
   roleId         String
   lastLoginAt    DateTime?
   createdAt      DateTime   @default(now())
@@ -104,6 +130,7 @@ model User {
   role         Role          @relation(fields: [roleId], references: [id])
   employee     Employee?
   sessions     RefreshSession[]
+  resetTokens  PasswordResetToken[]
 
   @@index([organizationId])
 }
@@ -163,6 +190,8 @@ model PasswordResetToken {
   usedAt    DateTime?                  // single-use: a replay is a no-op
   createdAt DateTime  @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
@@ -202,6 +231,7 @@ model Location {
   id             String  @id @default(cuid())
   organizationId String
   name           String
+  type           LocationType @default(BRANCH)
   address        String?
   city           String?
   country        String?
@@ -219,6 +249,8 @@ model Location {
 
   @@unique([organizationId, name])
 }
+
+enum LocationType { HEAD_OFFICE BRANCH REMOTE CLIENT_SITE }
 
 model EmploymentType {                 // Full-time, Contract, Intern…
   id             String  @id @default(cuid())
@@ -258,7 +290,8 @@ model Employee {
   phone          String?
   dateOfBirth    DateTime?      @db.Date
   gender         Gender?
-  avatarUrl      String?
+  avatarUrl      String?                 // the path that serves it, not a public URL
+  avatarKey      String?                 // the opaque storage key behind it
   addressLine    String?
   city           String?
   country        String?
@@ -267,10 +300,18 @@ model Employee {
   locationId     String?
   managerId      String?                        // reportsTo
   shiftId        String?
-  employmentType EmploymentType @default(FULL_TIME)
+  employmentTypeId String?               // FK to the EmploymentType table
   status         EmployeeStatus @default(ACTIVE)
   joinDate       DateTime       @db.Date
   exitDate       DateTime?      @db.Date
+
+  // Null on all four = use the organization default from Settings.
+  noticePeriodDays    Int?
+  probationMonths     Int?
+  probationEndDate    DateTime? @db.Date   // computed at create, then fixed
+  probationExtendedTo DateTime? @db.Date   // supersedes it, without erasing it
+  confirmedOn         DateTime? @db.Date   // off probation for good
+
   deletedAt      DateTime?                      // soft delete (schema principle 3)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -299,8 +340,21 @@ model Employee {
 }
 
 enum Gender { MALE FEMALE OTHER PREFER_NOT_TO_SAY }
-enum EmploymentType { FULL_TIME PART_TIME CONTRACT INTERN }
-enum EmployeeStatus { ACTIVE ON_NOTICE EXITED }
+
+// ONBOARDING sorts first on purpose: "not yet started" before "working".
+//
+// ON_NOTICE deliberately behaves exactly like ACTIVE everywhere: somebody
+// working their notice period still clocks in, books leave and is paid. It is
+// exitDate, not status, that changes what the system does — attendance asks
+// isEmployedOn(date, window), payroll includes anyone whose exit falls inside
+// the month so the final part-month is paid, and reports span anyone employed
+// for part of the range. Excluding EXITED from those filters would lose people
+// exactly the history they exist to show.
+enum EmployeeStatus { ONBOARDING ACTIVE ON_NOTICE EXITED }
+
+// EmploymentType is a TABLE, above — full-time, contract and intern are things
+// a company edits in Settings, not values baked into a migration. This page
+// used to declare it both ways at once.
 
 model BankDetail {                     // 1-1 with Employee; payroll's payment target
   id                String   @id @default(cuid())
@@ -389,10 +443,17 @@ model AttendanceSession {
 // Derived from the position at each punch, never declared.
 enum WorkMode { OFFICE REMOTE CLIENT_SITE }
 
-// How sure the reading was. Only VERIFIED and UNVERIFIED are ever written now:
-// OUTSIDE and NOT_APPLICABLE are left over from when somebody declared a mode
-// and the position was checked against the claim. Rows carrying them predate
-// automatic detection; nothing produces them any more.
+// How sure the reading was. detectPlacement() returns only VERIFIED or
+// UNVERIFIED — a punch with no usable fix is "office, unverified", not a
+// special case. OUTSIDE is dead: it is left from when somebody declared a mode
+// and the position was checked against the claim, and nothing produces it.
+//
+// NOT_APPLICABLE is NOT dead, though no code writes it either. It is the
+// @default, and check-in sets only the `in*` columns — so it is precisely what
+// outVerification holds on a session that has been opened and not yet closed.
+// It means "no checkout to verify", which is why it cannot be dropped with
+// OUTSIDE. (Reopening a mis-tap writes UNVERIFIED there instead, so an open
+// session can hold either.)
 enum LocationVerification { VERIFIED OUTSIDE UNVERIFIED NOT_APPLICABLE }
 
 enum AttendanceStatus { PRESENT ABSENT HALF_DAY ON_LEAVE HOLIDAY WEEK_OFF WFH }
@@ -460,6 +521,11 @@ model LeaveRequest {
   endDate     DateTime       @db.Date
   halfDaySide HalfDaySide?               // null = full days
   days        Decimal        @db.Decimal(5, 1)
+  // Which leave year this request books against, fixed when it is raised.
+  // Derived at approve time instead, a settings change between raising and
+  // approving would credit the balance back to a different year than it was
+  // taken from (doc 13).
+  leaveYear   Int
   reason      String
   status      ApprovalStatus @default(PENDING)
   approverId  String?
@@ -475,6 +541,31 @@ model LeaveRequest {
 }
 
 enum HalfDaySide { FIRST_HALF SECOND_HALF }
+
+/// Permission to work remotely on particular days.
+///
+/// Attendance already *detects* who worked from home — detectPlacement reads
+/// it off the position taken at the punch. This is the other half. Nothing
+/// here is consulted at clock-in: an unapproved remote day is recorded as any
+/// other and flagged on read.
+model RemoteWorkRequest {
+  id             String @id @default(cuid())
+  organizationId String
+  employeeId     String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  /// Working days the range covers, counted at submission against the working
+  /// week and holidays. Stored, not recomputed: a holiday added later must not
+  /// change the count a request was approved on.
+  days      Decimal  @db.Decimal(4, 1)
+
+  reason       String
+  status       ApprovalStatus @default(PENDING)
+  approverId   String?
+  actedAt      DateTime?
+  approverNote String?
+}
 
 // ─── Documents ────────────────────────────────────────────────────────
 
@@ -565,6 +656,8 @@ model Announcement {
   organizationId String
   title          String
   body           String                  // markdown
+  category       AnnouncementCategory @default(GENERAL)
+  priority       AnnouncementPriority @default(NORMAL)
   audience       Audience @default(ALL)
   departmentId   String?                 // when audience = DEPARTMENT
   locationId     String?                 // when audience = LOCATION
@@ -574,12 +667,15 @@ model Announcement {
   authorId       String                  // User id
   createdAt      DateTime @default(now())
 
-  reads AnnouncementRead[]
+  reads       AnnouncementRead[]
+  attachments AnnouncementAttachment[]
 
   @@index([organizationId, publishAt])
 }
 
 enum Audience { ALL DEPARTMENT LOCATION }
+enum AnnouncementCategory { GENERAL HOLIDAY BIRTHDAY POLICY }
+enum AnnouncementPriority { NORMAL HIGH URGENT }
 
 model AnnouncementAttachment {
   id             String   @id @default(cuid())
@@ -589,6 +685,8 @@ model AnnouncementAttachment {
   mimeType       String
   sizeBytes      Int
   createdAt      DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
 
   @@index([announcementId])
 }
@@ -603,6 +701,16 @@ model AnnouncementRead {
   @@id([announcementId, userId])
 }
 
+// The in-app notification. Written by NotificationsService, read by the bell
+// in the header. Carries no organizationId, deliberately: it belongs to one
+// user, and the two other user-owned tables here (RefreshSession,
+// PasswordResetToken) carry none either. Scoping on the JWT subject is
+// tighter than scoping on the org.
+//
+// `type` is dot-namespaced like an audit action — "resignation.submitted" —
+// so a family can be filtered without a second column and a new one needs no
+// migration. Retention is a 90-day bound applied on read; there is no
+// scheduler to prune with.
 model Notification {
   id        String    @id @default(cuid())
   userId    String
@@ -614,6 +722,458 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt])
+}
+
+// A one-off amount for one employee in one month: bonus, incentive, loan
+// instalment. Belongs to the month rather than the run, because calculation is
+// destructive — deleting and rebuilding a run must not lose them.
+//
+// Unique per (employee, month, component): two "Bonus" rows would print two
+// payslip lines with the same code and no way to tell them apart, so setting
+// the same one twice raises the figure. The amount is always positive; the
+// component's kind decides whether it adds or subtracts.
+model PayrollAdjustment {
+  id             String   @id @default(cuid())
+  organizationId String
+  employeeId     String
+  month          String                   // yyyy-MM, matching PayrollRun.month
+  componentId    String
+  amount         Decimal  @db.Decimal(14, 2)
+  note           String?                  // for whoever approves the run
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  component PayComponent @relation(fields: [componentId], references: [id])
+
+  @@unique([employeeId, month, componentId])
+  @@index([organizationId, month])
+}
+
+// ─── Onboarding ───────────────────────────────────────────────────────
+// The path a new hire takes: invited by email, fills in their own details,
+// HR reviews, account becomes usable. Doc 03 has the endpoints, doc 07 the
+// token model.
+
+model EmployeeInvite {
+  id          String    @id @default(cuid())
+  employeeId  String
+  tokenHash   String    @unique          // SHA-256; the raw token only ever
+                                         // exists in the email
+  sentToEmail String                     // the PERSONAL address — the work
+                                         // mailbox does not exist yet
+  expiresAt   DateTime                   // 7 days
+  usedAt      DateTime?                  // single use
+  revokedAt   DateTime?                  // resending kills the previous link,
+                                         // so only one is ever live. Revoked
+                                         // rather than deleted: the row is the
+                                         // evidence HR did invite them
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model Onboarding {
+  id         String           @id @default(cuid())
+  employeeId String           @unique
+  status     OnboardingStatus @default(IN_PROGRESS)
+
+  // Null = not yet answered, which keeps the documents step incomplete. A
+  // first-jobber answers false and the relieving-letter requirement is
+  // satisfied by the declaration rather than silently waived — "declared first
+  // job" is an answer; an empty folder is not.
+  hasPreviousEmployment Boolean?
+
+  // The checklist, as foreign keys rather than a count of files in a folder.
+  // Folders are renameable and deletable, so matching them by name breaks the
+  // first time HR renames "Certificates".
+  idProofDocId        String?
+  bankProofDocId      String?
+  educationDocId      String?
+  prevEmploymentDocId String?
+
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNote   String?                   // why HR sent it back; shown to the hire
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// There is deliberately no INVITED member: that fact is already User.status,
+// and one state in two columns is one column too many. request-changes returns
+// SUBMITTED to IN_PROGRESS. Transitions use optimistic updateMany guards, so
+// two reviewers acting at once cannot both win.
+enum OnboardingStatus { IN_PROGRESS SUBMITTED APPROVED }
+
+// ─── Exits: resignation and offboarding ───────────────────────────────
+
+model Resignation {
+  id             String            @id @default(cuid())
+  organizationId String
+  employeeId     String
+  status         ResignationStatus @default(SUBMITTED)
+  reason         ResignationReason
+  remarks        String?           // the employee's own words
+
+  requestedLastWorkingDate DateTime  @db.Date
+  approvedLastWorkingDate  DateTime? @db.Date  // HR's, once approved
+  noticeDays               Int                 // frozen at submit
+  earliestLastWorkingDate  DateTime  @db.Date  // and the date it implied
+
+  submittedAt        DateTime  @default(now())
+  routedManagerId    String?    // captured at submit, never read live
+  managerDecidedAt   DateTime?
+  managerDecidedById String?
+  managerRemarks     String?
+  hrDecidedAt        DateTime?
+  hrDecidedById      String?
+  hrRemarks          String?
+  withdrawnAt        DateTime?
+
+  @@index([organizationId, status])
+  @@index([routedManagerId, status])
+  // Plus a partial unique index, hand-written in the migration because Prisma
+  // cannot express it: one open request per employee, where open means
+  // SUBMITTED | MANAGER_APPROVED | CHANGES_REQUESTED | APPROVED.
+}
+
+enum ResignationStatus {
+  SUBMITTED MANAGER_APPROVED CHANGES_REQUESTED APPROVED
+  REJECTED WITHDRAWN COMPLETED
+}
+
+enum ResignationReason {
+  BETTER_OPPORTUNITY COMPENSATION RELOCATION HIGHER_STUDIES HEALTH
+  PERSONAL WORK_ENVIRONMENT CAREER_CHANGE OTHER
+}
+
+model Offboarding {
+  id             String  @id @default(cuid())
+  organizationId String
+  employeeId     String
+  resignationId  String? @unique   // null = HR started it directly
+
+  reason          OffboardingReason
+  reasonNote      String?
+  lastWorkingDate DateTime          @db.Date
+  status          OffboardingStatus @default(IN_PROGRESS)
+
+  // Frozen at start, the way Letter freezes its variables.
+  snapshotDepartment  String?
+  snapshotDesignation String?
+  snapshotManagerName String?
+  snapshotJoinDate    DateTime @db.Date
+
+  startedAt     DateTime  @default(now())
+  startedById   String?           // null when the daily tick opened it
+  completedAt   DateTime?
+  completedById String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+
+  @@index([organizationId, lastWorkingDate])
+  // Partial unique index too: one IN_PROGRESS offboarding per employee.
+}
+
+enum OffboardingReason {
+  RESIGNATION TERMINATION CONTRACT_END RETIREMENT ABSCONDING OTHER
+}
+
+enum OffboardingStatus { IN_PROGRESS COMPLETED CANCELLED }
+
+/// One line of the exit checklist. Copied from the organization's template in
+/// Settings when the exit starts, and never joined back to it.
+model OffboardingTask {
+  id            String                @id @default(cuid())
+  offboardingId String
+  label         String
+  description   String?
+  owner         ClearanceOwner
+  /// MANUAL is hand-signed. ASSET_RETURN reads the asset register and cannot
+  /// be ticked to DONE by hand; waiving it still works.
+  kind          ClearanceKind         @default(MANUAL)
+  required      Boolean               @default(true)   // blocks completion
+  order         Int
+  status        OffboardingTaskStatus @default(PENDING)
+  note          String?               // what came back, or why it was waived
+  doneAt        DateTime?
+  doneById      String?
+
+  @@index([offboardingId, order])
+  @@index([offboardingId, status])
+}
+
+enum ClearanceOwner { MANAGER HR FINANCE IT_ADMIN }
+enum ClearanceKind { MANUAL ASSET_RETURN }
+enum OffboardingTaskStatus { PENDING DONE NOT_APPLICABLE }
+
+/// The exit conversation. Read by employee.offboard holders only.
+model ExitInterview {
+  id            String    @id @default(cuid())
+  offboardingId String    @unique
+  conductedOn   DateTime? @db.Date
+  conductedById String?
+
+  /// [{ key, question, answer }] — the question text is frozen beside the
+  /// answer, so changing the questionnaire never rewrites what was said.
+  responses Json    @default("[]")
+  notes     String?
+
+  wouldRecommend Boolean?
+  rehireEligible Boolean?
+}
+
+/// What a leaver is owed. Not a PayrollRun — see "Notable design calls".
+model Settlement {
+  id             String @id @default(cuid())
+  organizationId String
+  /// One per exit, not per employee: somebody rehired and leaving again gets
+  /// a second one against a second offboarding.
+  offboardingId  String @unique
+  employeeId     String
+  status         SettlementStatus @default(DRAFT)
+
+  /// Frozen when computed. A salary revision or a leave adjustment afterwards
+  /// must not rewrite a settlement somebody has already been shown.
+  lastWorkingDate DateTime @db.Date
+  joinDate        DateTime @db.Date
+  /// Basic or gross, whichever the company prices settlements off. Named for
+  /// what it holds rather than for the setting that filled it.
+  monthlyPay      Decimal  @db.Decimal(14, 2)
+  perDayRate      Decimal  @db.Decimal(14, 2)
+
+  totalEarnings   Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal @default(0) @db.Decimal(14, 2)
+  /// Allowed to be negative, unlike a payslip's net.
+  netPayable      Decimal @default(0) @db.Decimal(14, 2)
+
+  notes      String?
+  computedAt DateTime?
+  approvedAt DateTime?  approvedById String?
+  paidAt     DateTime?  paidById     String?
+  paymentRef String?
+  cancelledAt DateTime? cancelReason String?
+
+  lines SettlementLine[]
+}
+
+enum SettlementStatus { DRAFT APPROVED PAID CANCELLED }
+enum SettlementLineKind { EARNING DEDUCTION }
+enum SettlementLineSource { LEAVE_ENCASHMENT NOTICE_RECOVERY GRATUITY MANUAL }
+
+model SettlementLine {
+  id           String @id @default(cuid())
+  settlementId String
+  kind         SettlementLineKind
+  source       SettlementLineSource
+  label        String
+  /// How the figure was reached — "12.5 days × ₹2,400". Printed under the
+  /// amount, because a number nobody can check is a number nobody accepts.
+  basis        String?
+  amount       Decimal @db.Decimal(14, 2)
+  order        Int
+  /// HR changed the computed figure. Kept so the statement can say so.
+  overridden   Boolean @default(false)
+}
+
+// ─── Assets ───────────────────────────────────────────────────────────
+
+enum AssetStatus    { IN_STOCK  ASSIGNED  IN_REPAIR  LOST  RETIRED }
+enum AssetCondition { NEW  GOOD  FAIR  POOR  DAMAGED }
+
+/// Per-org, like DocumentCategory. A table rather than a settings list
+/// because assets are filtered and counted by category.
+model AssetCategory {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  @@unique([organizationId, name])
+}
+
+/// One physical thing. Per-item rather than a stock count, which is what
+/// makes "who has SN-4471" and the exit clearance answerable at all.
+model Asset {
+  id String @id @default(cuid())
+  organizationId String
+  categoryId     String
+  /// Printed on the sticker — "MAC-0042".
+  assetTag     String
+  name         String
+  serialNumber String?
+  make         String?
+  model        String?
+
+  /// Stored, not derived, and written in exactly one place. Issuing and
+  /// returning move it between IN_STOCK and ASSIGNED; the rest are set by
+  /// hand with a reason.
+  status    AssetStatus    @default(IN_STOCK)
+  condition AssetCondition @default(GOOD)
+
+  purchaseDate DateTime? @db.Date
+  purchaseCost Decimal?  @db.Decimal(14, 2)
+  warrantyEnd  DateTime? @db.Date
+  vendor       String?
+  locationId   String?
+  notes        String?
+
+  @@unique([organizationId, assetTag])
+}
+
+/// One spell of somebody holding one asset. History, not current state: a
+/// returned row stays so the register can answer who had it in March.
+model AssetAssignment {
+  id String @id @default(cuid())
+  assetId    String
+  employeeId String
+  issuedOn     DateTime @db.Date
+  issuedById   String?
+  conditionOut AssetCondition
+  returnedOn   DateTime?       @db.Date
+  returnedById String?
+  conditionIn  AssetCondition?
+  notes        String?
+}
+
+// ─── Recruitment ──────────────────────────────────────────────────────
+// The front of the lifecycle. A Candidate is a person the organization is
+// talking to, not a member of staff — see "Notable design calls" for why the
+// FK points the way it does.
+
+enum OpeningStatus  { DRAFT  OPEN  ON_HOLD  CLOSED  FILLED }
+enum ApplicationStage { APPLIED  SCREENING  INTERVIEW  OFFER  HIRED  REJECTED  WITHDRAWN }
+enum RejectionReason { SKILLS  EXPERIENCE  COMPENSATION  LOCATION  NOTICE_PERIOD  CULTURE_FIT  POSITION_CLOSED  CANDIDATE_WITHDREW  OTHER }
+enum InterviewMode   { IN_PERSON  VIDEO  PHONE }
+enum InterviewRecommendation { STRONG_YES  YES  NO  STRONG_NO }
+enum OfferStatus     { DRAFT  SENT  ACCEPTED  DECLINED  WITHDRAWN  EXPIRED }
+
+/// A role being recruited for. Every job field is nullable because an
+/// opening is often raised before the department or the band is settled.
+model JobOpening {
+  id String @id @default(cuid())
+  organizationId String
+  title          String
+  status         OpeningStatus @default(DRAFT)
+
+  departmentId     String?
+  designationId    String?
+  locationId       String?
+  employmentTypeId String?
+  /// Gets `recruitment.read.team` over this opening without org-wide access.
+  hiringManagerId  String?
+
+  headcount     Int      @default(1)
+  description   String?
+  minMonthlyCtc Decimal? @db.Decimal(14, 2)
+  maxMonthlyCtc Decimal? @db.Decimal(14, 2)
+
+  openedOn DateTime? @db.Date
+  closedOn DateTime? @db.Date
+
+  applications Application[]
+}
+
+/// A person, once. Unique per org on email, so somebody applying for a
+/// second role is the same human with a second application rather than a
+/// duplicate record.
+model Candidate {
+  id String @id @default(cuid())
+  organizationId String
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  currentEmployer    String?
+  currentTitle       String?
+  noticePeriodDays   Int?
+  expectedMonthlyCtc Decimal? @db.Decimal(14, 2)
+  source             String?
+  /// The colleague who put them forward, if anybody did.
+  referrerId         String?
+  notes              String?
+
+  applications Application[]
+
+  @@unique([organizationId, email])
+}
+
+/// One candidate against one opening.
+model Application {
+  id String @id @default(cuid())
+  /// Denormalised off the opening so the pipeline scopes and counts without
+  /// a join, the way every other module here scopes by organization.
+  organizationId String
+  candidateId    String
+  openingId      String
+
+  stage           ApplicationStage @default(APPLIED)
+  rejectionReason RejectionReason?
+  /// Required by the service when the reason is OTHER, the way Resignation
+  /// already requires remarks.
+  rejectionNote   String?
+
+  appliedOn DateTime  @default(now())
+  decidedAt DateTime?
+  /// The CV as a Document, so it goes through the same storage adapter, size
+  /// and type checks and streaming download as every other file.
+  resumeDocumentId String? @unique
+
+  interviews Interview[]
+  offer      Offer?
+
+  /// Applying twice is the same application moving, not a second one.
+  @@unique([candidateId, openingId])
+}
+
+/// A round, and what the interviewer made of them.
+model Interview {
+  id String @id @default(cuid())
+  applicationId  String
+  interviewerId  String?
+  scheduledFor    DateTime
+  durationMinutes Int      @default(45)
+  mode            InterviewMode @default(VIDEO)
+  round           String?
+
+  recommendation InterviewRecommendation?
+  notes          String?
+  /// The freeze. Set on submit; the service refuses a second write. Same
+  /// rule as Letter.variables and Offboarding.snapshot* — a recommendation
+  /// that can be rewritten after the decision is evidence of nothing.
+  submittedAt DateTime?
+  cancelledAt DateTime?
+}
+
+/// The agreed job and pay, and the one place recruitment meets Employee.
+model Offer {
+  id String @id @default(cuid())
+  organizationId String
+  applicationId  String @unique
+
+  designationId    String?
+  departmentId     String?
+  locationId       String?
+  employmentTypeId String?
+  monthlyCtc Decimal  @db.Decimal(14, 2)
+  joinDate   DateTime @db.Date
+  expiresOn  DateTime? @db.Date
+
+  status      OfferStatus @default(DRAFT)
+  sentAt      DateTime?
+  respondedAt DateTime?
+  notes       String?
+
+  /// Nullable, and pointing *at* Employee. Set only once the offer has been
+  /// accepted and converted; a candidate who is never hired leaves no
+  /// employee row behind.
+  hiredEmployeeId String? @unique
 }
 
 // ─── Payroll ──────────────────────────────────────────────────────────
@@ -801,7 +1361,166 @@ model AuditLog {
 - **`AttendanceRecord @@unique([employeeId, date])`** makes "one row per employee per day" a DB invariant, not an application hope.
 - **`LeaveBalance` is per-year** — year-end carry-forward is a job that writes next year's rows; history stays queryable for reports.
 - **`Document.fileKey`** keeps storage private; downloads go through the API with a permission check and a short-lived signed URL.
+### Exits and probation
+
+- **The exit checklist is copied, not joined.** `OffboardingTask` rows are
+  written from the `exitChecklist` settings group when the exit starts.
+  Editing the template must not rewrite an exit that is half signed off —
+  somebody who has already returned their laptop has returned it whatever the
+  list says next week. Same freezing rule as the `snapshot*` fields and
+  `Letter.variables`.
+- **`NOT_APPLICABLE` is a real state.** A contractor with no company laptop is
+  closed honestly rather than by ticking a box that says the laptop came back.
+- **`ExitInterview.responses` is JSON on purpose.** Each answer carries the
+  question it answered. Normalising it would make the question a joined row a
+  later release could rewrite, and an exit interview is evidence.
+- **`Settlement` is its own entity, not a kind of `PayrollRun`.** Reusing the
+  run was the first design and it does not survive contact: `PayrollRun` is
+  `@@unique([organizationId, month])` and the month a settlement belongs to is
+  usually closed by the time it is prepared; `calculatePayslip` prorates by
+  working days and computes statutory on gross, both wrong here; and
+  `Payslip.structureName`, `workingDays` and `payableDays` are `NOT NULL` with
+  no defaults, none of which a settlement has. A new calculator was needed
+  either way, so the only thing the alternative bought was the payslip screen.
+- **Settlement amounts sit outside the statutory base**, deliberately.
+  `payroll.calc.ts` adds earning adjustments to gross and passes that gross to
+  `computeStatutory`, where ESI is a cliff rather than a taper — ₹18,000 of
+  encashment on a ₹20,000 salary would switch ESI off for the month. Tax on a
+  settlement is a line HR enters, exactly as monthly TDS already is. *This is a
+  modelling choice rather than a law being asserted.*
+- **`SettlementLine` carries its own id** rather than keying on a component
+  code. Two encashable leave types produce two lines that mean different
+  things; `PayslipLine` has no unique on `(payslipId, componentCode)` and the
+  payslip screen keys its rows on `line.code`, which would have collided.
+- **`Settlement.netPayable` is not clamped at zero**, unlike a payslip's net.
+  Somebody whose notice recovery exceeds their dues genuinely owes the company,
+  and a floor would make the total disagree with the lines above it.
+- **`RemoteWorkRequest` carries `organizationId`; `LeaveRequest` and
+  `AttendanceRequest` do not.** Those two are the oldest tables here and the
+  only ones that break principle 1. Every table added since carries it, and a
+  third exception would make eventual row-level security harder for no gain.
+- **Nothing records that a remote day was unapproved.** The flag is derived on
+  read, by asking which days were agreed for a range the caller is already
+  fetching. Storing it would mean a write path that can disagree with the
+  requests — and would need re-writing whenever one was approved after the fact.
+- **`Employee.remoteDaysPerWeek`: null is the company default, zero is "never".**
+  Two different things, unlike `gratuity.cap` where zero is a no-limit
+  sentinel. Reading zero as unlimited would have handed exactly the people
+  barred from remote work every day of the week. No limit is seven.
+- **An asset is in at most one person's hands, and that is an index.** Prisma
+  cannot express a partial unique index, so
+  `CREATE UNIQUE INDEX … ON "AssetAssignment"("assetId") WHERE "returnedOn" IS
+  NULL` is hand-written — same shape as the one-open-resignation index. Without
+  it two concurrent issues of the same laptop both succeed and the register can
+  never be trusted again.
+- **`Asset.status` is stored rather than derived from an open assignment.**
+  Deriving it would have produced two axes — assigned *and* in repair — that no
+  screen could render honestly. The cost is that one service method must be the
+  only writer, the same bargain `EmploymentTransitionService` makes for
+  `Employee.status`.
+- **`LOST` may be set while somebody still holds it; `IN_REPAIR` and `RETIRED`
+  may not.** "It is gone" is precisely the case where the thing cannot be handed
+  back first, and refusing would leave the register insisting an employee still
+  carries a laptop everybody agrees no longer exists. Setting it closes their
+  assignment. The other two claim the company has it back, and the company does
+  not.
+- **`OffboardingTask.kind` defaults to `MANUAL` and was backfilled to nothing.**
+  An `ASSET_RETURN` item reads the register and cannot be ticked by hand, so
+  switching it on for an organization mid-exit could block a completion nobody
+  can unblock. Existing organizations opt in from the checklist template; the
+  shipped default carries `ASSET_RETURN` for new ones.
+- **`LeaveType.encashable` defaults to false and was backfilled to false.**
+  Most leave is use-it-or-lose-it, and switching every existing type on would
+  have added a silent payout to every settlement computed afterwards.
+- **`Notification` is no longer dead.** It carries no `organizationId` and
+  that is deliberate: a notification belongs to one user, and the schema's two
+  other user-owned tables, `RefreshSession` and `PasswordResetToken`, carry
+  none either. Scoping on the JWT subject is tighter than scoping on the org.
+
+- **Probation is not an `EmployeeStatus`.** It is `probationEndDate`,
+  `probationExtendedTo` and `confirmedOn` on `Employee`, and the badge is
+  derived on read. A status member would have rippled into every
+  `status: { notIn: [...] }` filter in attendance, payroll, reports and the
+  directory — and would have been wrong anyway, since somebody on probation is
+  ACTIVE and a leaver can be on notice while still unconfirmed. Same rule the
+  page already states for leaving: the date is the mechanism, the status is the
+  label.
+- **`probationExtendedTo` supersedes `probationEndDate` without overwriting it**,
+  so "extended from 1 Sep to 1 Dec" is still answerable afterwards.
+- **`noticePeriodDays` and `probationMonths` are nullable overrides.** Null means
+  the organization default from Settings, which is what almost every row carries
+  — so changing company policy actually moves everyone it should.
+- **Two tables for one exit.** A resignation is a request two people decide on;
+  an offboarding is the operational work of somebody leaving, which is identical
+  however it began. Keeping terminations in the same table means one list of
+  everybody leaving and one path to EXITED.
+- **`noticeDays` is frozen onto the resignation at submit.** Recomputing it would
+  let a later settings change rewrite what somebody was already told they owed.
+- **Two partial unique indexes are hand-written SQL**, because Prisma cannot
+  express them. The services check first so the user reads a sentence; the index
+  is what survives a double-clicked submit button.
+- **No employment-history table.** `AuditLog` is already indexed on
+  `[entity, entityId]` and already carries before/after for every lifecycle
+  action. A second history would be free to disagree with the live record — the
+  same reasoning that makes `EmployeeSalary` its own revision history.
+
 - **Reports need no tables** — they are read-model queries over attendance/leave/employees, exported server-side (doc 03).
+
+### Profile photos
+
+- **`avatarUrl` holds a path this API serves**, `/employees/<id>/avatar?v=<hash>`,
+  not somewhere a CDN answers. `supabase.storage.ts` says the bucket is private
+  and stays that way, because a public or signed URL routes around the one
+  check that makes personnel files private. An `<img src>` cannot carry a
+  Bearer token, so the web side fetches the bytes and makes an object URL —
+  the same thing document previews already do.
+
+- **`avatarKey` is a second column, not a duplicate.** Replacing or removing a
+  photo has to delete the previous object, and a served path cannot be turned
+  back into a storage key. Keeping `avatarUrl` populated also means none of the
+  dozen `select: { avatarUrl: true }` sites across the API had to change.
+
+- **The `v` token is a hash of the key.** A new photo is a new URL, which is
+  what lets the response be cached hard — `immutable`, a year — and still
+  change the instant somebody replaces their picture.
+
+- **The stored file is named from the validated mimetype**, never from the
+  upload. The key's extension is what the read route declares as
+  `Content-Type`, so taking it from the client would let the client choose that
+  header. `X-Content-Type-Options: nosniff` is set on the way out as well.
+
+### Recruitment
+
+- **`Candidate` is deliberately not `Employee`, and the FK direction says so.**
+  `Offer.hiredEmployeeId` is nullable and points *at* `Employee`. Somebody who
+  is never hired leaves no employee row behind, and a rejected application is
+  not a deleted person — which is the whole reason the two are separate tables
+  rather than a `status` on one.
+
+- **The stage is a column, not a table.** A configurable pipeline per opening
+  is the feature every ATS grows and the one that makes every query a join. A
+  fixed `ApplicationStage` enum is what the reporting actually needs. If
+  per-opening stages are wanted later they go in `Setting` as a typed group,
+  the way the exit checklist already does.
+
+- **`@@unique([candidateId, openingId])`** makes "applying twice is the same
+  application moving" a database invariant. Without it a re-application is a
+  second row and the pipeline counts one person twice.
+
+- **`Interview.submittedAt` freezes the feedback**, the same rule as
+  `Letter.variables` and `Offboarding.snapshot*`. The reason is sharper here: a
+  recommendation that can be edited after the decision is evidence of nothing.
+
+- **`Application.organizationId` is denormalised** off the opening. Every other
+  module scopes by organization without a join and this one does too; the
+  alternative is a join on every pipeline count.
+
+- **Money leaves this module as a number.** `Decimal` serializes to JSON as a
+  string, and the web side declares salary as a number — a mismatch that
+  formats as `NaN` rather than throwing. `recruitment.mapper.ts` converts at
+  the boundary. It does not borrow payroll's `toMoney`, which returns `0` for
+  a missing value: right for a payslip line, wrong for an unset salary band,
+  because an opening with no band advertised is not one that pays nothing.
 
 ### Payroll
 
@@ -833,3 +1552,51 @@ model AuditLog {
 - **Loss of pay is not a column.** It is derived at calculation from unpaid
   approved leave unioned with days marked absent, then frozen onto the payslip
   — the same derive-on-read rule attendance and leave already follow.
+
+---
+
+## The demo seed
+
+`prisma/seed/` fills one organization with a workspace you can actually
+exercise. It is destructive by design — it empties the org first, so repeated
+runs produce an identical database rather than accumulating duplicates — and
+`prisma/bootstrap.ts` is the opposite: additive, production-safe, and the only
+one that belongs on a live tenant by default. Doc 14 covers the guard that
+keeps them apart.
+
+It is a directory rather than a file because it outgrew one: `index.ts`
+orchestrates, `wipe.ts` empties, `random.ts` holds a fixed-seed PRNG, and one
+module per area does the writing.
+
+**"Random" means varied, not unrepeatable.** Every generated name, phone
+number, salary and attendance quirk comes from mulberry32 seeded with a
+constant. Two runs produce identical data, which is what makes "is this a bug,
+or just how this run came out?" answerable at all.
+
+**Figures come from the engines that compute them for real.** Payslips go
+through `calculatePayslip`; settlement lines go through `encashmentLines`,
+`gratuityFor`, `noticeShortfallDays` and `settlementTotals`; letters go through
+`buildLetterVars` and the mail renderer. A seed with hand-typed totals drifts
+away from the code the first time a calculation changes, and a demo statement
+that does not add up is worse than no demo statement.
+
+What it covers, and why each thing is there:
+
+| Area | Shape |
+|---|---|
+| People | 28 — seven named logins plus twenty-one generated, across ACTIVE, ONBOARDING, ON_NOTICE and EXITED, five on probation with two overdue |
+| Celebrations | three birthdays and three work anniversaries inside the next 30 days, **computed from today** — fixed dates left the panel empty most of the year |
+| Attendance | eight weeks: present, late, half day, WFH, client site, absent (no row — ABSENT is derived), a forgotten clock-out, a split day |
+| Remote work | pending, approved-future, approved-past, rejected and cancelled — the approved-past ones deliberately cover only *some* recorded remote days, so "N unplanned" counts something |
+| Leave | balances for all 28, requests in every state, one half-day |
+| Payroll | three published months, one IN_REVIEW to approve and pay, the current month DRAFT, adjustments, and paid/failed/pending payments |
+| Assets | every status, open and returned assignments, and **a leaver still holding a phone** so the exit clearance gate actually blocks |
+| Exit | resignations at each stage, two offboardings in progress, one completed with an exit interview, settlements in draft, approved and paid |
+| Onboarding | two invited hires, one still filling in, one waiting on HR |
+| Comms | announcements incl. a scheduled one, documents, letters incl. a voided one, unread notifications, settings and an audit trail |
+
+**`wipe()` must stay exhaustive.** Nearly every table carries a foreign key to
+`Employee`, so a single row it forgets makes `employee.deleteMany` throw —
+after the rest of the wipe has already run. It missed nine modules' worth of
+tables for exactly that reason once: it was written before they existed, and
+nothing failed until those tables had rows in them.

@@ -41,6 +41,27 @@ export function dateKeyOf(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * A date key as a person would read it — "30 Sep 2026".
+ *
+ * Everything the API *transports* is `YYYY-MM-DD`, and it should stay that
+ * way. This is for the few places the server writes prose a user reads
+ * directly — a notification body, an error message — where the raw key is the
+ * ambiguous format that gets a September date read as April.
+ */
+export function displayDate(dateKey: string): string {
+  // `en-IN`, which is what every date formatter in the web app uses. Both
+  // sides then take their month names from the same CLDR data, so a date in a
+  // notification cannot be spelled differently from the same date on the
+  // record beside it.
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(toDate(dateKey));
+}
+
 /** Every YYYY-MM-DD in a month, given "YYYY-MM". */
 export function daysInMonth(month: string): string[] {
   const [y = '1970', m = '01'] = month.split('-');
@@ -58,6 +79,42 @@ export function eachDayKey(startKey: string, endKey: string, maxDays = 400): str
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return keys;
+}
+
+/**
+ * `dateKey` moved forward by whole months, clamped to the end of the target
+ * month.
+ *
+ * The clamp is the whole point. Somebody joining on 31 January and serving a
+ * three-month probation finishes on 30 April — plain `setUTCMonth` rolls that
+ * over into 1 May, which is a day of probation nobody agreed to. The same
+ * applies to 31 August + 6 months and every other short-month landing.
+ */
+export function addMonths(dateKey: string, months: number): string {
+  const year = Number(dateKey.slice(0, 4));
+  const month = Number(dateKey.slice(5, 7)) - 1;
+  const day = Number(dateKey.slice(8, 10));
+
+  const absolute = month + months;
+  const targetYear = year + Math.floor(absolute / 12);
+  const targetMonth = ((absolute % 12) + 12) % 12;
+  // Day 0 of the next month is the last day of this one.
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+
+  return dateKeyOf(new Date(Date.UTC(targetYear, targetMonth, Math.min(day, lastDay))));
+}
+
+/** `dateKey` moved by whole days. Negative moves backwards. */
+export function addDays(dateKey: string, days: number): string {
+  const date = toDate(dateKey);
+  date.setUTCDate(date.getUTCDate() + days);
+  return dateKeyOf(date);
+}
+
+/** Whole days from `fromKey` to `toKey`; negative when `toKey` is earlier. */
+export function daysBetween(fromKey: string, toKey: string): number {
+  const ms = toDate(toKey).getTime() - toDate(fromKey).getTime();
+  return Math.round(ms / 86_400_000);
 }
 
 /** Do two inclusive date ranges share any day? */

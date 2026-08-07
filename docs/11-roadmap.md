@@ -57,11 +57,12 @@ The architecture reserves an explicit seam for each planned module — adding on
 | Module | Lands as | Touches existing schema | New infra |
 |---|---|---|---|
 | ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
-| **Recruitment** | own module; Candidate is *not* Employee — a hire *converts* into the existing create-employee flow | none | public careers endpoints (unauthenticated segment already exists in web) |
+| ~~**Recruitment**~~ | ✅ **Shipped, internal half.** Five tables, six enums, seven permission codes, fourteen routes and five screens. The prediction held exactly: `Candidate` is not `Employee`, and `POST /recruitment/offers/:id/hire` *converts* by calling the same `OnboardingService.onboard` that HR's own screen calls, so employee-code generation, the INVITED user and the invite to the **personal** address stay in one place | none — five new tables FK to Employee, Department, Designation, Location, EmploymentType and Document | none yet; the public careers page is deliberately a second change, being the only unauthenticated write surface in the product |
 | **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
-| **Assets** | own module (Asset, AssetAssignment FK Employee); joins offboarding checklist via `employee.offboarded` event | none | none |
+| ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
+| ~~**WFH / Hybrid**~~ | ✅ **Shipped.** One table, one nullable column on Employee, six permission codes. Attendance already detected who worked remotely; this is only the forward half — asking, agreeing, and a weekly cap | one nullable column, `Employee.remoteDaysPerWeek` | none |
 | **AI features** | `modules/ai` behind AI Gateway (leave-policy Q&A over docs, attrition signals from Reports read-models) | none | LLM provider key; pgvector if RAG |
-| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) behind existing NotificationsModule |
+| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) — **and the NotificationsModule they would sit behind, which was never built** (doc 03) |
 | **Multi-tenant SaaS** | activate the dormant `organizationId` scoping: org signup flow + Postgres RLS + per-org subdomain | none (already scoped) | RLS policies, billing |
 
 **Platform upgrades, triggered not scheduled:** SSE/WebSocket notifications when polling chafes · RS256 + JWKS when a second service consumes JWTs · read replicas when reports strain OLTP · Redis cache when p95 > 300 ms on hot lists.
@@ -73,6 +74,38 @@ nine screens, with no existing module's behaviour touched. The one shared file
 it changed — `auditMutation`, which gained an optional `meta` argument — was an
 additive signature change every other module benefits from.
 
+The exit phases proved it twice more. Resignation, offboarding and settlement
+added eight tables, eleven enums and four screens between them; the only
+existing behaviour touched was extracting the body of
+`POST /employees/:id/offboard` into `EmploymentTransitionService`, with that
+endpoint's original spec left unedited as proof nothing changed. **Settlement
+needed no ADR** — a separate entity edits no existing module, so doc 01 rule 4
+is satisfied without one. Had it been built as a kind of `PayrollRun`, as first
+recommended, it would have needed one.
+
+Assets is the first module to touch an existing table — one nullable-by-default
+column, `OffboardingTask.kind`. That is still additive rather than a redesign,
+and the seam it uses was left deliberately: `assertCleared`'s own comment said
+the gate was generic "so Asset Management can later make one of these items
+compute itself without the gate changing at all". It did not change.
+
+Recruitment is the cleanest confirmation so far, because the prediction in this
+very table was written before the code and turned out to be checkable. It
+promised that a hire would *convert* rather than create, and the seam it
+converts through — `OnboardingService.onboard` — needed one line added to make
+it available: `exports: [OnboardingService]`. Nothing inside it changed. The
+alternative, a second path that created an `Employee` and a `User` directly,
+would have been a second copy of the code-generation, the unusable-password
+hash, the onboarding row and the invite — and one of those four would have
+drifted.
+
+It did surface a defect of its own kind, worth recording because it is the sort
+that does not fail loudly: money left the API as a `Decimal`, which serializes
+to JSON as a string, while the web side declared it a number. `NaN` on a screen
+is not a stack trace. `recruitment.mapper.ts` converts at the boundary, as
+payroll's mapper already did — the lesson being that "every module converts its
+own Decimals" is a convention nothing enforces.
+
 ## Payroll — what is deliberately not built yet
 
 The specification was delivered in two phases. Phase 1 is above; Phase 2 is
@@ -81,11 +114,11 @@ scoped and unblocked, since the calculation engine already accepts an
 
 | Deferred | Why it can wait |
 |---|---|
-| Loans & advances (EMI schedules, outstanding balance) | Plugs in as a deduction adjustment; the negative-net guard already handles the month an EMI exceeds pay |
-| Bonuses & incentives (fixed or percentage) | Plugs in as an earning adjustment, already deliberately not prorated |
-| Reimbursements (requested → approved → paid) | An earning adjustment with its own approval flow; the component exists and is marked non-taxable |
+| ~~Bonuses & incentives~~ | ✅ **Shipped.** Entered per employee per month on the run screen; not prorated, because a bonus is a bonus however much of the month was worked. |
+| Loans & advances (EMI schedules, outstanding balance) | **Half shipped.** A single instalment can be entered as a deduction adjustment and the negative-net guard handles the month an EMI exceeds pay. What is missing is the *schedule*: an outstanding balance that draws down by itself rather than being typed in each month. |
+| Reimbursements (requested → approved → paid) | **Half shipped.** The amount can be entered as a non-taxable earning adjustment. Missing is the request-and-approve flow in front of it. |
 | **Arrears** from a back-dated revision after a locked month | Genuinely hard: needs a recalculation diff against a settled run. Today a revision into a locked month is refused rather than silently wrong |
-| **Full-and-final settlement** on exit | Leave encashment + notice recovery + gratuity; a module-sized problem of its own |
+| ~~**Full-and-final settlement** on exit~~ | ✅ **Shipped**, and it was module-sized as predicted: two tables, three enums, eleven routes and two screens. It is deliberately *not* a `PayrollRun` — see doc 02’s notable design calls for the four findings that killed that shape — and its amounts sit outside the statutory base. |
 | TDS projection (regimes, declarations, Form 16) | A tax engine, not a payroll feature. Monthly TDS is entered per employee until then |
 
 Each is additive. None of them requires changing what is already there.

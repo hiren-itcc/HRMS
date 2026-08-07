@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@hrms/ui/components/select';
 import { Skeleton } from '@hrms/ui/components/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@hrms/ui/components/tooltip';
 import { cn } from '@hrms/ui/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -48,7 +49,9 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
+import { errorMessage } from '@/hooks/use-crud';
 import { ApiError } from '@/lib/api-client';
 import {
   ACCEPTED_TYPES,
@@ -142,7 +145,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
           );
           toast.success(`${file.name} uploaded`);
         } catch (err) {
-          toast.error(err instanceof ApiError ? err.message : `Could not upload ${file.name}`);
+          toast.error(errorMessage(err, `Could not upload ${file.name}`));
         }
       }
       setUploading(null);
@@ -157,7 +160,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
       invalidate();
       toast.success('Document deleted');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not delete')),
   });
 
   const move = useMutation({
@@ -167,7 +170,7 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
       invalidate();
       toast.success('Document moved');
     },
-    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not move'),
+    onError: (err) => toast.error(errorMessage(err, 'Could not move')),
   });
 
   const download = async (doc: EmployeeDocument) => {
@@ -228,14 +231,12 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
           />
           {searchInput && (
             <InputGroupAddon align="inline-end">
-              <Button
-                variant="ghost"
+              <IconAction
+                label="Clear search"
+                icon={X}
                 size="icon-sm"
                 onClick={() => setSearchInput('')}
-                aria-label="Clear search"
-              >
-                <X className="size-4" aria-hidden />
-              </Button>
+              />
             </InputGroupAddon>
           )}
         </InputGroup>
@@ -398,31 +399,38 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
                   </p>
                 </button>
                 <div className="flex shrink-0 gap-0.5">
-                  <Button
-                    variant="ghost"
+                  <IconAction
+                    label={`Preview ${doc.name}`}
+                    icon={Eye}
                     size="icon"
                     onClick={() => setPreviewIndex(i)}
-                    aria-label={`Preview ${doc.name}`}
-                  >
-                    <Eye className="size-4" aria-hidden />
-                  </Button>
-                  <Button
-                    variant="ghost"
+                  />
+                  <IconAction
+                    label={`Download ${doc.name}`}
+                    icon={Download}
                     size="icon"
                     onClick={() => download(doc)}
-                    aria-label={`Download ${doc.name}`}
-                  >
-                    <Download className="size-4" aria-hidden />
-                  </Button>
+                  />
                   {canUpload && (folders.data?.length ?? 0) > 0 && (
                     <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button variant="ghost" size="icon" aria-label={`Move ${doc.name}`} />
-                        }
-                      >
-                        <FolderInput className="size-4" aria-hidden />
-                      </DropdownMenuTrigger>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Move ${doc.name}`}
+                                />
+                              }
+                            />
+                          }
+                        >
+                          <FolderInput className="size-4" aria-hidden />
+                        </TooltipTrigger>
+                        <TooltipContent>Move to a folder</TooltipContent>
+                      </Tooltip>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
                         <DropdownMenuSeparator />
@@ -446,18 +454,25 @@ export function DocumentsBrowser({ employeeId, compact = false }: BrowserProps) 
                   )}
                   {canDelete && (
                     <AlertDialog>
-                      <AlertDialogTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            aria-label={`Delete ${doc.name}`}
-                          />
-                        }
-                      >
-                        <Trash2 className="size-4" aria-hidden />
-                      </AlertDialogTrigger>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <AlertDialogTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  aria-label={`Delete ${doc.name}`}
+                                />
+                              }
+                            />
+                          }
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </TooltipTrigger>
+                        <TooltipContent>Delete {doc.name}</TooltipContent>
+                      </Tooltip>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete “{doc.name}”?</AlertDialogTitle>
@@ -510,7 +525,7 @@ function FolderChip({
       className={cn(
         'flex items-center gap-2 whitespace-nowrap rounded-xl border px-3.5 py-2 text-sm transition-colors',
         active
-          ? 'gradient-primary border-transparent text-white shadow-indigo-500/20 shadow-md'
+          ? 'gradient-primary border-transparent text-white shadow-primary/20 shadow-md'
           : 'hover:border-primary/40 hover:bg-accent',
       )}
     >

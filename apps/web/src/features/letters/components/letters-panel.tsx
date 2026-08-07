@@ -54,7 +54,7 @@ export function LettersPanel({ employeeId, employeeName }: Props) {
           title="No letters yet"
           hint={
             canIssue
-              ? 'Offer, appointment, experience and salary letters appear here once issued.'
+              ? 'Offer, appointment, relieving, experience and salary letters appear here once issued.'
               : 'Letters issued to you will appear here.'
           }
         />

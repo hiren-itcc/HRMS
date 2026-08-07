@@ -40,6 +40,21 @@ const nullableId = z
   .nullish();
 
 /**
+ * An optional whole-number override where blank means "inherit the default".
+ *
+ * The empty-string branch is the same problem `nullableId` solves and matters
+ * more here: a number input posts "" when cleared, `z.coerce.number()` reads
+ * that as 0, and a cleared notice-period field would silently save "no notice"
+ * rather than "use the company default".
+ */
+const nullableInt = (min: number, max: number) =>
+  z
+    .literal('')
+    .transform(() => null)
+    .or(z.coerce.number().int().min(min).max(max))
+    .nullish();
+
+/**
  * A relation the employee must actually have.
  *
  * Same empty-string handling as `nullableId` — a form still posts "" for an
@@ -73,7 +88,7 @@ export const employeeCreateSchema = z.object({
   employeeCode: optionalStr(20),
   firstName: trimmed(60).min(1, 'First name is required'),
   lastName: trimmed(60).min(1, 'Last name is required'),
-  workEmail: z.email('Enter a valid email').trim().toLowerCase(),
+  workEmail: z.email().trim().toLowerCase(),
   personalEmail: optionalEmail,
   phone: optionalStr(20),
   dateOfBirth: z
@@ -101,6 +116,24 @@ export const employeeCreateSchema = z.object({
   managerId: nullableId,
   status: employeeStatusSchema.default('ACTIVE'),
   joinDate: dateOnlySchema,
+
+  /*
+   * Both null for "use the company default from Settings → Preferences",
+   * which is what almost every record will carry. They are here rather than on
+   * EmploymentType because two full-time hires routinely differ: a senior
+   * joiner on three months' notice and a graduate on one is the normal case.
+   *
+   * `probationMonths` is read once, when the end date is first computed. After
+   * that `probationEndDate` on the row is what was agreed, and editing it is
+   * an explicit extension rather than a side effect of changing a default.
+   */
+  noticePeriodDays: nullableInt(0, 365),
+  probationMonths: nullableInt(0, 24),
+  /**
+   * Remote days a week. Null is the company default; **zero is a real
+   * allowance** — "never works remotely" — and not the same thing.
+   */
+  remoteDaysPerWeek: nullableInt(0, 7),
 
   /**
    * Create a sign-in for this person, using their work email.
@@ -131,6 +164,69 @@ export type EmployeeUpdateInput = z.infer<typeof employeeUpdateSchema>;
 /** Body of PATCH /employees/:id/role — the role a person's login should hold. */
 export const employeeRoleChangeSchema = z.object({ roleCode: roleCodeSchema });
 export type EmployeeRoleChangeInput = z.infer<typeof employeeRoleChangeSchema>;
+
+/**
+ * Body of POST /employees/:id/offboard — somebody leaving, or unleaving.
+ *
+ * Three destinations, and the difference is what happens to their sign-in:
+ *
+ * - `ON_NOTICE` — resigned, still working the notice period. `exitDate` is the
+ *   planned last day. The login is untouched: they still clock in, book leave
+ *   and get paid, because they are still an employee.
+ * - `EXITED` — gone. The login is suspended and every session revoked. The
+ *   record stays: their payslips and attendance are last year's accounts.
+ * - `ACTIVE` — a resignation withdrawn. Clears `exitDate` and restores the
+ *   sign-in if offboarding is what suspended it.
+ *
+ * `exitDate` is required for the first two and refused for the third, because
+ * "active with a leaving date" is the state that quietly excludes somebody from
+ * next month's payroll.
+ */
+export const employeeOffboardSchema = z
+  .object({
+    status: employeeStatusSchema,
+    exitDate: dateOnlySchema.optional().nullable(),
+    /** Recorded on the audit row; not shown to the employee. */
+    reason: z.string().trim().max(300).optional().nullable(),
+  })
+  .refine((v) => v.status === 'ACTIVE' || Boolean(v.exitDate), {
+    message: 'An exit date is required',
+    path: ['exitDate'],
+  })
+  .refine((v) => v.status !== 'ACTIVE' || !v.exitDate, {
+    message: 'Reinstating someone clears their exit date',
+    path: ['exitDate'],
+  });
+export type EmployeeOffboardInput = z.infer<typeof employeeOffboardSchema>;
+
+/**
+ * Body of POST /employees/:id/confirm — off probation for good.
+ *
+ * `confirmedOn` is optional and defaults to today. It exists because
+ * confirmation is routinely recorded after the fact — the review happened on
+ * the 1st and somebody enters it on the 9th — and back-dating it is the honest
+ * record. It cannot be in the future: a confirmation that has not happened yet
+ * is a reminder, not a fact.
+ */
+export const employeeConfirmSchema = z.object({
+  confirmedOn: dateOnlySchema.optional().nullable(),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+export type EmployeeConfirmInput = z.infer<typeof employeeConfirmSchema>;
+
+/**
+ * Body of POST /employees/:id/extend-probation.
+ *
+ * The new end date is given outright rather than as "add N months", because
+ * what gets agreed in a probation review is a date. The original end date is
+ * kept on the row, so the extension is visible as an extension rather than as
+ * a probation that always ran that long.
+ */
+export const employeeExtendProbationSchema = z.object({
+  extendedTo: dateOnlySchema,
+  reason: z.string().trim().min(1, 'Say why it is being extended').max(500),
+});
+export type EmployeeExtendProbationInput = z.infer<typeof employeeExtendProbationSchema>;
 
 export const employeeQuerySchema = paginationQuerySchema.extend({
   departmentId: z.string().optional(),
@@ -165,6 +261,21 @@ export const bankDetailSchema = z.object({
 });
 export type BankDetailInput = z.infer<typeof bankDetailSchema>;
 
+/**
+ * Who to call if something happens to this person at work.
+ *
+ * Deliberately three loose fields. "Relation" is free text rather than an enum
+ * because the list that covers everybody is not a list — partner, neighbour,
+ * the friend with the spare key — and an enum here would force somebody to
+ * misfile the person they actually want called.
+ */
+export const emergencyContactSchema = z.object({
+  name: trimmed(80).min(1, 'Name is required'),
+  relation: trimmed(40).min(1, 'Relation is required'),
+  phone: trimmed(20).min(1, 'Phone is required'),
+});
+export type EmergencyContactInput = z.infer<typeof emergencyContactSchema>;
+
 /** Subset an employee may edit about themselves (docs/03 — /me/profile). */
 export const selfProfileUpdateSchema = z.object({
   phone: optionalStr(20),
@@ -172,5 +283,14 @@ export const selfProfileUpdateSchema = z.object({
   addressLine: optionalStr(200),
   city: optionalStr(80),
   country: optionalStr(80),
+  /**
+   * Replace-all, and omitting the key leaves the existing contacts alone.
+   *
+   * A list this short (two or three rows, edited once a year) is not worth
+   * three more endpoints and a per-row id the client has to track. Sending the
+   * whole set makes "I removed my ex-partner" a single atomic write rather than
+   * a delete that can half-succeed.
+   */
+  emergencyContacts: z.array(emergencyContactSchema).max(5).optional(),
 });
 export type SelfProfileUpdateInput = z.infer<typeof selfProfileUpdateSchema>;

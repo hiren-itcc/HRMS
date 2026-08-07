@@ -1,5 +1,7 @@
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { EmploymentTransitionService } from '../lifecycle/employment-transition.service';
+import { lifecycleDouble } from '../lifecycle/lifecycle.test-double';
 import { EmployeesService } from './employees.service';
 
 type Mock = jest.Mock;
@@ -16,6 +18,8 @@ function makeService() {
     },
     user: {
       update: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       groupBy: jest.fn().mockResolvedValue([]),
@@ -29,8 +33,25 @@ function makeService() {
   const config = {
     get: (key: string) => (key === 'DEFAULT_USER_PASSWORD' ? 'Welcome@2026' : undefined),
   };
+  /*
+   * The real transition service, not a double. The offboard block below is a
+   * test *of* it — a stub would assert only that a method was called, and the
+   * whole point of extracting it was that the four things it does must keep
+   * happening together.
+   */
   // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  return { service: new EmployeesService(prisma as any, config as any), prisma };
+  const transitions = new EmploymentTransitionService(prisma as any);
+  const service = new EmployeesService(
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    prisma as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    config as any,
+    lifecycleDouble(),
+    transitions,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    { forEntity: jest.fn().mockResolvedValue([]) } as any,
+  );
+  return { service, prisma };
 }
 
 const claims = (over: Partial<AccessTokenClaims>): AccessTokenClaims => ({
@@ -304,5 +325,267 @@ describe('EmployeesService.changeRole session and status handling', () => {
       expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('EmployeesService.offboard', () => {
+  const hr = claims({ sub: 'hr-user', roleCode: 'HR', perms: ['employee.offboard'] });
+  const employee: {
+    id: string;
+    userId: string | null;
+    status: string;
+    joinDate: Date;
+    exitDate: Date | null;
+  } = {
+    id: 'e1',
+    userId: 'u-target',
+    status: 'ACTIVE',
+    joinDate: new Date('2024-01-15'),
+    exitDate: null,
+  };
+
+  function arrange(over: Partial<typeof employee> = {}) {
+    const { service, prisma } = makeService();
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ ...employee, ...over });
+    (prisma.user.findUnique as Mock).mockResolvedValue({ role: { code: 'EMPLOYEE' } });
+    return { service, prisma };
+  }
+
+  it('putting somebody on notice leaves their sign-in alone', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'ON_NOTICE', exitDate: '2026-09-30', reason: null });
+
+    // They still work the notice period: clock in, book leave, get paid.
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.refreshSession.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('marking somebody exited suspends the login and revokes every session', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'SUSPENDED' } }),
+    );
+    expect(prisma.refreshSession.updateMany).toHaveBeenCalled();
+  });
+
+  it('never soft-deletes — a leaver’s payslips are last year’s accounts', async () => {
+    const { service, prisma } = arrange();
+    await service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null });
+
+    const update = (prisma.employee.update as Mock).mock.calls[0][0];
+    expect(update.data).not.toHaveProperty('deletedAt');
+    expect(update.data.status).toBe('EXITED');
+  });
+
+  it('withdrawing a resignation clears the exit date', async () => {
+    const { service, prisma } = arrange({ status: 'ON_NOTICE', exitDate: new Date('2026-09-30') });
+    await service.offboard(hr, 'e1', { status: 'ACTIVE', exitDate: null, reason: null });
+
+    const update = (prisma.employee.update as Mock).mock.calls[0][0];
+    expect(update.data.exitDate).toBeNull();
+  });
+
+  it('reinstating only revives a SUSPENDED login, never an INVITED one', async () => {
+    const { service, prisma } = arrange({ status: 'EXITED' });
+    await service.offboard(hr, 'e1', { status: 'ACTIVE', exitDate: null, reason: null });
+
+    // An INVITED account has never had a password set; flipping it to ACTIVE
+    // would hand out a sign-in nobody can use but everybody can try.
+    const call = (prisma.user.updateMany as Mock).mock.calls[0][0];
+    expect(call.where).toMatchObject({ status: 'SUSPENDED' });
+  });
+
+  it('refuses an exit date before the join date', async () => {
+    const { service } = arrange();
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2023-01-01', reason: null }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses to offboard your own account', async () => {
+    const { service } = arrange({ userId: 'hr-user' });
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null }),
+    ).rejects.toThrow(/your own account/i);
+  });
+
+  it('refuses to exit the last active administrator', async () => {
+    const { service, prisma } = arrange();
+    (prisma.user.findUnique as Mock).mockResolvedValue({ role: { code: 'ADMIN' } });
+    (prisma.user.count as Mock).mockResolvedValue(0);
+
+    await expect(
+      service.offboard(hr, 'e1', { status: 'EXITED', exitDate: '2026-09-30', reason: null }),
+    ).rejects.toThrow(/only active administrator/i);
+  });
+});
+
+describe('EmployeesService.updateMyProfile — emergency contacts', () => {
+  const self = claims({ sub: 'u1', employeeId: 'e1', perms: [] });
+
+  function arrange() {
+    const { service, prisma } = makeService();
+    const tx = {
+      employee: { update: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      emergencyContact: { deleteMany: jest.fn(), createMany: jest.fn() },
+    };
+    (prisma.$transaction as Mock).mockImplementation(async (arg: unknown) =>
+      typeof arg === 'function' ? (arg as (t: unknown) => unknown)(tx) : Promise.all(arg as []),
+    );
+    return { service, prisma, tx };
+  }
+
+  it('replaces the whole set when contacts are sent', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, {
+      emergencyContacts: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002' }],
+    } as never);
+
+    expect(tx.emergencyContact.deleteMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' } });
+    expect(tx.emergencyContact.createMany).toHaveBeenCalledWith({
+      data: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002', employeeId: 'e1' }],
+    });
+  });
+
+  it('leaves existing contacts alone when the key is omitted', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, { phone: '+91 90000 00000' } as never);
+
+    // A patch that only changes a phone number must not wipe next of kin.
+    expect(tx.emergencyContact.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('an explicit empty list clears them, without a pointless createMany', async () => {
+    const { service, tx } = arrange();
+    await service.updateMyProfile(self, { emergencyContacts: [] } as never);
+
+    expect(tx.emergencyContact.deleteMany).toHaveBeenCalled();
+    expect(tx.emergencyContact.createMany).not.toHaveBeenCalled();
+  });
+
+  it('never writes the contacts themselves into the audit row', async () => {
+    const { service, prisma } = arrange();
+    await service.updateMyProfile(self, {
+      emergencyContacts: [{ name: 'Nisha', relation: 'Spouse', phone: '+91 98250 11002' }],
+    } as never);
+
+    const logged = JSON.stringify((prisma.auditLog.create as Mock).mock.calls[0]?.[0] ?? {});
+    expect(logged).not.toContain('Nisha');
+    expect(logged).not.toContain('98250');
+  });
+});
+
+describe('EmployeesService probation', () => {
+  const hr = claims({ sub: 'hr-user', roleCode: 'HR', perms: ['employee.confirm'] });
+
+  /** `lifecycleDouble` fixes today at 2026-08-05. */
+  function arrange(over: Record<string, unknown> = {}) {
+    const made = makeService();
+    (made.prisma.employee.findFirst as Mock).mockResolvedValue({
+      id: 'e1',
+      status: 'ACTIVE',
+      joinDate: new Date('2026-05-01'),
+      noticePeriodDays: null,
+      probationMonths: null,
+      probationEndDate: new Date('2026-08-01'),
+      probationExtendedTo: null,
+      confirmedOn: null,
+      ...over,
+    });
+    return made;
+  }
+
+  it('confirms as at today when no date is given', async () => {
+    const { service, prisma } = arrange();
+    await service.confirm(hr, 'e1', { confirmedOn: null, note: null });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { confirmedOn: new Date('2026-08-05T00:00:00.000Z') } }),
+    );
+  });
+
+  /*
+   * Back-dating is the normal case, not an edge one: the review happens on the
+   * 1st and somebody records it on the 9th.
+   */
+  it('accepts a back-dated confirmation', async () => {
+    const { service, prisma } = arrange();
+    await service.confirm(hr, 'e1', { confirmedOn: '2026-08-01', note: null });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { confirmedOn: new Date('2026-08-01T00:00:00.000Z') } }),
+    );
+  });
+
+  it('refuses a confirmation dated in the future', async () => {
+    const { service } = arrange();
+    await expect(
+      service.confirm(hr, 'e1', { confirmedOn: '2026-09-01', note: null }),
+    ).rejects.toThrow(/future/i);
+  });
+
+  it('refuses a confirmation before the join date', async () => {
+    const { service } = arrange();
+    await expect(
+      service.confirm(hr, 'e1', { confirmedOn: '2026-04-01', note: null }),
+    ).rejects.toThrow(/before they joined/i);
+  });
+
+  /* Quietly doing nothing would hide both a double-click and an attempt to
+     move the date, so the second press says so. */
+  it('refuses to confirm somebody already confirmed', async () => {
+    const { service } = arrange({ confirmedOn: new Date('2026-07-01') });
+    await expect(service.confirm(hr, 'e1', { confirmedOn: null, note: null })).rejects.toThrow(
+      /already confirmed/i,
+    );
+  });
+
+  it('refuses to confirm somebody who has not started', async () => {
+    const { service } = arrange({ status: 'ONBOARDING' });
+    await expect(service.confirm(hr, 'e1', { confirmedOn: null, note: null })).rejects.toThrow(
+      /not started yet/i,
+    );
+  });
+
+  it('extends without overwriting the original end date', async () => {
+    const { service, prisma } = arrange();
+    await service.extendProbation(hr, 'e1', { extendedTo: '2026-11-01', reason: 'Needs longer' });
+    expect(prisma.employee.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { probationExtendedTo: new Date('2026-11-01T00:00:00.000Z') },
+      }),
+    );
+    // probationEndDate is untouched, so "extended from 1 Aug" stays answerable.
+    expect(prisma.employee.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ probationEndDate: undefined }) }),
+    );
+  });
+
+  it('measures a second extension against the first, not the original', async () => {
+    const { service } = arrange({ probationExtendedTo: new Date('2026-11-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-10-01', reason: 'x' }),
+    ).rejects.toThrow(/later than the current end date \(2026-11-01\)/);
+  });
+
+  it('refuses an extension that ends in the past', async () => {
+    const { service } = arrange({ probationEndDate: new Date('2026-06-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-07-01', reason: 'x' }),
+    ).rejects.toThrow(/in the future/i);
+  });
+
+  it('refuses to extend a confirmed employee', async () => {
+    const { service } = arrange({ confirmedOn: new Date('2026-07-01') });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-12-01', reason: 'x' }),
+    ).rejects.toThrow(/already confirmed/i);
+  });
+
+  it('refuses to extend somebody who was never on probation', async () => {
+    const { service } = arrange({ probationEndDate: null });
+    await expect(
+      service.extendProbation(hr, 'e1', { extendedTo: '2026-12-01', reason: 'x' }),
+    ).rejects.toThrow(/not on probation/i);
   });
 });

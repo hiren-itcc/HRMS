@@ -23,6 +23,18 @@ export default {
         'payroll',
         'letters',
         'onboarding',
+        // The exit side: resignation, offboarding, and the probation/notice
+        // rules the two share.
+        'lifecycle',
+        'resignation',
+        'offboarding',
+        // The money half of the exit. Routed under /payroll, but its own
+        // module — a settlement is not a payroll run.
+        'settlements',
+        // The register that makes the exit checklist's asset line mean
+        // something.
+        'assets',
+        'recruitment',
         'mail',
         'reports',
         'settings',

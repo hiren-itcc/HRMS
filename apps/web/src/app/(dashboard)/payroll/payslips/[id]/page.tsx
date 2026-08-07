@@ -7,7 +7,7 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ErrorState } from '@/components/error-state';
-import { formatMoney, formatMonth, payrollApi } from '@/features/payroll/api';
+import { formatMoney, formatMonth, payrollApi, payrollKeys } from '@/features/payroll/api';
 import { PaymentStatusBadge } from '@/features/payroll/components/status-badge';
 import type { PayslipLine } from '@/features/payroll/types';
 
@@ -51,7 +51,10 @@ function LineTable({
 
 export default function PayslipPage() {
   const { id } = useParams<{ id: string }>();
-  const payslip = useQuery({ queryKey: ['payslip', id], queryFn: () => payrollApi.payslip(id) });
+  const payslip = useQuery({
+    queryKey: payrollKeys.payslip(id),
+    queryFn: () => payrollApi.payslip(id),
+  });
 
   if (payslip.isError) return <ErrorState onRetry={() => payslip.refetch()} />;
   if (!payslip.data) return <Skeleton className="h-96 w-full rounded-xl" />;

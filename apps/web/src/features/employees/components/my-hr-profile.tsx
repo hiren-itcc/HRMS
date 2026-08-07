@@ -1,6 +1,5 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { type SelfProfileUpdateInput, selfProfileUpdateSchema } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import {
@@ -10,16 +9,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@hrms/ui/components/card';
-import { Input } from '@hrms/ui/components/input';
 import { Separator } from '@hrms/ui/components/separator';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BriefcaseBusiness, Loader2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { BriefcaseBusiness, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import { Field } from '@/components/field';
+import { useFieldArray } from 'react-hook-form';
+import { FormInput } from '@/components/form';
+import { IconAction } from '@/components/icon-action';
 import { meApi } from '@/features/employees/api';
 import { fullName } from '@/features/employees/types';
+import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -43,11 +43,10 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
  * when no employee record is linked to the account.
  */
 export function MyHrProfile() {
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ['me-profile'], queryFn: meApi.profile, retry: false });
 
-  const form = useForm<SelfProfileUpdateInput>({
-    resolver: zodResolver(selfProfileUpdateSchema),
+  const form = useZodForm<SelfProfileUpdateInput>(selfProfileUpdateSchema, {
     defaultValues: { phone: '', personalEmail: '', addressLine: '', city: '', country: '' },
   });
 
@@ -60,17 +59,22 @@ export function MyHrProfile() {
         addressLine: e.addressLine ?? '',
         city: e.city ?? '',
         country: e.country ?? '',
+        emergencyContacts: e.emergencyContacts?.map((c) => ({
+          name: c.name,
+          relation: c.relation,
+          phone: c.phone,
+        })),
       });
     }
   }, [profile.data, form]);
 
-  const save = useMutation({
+  const contacts = useFieldArray({ control: form.control, name: 'emergencyContacts' });
+
+  const save = useApiMutation({
     mutationFn: meApi.updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['me-profile'] });
-      toast.success('Contact details saved');
-    },
-    onError: () => toast.error('Could not save. Try again.'),
+    invalidate: [['me-profile']],
+    success: 'Profile saved',
+    error: 'Could not save. Try again.',
   });
 
   if (profile.isLoading || !profile.data) return null;
@@ -109,27 +113,118 @@ export function MyHrProfile() {
             className="space-y-3"
             noValidate
           >
-            <Field label="Phone" error={form.formState.errors.phone?.message}>
-              {(a11y) => <Input {...a11y} type="tel" {...form.register('phone')} />}
-            </Field>
-            <Field label="Personal email" error={form.formState.errors.personalEmail?.message}>
-              {(a11y) => <Input {...a11y} type="email" {...form.register('personalEmail')} />}
-            </Field>
-            <Field label="Address" error={form.formState.errors.addressLine?.message}>
-              {(a11y) => <Input {...a11y} {...form.register('addressLine')} />}
-            </Field>
+            <FormInput
+              control={form.control}
+              name="phone"
+              label="Phone"
+              type="tel"
+              placeholder="+91 98765 43210"
+            />
+            <FormInput
+              control={form.control}
+              name="personalEmail"
+              placeholder="priya.nair@gmail.com"
+              label="Personal email"
+              type="email"
+            />
+            <FormInput
+              control={form.control}
+              name="addressLine"
+              label="Address"
+              placeholder="12 Satellite Road"
+            />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="City" error={form.formState.errors.city?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('city')} />}
-              </Field>
-              <Field label="Country" error={form.formState.errors.country?.message}>
-                {(a11y) => <Input {...a11y} {...form.register('country')} />}
-              </Field>
+              <FormInput control={form.control} name="city" label="City" placeholder="Ahmedabad" />
+              <FormInput
+                control={form.control}
+                name="country"
+                label="Country"
+                placeholder="India"
+              />
             </div>
+            <Separator />
+
+            {/*
+              In the same form, and saved by the same button, because the API
+              takes the whole set in one patch. Two Save buttons on one card
+              invites saving one half and walking away from the other.
+            */}
+            <div>
+              <h3 className="font-medium text-sm">Emergency contacts</h3>
+              <p className="mt-0.5 text-muted-foreground text-sm">
+                Who we call if something happens to you at work. HR can see these — that is the
+                point of them.
+              </p>
+
+              {/*
+                A container query, not a viewport one. `sm:grid-cols-3` put
+                three inputs side by side whenever the *window* passed 640px —
+                but this card is one half of a two-column layout, so each field
+                got about 90 pixels and a name read "Deva", a relation "Broth"
+                and a phone "+91 9". The window was never the thing with the
+                room in it.
+              */}
+              <div className="@container mt-3 space-y-3">
+                {contacts.fields.map((field, i) => (
+                  <div key={field.id} className="flex items-end gap-2">
+                    {/*
+                      The array paths carry their own errors now. These were the
+                      three worst expressions in the app —
+                      errors.emergencyContacts?.[i]?.name?.message, three
+                      optional chains with nothing checking the path.
+                    */}
+                    <div className="grid flex-1 gap-2 @md:grid-cols-3">
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.name`}
+                        placeholder="Meera Nair"
+                        label="Name"
+                      />
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.relation`}
+                        label="Relation"
+                        placeholder="Spouse, parent, friend…"
+                      />
+                      <FormInput
+                        control={form.control}
+                        name={`emergencyContacts.${i}.phone`}
+                        placeholder="+91 98765 43210"
+                        label="Phone"
+                        type="tel"
+                      />
+                    </div>
+                    <IconAction
+                      label={`Remove emergency contact ${i + 1}`}
+                      icon={Trash2}
+                      size="icon"
+                      className="mb-1 text-destructive hover:text-destructive"
+                      onClick={() => contacts.remove(i)}
+                    />
+                  </div>
+                ))}
+
+                {contacts.fields.length === 0 && (
+                  <p className="text-muted-foreground text-sm">None recorded yet.</p>
+                )}
+
+                {contacts.fields.length < 5 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => contacts.append({ name: '', relation: '', phone: '' })}
+                  >
+                    <Plus className="size-4" aria-hidden /> Add a contact
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <Separator />
             <Button type="submit" size="sm" disabled={save.isPending || !form.formState.isDirty}>
               {save.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-              Save contact details
+              Save changes
             </Button>
           </form>
         </div>

@@ -42,6 +42,9 @@ graph TD
     EMP --> PERS[Bank details<br/>emergency contacts]
     EMP --> SAL[Salary history]
 
+    ORG --> HIRE[Recruitment<br/>openings · candidates<br/>applications · offers]
+    HIRE -.->|a hire converts| EMP
+
     PAYCFG --> SAL
     SAL --> RUN[Payroll run]
     ATT --> RUN
@@ -200,6 +203,45 @@ write to them.
 
 ---
 
+## Recruitment: the one chain that ends where Employee begins
+
+```mermaid
+erDiagram
+    ORGANIZATION ||--o{ JOBOPENING : advertises
+    ORGANIZATION ||--o{ CANDIDATE : "is talking to"
+    JOBOPENING ||--o{ APPLICATION : "receives"
+    CANDIDATE ||--o{ APPLICATION : "makes"
+    APPLICATION ||--o{ INTERVIEW : "runs"
+    APPLICATION ||--o| OFFER : "produces at most one"
+    OFFER |o--o| EMPLOYEE : "converts into"
+    EMPLOYEE ||--o{ JOBOPENING : "hiring manager of"
+    EMPLOYEE ||--o{ INTERVIEW : "interviews at"
+    EMPLOYEE ||--o{ CANDIDATE : "referred"
+```
+
+**Read the arrow between `Offer` and `Employee` carefully — it points one way
+and it is optional.** `Offer.hiredEmployeeId` is nullable. A candidate is not a
+half-built employee waiting to be promoted into one; they are a person the
+company is talking to. Most of them will never be staff, and the schema is
+arranged so that costs nothing: no employee row is created, and rejecting
+somebody deletes nobody.
+
+The link is written by exactly one action — `POST /recruitment/offers/:id/hire`
+— and that action does not create the employee itself. It calls the same
+`OnboardingService.onboard` that HR's *Onboard a hire* screen calls, so the new
+starter arrives in the system through the one door every other new starter uses.
+
+`Application.organizationId` is denormalised off the opening, so a pipeline can
+be counted and scoped without a join. That is the same trade every module here
+makes.
+
+Three of the four employee arrows are advisory rather than structural: the
+hiring manager, the interviewer and the referrer are all nullable, because an
+opening can exist before anybody owns it and a candidate can arrive from
+nowhere in particular.
+
+---
+
 ## What happens when you delete something
 
 Three different behaviours, and the difference matters.
@@ -231,6 +273,15 @@ timestamp is set; the record vanishes from every list but the history survives.
 This is why offboarding never destroys last year's payroll.
 
 Deleting a *user* removes their sessions but leaves the *employee* record intact.
+
+Recruitment follows both rules and it is worth being explicit about which is
+which. Deleting a **candidate** or an **opening** cascades to their
+applications, and an application cascades to its interviews and its offer —
+because none of those mean anything without the thing they hang off. But an
+**employee** referenced as a hiring manager, an interviewer, a referrer, or the
+person a hire became is *blocked*, not nulled: the record says who ran that
+interview loop, and losing that would leave feedback signed by nobody. In
+practice this never bites, because people are soft-deleted.
 
 ---
 
@@ -277,3 +328,7 @@ to handle a missing record when reading them.
 | When a shift starts for someone | `Employee → Shift` |
 | Someone's leave allowance | `LeaveBalance (employee, type, year)` |
 | Who changed a salary | `AuditLog` filtered by entity and id |
+| Everyone live in a pipeline | `JobOpening → Application` where stage is not HIRED/REJECTED/WITHDRAWN |
+| Which employee an offer became | `Offer.hiredEmployeeId` — null until it is converted |
+| Every role somebody has applied for | `Candidate → Application → JobOpening` |
+| What an interviewer said | `Interview.notes`, once `submittedAt` is set — before that, nothing was said |

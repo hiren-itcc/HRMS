@@ -16,7 +16,10 @@ Notes:
 - Roles attach to **User**, not Employee — someone with no login has no role.
 - **Manager is scope-based:** the `MANAGER` role holds `*.team` permissions; the *set of people* it applies to is resolved from `Employee.managerId` at query time. A manager with zero reports effectively degrades to Employee.
 - One role per user in Phase 1 (simplicity first). The join table `RolePermission` already supports multi-role/custom roles later without schema change.
-- **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default.
+- **Finance exists for separation of duties, not for convenience.** HR configures structures, assigns salaries and calculates a run; Finance approves, locks and records payment. No seeded role holds both `payroll.process` and `payroll.approve`, so the person who produces the numbers is never the person who releases the money. An organization that genuinely wants one person doing both can grant it in Settings → Roles — but it has to be a decision, not a default. The same three permissions carry the full & final settlement, which is why it has no codes of its own: HR prepares, Finance releases, and that is already the split.
+- **`asset.assign` is separate from `asset.manage` for the same reason `offboarding.clearance` is separate from `employee.offboard`.** Buying and retiring equipment is an admin job; handing a laptop to a joiner is not. Assets give `IT_ADMIN` its second reason to exist as a composed role — there is still no seeded one, so those clearance items keep falling to `employee.offboard` holders until an organization makes one. Every role holds `asset.read.own`, including a leaver: somebody who cannot see their own list cannot return it.
+- **A hiring manager gets `recruitment.read.team` and `recruitment.interview.submit`, and nothing else.** Their own openings, and feedback on the people they interview — not the offer, and not the hire. The scope resolves through `JobOpening.hiringManagerId` using the same `'__none__'` sentinel every other team scope uses: a manager with no employee record must match nothing, where an `undefined` would drop the filter and show them every opening in the company.
+- **`recruitment.hire` is separate from `recruitment.offer.manage`** for the reason `employee.onboarding.approve` is separate from `employee.update`: converting a person into staff creates a login and a payroll subject, and an organization may well want that held by someone other than whoever negotiates the offer. It is also the one permission in the catalogue that is not sufficient on its own — hiring runs through the ordinary onboarding invite, so it spends `employee.invite` too, and the service says so rather than letting the caller discover it from the wrong refusal.
 - Roles are **per organization** (migration `20260801050000_role_per_organization`): editing HR's grants in one tenant does not touch another's.
 
 ## Permission catalog
@@ -27,7 +30,18 @@ Format `resource.action`. Scope suffixes: `.own` (self), `.team` (direct reports
 employee.read.own      employee.update.own
 employee.read.team
 employee.read          employee.create      employee.update      employee.delete
-employee.invite        employee.offboard
+employee.invite        employee.offboard    employee.onboarding.approve
+ employee.confirm       (confirm off probation, extend probation)
+
+resignation.request.own   resignation.read.own
+resignation.read.team     resignation.approve.team
+resignation.read          resignation.approve
+
+offboarding.clearance     (sign one exit clearance item off)
+
+Note: offboarding adds no code of its own. `employee.offboard` already means
+'may change whether this person works here' and is already held by exactly
+Admin and HR, so every /offboardings route uses it.
 
 directory.read         (work contact details for everyone — not the HR record)
 
@@ -36,11 +50,15 @@ org.manage rather than any attendance permission.
 
 attendance.read.own    attendance.mark.own      attendance.request.own
 attendance.read.team   attendance.approve.team
-attendance.read        attendance.approve       attendance.manage   (shifts, admin edits)
+attendance.read        attendance.approve       attendance.manage   (unused — see below)
 
 leave.read.own         leave.request.own
 leave.read.team        leave.approve.team
-leave.read             leave.approve            leave.manage        (types, balance adjust)
+leave.read             leave.approve            leave.manage
+
+wfh.read.own           wfh.request.own
+wfh.read.team          wfh.approve.team
+wfh.read               wfh.approve        (types, balance adjust)
 
 document.read.own      document.upload.own
 document.read.team
@@ -48,6 +66,16 @@ document.read          document.upload          document.manage     (categories,
 
 letter.read.own
 letter.read            letter.issue             letter.template.manage
+
+asset.read.own
+asset.read             asset.manage             asset.assign        (issue, take back)
+
+recruitment.read.team  (a hiring manager's own openings)
+recruitment.read       recruitment.opening.manage
+recruitment.candidate.manage                     (add a candidate, put them forward, move a stage)
+recruitment.interview.submit                     (feedback — once; it freezes)
+recruitment.offer.manage                         (draft, send, record the answer)
+recruitment.hire       (convert an accepted offer into staff — also spends employee.invite)
 
 announcement.read      announcement.manage
 
@@ -59,9 +87,9 @@ payroll.read.team      (a manager's direct reports)
 payroll.read           (org-wide, including runs still in review)
 payroll.structure.manage                         (salary structures)
 payroll.salary.manage                            (assign and revise salaries)
-payroll.process        (open a run, calculate, publish)
-payroll.approve        (approve, reopen, lock)
-payroll.pay            (record payment against payslips)
+payroll.process        (open a run, calculate, publish; prepare a settlement)
+payroll.approve        (approve, reopen, lock; approve or cancel a settlement)
+payroll.pay            (record payment against payslips and settlements)
 
 settings.manage        role.manage              audit.read
 ```
@@ -74,6 +102,8 @@ settings.manage        role.manage              audit.read
 | `employee.read.team` | ✅ | ✅ | — | ✅ | — |
 | `employee.read` (all) | ✅ | ✅ | ✅ | — | — |
 | `employee.create` / `update` / `invite` / `offboard` | ✅ | ✅ | — | — | — |
+| `employee.onboarding.approve` | ✅ | ✅ | — | — | — |
+| `employee.confirm` (off probation) | ✅ | ✅ | — | — | — |
 | `employee.delete` | ✅ | — | — | — | — |
 | `directory.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -89,6 +119,13 @@ settings.manage        role.manage              audit.read
 | `document.read` (all) / `upload` (any) / `manage` | ✅ | ✅ | — | — | — |
 | `letter.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
+| `asset.read.own` (what I am holding) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `asset.read` / `asset.manage` / `asset.assign` | ✅ | ✅ | — | — | — |
+| `recruitment.read.team` (own openings) / `recruitment.interview.submit` | ✅ | ✅ | — | ✅ | — |
+| `recruitment.read` / `opening.manage` / `candidate.manage` / `offer.manage` / `hire` | ✅ | ✅ | — | — | — |
+| `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `wfh.read.team` / `wfh.approve.team` | ✅ | ✅ | — | ✅ | — |
+| `wfh.read` / `wfh.approve` | ✅ | ✅ | — | — | — |
 | `announcement.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `announcement.manage` | ✅ | ✅ | — | — | — |
 | `org.read` (directory, org chart, holidays) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -97,15 +134,19 @@ settings.manage        role.manage              audit.read
 | `report.view` / `report.export` | ✅ | ✅ | ✅ | — | — |
 | `settings.manage` | ✅ | — | — | — | — |
 | `role.manage` | ✅ | — | — | — | — |
+| `resignation.request.own` / `read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `resignation.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
+| `resignation.read` / `approve` | ✅ | ✅ | — | — | — |
+| `offboarding.clearance` | ✅ | ✅ | ✅ | ✅ | — |
 | `audit.read` | ✅ | — | — | — | — |
 | `payroll.read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `payroll.read.team` | ✅ | ✅ | — | ✅ | — |
 | `payroll.read` (all runs, incl. in review) | ✅ | ✅ | ✅ | — | — |
 | `payroll.structure.manage` | ✅ | ✅ | — | — | — |
 | `payroll.salary.manage` (assign, revise) | ✅ | ✅ | — | — | — |
-| `payroll.process` (open, calculate, publish) | ✅ | ✅ | — | — | — |
-| `payroll.approve` (approve, reopen, lock) | ✅ | — | ✅ | — | — |
-| `payroll.pay` (record payment) | ✅ | — | ✅ | — | — |
+| `payroll.process` (open, calculate, publish; prepare a settlement) | ✅ | ✅ | — | — | — |
+| `payroll.approve` (approve, reopen, lock; approve a settlement) | ✅ | — | ✅ | — | — |
+| `payroll.pay` (record payment, incl. settlements) | ✅ | — | ✅ | — | — |
 
 ## Enforcement (single path, no exceptions)
 
@@ -117,6 +158,22 @@ Request → JwtAuthGuard (identity) → PermissionsGuard (matrix) → Service (s
 2. **`PermissionsGuard`** reads `@RequirePermissions(...codes)` metadata; any-of semantics, e.g. leave inbox declares `leave.approve.team | leave.approve`.
 3. **Service-level scoping** is the part guards can't do: `.team` queries add `WHERE employee.managerId = callerEmployeeId`; `.own` routes derive the employee from the JWT and ignore any client-sent id. **Rule: scope is never taken from request params.**
 4. **UI mirrors, never replaces:** the web app hides what `GET /auth/me` says you can't do — cosmetic only; the API is the boundary.
+
+### Three codes in the table are seeded but never checked
+
+The matrix above lists what a role is *granted*. For most rows that is also what
+is *enforced*, but three are granted to somebody and read by nothing:
+
+| Code | Why it is inert |
+|---|---|
+| ~~`employee.offboard`~~ | ✅ Now enforced on `POST /employees/:id/offboard`. |
+| `attendance.manage` | Shifts turned out to belong to company setup, not attendance: they live at `organization/shifts` behind `org.manage`. Nothing else claimed the code. |
+| `employee.update.own` | `PATCH /me/profile` carries no `@RequirePermissions`. Self-scope comes from the JWT subject, which is stronger — there is no id to tamper with. |
+
+Revoking any of the three changes nothing, which is the problem: the table reads
+as though it describes enforcement. They are listed in
+[15-feature-audit.md](./15-feature-audit.md) with the endpoints that would give
+them meaning.
 
 ## Beyond the guard: content as a second gate
 
@@ -141,6 +198,31 @@ a manager legitimately browses; a letter is a bilateral instrument between the
 company and one person. Adding the scope later is one code and one branch —
 removing it after tenants have granted it is a breaking change.
 
+## Beyond the guard: whose team, which desk
+
+Resignation approval needs something the matrix cannot express either.
+`resignation.approve.team` says "you may approve for your team" — the guard
+cannot tell *whose* team, so the service checks the caller is the manager the
+request was routed to at submit time. Routing is frozen on the row rather than
+read from `Employee.managerId` at decision time: a reorganisation mid-notice
+must not move a decision to somebody who knows nothing about it.
+
+Which desk a decision counts as is taken from the record, never from the
+request. A manager cannot claim to be giving final sign-off, and an HR user who
+happens to also be somebody's manager cannot skip the manager step by
+accident. HR acting on a request still at the manager's desk *does* give final
+approval — that is what unsticks a request whose reviewer has themselves left —
+and the audit row records `managerStepSkipped`.
+
+Nobody may decide on their own resignation, whatever they hold.
+
+The same gap appears once more in exit clearance. `offboarding.clearance` says
+"you may clear an exit item"; it cannot say *whose*. A `MANAGER`-owned item
+therefore demands the caller actually be that employee's manager — without it
+every manager in the organization could sign off every handover.
+`employee.offboard` holders may sign off anything, which is also what covers
+`IT_ADMIN` items until somebody composes an IT role in Settings → Roles.
+
 ## Beyond the guard: state as a second gate
 
 Payroll needs something the matrix cannot express — *when* an action is legal,
@@ -154,6 +236,12 @@ PermissionsGuard (who)  →  payroll.workflow.ts (what state allows)  →  Servi
 The state machine also owns the permission each action demands
 (`RUN_ACTION_PERMISSION`), so "reopen needs the approver, not the processor"
 is written once rather than in both the routing table and the service.
+
+`resignation.workflow.ts` follows the same shape, with
+`RESIGNATION_ACTION_PERMISSION`. Most of the resignation validations are that
+table rather than an `if`: "cannot approve twice" is `hr_approve` having no
+`APPROVED` in its `from`, and "cannot start offboarding before approval" is
+`complete` accepting only `APPROVED`.
 
 ## Adding a future module
 

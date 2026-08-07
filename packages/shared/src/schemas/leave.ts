@@ -23,7 +23,15 @@ const leaveTypeFields = z.object({
   carryForward: z.boolean().default(false),
   maxCarryForward: days.optional().nullable(),
   requiresApproval: z.boolean().default(true),
+  /** Paid out on exit for the balance that is left. */
+  encashable: z.boolean().default(false),
 });
+
+/** Encashing leave that is not paid in the first place is nonsense. */
+const requirePaidToEncash = {
+  check: (d: { encashable?: boolean; isPaid?: boolean }) => !d.encashable || d.isPaid !== false,
+  options: { path: ['encashable'], message: 'Unpaid leave cannot be encashed' },
+};
 
 /** Carry-forward without a cap would allow unbounded accrual. */
 const requireCarryCap = {
@@ -32,13 +40,13 @@ const requireCarryCap = {
   options: { path: ['maxCarryForward'], message: 'Set a carry-forward cap' },
 };
 
-export const leaveTypeCreateSchema = leaveTypeFields.refine(
-  requireCarryCap.check,
-  requireCarryCap.options,
-);
+export const leaveTypeCreateSchema = leaveTypeFields
+  .refine(requireCarryCap.check, requireCarryCap.options)
+  .refine(requirePaidToEncash.check, requirePaidToEncash.options);
 export const leaveTypeUpdateSchema = leaveTypeFields
   .partial()
-  .refine(requireCarryCap.check, requireCarryCap.options);
+  .refine(requireCarryCap.check, requireCarryCap.options)
+  .refine(requirePaidToEncash.check, requirePaidToEncash.options);
 export type LeaveTypeCreateInput = z.infer<typeof leaveTypeCreateSchema>;
 export type LeaveTypeUpdateInput = z.infer<typeof leaveTypeUpdateSchema>;
 

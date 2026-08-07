@@ -12,7 +12,7 @@ import { buildListArgs, toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { SettingsService } from '../settings/settings.service';
-import { type AdjustmentInput, calculatePayslip, type StructureLineInput } from './payroll.calc';
+import { calculatePayslip, type StructureLineInput } from './payroll.calc';
 import { maskAccount, toDateKey, toDays, toMoney } from './payroll.mapper';
 import {
   canTransition,
@@ -22,6 +22,7 @@ import {
   type RunStatus,
   transitionError,
 } from './payroll.workflow';
+import { PayrollAdjustmentsService } from './payroll-adjustments.service';
 
 const SORTABLE = ['month', 'createdAt', 'netPayable'] as const;
 
@@ -68,6 +69,7 @@ export class PayrollRunsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    private readonly adjustments: PayrollAdjustmentsService,
   ) {}
 
   async list(orgId: string, query: PayrollRunQuery) {
@@ -232,6 +234,11 @@ export class PayrollRunsService {
       employees.map((e) => e.id),
     );
 
+    // One-offs entered for this month: bonuses, incentives, loan instalments.
+    // Read here rather than inside the map so the whole month costs one query
+    // regardless of headcount.
+    const adjustmentsByEmployee = await this.adjustments.forMonth(claims.orgId, run.month);
+
     const payslips = employees
       .map((employee) => {
         const salary = employee.salaries[0];
@@ -259,7 +266,7 @@ export class PayrollRunsService {
           // the whole month is payable.
           joinDate: joinKey && joinKey > monthStart ? joinKey : null,
           exitDate: exitKey && exitKey < monthEnd ? exitKey : null,
-          adjustments: [] as AdjustmentInput[],
+          adjustments: adjustmentsByEmployee.get(employee.id) ?? [],
           config,
           weekOffDays: weekOff,
         });

@@ -17,6 +17,9 @@ export default function EditEmployeePage() {
   const employee = useQuery({
     queryKey: ['employees', 'detail', id],
     queryFn: () => employeesApi.detail(id),
+    // Matches the detail page, which shares this cache entry. Without it the
+    // two disagreed about retrying a 404, and whichever mounted first won.
+    retry: false,
   });
 
   /*
@@ -76,6 +79,13 @@ export default function EditEmployeePage() {
            */
           status: e.status === 'ONBOARDING' ? undefined : e.status,
           joinDate: e.joinDate.slice(0, 10),
+          /*
+           * The raw overrides, not the resolved values. Seeding these with
+           * `effectiveNoticeDays` would turn "follows the company default"
+           * into a fixed 30 the first time anybody opened the edit form.
+           */
+          noticePeriodDays: e.noticePeriodDays,
+          probationMonths: e.probationMonths,
         }}
         onSaved={(savedId) => {
           queryClient.invalidateQueries({ queryKey: ['employees'] });

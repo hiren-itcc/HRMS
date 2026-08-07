@@ -12,20 +12,30 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { AssetsModule } from './modules/assets/assets.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { HealthController } from './modules/health/health.controller';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
+import { LifecycleJobsModule } from './modules/lifecycle/lifecycle-jobs.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OffboardingModule } from './modules/offboarding/offboarding.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ResignationsModule } from './modules/resignations/resignations.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { SettlementsModule } from './modules/settlements/settlements.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { WfhModule } from './modules/wfh/wfh.module';
 
 @Module({
   imports: [
@@ -39,18 +49,28 @@ import { SettingsModule } from './modules/settings/settings.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    NotificationsModule,
     AuthModule,
     OrganizationModule,
     EmployeesModule,
     DocumentsModule,
     LettersModule,
     OnboardingModule,
+    ResignationsModule,
+    OffboardingModule,
+    AssetsModule,
+    LifecycleJobsModule,
+    DashboardModule,
     AttendanceModule,
+    WfhModule,
     LeaveModule,
     AnnouncementsModule,
+    RecruitmentModule,
     ReportsModule,
     PayrollModule,
+    SettlementsModule,
     SettingsModule,
+    StorageModule,
     AuditModule,
     RbacModule,
   ],
