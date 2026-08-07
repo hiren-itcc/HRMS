@@ -86,10 +86,33 @@ export function mailTransportProvider() {
   return {
     provide: MAIL_TRANSPORT,
     inject: [ConfigService, PinoLogger],
-    useFactory: (config: ConfigService<Env, true>, logger: PinoLogger): MailTransport =>
-      config.get('RESEND_API_KEY', { infer: true })
-        ? new ResendTransport(config, logger)
-        : new LogTransport(logger),
+    useFactory: (config: ConfigService<Env, true>, logger: PinoLogger): MailTransport => {
+      const from = config.get('MAIL_FROM', { infer: true });
+
+      if (!config.get('RESEND_API_KEY', { infer: true })) {
+        logger.warn('Mail: no RESEND_API_KEY — messages are logged, not sent');
+        return new LogTransport(logger);
+      }
+
+      /*
+       * Said out loud at boot, because the alternative is what it took to find
+       * out last time: sending a real email and reading the failure.
+       *
+       * `from` is in the line for a reason. On the packaged default —
+       * `onboarding@resend.dev` — Resend delivers only to the address that owns
+       * the API key and rejects everything else with a 403. That is a working
+       * transport, a valid key, and mail that reaches nobody, and this line is
+       * the only place it is visible without a delivery attempt.
+       */
+      logger.info({ from }, 'Mail: Resend');
+      if (from.includes('resend.dev')) {
+        logger.warn(
+          { from },
+          'Mail: MAIL_FROM is still the sandbox sender — Resend will only deliver to the API key owner. Verify a domain and set MAIL_FROM to use it.',
+        );
+      }
+      return new ResendTransport(config, logger);
+    },
   };
 }
 

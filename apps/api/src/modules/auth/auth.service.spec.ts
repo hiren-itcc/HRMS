@@ -23,6 +23,7 @@ function makeService() {
   } as unknown as TokenService;
   const mail = { sendPasswordReset: jest.fn() };
   const config = { get: jest.fn().mockReturnValue('http://localhost:3000') };
+  const logger = { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() };
 
   const service = new AuthService(
     // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
@@ -31,9 +32,11 @@ function makeService() {
     // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
     mail as any,
     // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
+    logger as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test doubles
     config as any,
   );
-  return { service, prisma, tokens, mail };
+  return { service, prisma, tokens, mail, logger };
 }
 
 const activeUser = async (over: Record<string, unknown> = {}) => ({
@@ -87,6 +90,104 @@ describe('AuthService.login', () => {
     expect(result.accessToken).toBe('jwt');
     expect(result.refreshToken).toBe('raw');
     expect(result.user.permissions).toEqual(['leave.read.own']);
+  });
+});
+
+/**
+ * The endpoint's whole job is to answer identically whether or not the address
+ * belongs to an account. It did not: an unknown address returned, and a real
+ * one threw once the mail transport refused — which surfaced as a 500 and made
+ * the status code an answer to the question the endpoint exists to refuse.
+ *
+ * Found in production, not here, because nothing in this suite or in CI has
+ * ever sent an email.
+ */
+describe('AuthService.forgotPassword', () => {
+  it('does nothing at all for an address with no account', async () => {
+    const { service, prisma, mail } = makeService();
+    (prisma.user.findUnique as Mock).mockResolvedValue(null);
+
+    await expect(service.forgotPassword('no@one.co', meta)).resolves.toBeUndefined();
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
+    expect(mail.sendPasswordReset).not.toHaveBeenCalled();
+  });
+
+  it('writes a single-use token and mails the link for a real account', async () => {
+    const { service, prisma, mail } = makeService();
+    (prisma.user.findUnique as Mock).mockResolvedValue(await activeUser());
+
+    await service.forgotPassword('a@b.co', meta);
+
+    expect(prisma.passwordResetToken.create).toHaveBeenCalled();
+    const [to, url] = (mail.sendPasswordReset as Mock).mock.calls[0];
+    expect(to).toBe('a@b.co');
+    expect(url).toContain('/reset-password?token=');
+  });
+
+  /*
+   * The one that matters. A transport that throws must not reach the caller —
+   * otherwise the response is 500 for an account that exists and 200 for one
+   * that does not, which is the enumeration oracle this whole block exists to
+   * close. It is invisible in a diff, so it is asserted rather than trusted.
+   */
+  it('does not let a failed send escape', async () => {
+    const { service, prisma, mail, logger } = makeService();
+    (prisma.user.findUnique as Mock).mockResolvedValue(await activeUser());
+    (mail.sendPasswordReset as Mock).mockRejectedValue(
+      new Error('Email could not be sent: domain not verified'),
+    );
+
+    await expect(service.forgotPassword('a@b.co', meta)).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  /* And the link still works, so the request can simply be made again. */
+  it('keeps the token it already wrote when the send fails', async () => {
+    const { service, prisma, mail } = makeService();
+    (prisma.user.findUnique as Mock).mockResolvedValue(await activeUser());
+    (mail.sendPasswordReset as Mock).mockRejectedValue(new Error('smtp down'));
+
+    await service.forgotPassword('a@b.co', meta);
+
+    expect(prisma.passwordResetToken.create).toHaveBeenCalled();
+  });
+
+  /*
+   * Two callers, one with an account and one without, must be indistinguishable
+   * from outside even when mail is broken for both.
+   */
+  it('is indistinguishable between a real and an unknown address', async () => {
+    const { service, prisma, mail } = makeService();
+    (mail.sendPasswordReset as Mock).mockRejectedValue(new Error('domain not verified'));
+
+    (prisma.user.findUnique as Mock).mockResolvedValue(await activeUser());
+    const real = await service.forgotPassword('a@b.co', meta).then(
+      () => 'resolved',
+      (e) => `threw:${e}`,
+    );
+
+    (prisma.user.findUnique as Mock).mockResolvedValue(null);
+    const unknown = await service.forgotPassword('no@one.co', meta).then(
+      () => 'resolved',
+      (e) => `threw:${e}`,
+    );
+
+    expect(real).toBe(unknown);
+  });
+
+  /*
+   * An invited account has no password to reset, and the link would go to a
+   * work address that may not exist yet. Pinned here so the new try/catch
+   * cannot quietly widen what gets mailed.
+   */
+  it.each(['SUSPENDED', 'INVITED'])('sends nothing to a %s account', async (status) => {
+    const { service, prisma, mail } = makeService();
+    (prisma.user.findUnique as Mock).mockResolvedValue(await activeUser({ status }));
+
+    await service.forgotPassword('a@b.co', meta);
+
+    expect(mail.sendPasswordReset).not.toHaveBeenCalled();
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
   });
 });
 

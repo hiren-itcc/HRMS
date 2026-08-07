@@ -39,10 +39,23 @@ spends an afternoon on it.
 
 ## 1. Broken right now
 
-One item. It is smaller than it first looked, and the correction is worth
-recording because it is an easy trap.
+### ~~Password reset leaked whether an account existed~~ ✅ fixed
 
-### Nothing is currently broken in CI
+Found in production on 7 August, by sending one password-reset request to see
+whether email worked at all. It did not, and the 500 that came back was the
+finding: `AuthService.forgotPassword` let a refused send throw, so a real
+account answered 500 and an unknown address answered 200.
+
+Rate limited to 5/min, so a slow oracle rather than a dump — but unauthenticated,
+and the controller's own summary reads *"response never reveals account
+existence"*.
+
+**Nothing in this repository could have caught it.** No unit test sends mail, no
+CI job has a transport, and the failure needs a live Resend key on an unverified
+domain. It is the strongest argument in this document for the E2E layer §6 item
+15 still describes as unbuilt.
+
+### Nothing else is currently broken in CI
 
 `biome ci .` exits 1 on a Windows working copy. **That is a CRLF artefact of the
 local checkout, not a red pipeline.** Verified by cloning the repo to a fresh
