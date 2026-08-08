@@ -43,6 +43,15 @@ A stolen-then-reused refresh token kills the whole chain — attacker and victim
 ### Invite & reset
 - **Invite:** HR creates employee → optional user with `INVITED` status → email link `/invite?token=` → set password → status `ACTIVE`, auto-login. Re-invite regenerates (old token dies).
 - **Forgot password:** always returns 200 (no account enumeration); on success revokes all sessions.
+  - A failed send is **logged and swallowed**, and that is load-bearing rather
+    than tidy. The mail transport throws so each caller can decide whether a
+    failure is fatal; this one did not decide, so a refused send became a 500
+    while an address with no active account still returned 200. The status code
+    was an answer to "does this account exist" — on an unauthenticated endpoint,
+    with the property it was breaking written in its own summary. Swallowing is
+    safe here because the reset token is written *before* the send, so the link
+    is valid and the request can be repeated. Reporting the failure to the
+    caller instead would re-open the same oracle from the other side.
 
 ## Frontend integration (web)
 

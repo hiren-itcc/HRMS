@@ -33,6 +33,7 @@ import {
   canRespondToOffer,
   isTerminal,
 } from './application.stage';
+import { CareersService } from './careers.service';
 import { mapCandidate, mapMaybeOffer, mapOffer, mapOpening } from './recruitment.mapper';
 
 /** Applications that have not ended. What "live" means for closing an opening. */
@@ -47,6 +48,8 @@ export class RecruitmentService {
     // other module here asks. A company in Mumbai closes an opening on their
     // date, not on UTC's.
     private readonly policy: LifecyclePolicyService,
+    // Only for `ensureSlug` — the public URL a role gets when it is opened.
+    private readonly careers: CareersService,
   ) {}
 
   /**
@@ -207,10 +210,27 @@ export class RecruitmentService {
       if (!verdict.ok) throw new BadRequestException(verdict.reason);
     }
 
+    /*
+     * A public URL is minted when a role is first opened, not when it is
+     * created. A DRAFT has nothing to link to, and generating a slug early
+     * means a title edit either breaks a link that was never live or leaves
+     * one that matches nothing.
+     *
+     * It is kept once minted, including through CLOSED — a link somebody
+     * shared should reach a "no longer open" page rather than a 404 that
+     * looks like the company deleted the role. The careers list filters on
+     * status, so a closed role is not visible either way.
+     */
+    const slug =
+      input.status === 'OPEN' && !opening.slug
+        ? await this.careers.ensureSlug(claims.orgId, id, opening.title)
+        : opening.slug;
+
     const updated = await this.prisma.jobOpening.update({
       where: { id },
       data: {
         status: input.status,
+        slug,
         openedOn:
           input.status === 'OPEN' && !opening.openedOn ? toDate(todayKey) : opening.openedOn,
         closedOn: input.status === 'CLOSED' || input.status === 'FILLED' ? toDate(todayKey) : null,

@@ -1,0 +1,11 @@
+-- Whether a person's in-app notifications are also emailed to them.
+--
+-- Defaults to true, which is a deliberate choice about existing rows: until
+-- now the product sent no notification email at all, so nobody has opted in
+-- or out of anything. Defaulting to false would mean shipping the feature
+-- switched off for every existing account and waiting for people to discover
+-- a setting they were never told about.
+--
+-- The organization's own switch is EmailTemplate.isActive on
+-- 'notification_generic'; either one being off is enough to stop the mail.
+ALTER TABLE "User" ADD COLUMN "emailNotifications" BOOLEAN NOT NULL DEFAULT true;

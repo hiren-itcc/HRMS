@@ -1,19 +1,21 @@
 'use client';
 
 import { Badge } from '@hrms/ui/components/badge';
+import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
 import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, ChevronDown, ChevronLeft, ChevronRight, Search, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { EmployeeAvatar } from '@/components/employee-avatar';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
 import { IconAction } from '@/components/icon-action';
 import { initials } from '@/features/employees/types';
 import { companyApi, type OrgChartNode } from '@/features/organization/api';
+import { ChartViewport } from '@/features/organization/components/chart-viewport';
 
 /**
  * Screen 16 — the reporting tree.
@@ -24,12 +26,14 @@ import { companyApi, type OrgChartNode } from '@/features/organization/api';
  * `md` the connectors switch off and it is an indented list, which is the only
  * shape a deep tree has ever had on a phone.
  *
- * **One branch is open at a time.** Opening a card closes whatever else was
- * open, and the chart starts with only the organization's own top level
- * showing. The first version of this drew the whole company at once and was
- * unreadable at twenty-three people: the width of a level is the sum of every
- * expanded branch at that level, so "expand everything" is the one thing a
- * top-down chart cannot do.
+ * **Several branches open at once**, each card opening and closing on its own.
+ * That is only workable because `ChartViewport` can shrink the whole chart to
+ * the window: a level is as wide as every expanded branch in it put together,
+ * so before zoom existed the second open branch pushed the first off the screen
+ * and one-at-a-time was the only readable option.
+ *
+ * The cards are portrait — photo, name, code, job title — for the same reason.
+ * At 7rem apiece a row of eight fits where a row of three used to.
  */
 
 /** The synthetic root. Not an employee, so it gets its own id rather than a fake one. */
@@ -63,34 +67,35 @@ function findMatches(
   });
 }
 
+/** Everybody, for Expand all. */
+function allIds(nodes: OrgChartNode[]): string[] {
+  return nodes.flatMap((node) => [node.id, ...allIds(node.reports)]);
+}
+
 function Node({
   node,
-  path,
-  openPath,
+  openIds,
   onToggle,
   hit,
+  hitRef,
 }: {
   node: OrgChartNode;
-  /** Ids from the organization down to this node, inclusive. */
-  path: string[];
-  openPath: string[];
-  onToggle: (path: string[], open: boolean) => void;
+  openIds: ReadonlySet<string>;
+  onToggle: (id: string, open: boolean) => void;
   hit: string | null;
+  hitRef: RefObject<HTMLDivElement | null>;
 }) {
-  /*
-   * `openPath` is a single root-to-leaf chain, and ids are unique, so
-   * membership is the whole test — no need to compare the chains position by
-   * position.
-   */
-  const isOpen = openPath.includes(node.id);
+  const isOpen = openIds.has(node.id);
   const hasReports = node.reports.length > 0;
+  const isHit = hit === node.id;
 
   return (
     <li>
       <div
+        ref={isHit ? hitRef : undefined}
         className={cn(
-          'org-card flex items-center gap-2 py-1.5',
-          hit === node.id && 'ring-2 ring-ring',
+          'org-card flex items-center gap-2 py-1.5 md:flex-col md:gap-1 md:py-0',
+          isHit && 'ring-2 ring-ring',
         )}
       >
         {hasReports ? (
@@ -98,31 +103,44 @@ function Node({
             label={`${isOpen ? 'Collapse' : 'Expand'} ${node.firstName} ${node.lastName}'s reports`}
             icon={isOpen ? ChevronDown : ChevronRight}
             size="icon-sm"
+            className="org-toggle"
             expanded={isOpen}
-            onClick={() => onToggle(path, !isOpen)}
+            onClick={() => onToggle(node.id, !isOpen)}
           />
         ) : (
-          // Keeps names in one column whether or not somebody has reports.
+          // Keeps names in one column whether or not somebody has reports. Only
+          // on the phone list — the portrait card centres everything anyway.
           <span className="size-8 shrink-0 md:hidden" aria-hidden />
         )}
 
         <EmployeeAvatar src={node.avatarUrl} fallback={initials(node)} className="size-9" />
 
-        <div className="min-w-0 flex-1 text-left">
+        <div className="min-w-0 flex-1 text-left md:w-full md:flex-none md:text-center">
           <Link
             href={`/directory/${node.id}`}
-            className="block truncate font-medium text-sm hover:underline"
+            className="block truncate font-medium text-sm hover:underline md:line-clamp-2 md:whitespace-normal md:text-xs md:leading-tight"
           >
             {node.firstName} {node.lastName}
           </Link>
-          <p className="truncate text-muted-foreground text-xs">
+          {/* Portrait only. On the phone list the code is one more thing
+              competing with the name for a line that is already short. */}
+          <p className="hidden truncate text-[11px] text-muted-foreground tabular-nums md:block">
+            {node.employeeCode}
+          </p>
+          <p className="truncate text-muted-foreground text-xs md:line-clamp-2 md:whitespace-normal md:text-[11px] md:leading-tight">
             {node.designation ?? '—'}
-            {node.department && ` · ${node.department}`}
+            {/* The department does not fit in 7rem, and the directory page has
+                it. It stays on the phone list, where there is room. */}
+            {node.department && <span className="md:hidden"> · {node.department}</span>}
           </p>
         </div>
 
         {hasReports && (
-          <Badge variant="outline" className="shrink-0 tabular-nums">
+          <Badge
+            variant="outline"
+            // Out of flow on the portrait card, so a count costs no width.
+            className="shrink-0 tabular-nums md:absolute md:top-1 md:right-1 md:gap-0.5 md:px-1 md:py-0"
+          >
             <Users className="size-3" aria-hidden /> {node.totalReports}
           </Badge>
         )}
@@ -134,10 +152,10 @@ function Node({
             <Node
               key={child.id}
               node={child}
-              path={[...path, child.id]}
-              openPath={openPath}
+              openIds={openIds}
               onToggle={onToggle}
               hit={hit}
+              hitRef={hitRef}
             />
           ))}
         </ul>
@@ -148,7 +166,17 @@ function Node({
 
 export default function OrgChartPage() {
   const [search, setSearch] = useState('');
-  const [openPath, setOpenPath] = useState<string[]>([ORG]);
+  /*
+   * Which branches are open. A set rather than the single root-to-leaf chain
+   * this used to hold: branches no longer close each other.
+   *
+   * Closing a node removes only its own id, so its descendants keep whatever
+   * state they had and are simply not rendered. Reopening therefore restores
+   * the shape you left the branch in rather than collapsing it flat, which is
+   * deliberate — re-drilling four levels to get back where you were is the kind
+   * of thing that makes a chart tiring to use.
+   */
+  const [openIds, setOpenIds] = useState<ReadonlySet<string>>(() => new Set([ORG]));
   /*
    * Which match is being looked at, remembered against the search it belongs
    * to. Storing the needle alongside the index means a new search starts at the
@@ -156,6 +184,9 @@ export default function OrgChartPage() {
    * where the old index is briefly pointed at the new results.
    */
   const [nav, setNav] = useState({ needle: '', index: 0 });
+  /** Bumped when the chart's shape changes enough to be worth re-measuring. */
+  const [fitKey, setFitKey] = useState(0);
+  const hitRef = useRef<HTMLDivElement | null>(null);
 
   const chart = useQuery({ queryKey: ['organization', 'chart'], queryFn: companyApi.chart });
   const company = useQuery({ queryKey: ['organization', 'company'], queryFn: companyApi.get });
@@ -172,34 +203,57 @@ export default function OrgChartPage() {
 
   /*
    * Searching opens the way down to a match rather than expanding everything.
-   * Expanding everything is what made the first version unreadable, and a hit
-   * four levels down is no use if the answer is a wall of cards either side of
-   * it.
+   * A hit four levels down is no use if it stays hidden behind a folded branch,
+   * but expanding the company to find one person is worse.
    */
   const hitIndex = nav.needle === needle ? nav.index : 0;
   const current = hits[Math.min(hitIndex, Math.max(hits.length - 1, 0))];
   const step = (delta: number) =>
     setNav({ needle, index: (hitIndex + delta + hits.length) % hits.length });
 
-  // The one thing that genuinely is a side effect: pointing the tree at the
-  // match. Keyed on the match's id, so re-renders that do not change which
-  // person is being looked at leave the branches alone.
+  // Pointing the tree at the match. Keyed on the match's id, so re-renders that
+  // do not change which person is being looked at leave the branches alone.
+  // The path is unioned in rather than replacing the set: finding somebody is
+  // not a reason to close everything else.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the id is the trigger
   useEffect(() => {
-    if (current) setOpenPath(current.path);
+    if (current) setOpenIds((previous) => new Set([...previous, ...current.path]));
   }, [current?.id]);
 
-  const toggle = (path: string[], open: boolean) => {
-    // Opening replaces the whole chain, which is what closes the other branch;
-    // closing drops just this node and leaves its ancestors open.
-    setOpenPath(open ? path : path.slice(0, -1));
-  };
+  /*
+   * …and then scrolling to it, which has to be a second effect: the one above
+   * only queues the state change that renders the card, so at that point
+   * `hitRef` is still pointing at nothing. Re-running on `openIds` is what
+   * catches the render where the card finally exists.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the id is the trigger
+  useEffect(() => {
+    if (!current) return;
+    hitRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [current?.id, openIds]);
+
+  const toggle = (id: string, open: boolean) =>
+    setOpenIds((previous) => {
+      const next = new Set(previous);
+      if (open) next.add(id);
+      else next.delete(id);
+      return next;
+    });
 
   if (chart.isError) return <ErrorState onRetry={() => chart.refetch()} />;
   if (!chart.data) return <Skeleton className="h-96 w-full rounded-xl" />;
 
-  const orgOpen = openPath.includes(ORG);
+  const orgOpen = openIds.has(ORG);
   const total = chart.data.total;
+
+  const collapseAll = () => setOpenIds(new Set([ORG]));
+  const expandAll = () => {
+    setOpenIds(new Set([ORG, ...allIds(chart.data.roots)]));
+    // The whole company is almost always wider than the window, so this is the
+    // one toggle worth re-fitting after. An ordinary card opening is not: a
+    // chart that re-scales every time you click is disorienting.
+    setFitKey((n) => n + 1);
+  };
 
   return (
     <section className="space-y-4">
@@ -209,7 +263,7 @@ export default function OrgChartPage() {
           {chart.data.roots.length > 1 && ` · ${chart.data.roots.length} top-level`}
         </p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {needle && hits.length > 0 && (
             <div className="flex items-center gap-1 text-muted-foreground text-sm">
               <span className="tabular-nums">
@@ -231,6 +285,12 @@ export default function OrgChartPage() {
               />
             </div>
           )}
+          <Button type="button" variant="outline" size="sm" onClick={expandAll}>
+            Expand all
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={collapseAll}>
+            Collapse all
+          </Button>
           <div className="relative w-full sm:w-64">
             <Search
               className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground"
@@ -257,10 +317,7 @@ export default function OrgChartPage() {
           }
         />
       ) : (
-        // Scrolls sideways rather than squashing: a level as wide as its widest
-        // sibling group is still sometimes wider than a screen, and shrinking
-        // the cards to fit would make none of them readable.
-        <div className="overflow-x-auto pb-2">
+        <ChartViewport fitKey={fitKey}>
           <ul className="org-tree">
             {/*
               The company, as the one root. Not a person — it has no first name,
@@ -272,27 +329,31 @@ export default function OrgChartPage() {
               is being drawn as the boss, the company is.
             */}
             <li>
-              <div className="org-card flex items-center gap-2 py-1.5">
+              <div className="org-card flex items-center gap-2 py-1.5 md:flex-col md:gap-1 md:py-0">
                 <IconAction
                   label={`${orgOpen ? 'Collapse' : 'Expand'} the top level`}
                   icon={orgOpen ? ChevronDown : ChevronRight}
                   size="icon-sm"
+                  className="org-toggle"
                   expanded={orgOpen}
-                  onClick={() => toggle([ORG], !orgOpen)}
+                  onClick={() => toggle(ORG, !orgOpen)}
                 />
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
                   <Building2 className="size-4" aria-hidden />
                 </span>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="truncate font-medium text-sm">
+                <div className="min-w-0 flex-1 text-left md:w-full md:flex-none md:text-center">
+                  <p className="truncate font-medium text-sm md:line-clamp-2 md:whitespace-normal md:text-xs md:leading-tight">
                     {company.data?.name ?? 'This company'}
                   </p>
-                  <p className="truncate text-muted-foreground text-xs">
+                  <p className="truncate text-muted-foreground text-xs md:text-[11px] md:leading-tight">
                     {chart.data.roots.length} {chart.data.roots.length === 1 ? 'person' : 'people'}{' '}
                     at the top
                   </p>
                 </div>
-                <Badge variant="outline" className="shrink-0 tabular-nums">
+                <Badge
+                  variant="outline"
+                  className="shrink-0 tabular-nums md:absolute md:top-1 md:right-1 md:gap-0.5 md:px-1 md:py-0"
+                >
                   <Users className="size-3" aria-hidden /> {total}
                 </Badge>
               </div>
@@ -303,17 +364,17 @@ export default function OrgChartPage() {
                     <Node
                       key={root.id}
                       node={root}
-                      path={[ORG, root.id]}
-                      openPath={openPath}
+                      openIds={openIds}
                       onToggle={toggle}
                       hit={current?.id ?? null}
+                      hitRef={hitRef}
                     />
                   ))}
                 </ul>
               )}
             </li>
           </ul>
-        </div>
+        </ChartViewport>
       )}
     </section>
   );

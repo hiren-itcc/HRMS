@@ -1,12 +1,23 @@
-import { notificationQuerySchema } from '@hrms/shared';
+import { notificationPreferencesSchema, notificationQuerySchema } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from './notifications.service';
 
 export class NotificationQueryDto extends createZodDto(notificationQuerySchema) {}
+export class NotificationPreferencesDto extends createZodDto(notificationPreferencesSchema) {}
 
 /**
  * No `@RequirePermissions` on any route, deliberately.
@@ -36,6 +47,25 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Badge count for the bell' })
   unreadCount(@CurrentUser() user: AccessTokenClaims) {
     return this.notifications.unreadCount(user);
+  }
+
+  /*
+   * Declared before ':id/read' for the same reason 'unread-count' is: a later
+   * parameterised route would otherwise swallow it.
+   */
+  @Get('preferences')
+  @ApiOperation({ summary: 'Whether your notifications are also emailed to you' })
+  preferences(@CurrentUser() user: AccessTokenClaims) {
+    return this.notifications.preferences(user);
+  }
+
+  @Patch('preferences')
+  @ApiOperation({ summary: 'Turn notification email on or off for yourself' })
+  updatePreferences(
+    @CurrentUser() user: AccessTokenClaims,
+    @Body() dto: NotificationPreferencesDto,
+  ) {
+    return this.notifications.updatePreferences(user, dto);
   }
 
   @Post('read-all')

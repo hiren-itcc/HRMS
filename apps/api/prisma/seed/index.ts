@@ -8,6 +8,7 @@ import { seedAssets } from './assets';
 import { seedAttendance } from './attendance';
 import { seedComms } from './comms';
 import { seedExit } from './exit';
+import { seedExpenses } from './expenses';
 import { seedLeave } from './leave';
 import { seedOnboarding } from './onboarding';
 import { seedOrg } from './org';
@@ -169,6 +170,9 @@ async function main() {
 
   console.log('Assets…');
   await seedAssets(prisma, org.id, fixtures, people, random, todayKey);
+
+  console.log('Expense claims…');
+  await seedExpenses(prisma, org.id, people, random, todayKey);
 
   console.log('Exits and settlements…');
   await seedExit(prisma, org.id, people, random, todayKey);

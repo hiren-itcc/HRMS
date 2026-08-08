@@ -22,5 +22,13 @@ import { SalaryStructuresService } from './salary-structures.service';
     PayslipsService,
     PayrollReportsService,
   ],
+  /*
+   * Expenses turns an approved claim into a payslip line through this service
+   * rather than writing `PayrollAdjustment` itself. A second `create` in
+   * another module would be a second copy of the statutory-component refusal
+   * and the locked-month check, and one of the two would drift. Same seam
+   * recruitment uses for `OnboardingService`.
+   */
+  exports: [PayrollAdjustmentsService],
 })
 export class PayrollModule {}

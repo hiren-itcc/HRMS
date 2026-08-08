@@ -589,7 +589,10 @@ model Document {
   mimeType       String
   sizeBytes      Int
   visibility     DocVisibility @default(PRIVATE)
-  uploadedById   String                  // User id
+  /// Nullable: a CV arriving through the public careers page is uploaded by
+  /// somebody with no account, no employee record and no session. Same call
+  /// `AuditLog.actorId` makes for the lifecycle tick.
+  uploadedById   String?                  // User id
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())
 
@@ -1041,6 +1044,60 @@ model AssetAssignment {
   notes        String?
 }
 
+// ─── Expenses & reimbursement ─────────────────────────────────────────
+// A claim is a batch of lines, because that is how people spend: one trip is
+// a flight, two taxis and three meals, agreed or declined as one thing.
+
+/// No PAID. Whether the money arrived is whether the payroll run for
+/// `payrollMonth` was published, and that is derived on read.
+enum ExpenseClaimStatus { DRAFT  SUBMITTED  APPROVED  REJECTED  CANCELLED }
+
+/// What can be claimed for, and which payslip line it pays out on.
+model ExpenseCategory {
+  id String @id @default(cuid())
+  organizationId  String
+  code            String
+  name            String
+  /// Null is no ceiling — not a ceiling of zero. Checked against the
+  /// category's total across the whole claim, never line by line: a cap three
+  /// lines walk straight through is not a cap.
+  capPerClaim     Decimal? @db.Decimal(14, 2)
+  requiresReceipt Boolean  @default(true)
+  /// Not optional. A category with nowhere to pay out to is a form that
+  /// collects receipts and returns no money.
+  componentId     String
+  active          Boolean  @default(true)
+  order           Int      @default(0)
+  @@unique([organizationId, code])
+}
+
+model ExpenseClaim {
+  id String @id @default(cuid())
+  organizationId String
+  employeeId     String
+  title          String
+  status         ExpenseClaimStatus @default(DRAFT)
+  /// yyyy-MM, set by the approver rather than at submission.
+  payrollMonth   String?
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+}
+
+model ExpenseItem {
+  id String @id @default(cuid())
+  claimId     String
+  categoryId  String
+  spentOn     DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+  description String
+  /// The receipt, as a Document — same private bucket, same size limit, same
+  /// permission check as every other file. `Application.resumeDocumentId` is
+  /// the same arrangement.
+  receiptId   String?  @unique
+}
+
 // ─── Recruitment ──────────────────────────────────────────────────────
 // The front of the lifecycle. A Candidate is a person the organization is
 // talking to, not a member of staff — see "Notable design calls" for why the
@@ -1488,6 +1545,49 @@ model AuditLog {
   upload. The key's extension is what the read route declares as
   `Content-Type`, so taking it from the client would let the client choose that
   header. `X-Content-Type-Options: nosniff` is set on the way out as well.
+
+### The public careers page
+
+- **`JobOpening.slug` is nullable, and that is the whole safety story.** Every
+  opening that predates the careers page gets NULL, which the public list reads
+  as "not published". A column defaulted to something derived from the title
+  would have put existing DRAFT and CLOSED roles on the open internet the moment
+  it deployed. Postgres treats NULLs as distinct, so the unique index tolerates
+  any number of unpublished openings.
+
+- **A slug is minted when a role is first opened, not when it is created.** A
+  DRAFT has nothing to link to, and generating one early means a title edit
+  either breaks a link that was never live or leaves one matching nothing. It is
+  kept through CLOSED, so a shared link reaches a "no longer open" page rather
+  than a 404 that reads as the role having been deleted.
+
+- **The public response is built field by field.** Spreading a `JobOpening`
+  would publish `minMonthlyCtc`, `maxMonthlyCtc`, `hiringManagerId` and
+  `headcount`.
+
+### Expenses
+
+- **A claim's states are its own enum, not `ApprovalStatus`.** That one is
+  PENDING/APPROVED/REJECTED/CANCELLED, and a claim needs a DRAFT to add lines to
+  before anybody sees it. Widening the shared enum would make DRAFT
+  representable on `LeaveRequest.status` and every other approval in the
+  product — a redesign of things this module has no business touching. The same
+  call settlements made.
+
+- **There is no PAID state, and that is the point.** Whether the money arrived
+  is whether the payroll run for `payrollMonth` was published, which payroll
+  already knows. A stored copy is the one that goes stale — the same bargain
+  attendance's day-close and announcement expiry make.
+
+- **An approved claim becomes a `PayrollAdjustment`, written through payroll's
+  own service.** Two claims approved into one month against one category **sum
+  into a single row**, because the unique key is (employee, month, component)
+  and two rows would print two payslip lines with the same code and no way to
+  tell them apart. That is what `upsert`'s optional `mode: 'add'` exists for.
+
+- **Nothing was added to any existing table.** `PayComponent.taxable` already
+  carried the note "Reimbursements and employer contributions do not", so the
+  payslip end of this module predated the module by several releases.
 
 ### Recruitment
 

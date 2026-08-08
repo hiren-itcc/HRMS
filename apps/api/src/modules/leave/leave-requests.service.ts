@@ -12,10 +12,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
-import { dateKeyOf, toDate } from '../../common/utils/calendar';
+import { dateKeyOf, displayDate, toDate } from '../../common/utils/calendar';
 import { toPaginated } from '../../common/utils/list-query';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
 import { mapRequest } from './leave.mapper';
 import {
@@ -27,6 +29,14 @@ import {
 } from './leave.util';
 import { currentLeaveYear, LeaveBalancesService } from './leave-balances.service';
 
+/*
+ * Deliberately unchanged by the notification work, and it is worth saying why:
+ * `mapRequest` forwards `employee` **verbatim**. Anything added here — a
+ * `userId`, and certainly a `user.email` — appears on every leave request the
+ * API returns, to everybody entitled to read one. The recipient's address is
+ * fetched in `announceDecision` instead, which costs one query on a path that
+ * already runs several and leaves the wire shape alone.
+ */
 const INCLUDE = {
   leaveType: { select: { id: true, name: true, code: true } },
   employee: {
@@ -34,13 +44,124 @@ const INCLUDE = {
   },
 } as const;
 
+type RequestWithIncludes = Prisma.LeaveRequestGetPayload<{ include: typeof INCLUDE }>;
+
 @Injectable()
 export class LeaveRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances: LeaveBalancesService,
     private readonly settings: SettingsService,
+    private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
+
+  /**
+   * Tell an approver a request is waiting.
+   *
+   * By permission rather than by naming the manager: an organization that
+   * composes its own approver role in Settings gets these without anybody
+   * editing this file, and a request from somebody with no manager still
+   * reaches whoever can act on it.
+   */
+  private async announceSubmission(
+    claims: AccessTokenClaims,
+    request: RequestWithIncludes,
+  ): Promise<void> {
+    const who = `${request.employee.firstName} ${request.employee.lastName}`;
+    await this.notifications.notifyPermission(
+      claims.orgId,
+      'leave.approve',
+      {
+        type: 'leave.submitted',
+        title: `${who} requested leave`,
+        body: `${request.leaveType.name}, ${displayDate(dateKeyOf(request.startDate))} to ${displayDate(dateKeyOf(request.endDate))} (${Number(request.days)} day(s)).`,
+        linkPath: '/leave/approvals',
+      },
+      // They filed it; they know.
+      { except: claims.sub },
+    );
+  }
+
+  /**
+   * Tell somebody what happened to their request — in the app, and by email.
+   *
+   * The email is the specific `leave_approved` / `leave_rejected` template
+   * rather than the generic notification one, because those templates want the
+   * leave type, the dates, the day count and the approver's name, and this is
+   * the only place all four are in hand. `{ email: false }` on the notify is
+   * what stops the same news arriving twice.
+   *
+   * **Never throws.** Same bargain `notify` itself makes: the decision has
+   * already been written and the balance already moved, and neither may be
+   * undone because a mail host was unreachable.
+   */
+  private async announceDecision(
+    claims: AccessTokenClaims,
+    request: RequestWithIncludes,
+    decision: 'APPROVED' | 'REJECTED',
+    note: string | null | undefined,
+  ): Promise<void> {
+    try {
+      const approved = decision === 'APPROVED';
+      const startKey = dateKeyOf(request.startDate);
+      const endKey = dateKeyOf(request.endDate);
+      const range = `${displayDate(startKey)} to ${displayDate(endKey)}`;
+
+      // Read here rather than through INCLUDE — see the note on it.
+      const [recipient, approver] = await Promise.all([
+        this.prisma.employee.findUnique({
+          where: { id: request.employeeId },
+          select: { user: { select: { id: true, email: true } } },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: claims.sub },
+          select: { email: true, employee: { select: { firstName: true, lastName: true } } },
+        }),
+      ]);
+
+      await this.notifications.notify(
+        recipient?.user ? [recipient.user.id] : [],
+        {
+          type: `leave.${decision.toLowerCase()}`,
+          title: approved ? 'Your leave was approved' : 'Your leave was declined',
+          body: `${request.leaveType.name}, ${range}.${note ? ` ${note}` : ''}`,
+          linkPath: '/leave',
+        },
+        // Sent below, with the dates and the approver's name in it — which the
+        // generic notification template has no way to know.
+        { email: false },
+      );
+
+      // Somebody with no sign-in — a record created with `createLogin: false`
+      // — has nowhere to receive either.
+      const to = recipient?.user?.email;
+      if (!to) return;
+
+      const approverName = approver?.employee
+        ? `${approver.employee.firstName} ${approver.employee.lastName}`
+        : (approver?.email ?? 'your approver');
+
+      await this.mail.sendTemplate(
+        claims.orgId,
+        approved ? 'leave_approved' : 'leave_rejected',
+        to,
+        {
+          firstName: request.employee.firstName,
+          leaveType: request.leaveType.name,
+          startDate: displayDate(startKey),
+          endDate: displayDate(endKey),
+          days: Number(request.days),
+          approverName,
+          approverNote: note ?? '',
+        },
+      );
+    } catch {
+      // Swallowed on purpose, and not logged here: `notify` logs its own
+      // failure, and the mail transport logs its own. A third line saying the
+      // same thing would only make the real one harder to find.
+    }
+  }
 
   /** Org policy: which weekdays never consume leave balance. */
   private async weekOffDays(orgId: string): Promise<number[]> {
@@ -173,6 +294,9 @@ export class LeaveRequestsService {
       'LeaveRequest',
       request.id,
     );
+    // Only when somebody has to act. A type that skips approval is booked
+    // already, and an approvals inbox is not where that belongs.
+    if (type.requiresApproval) await this.announceSubmission(claims, request);
     return mapRequest(request);
   }
 
@@ -310,6 +434,7 @@ export class LeaveRequestsService {
       'LeaveRequest',
       id,
     );
+    await this.announceDecision(claims, request, decision, input.note);
     const fresh = await this.prisma.leaveRequest.findUniqueOrThrow({
       where: { id },
       include: INCLUDE,

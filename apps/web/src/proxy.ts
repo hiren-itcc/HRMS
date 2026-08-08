@@ -55,9 +55,30 @@ export const config = {
     '/announcements/:path*',
     '/reports/:path*',
     '/settings/:path*',
+    /*
+     * These five were missing, and the list had quietly stopped matching the
+     * comment above it. Each shipped after the matcher was written, so an
+     * unauthenticated visit to /payroll or /assets rendered an empty shell
+     * whose every request then 401'd, rather than landing on sign-in.
+     *
+     * Not a security hole — this file is UX only, and the API is the real
+     * boundary — but the failure mode is a blank page instead of a login form.
+     */
+    '/payroll/:path*',
+    '/recruitment/:path*',
+    '/resignations/:path*',
+    '/assets/:path*',
+    '/expenses/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',
     '/invite',
+    /*
+     * `/careers` is deliberately absent. It is the one part of the web app
+     * meant to be read by somebody with no account, so it must not be matched
+     * at all: adding it to PUBLIC_PATHS instead would bounce any signed-in
+     * visitor to the dashboard, which is not what a link to a job advert
+     * should do.
+     */
   ],
 };

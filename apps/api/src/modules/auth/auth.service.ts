@@ -3,6 +3,7 @@ import type { AuthResponse, RoleCode, SessionUser, UserStatus } from '@hrms/type
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
+import { PinoLogger } from 'nestjs-pino';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
@@ -33,8 +34,10 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly mail: MailService,
+    private readonly logger: PinoLogger,
     config: ConfigService<Env, true>,
   ) {
+    this.logger.setContext(AuthService.name);
     this.webOrigin = config.get('WEB_ORIGIN', { infer: true });
   }
 
@@ -102,9 +105,33 @@ export class AuthService {
       },
     });
     await this.audit(user.organizationId, user.id, 'auth.password_reset_requested', meta);
-    await this.mail.sendPasswordReset(user.email, `${this.webOrigin}/reset-password?token=${raw}`, {
-      orgId: user.organizationId,
-    });
+
+    /*
+     * Never fatal, and never visible — which is a stronger requirement than it
+     * looks, and this endpoint had neither.
+     *
+     * The transport throws when a send fails, deliberately: it leaves the
+     * caller to decide whether that is fatal. Every other caller decides
+     * (`trySend` in onboarding, the try/catch in `notify`'s email leg); this
+     * one did not, so the exception became a 500 while an address with no
+     * active account still answered 200. That difference *is* an answer to
+     * "does this account exist" — on an unauthenticated endpoint whose own
+     * summary promises the response never reveals it.
+     *
+     * Swallowing costs nothing here: the token is already written, so the link
+     * is valid and the request can simply be made again once mail is working.
+     * Reporting the failure to the caller instead would re-open the same
+     * oracle from the other side.
+     */
+    try {
+      await this.mail.sendPasswordReset(
+        user.email,
+        `${this.webOrigin}/reset-password?token=${raw}`,
+        { orgId: user.organizationId },
+      );
+    } catch (err) {
+      this.logger.error({ err, userId: user.id }, 'Password reset email failed');
+    }
   }
 
   async resetPassword(rawToken: string, newPassword: string, meta: RequestMeta): Promise<void> {

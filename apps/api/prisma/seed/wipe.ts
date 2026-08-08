@@ -45,6 +45,12 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.offboarding.deleteMany({ where: { organizationId: orgId } }),
       prisma.resignation.deleteMany({ where: { organizationId: orgId } }),
 
+      // Expenses: an item points at a claim and a category, and a category
+      // points at a PayComponent — so all three go before payroll's tables.
+      prisma.expenseItem.deleteMany({ where: { claim: { organizationId: orgId } } }),
+      prisma.expenseClaim.deleteMany({ where: { organizationId: orgId } }),
+      prisma.expenseCategory.deleteMany({ where: { organizationId: orgId } }),
+
       // Assets: an assignment points at both an asset and an employee.
       prisma.assetAssignment.deleteMany({ where: { asset: { organizationId: orgId } } }),
       prisma.asset.deleteMany({ where: { organizationId: orgId } }),

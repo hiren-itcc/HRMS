@@ -70,6 +70,10 @@ letter.read            letter.issue             letter.template.manage
 asset.read.own
 asset.read             asset.manage             asset.assign        (issue, take back)
 
+expense.read.own       expense.submit.own
+expense.read.team      expense.approve.team     (a manager, for their own reports)
+expense.read           expense.approve          expense.manage      (categories, and the payslip line each pays out on)
+
 recruitment.read.team  (a hiring manager's own openings)
 recruitment.read       recruitment.opening.manage
 recruitment.candidate.manage                     (add a candidate, put them forward, move a stage)
@@ -121,6 +125,10 @@ settings.manage        role.manage              audit.read
 | `letter.read` / `letter.issue` / `letter.template.manage` | ✅ | ✅ | — | — | — |
 | `asset.read.own` (what I am holding) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `asset.read` / `asset.manage` / `asset.assign` | ✅ | ✅ | — | — | — |
+| `expense.read.own` / `expense.submit.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `expense.read.team` / `expense.approve.team` | ✅ | ✅ | — | ✅ | — |
+| `expense.read` (all) | ✅ | ✅ | ✅ | — | — |
+| `expense.approve` / `expense.manage` | ✅ | — | ✅ | — | — |
 | `recruitment.read.team` (own openings) / `recruitment.interview.submit` | ✅ | ✅ | — | ✅ | — |
 | `recruitment.read` / `opening.manage` / `candidate.manage` / `offer.manage` / `hire` | ✅ | ✅ | — | — | — |
 | `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |

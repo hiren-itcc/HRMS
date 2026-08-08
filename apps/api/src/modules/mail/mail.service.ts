@@ -33,8 +33,10 @@ export class MailService {
       orgName: context?.orgName ?? (await this.orgName(context?.orgId)),
       expiryMinutes: context?.expiryMinutes ?? 60,
     };
-    const { subject, html } = await this.compose(context?.orgId, 'password_reset', vars);
-    await this.transport.send({ to, subject, html });
+    // `password_reset` is `required`, so this is never null — the check is
+    // what makes that guarantee visible rather than assumed.
+    const composed = await this.compose(context?.orgId, 'password_reset', vars);
+    if (composed) await this.transport.send({ to, subject: composed.subject, html: composed.html });
   }
 
   /**
@@ -55,11 +57,38 @@ export class MailService {
     },
     context: { orgId: string; orgName?: string },
   ): Promise<void> {
-    const { subject, html } = await this.compose(context.orgId, 'employee_invite', {
+    // `employee_invite` is `required` too: an invite nobody receives is a hire
+    // who cannot start.
+    const composed = await this.compose(context.orgId, 'employee_invite', {
       ...vars,
       orgName: context.orgName ?? (await this.orgName(context.orgId)),
     });
-    await this.transport.send({ to, subject, html });
+    if (composed) await this.transport.send({ to, subject: composed.subject, html: composed.html });
+  }
+
+  /**
+   * Send any template by key, resolving the organization's name for it.
+   *
+   * The two senders above are the special cases — they carry variables only
+   * their own call sites can supply. Everything else wants exactly this.
+   *
+   * **Returns whether it sent.** A template the organization has switched off
+   * is a decision, not a failure, and the caller may want to know the
+   * difference between "delivered" and "deliberately not sent".
+   */
+  async sendTemplate(
+    orgId: string | undefined,
+    key: string,
+    to: string,
+    vars: TemplateVars = {},
+  ): Promise<boolean> {
+    const composed = await this.compose(orgId, key, {
+      orgName: await this.orgName(orgId),
+      ...vars,
+    });
+    if (!composed) return false;
+    await this.transport.send({ to, subject: composed.subject, html: composed.html });
+    return true;
   }
 
   private async orgName(orgId: string | undefined): Promise<string> {
@@ -72,16 +101,21 @@ export class MailService {
   }
 
   /**
-   * Renders a template for an organization, falling back to the built-in
-   * default when the row is missing, switched off, or there is no
-   * organization in hand (a reset requested for an unknown email). A bad edit
-   * in Settings must never be able to stop an email the product depends on.
+   * Renders a template for an organization, falling back to the built-in copy
+   * when the row is missing or there is no organization in hand (a reset
+   * requested for an unknown email).
+   *
+   * **`null` means do not send.** A template switched off in Settings is only
+   * silenced when the catalogue marks it `required: false` — notifications.
+   * For the two the product depends on, a bad edit or a carelessly flicked
+   * switch falls back to the shipped copy and the mail still goes: a password
+   * reset nobody receives is an account nobody can get back into.
    */
   private async compose(
     orgId: string | undefined,
     key: string,
     vars: TemplateVars,
-  ): Promise<{ subject: string; html: string }> {
+  ): Promise<{ subject: string; html: string } | null> {
     const fallback = emailTemplateDefault(key);
     if (!fallback) throw new Error(`Unknown email template: ${key}`);
 
@@ -90,6 +124,11 @@ export class MailService {
           where: { organizationId_key: { organizationId: orgId, key } },
         })
       : null;
+
+    // An edit decides; with no edit, the shipped copy's own flag does.
+    const isOff = stored ? !stored.isActive : !fallback.active;
+    if (isOff && !fallback.required) return null;
+
     const source = stored?.isActive ? stored : fallback;
 
     return {

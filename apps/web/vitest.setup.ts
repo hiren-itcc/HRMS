@@ -29,6 +29,21 @@ globalThis.ResizeObserver ??= class {
  */
 Element.prototype.getAnimations ??= () => [];
 
+/*
+ * jsdom has no layout, so it has none of the scrolling or pointer-capture APIs
+ * either. The org chart scrolls a search hit into view and captures the pointer
+ * while you drag to pan; without these, both throw and the failure reads like a
+ * bug in the chart rather than a missing browser API.
+ *
+ * Stubs, not spies: nothing asserts on them. What they buy is that the code
+ * under test can call these the way it does in a browser, rather than carrying
+ * optional-call guards that exist purely for the test environment.
+ */
+Element.prototype.scrollIntoView ??= () => {};
+Element.prototype.setPointerCapture ??= () => {};
+Element.prototype.releasePointerCapture ??= () => {};
+Element.prototype.hasPointerCapture ??= () => false;
+
 if (!window.matchMedia) {
   window.matchMedia = (query: string) =>
     ({

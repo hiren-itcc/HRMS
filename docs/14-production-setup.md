@@ -414,17 +414,32 @@ true when Resend was wired.)
 The remaining constraint is the sender. `MAIL_FROM` defaults to
 `onboarding@resend.dev`, Resend's sandbox address, which **delivers only to the
 address that owns the Resend account**. An invite to anyone else is refused by
-Resend with a 403 — the API surfaces the reason in the response rather than
-reporting success, but nothing arrives.
+Resend with a 403 — nothing arrives.
 
-So before onboarding a real hire: verify a domain in Resend and set `MAIL_FROM`
-to an address on it. Without the key entirely, the transport logs the message
+**This is still true, and it is now the single thing standing between the
+product and working email.** Notification email shipped since: approvals,
+resignations, exits and expense decisions all send. On the sandbox sender they
+all reach exactly one address. Verify a domain in Resend and set `MAIL_FROM` to
+an address on it. Without the key entirely, the transport logs the message
 instead, which is what keeps local development and CI working offline.
 
-Two of the four templates in Settings — `leave_approved` and `leave_rejected` —
-have no sender behind them and are never dispatched. The API reports this
-honestly as `hasSender: false`, and the screen shows it, but the templates are
-editable and look live.
+The API now says which it is, once, at boot — `Mail: Resend` with the `from`
+address, or a warning that messages are only being logged, plus a second
+warning when `MAIL_FROM` is still a `resend.dev` address. Before that line
+existed the only way to find out was to send something and read the failure,
+which is exactly how the 403 above was rediscovered.
+
+**Correction to what this section used to say.** It claimed "the API surfaces
+the reason in the response rather than reporting success". That was true of the
+*invite* path, which catches the failure and returns `inviteSent: false` with
+the reason. It was not true of password reset, which let the exception become a
+500 — and a 500 for a real account beside a 200 for an unknown one is an
+account-enumeration oracle. Fixed: the send failure is now logged and
+swallowed, so the response never varies. See doc 07.
+
+~~Two of the four templates in Settings — `leave_approved` and
+`leave_rejected` — have no sender behind them~~ — both are wired now, along
+with `notification_generic`. `hasSender` reports it.
 
 ### Deploys are triggered by hand
 

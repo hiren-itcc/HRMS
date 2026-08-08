@@ -43,6 +43,9 @@ model Organization {
   candidates   Candidate[]
   applications Application[]
   offers       Offer[]
+
+  expenseCategories ExpenseCategory[]
+  expenseClaims     ExpenseClaim[]
 }
 
 enum UserStatus {
@@ -61,6 +64,12 @@ model User {
   /// succeeds but the app sends them straight to change it, so a predictable
   /// credential is never a usable one for long.
   mustChangePassword Boolean    @default(false)
+  /// Whether in-app notifications are also emailed to this person. The
+  /// organization's own switch is `EmailTemplate.isActive` on
+  /// `notification_generic`; this is the individual's, and either one being
+  /// off is enough. Password resets and invites ignore both — see `required`
+  /// in the email template catalogue.
+  emailNotifications Boolean    @default(true)
   roleId             String
   lastLoginAt        DateTime?
   createdAt          DateTime   @default(now())
@@ -356,6 +365,7 @@ model Employee {
   offboardings       Offboarding[]
   settlements        Settlement[]
   assetAssignments   AssetAssignment[]
+  expenseClaims      ExpenseClaim[]
 
   /// Recruitment: what this person does on the hiring side, and — for exactly
   /// one row — the offer they were hired from.
@@ -687,7 +697,13 @@ model Document {
   mimeType       String
   sizeBytes      Int
   visibility     DocVisibility @default(PRIVATE)
-  uploadedById   String
+  /// Nullable because some uploads genuinely have no user behind them: a CV
+  /// arriving through the public careers page is posted by somebody with no
+  /// account, no employee record and no session. `AuditLog.actorId` is
+  /// nullable for the same reason — the daily lifecycle tick has no actor
+  /// either — and before this the only way to record one was to attribute it
+  /// to somebody who had not done it.
+  uploadedById   String?
   deletedAt      DateTime?
   createdAt      DateTime      @default(now())
 
@@ -696,6 +712,8 @@ model Document {
 
   /// The application this file is the CV for, when it is one.
   application Application?
+  /// The expense line this file is the receipt for, when it is one.
+  expenseItem ExpenseItem?
 
   @@index([organizationId, employeeId])
 }
@@ -856,9 +874,10 @@ model PayComponent {
   order          Int              @default(0)
   active         Boolean          @default(true)
 
-  organization   Organization        @relation(fields: [organizationId], references: [id])
-  structureLines StructureLine[]
-  adjustments    PayrollAdjustment[]
+  organization      Organization        @relation(fields: [organizationId], references: [id])
+  structureLines    StructureLine[]
+  adjustments       PayrollAdjustment[]
+  expenseCategories ExpenseCategory[]
 
   @@unique([organizationId, code])
   @@index([organizationId, kind])
@@ -1814,6 +1833,15 @@ model JobOpening {
   /// manager is settled.
   hiringManagerId  String?
 
+  /// The public URL for this role, e.g. `senior-backend-engineer`. Generated
+  /// from the title and unique per organization.
+  ///
+  /// Nullable because every opening that predates the careers page has none,
+  /// and a role is perfectly usable internally without one — a null simply
+  /// means "not published", which is also the safe default for a column added
+  /// to rows nobody reviewed.
+  slug String?
+
   headcount     Int           @default(1)
   status        OpeningStatus @default(DRAFT)
   description   String?
@@ -1837,6 +1865,7 @@ model JobOpening {
   hiringManager  Employee?       @relation("OpeningsOwned", fields: [hiringManagerId], references: [id])
   applications   Application[]
 
+  @@unique([organizationId, slug])
   @@index([organizationId, status])
   @@index([hiringManagerId, status])
 }
@@ -2000,4 +2029,100 @@ model Offer {
   hiredEmployee  Employee?       @relation("HiredFromOffer", fields: [hiredEmployeeId], references: [id])
 
   @@index([organizationId, status])
+}
+
+// ─── Expenses & reimbursement ─────────────────────────────────────────
+
+/// A claim's own states, rather than the shared `ApprovalStatus`.
+///
+/// `ApprovalStatus` is PENDING/APPROVED/REJECTED/CANCELLED, and a claim needs
+/// a DRAFT to add lines to before anybody sees it. Widening the shared enum
+/// would make DRAFT representable on `LeaveRequest.status` and every other
+/// approval in the product — a redesign of things this module has no business
+/// touching (docs/01 rule 4). Settlements made the same call for the same
+/// reason.
+///
+/// There is no PAID. Whether the money arrived is whether the payroll run for
+/// `payrollMonth` was published, and that is derived on read — the same
+/// bargain attendance's day-close and announcement expiry already make. A
+/// stored PAID would be a second copy of a fact payroll already owns, and the
+/// copy is the one that goes stale.
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// What can be claimed for, and what it becomes on the payslip.
+model ExpenseCategory {
+  id              String   @id @default(cuid())
+  organizationId  String
+  code            String
+  name            String
+  /// The most one claim may total under this category. Null means no ceiling;
+  /// the check is a refusal at submission, not a warning, because an approver
+  /// reading a number has no way to know a limit was exceeded.
+  capPerClaim     Decimal? @db.Decimal(14, 2)
+  requiresReceipt Boolean  @default(true)
+  /// Which payslip line an approved claim becomes. Not optional: a category
+  /// with nowhere to pay out to is a form that collects receipts and returns
+  /// no money, which is worse than not offering it.
+  componentId     String
+  active          Boolean  @default(true)
+  order           Int      @default(0)
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  component    PayComponent  @relation(fields: [componentId], references: [id])
+  items        ExpenseItem[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active])
+}
+
+model ExpenseClaim {
+  id             String             @id @default(cuid())
+  organizationId String
+  employeeId     String
+  title          String
+  status         ExpenseClaimStatus @default(DRAFT)
+  /// yyyy-MM, and set by the approver rather than at submission: which month
+  /// somebody is paid in is a decision, and a claim filed on the 31st is
+  /// usually next month's.
+  payrollMonth   String?
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  items        ExpenseItem[]
+  organization Organization  @relation(fields: [organizationId], references: [id])
+
+  /// The approvals inbox reads status across the org; everything else reads
+  /// one person's claims newest first.
+  @@index([organizationId, status])
+  @@index([employeeId, createdAt])
+}
+
+model ExpenseItem {
+  id          String   @id @default(cuid())
+  claimId     String
+  categoryId  String
+  spentOn     DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+  description String
+  /// The receipt, as a Document — so it goes through the same private bucket,
+  /// the same size limit and the same permission check as every other file
+  /// here. `Application.resumeDocumentId` is the same arrangement.
+  receiptId   String?  @unique
+
+  claim    ExpenseClaim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+  receipt  Document?       @relation(fields: [receiptId], references: [id])
+
+  @@index([claimId])
 }

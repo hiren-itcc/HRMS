@@ -12,13 +12,27 @@ function makeService() {
       count: jest.fn().mockResolvedValue(0),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
-    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-hr' }, { id: 'u-admin' }]) },
+    user: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'u-hr', email: 'hr@acme.test', organizationId: 'org1' },
+        { id: 'u-admin', email: 'admin@acme.test', organizationId: 'org1' },
+      ]),
+    },
     $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   };
   const logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
-  // biome-ignore lint/suspicious/noExplicitAny: structural test double
-  const service = new NotificationsService(prisma, logger as any);
-  return { service, prisma, logger };
+  const mail = { sendTemplate: jest.fn().mockResolvedValue(true) };
+  const config = { get: jest.fn().mockReturnValue('https://app.acme.test') };
+  const service = new NotificationsService(
+    prisma,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    logger as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    mail as any,
+    // biome-ignore lint/suspicious/noExplicitAny: structural test double
+    config as any,
+  );
+  return { service, prisma, logger, mail };
 }
 
 const claims: AccessTokenClaims = {
@@ -79,6 +93,74 @@ describe('notify', () => {
     const { service, prisma, logger } = makeService();
     (prisma.notification.createMany as Mock).mockRejectedValue(new Error('db down'));
     await expect(service.notify(['u1'], payload)).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The bell and the mail are two deliveries of one message. Until this shipped
+ * there was only the bell, so approving somebody's leave or accepting their
+ * resignation reached nobody who was not looking at the app.
+ */
+describe('notify by email', () => {
+  it('emails every recipient, with an absolute link', async () => {
+    const { service, mail } = makeService();
+    await service.notify(['u-hr', 'u-admin'], payload);
+
+    expect(mail.sendTemplate).toHaveBeenCalledTimes(2);
+    expect(mail.sendTemplate).toHaveBeenCalledWith(
+      'org1',
+      'notification_generic',
+      'hr@acme.test',
+      // An email has no origin of its own to resolve a path against.
+      expect.objectContaining({ linkUrl: 'https://app.acme.test/r/1' }),
+    );
+  });
+
+  /* A sender that gave no path still has to land somewhere openable. */
+  it('falls back to the dashboard when a sender gave no link', async () => {
+    const { service, mail } = makeService();
+    await service.notify(['u-hr'], { type: 'x', title: 'Something happened' });
+    expect(mail.sendTemplate).toHaveBeenCalledWith(
+      'org1',
+      'notification_generic',
+      expect.any(String),
+      expect.objectContaining({ linkUrl: 'https://app.acme.test/dashboard' }),
+    );
+  });
+
+  /*
+   * Two switches, and the query is where both are enforced: the person's own
+   * `emailNotifications`, and — inside `sendTemplate` — the organization's
+   * `EmailTemplate.isActive`.
+   */
+  it('asks only for active accounts that have not opted out', async () => {
+    const { service, prisma } = makeService();
+    await service.notify(['u-hr'], payload);
+    const where = (prisma.user.findMany as Mock).mock.calls[0][0].where;
+    expect(where.status).toBe('ACTIVE');
+    expect(where.emailNotifications).toBe(true);
+  });
+
+  /* For a caller that sends its own, richer template. Leave is the first. */
+  it('sends nothing when the caller says it will do it itself', async () => {
+    const { service, mail, prisma } = makeService();
+    await service.notify(['u-hr'], payload, { email: false });
+    expect(mail.sendTemplate).not.toHaveBeenCalled();
+    // The bell still rang.
+    expect(prisma.notification.createMany).toHaveBeenCalled();
+  });
+
+  /*
+   * The whole bargain, extended to the second delivery. A dead mail host must
+   * not reach the resignation that called this — nor undo the bell row that
+   * was already written.
+   */
+  it('still resolves when the mail transport rejects', async () => {
+    const { service, mail, logger, prisma } = makeService();
+    (mail.sendTemplate as Mock).mockRejectedValue(new Error('smtp down'));
+    await expect(service.notify(['u-hr'], payload)).resolves.toBeUndefined();
+    expect(prisma.notification.createMany).toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
   });
 });

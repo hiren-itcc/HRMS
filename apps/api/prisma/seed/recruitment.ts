@@ -107,6 +107,10 @@ export async function seedRecruitment(
       data: {
         organizationId: orgId,
         title: 'Senior Software Engineer',
+        // The slug an opening is minted when it is first published. Seeded
+        // here so the careers page has something to show without anybody
+        // having to reopen a role by hand.
+        slug: 'senior-software-engineer',
         status: 'OPEN',
         departmentId: fixtures.departments.engineering.id,
         designationId: fixtures.designationId('Senior Software Engineer'),
@@ -128,6 +132,7 @@ export async function seedRecruitment(
       data: {
         organizationId: orgId,
         title: 'QA Engineer',
+        slug: 'qa-engineer',
         status: 'OPEN',
         departmentId: fixtures.departments.quality.id,
         designationId: fixtures.designationId('QA Engineer'),
@@ -146,6 +151,7 @@ export async function seedRecruitment(
       data: {
         organizationId: orgId,
         title: 'Sales Executive',
+        slug: 'sales-executive',
         status: 'OPEN',
         departmentId: fixtures.departments.sales.id,
         designationId: fixtures.designationId('Sales Executive'),

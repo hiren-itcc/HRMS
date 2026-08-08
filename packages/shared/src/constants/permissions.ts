@@ -139,6 +139,28 @@ export const PERMISSIONS = [
   'asset.manage',
   'asset.assign',
 
+  /*
+   * Expense claims. Shaped like leave and WFH — own / team / all — because it
+   * is the same shape of thing: somebody asks, their manager or finance
+   * agrees, and money moves.
+   *
+   * `expense.manage` is categories only, and it sits apart from `approve` for
+   * a specific reason: a category names the payslip line a claim pays out on,
+   * so holding it means choosing where company money leaves from. That is a
+   * finance decision, not an approver's, and an organization may well want
+   * managers approving claims without being able to invent new ones.
+   *
+   * There is no `expense.pay`. Whether a claim was paid is whether the payroll
+   * run carrying it was published, and that is already gated by `payroll.pay`.
+   */
+  'expense.read.own',
+  'expense.submit.own',
+  'expense.read.team',
+  'expense.approve.team',
+  'expense.read',
+  'expense.approve',
+  'expense.manage',
+
   'announcement.read',
   'announcement.manage',
 
@@ -209,6 +231,10 @@ const EMPLOYEE_PERMS: Permission[] = [
   // What they were issued. Read-only: the register is IT's record, and an
   // employee editing it would be the register disagreeing with itself.
   'asset.read.own',
+  // Claiming back money you spent on the company's behalf is not a privilege
+  // HR grants; withholding it would only mean claims arrive by email.
+  'expense.read.own',
+  'expense.submit.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -227,6 +253,8 @@ const MANAGER_PERMS: Permission[] = [
   'leave.approve.team',
   'wfh.read.team',
   'wfh.approve.team',
+  'expense.read.team',
+  'expense.approve.team',
   'document.read.team',
   'report.view.team',
   'payroll.read.team',
@@ -269,6 +297,12 @@ const HR_PERMS: Permission[] = [
   'asset.read',
   'asset.manage',
   'asset.assign',
+  /*
+   * HR sees every claim and approves none of them. Reading is what makes an
+   * exit or a dispute answerable; approving is Finance's, for the same reason
+   * HR runs payroll and cannot pay it.
+   */
+  'expense.read',
   'announcement.manage',
   'org.manage',
   'report.view',
@@ -303,6 +337,14 @@ const FINANCE_PERMS: Permission[] = [
   'report.export',
   // Finance clears outstanding dues on the way out.
   'offboarding.clearance',
+  /*
+   * Expenses across the organization, and the categories behind them. Finance
+   * rather than HR because a category names the payslip line a claim pays out
+   * on — deciding where money leaves from is their job, not a people one.
+   */
+  'expense.read',
+  'expense.approve',
+  'expense.manage',
 ];
 
 /** Default grants per system role (docs/04-rbac.md permission matrix). */

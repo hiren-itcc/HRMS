@@ -11,6 +11,7 @@ import {
   Megaphone,
   Network,
   Palmtree,
+  Receipt,
   Settings,
   UserSearch,
   Users,
@@ -72,6 +73,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Boxes,
     perms: ['asset.read'],
     module: 'assets',
+  },
+  {
+    href: '/expenses',
+    label: 'Expenses',
+    icon: Receipt,
+    // read.own is enough to get in: everybody has their own claims, and the
+    // approvals and categories tabs gate themselves.
+    perms: ['expense.read', 'expense.read.team', 'expense.read.own'],
+    module: 'expenses',
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {
