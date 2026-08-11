@@ -15,17 +15,17 @@ test('an announcement reaches an employee who did not write it', async ({ page, 
   await signIn(page, 'hr');
   await page.goto('/announcements');
   await page
-    .getByRole('button', { name: /new|post|announce/i })
+    .getByRole('button', { name: /New announcement/i })
     .first()
     .click();
 
-  await page.getByLabel(/title/i).fill(title);
+  await page.getByLabel(/^Title/).fill(title);
   await page
-    .getByLabel(/body|message|content/i)
+    .getByLabel(/^Message/)
     .first()
     .fill('Posted by the end-to-end suite.');
   await page
-    .getByRole('button', { name: /publish|post|save/i })
+    .getByRole('button', { name: /^Publish$/ })
     .last()
     .click();
 
