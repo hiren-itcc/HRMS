@@ -305,7 +305,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
-| **Mobile app** | ❌ | ✅ all four |
+| **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
 | ~~**Notifications**~~ ✅ in-app built · email ❌ | ⚠️ | ✅ all four |
 | **Bulk import / export** | ❌ (reports only) | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
@@ -459,8 +459,7 @@ which other documents were citing.
     page per organization — the service serves the single tenant and says so
     plainly if a second appears.
 24. Helpdesk, LMS, engagement surveys
-25. Mobile app (`07:55` designs the auth variant)
-26. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)
+25. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
 
 ---
 

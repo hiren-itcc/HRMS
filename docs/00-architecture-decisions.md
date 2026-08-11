@@ -41,7 +41,7 @@ No microservices, no Redis/queue (added when payroll needs it), no event sourcin
 | # | Assumption | Impact if wrong |
 |---|-----------|-----------------|
 | A1 | Single company at launch; multi-tenant later | None — schema already scoped |
-| A2 | Web-first; mobile app is a later phase | Auth has a documented header-token variant |
+| A2 | ~~Web-first; mobile app is a later phase~~ — **settled the other way:** web-only, mobile dropped from the roadmap (doc 11 §20). §1.2 and §1.4 above are left as written, because they record why the decision was made at the time | None — the header-token variant §1.4 constrains itself to is documented and unbuilt either way (doc 07) |
 | A3 | File storage is S3-compatible (or local disk in dev via MinIO) | Documents module abstracts storage behind one interface |
 | A4 | Deployment is Docker on a VPS/cloud VM (per Docker Compose + GH Actions in the brief), not Vercel | If Vercel is wanted for `web`, only CI docs change |
 | A5 | Email (invites, resets) via SMTP provider; provider not chosen yet | One `MailService` port; provider is config |

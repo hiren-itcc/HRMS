@@ -1,6 +1,6 @@
 # 12 — Authentication Architecture
 
-Passport JWT (access) + opaque rotating refresh tokens (sessions in DB). Designed so the future mobile app reuses the same endpoints with a different token transport (ADR §1.4).
+Passport JWT (access) + opaque rotating refresh tokens (sessions in DB). Designed so a non-browser client could reuse the same endpoints with a different token transport (ADR §1.4). No such client is planned — see the header-token variant below.
 
 ## Token model
 
@@ -60,9 +60,11 @@ A stolen-then-reused refresh token kills the whole chain — attacker and victim
 - **`middleware.ts`** only checks cookie *presence* for authed segments (fast redirect UX). It is not a security boundary — the API is (doc 04 §enforcement).
 - Permission-aware UI via `useCan('leave.approve.team')` reading `/auth/me` perms.
 
-## Future mobile app (designed-in, not built)
+## Header-token variant (designed-in, not built, and not planned)
 
-Same endpoints; refresh token returned in body when client sends `X-Client: mobile`, stored in device secure storage (Keychain/Keystore), sent in body to `/auth/refresh`. Session rows already track per-device metadata — no schema change.
+A non-browser client cannot use the httpOnly refresh cookie, so the design allows for one: same endpoints, refresh token returned in the body when the client sends `X-Client: mobile`, stored in device secure storage (Keychain/Keystore), sent in the body to `/auth/refresh`. Session rows already track per-device metadata — no schema change.
+
+This is a property of the token design, not a scheduled piece of work. **The mobile app it was drawn for has been dropped from the roadmap** (doc 11 §20); the variant is recorded because it is what constrains the cookie decision in ADR A2, and it is what any future non-browser consumer would use.
 
 ## Security hardening checklist (Phase 1 scope)
 

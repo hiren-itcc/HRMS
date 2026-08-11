@@ -775,6 +775,11 @@ Being straight about this is more useful than a feature list:
 - **There is no offer letter.** The offer holds the agreed terms; producing the
   document is still a manual job, even though the letters module already issues
   documents from templates.
-- **There is no mobile app.**
+- **There is no mobile app**, and one is no longer planned — it has been dropped
+  from the roadmap rather than deferred. The web app is responsive, and the
+  header-token auth variant in
+  [07-auth-architecture.md](./07-auth-architecture.md) stays described because
+  it is what the refresh-token design already allows, not because something is
+  scheduled to use it.
 - **Companies cannot sign themselves up.** A new company has to be created on
   the server (see [14-production-setup.md](./14-production-setup.md)).

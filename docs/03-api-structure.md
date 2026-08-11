@@ -4,7 +4,7 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 
 ## Conventions
 
-- **Auth:** `Authorization: Bearer <access-token>` on every route except `auth/*` public endpoints. Refresh token travels only as an httpOnly cookie (web) or request body (future mobile).
+- **Auth:** `Authorization: Bearer <access-token>` on every route except `auth/*` public endpoints. Refresh token travels only as an httpOnly cookie (web); the request-body variant for a non-browser client is designed but unbuilt and unplanned (doc 07).
 - **Permissions:** each route declares `@RequirePermissions('resource.action')` (doc 04). "Self" endpoints (`/me/...`) bypass the matrix — they are scoped by the JWT subject.
 - **Envelope:** success returns the resource directly; errors return RFC-7807-style `{ statusCode, error, message, details? }`. No `{ success: true }` wrappers.
 - **Lists:** `?page=&limit=&sort=&order=&search=` + module-specific filters. Response: `{ data: T[], meta: { page, limit, total } }`.
@@ -705,4 +705,4 @@ minutes.
 - **Scoping middleware:** every query passes through the tenant scope (`organizationId` from JWT) — enforced in services, verified by tests, so a future second tenant leaks nothing.
 - **Approver resolution (Phase 1):** an employee's approver = their `manager`'s user; HR/Admin can act on anything they hold `*.approve` for. Multi-step approval chains are a future module (doc 11) — the `ApprovalStatus` machine already supports it.
 - **Rate limits:** `auth/*` 5/min/IP; global 100/min/user (NestJS Throttler).
-- **Swagger:** DTOs annotated; every endpoint tagged by module → the docs page is the API contract for the future mobile app.
+- **Swagger:** DTOs annotated; every endpoint tagged by module → the docs page is the API contract for any consumer other than `apps/web`. It was written for a mobile app that is no longer planned (doc 11 §20); the contract is worth keeping frozen regardless, because it is the reason a second consumer never becomes a redesign.

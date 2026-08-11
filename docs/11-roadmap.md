@@ -63,7 +63,6 @@ The architecture reserves an explicit seam for each planned module — adding on
 | ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
 | ~~**WFH / Hybrid**~~ | ✅ **Shipped.** One table, one nullable column on Employee, six permission codes. Attendance already detected who worked remotely; this is only the forward half — asking, agreeing, and a weekly cap | one nullable column, `Employee.remoteDaysPerWeek` | none |
 | **AI features** | `modules/ai` behind AI Gateway (leave-policy Q&A over docs, attrition signals from Reports read-models) | none | LLM provider key; pgvector if RAG |
-| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) — **and the NotificationsModule they would sit behind, which was never built** (doc 03) |
 | **Multi-tenant SaaS** | activate the dormant `organizationId` scoping: org signup flow + Postgres RLS + per-org subdomain | none (already scoped) | RLS policies, billing |
 
 **Platform upgrades, triggered not scheduled:** SSE/WebSocket notifications when polling chafes · RS256 + JWKS when a second service consumes JWTs · read replicas when reports strain OLTP · Redis cache when p95 > 300 ms on hot lists.
