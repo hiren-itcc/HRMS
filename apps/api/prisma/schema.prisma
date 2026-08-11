@@ -51,7 +51,8 @@ model Organization {
   performanceGoals   PerformanceGoal[]
   performanceReviews PerformanceReview[]
 
-  employeeImports EmployeeImport[]
+  employeeImports  EmployeeImport[]
+  statutoryFilings StatutoryFiling[]
 }
 
 enum UserStatus {
@@ -2153,6 +2154,46 @@ model ExpenseItem {
   receipt  Document?       @relation(fields: [receiptId], references: [id])
 
   @@index([claimId])
+}
+
+enum StatutoryFilingKind {
+  ECR
+  ESIC_RETURN
+}
+
+/// A generated statutory return, frozen at the moment it was produced.
+///
+/// The content is stored rather than rebuilt on demand, and that is the whole
+/// point of the table. Correcting somebody's UAN and regenerating produces a
+/// *new* filing; it does not silently change the one already uploaded to a
+/// government portal. `Letter.bodyHtml` and `Payslip`'s snapshot columns make
+/// the same bargain for the same reason.
+///
+/// The unique constraint turns "generate it again" into a decision somebody has
+/// to make rather than an accident that leaves two files for one month.
+model StatutoryFiling {
+  id             String              @id @default(cuid())
+  organizationId String
+  kind           StatutoryFilingKind
+  /// `YYYY-MM`, matching PayrollRun.month.
+  period         String
+  runId          String
+  /// The file exactly as downloaded — not regenerated, ever.
+  content        String
+  rowCount       Int
+  /// How many people were left out for want of an identifier. Surfaced on the
+  /// screen, because a short file nobody noticed is the failure this whole
+  /// design is arranged to prevent.
+  excludedCount  Int                 @default(0)
+  /// The exclusions themselves, and the column totals the portal will check.
+  detail         Json
+  generatedAt    DateTime            @default(now())
+  generatedById  String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, kind, period])
+  @@index([organizationId, period])
 }
 
 enum EmployeeImportMode {

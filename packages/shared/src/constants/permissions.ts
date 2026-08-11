@@ -245,6 +245,17 @@ export const PERMISSIONS = [
   'payroll.process',
   'payroll.approve',
   'payroll.pay',
+  /*
+   * Generating a statutory return. Separate from `payroll.read`, which is
+   * reading numbers, because this puts an establishment code on a file with
+   * legal consequences and uploads it under the company's name.
+   *
+   * Not folded into `payroll.process` either: a return is produced *after* a
+   * run is published, not as part of processing it, so the two are different
+   * moments as well as different decisions. HR and Finance both hold it —
+   * whichever of them files is a question this product should not answer.
+   */
+  'payroll.filing',
 
   /*
    * Recruitment. `recruitment.hire` is separate from `recruitment.offer.manage`
@@ -395,6 +406,7 @@ const HR_PERMS: Permission[] = [
   'payroll.structure.manage',
   'payroll.salary.manage',
   'payroll.process',
+  'payroll.filing',
   // HR runs hiring end to end, and already holds `employee.invite` — which is
   // what a hire actually spends when it creates the new starter's login.
   'recruitment.read',
@@ -416,6 +428,7 @@ const FINANCE_PERMS: Permission[] = [
   'payroll.read',
   'payroll.approve',
   'payroll.pay',
+  'payroll.filing',
   'report.view',
   'report.export',
   // Finance clears outstanding dues on the way out.
