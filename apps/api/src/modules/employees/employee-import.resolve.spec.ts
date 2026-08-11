@@ -53,9 +53,19 @@ describe('nearestName', () => {
     expect(nearestName('Engineering Team', departments)).toBe('engineering');
   });
 
+  /* The commonest real typo is a dropped or transposed letter, which no amount
+     of substring matching catches — and it is exactly the case a "did you
+     mean" is worth offering for. */
+  it('finds a one-character typo', () => {
+    expect(nearestName('Enginering', departments)).toBe('engineering');
+    expect(nearestName('Egnineering', departments)).toBe('engineering');
+  });
+
   it('offers nothing rather than a wild guess', () => {
     expect(nearestName('Legal', departments)).toBeUndefined();
     expect(nearestName('', departments)).toBeUndefined();
+    // Far enough away that a suggestion would be noise, not help.
+    expect(nearestName('Facilities Management', departments)).toBeUndefined();
   });
 });
 

@@ -27,18 +27,58 @@ export function makeLookup(rows: { id: string; name: string }[], label: string):
  * hunted for. Cheap edit-distance — the lists here are tens of items, not
  * thousands, and being clever would be the wrong trade.
  */
+function editDistance(a: string, b: string): number {
+  // One row at a time — these strings are department names, not documents.
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (current[j - 1] as number) + 1,
+        (previous[j] as number) + 1,
+        (previous[j - 1] as number) + cost,
+      );
+    }
+    previous = current;
+  }
+  return previous[b.length] as number;
+}
+
 export function nearestName(value: string, lookup: Lookup): string | undefined {
   const needle = value.trim().toLowerCase();
   if (!needle) return undefined;
-  let best: { name: string; score: number } | undefined;
+
+  /*
+   * Two passes, because the two kinds of near miss deserve different bars.
+   *
+   * Containment — "Eng" or "Engineering Team" against "Engineering" — is
+   * already strong evidence on its own, so it is accepted whatever the length
+   * difference and merely *ranked* by it. Applying an edit-distance tolerance
+   * to it would reject "People" against "People Operations", which is the most
+   * obvious suggestion there is.
+   */
+  let contained: { name: string; score: number } | undefined;
   for (const name of lookup.byName.keys()) {
-    // Substring either way catches "Enginering" against "Engineering" poorly,
-    // but catches "Eng" and "Engineering Team" well, which is the common typo.
-    const score =
-      name.includes(needle) || needle.includes(name) ? Math.abs(name.length - needle.length) : -1;
-    if (score >= 0 && (!best || score < best.score)) best = { name, score };
+    if (!name.includes(needle) && !needle.includes(name)) continue;
+    const score = Math.abs(name.length - needle.length);
+    if (!contained || score < contained.score) contained = { name, score };
   }
-  return best?.name;
+  if (contained) return contained.name;
+
+  /*
+   * Otherwise a typo: a dropped or transposed letter, which no amount of
+   * substring matching catches and which is exactly the case worth suggesting
+   * for. A third of the word is the point past which "did you mean" is a guess
+   * rather than a help, and a wrong suggestion is worse than none.
+   */
+  let nearest: { name: string; score: number } | undefined;
+  for (const name of lookup.byName.keys()) {
+    const score = editDistance(name, needle);
+    const tolerance = Math.max(2, Math.floor(name.length / 3));
+    if (score <= tolerance && (!nearest || score < nearest.score)) nearest = { name, score };
+  }
+  return nearest?.name;
 }
 
 export interface ResolveResult {
