@@ -169,7 +169,7 @@ jobs:
         run: pnpm --filter @hrms/e2e exec playwright install --with-deps chromium
       - name: Run the golden flows
         run: pnpm --filter @hrms/e2e test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
