@@ -307,7 +307,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
 | ~~**Notifications**~~ ✅ in-app built · email ❌ | ⚠️ | ✅ all four |
-| **Bulk import / export** | ❌ (reports only) | ✅ all four |
+| ~~**Bulk import / export**~~ ✅ built — employees only; no bulk salary or attendance upload | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
 
 ### Found by the end-to-end suite
@@ -320,6 +320,7 @@ and none of them was reachable from a unit test.
 | **An announcement could not be posted from the UI at all.** `publishAt` defaulted to `''` — what an untouched `datetime-local` holds, and what the field's own hint ("Leave empty to post now") tells you to leave it as — and the schema rejected it, so the resolver blocked submit and Publish did nothing. Never noticed because the seed writes announcements through Prisma and never touches the schema | 55 announcement requests in the run and **not one POST** |
 | **`/auth/refresh` was limited like a password form.** The client fires it on every bootstrap, so five a minute signed people out for reloading too often | 18 attempts, 9 refused |
 | **`TRUST_PROXY` unset in production.** `req.ip` was Render's proxy, so rate limits were a handful of shared buckets rather than per-client, and `AuditLog.ip` recorded infrastructure | every address in the live audit log was a private `10.x` |
+| **…and setting it to `1` did not fix it.** Render fronts services with Cloudflare, so `X-Forwarded-For` carries **three** hops; Express takes the *(n+1)th from the right*, so `1` lands on the Render internal address. Wants `2` | the audit log kept recording `10.x` after the change — which reads as "never took effect", and was not that. Counted from the real header rather than assumed |
 | **Every 500 was unattributable.** The exception filter turned an unknown throw into "Something went wrong" and logged nothing | a real 500 in CI could not be read from its own logs |
 | **`clock-card` vanished on any error**, the only component in the app that did, so a failed load looked identical to "you have no clock card" | three rounds chasing a selector that was correct |
 
@@ -327,6 +328,40 @@ The pattern is worth stating: every one is a **cross-boundary** failure — a
 client default meeting a server schema, a limit meeting a client's own call
 pattern, a proxy meeting a request. That is the class of bug a mocked-Prisma
 unit test cannot see by construction, and it is the argument for the layer.
+
+### Found by running a real import against the dev database
+
+Neither of these is reachable from the unit tests, and both were visible in the
+first preview response of the first real file. Workstream C had 26 parser tests
+and a full service spec and had never once been pointed at a database.
+
+| Defect | How it surfaced |
+|---|---|
+| **Every suggestion was lower-cased.** Matching normalises to a key, and `nearestName` returned *the key* — so the preview offered `Did you mean "engineering"?`, `"bengaluru studio"`, `"senior software engineer"`. A suggestion exists to be copied back into the file; none of those is what the record is called | read the preview response against the seeded org. The unit tests asserted the lower-cased string, and one used `/i` — they agreed with the defect rather than catching it |
+| **Every bad column was reported twice.** The two staging passes see the same failure from opposite ends: the resolver says `No department called "Enginering". Did you mean…`, then the schema finds `departmentId` absent and adds `Department is required` | a three-row file produced 10 and 12 problems; a blank employment type produced the identical sentence twice. The existing assertion only ever read `problems[0]` |
+
+What *did* hold up, against a real database: the fuzzy resolver caught all four
+near misses in one file, the deferred manager link resolved a manager who
+appeared **later** in the file (`EMP-0029` → `EMP-0030`), codes allocated
+sequentially, `joinDate` landed on IST midnight, and both refusals fired — a
+second commit and a commit with unresolved rows.
+
+### Open — `AuditLog.ip` is only ever written by the auth path
+
+Found while checking whether `TRUST_PROXY` had taken effect, by reading the live
+table rather than the code. Sign-ins carry an address; **every other mutation
+carries `NULL`** — 18 of the last 200 rows, including
+`payroll.filing.generate`, `employee.update` and `settings.update`.
+
+The cause is that `auditMutation` (`common/utils/audit.ts`) takes
+`{ orgId, userId }` and has no `ip` parameter at all. That context is the
+decoded JWT, which is the right thing for *who* and the wrong place for *where
+from* — a token payload cannot know the request's address.
+
+Not fixed here, because it is a signature change across **126 call sites in 41
+files** and wants its own change rather than a rider on a test fix. It also
+narrows what `TRUST_PROXY` bought: correct client addresses now reach rate
+limiting and sign-in rows, but the mutation trail records no address either way.
 
 ### Statutory filing — the sharpest commercial gap
 
@@ -338,8 +373,8 @@ is what an Indian payroll buyer is actually purchasing:
 |---|---|
 | **Form 16** (Part A + B) | ❌ — `11:89` scopes it as "a tax engine, not a payroll feature" |
 | **Form 24Q** quarterly TDS return | ❌ |
-| **ECR** text file for the EPFO portal | ❌ |
-| **ESIC** contribution challan | ❌ |
+| **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
+| **ESIC** contribution challan | ✅ built — same caveat |
 | **Form 12BB** / investment declarations | ❌ |
 | **Old vs new regime** TDS projection | ❌ — monthly TDS is typed in per employee |
 | **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
@@ -500,12 +535,40 @@ which other documents were citing.
     history, and the exit checklist's "return company assets" line is now
     computed from it rather than ticked. **No depreciation, procurement or
     vendor management**: this is an asset register, not a fixed-asset ledger.
-20. Bulk employee import/export
+20. ~~Bulk employee import/export~~ ✅ **built** — `GET /employees/export`
+    (CSV or Excel, behind `report.export` as well as `employee.read`, because
+    "may read an employee" and "may walk out with the dataset" are different
+    permissions), and a three-step import: `GET import/template`,
+    `POST import/preview`, `POST import/:id/commit`.
+
+    The preview is the feature. A commit is **refused unless its preview is
+    clean**, so a half-imported file is not a state the system can reach, and
+    unresolved references are matched by name — containment first, then
+    Levenshtein within `max(2, len/3)` — and shown for confirmation rather than
+    guessed at silently. Rows are created **sequentially, never
+    `Promise.all`**: `nextCode()` has no retry, and concurrent inserts race it.
+
+    Leading `=`, `+`, `-` and `@` are stripped on export, so a cell cannot
+    become a formula when the file is opened in Excel.
 21. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
     resolved toward building after all. **Email notifications remain absent**,
     so a resignation moving through approval reaches nobody who does not open
     the app.
-22. Form 16, Form 24Q, ECR, ESIC challan
+22. **Form 16, Form 24Q, ECR, ESIC challan** — half built. **ECR and the ESIC
+    contribution return ship**; Form 16 and Form 24Q do not, and are still
+    scoped out as a tax engine rather than a payroll feature (`11:89`).
+
+    A Returns tab under Payroll, a Statutory card in Settings for the
+    establishment codes, and a readiness gate that fires *before* a month can
+    be chosen — refusing at download time would be the worst moment, once the
+    operator has picked a period and believed the totals. Exclusions render
+    before the totals and never collapsed: somebody left out for want of a UAN
+    is a person whose contribution is not reaching their account.
+
+    **No file here has been accepted by a portal.** The golden-file tests are
+    the strongest check CI can offer and they are not the same thing as an
+    upload succeeding, so the screen says so rather than letting somebody find
+    out by filing.
 
 ### P3 — differentiators, once the above is settled
 

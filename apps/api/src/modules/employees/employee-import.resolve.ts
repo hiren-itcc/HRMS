@@ -11,6 +11,16 @@ import type { ImportRowProblem } from '@hrms/shared';
 export interface Lookup {
   /** Lower-cased, trimmed name → id. */
   byName: Map<string, string>;
+  /**
+   * The same key → the name as it is actually spelled.
+   *
+   * Matching is normalised, but a suggestion has to be *copyable*: a person
+   * reading `Did you mean "bengaluru studio"?` and pasting that back has typed
+   * something that is not the location's name. Against the seeded org the
+   * messages read "engineering", "general" and "senior software engineer" —
+   * none of which is what those records are called.
+   */
+  display: Map<string, string>;
   /** What to call it when it is missing: "Department", "Shift". */
   label: string;
 }
@@ -18,8 +28,13 @@ export interface Lookup {
 /** Case- and whitespace-insensitive, because a spreadsheet pads and shouts. */
 export function makeLookup(rows: { id: string; name: string }[], label: string): Lookup {
   const byName = new Map<string, string>();
-  for (const row of rows) byName.set(row.name.trim().toLowerCase(), row.id);
-  return { byName, label };
+  const display = new Map<string, string>();
+  for (const row of rows) {
+    const key = row.name.trim().toLowerCase();
+    byName.set(key, row.id);
+    display.set(key, row.name.trim());
+  }
+  return { byName, display, label };
 }
 
 /**
@@ -64,7 +79,7 @@ export function nearestName(value: string, lookup: Lookup): string | undefined {
     const score = Math.abs(name.length - needle.length);
     if (!contained || score < contained.score) contained = { name, score };
   }
-  if (contained) return contained.name;
+  if (contained) return lookup.display.get(contained.name) ?? contained.name;
 
   /*
    * Otherwise a typo: a dropped or transposed letter, which no amount of
@@ -78,7 +93,7 @@ export function nearestName(value: string, lookup: Lookup): string | undefined {
     const tolerance = Math.max(2, Math.floor(name.length / 3));
     if (score <= tolerance && (!nearest || score < nearest.score)) nearest = { name, score };
   }
-  return nearest?.name;
+  return nearest && (lookup.display.get(nearest.name) ?? nearest.name);
 }
 
 export interface ResolveResult {

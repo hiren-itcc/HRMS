@@ -43,22 +43,44 @@ describe('resolveRef', () => {
 
   it('suggests the near miss when there is an obvious one', () => {
     const { problem } = resolveRef('People', departments, 'Department', true);
-    expect(problem?.message).toMatch(/Did you mean "people operations"\?/i);
+    expect(problem?.message).toMatch(/Did you mean "People Operations"\?/);
+  });
+
+  /*
+   * Case-sensitively, and note the absence of `/i` above.
+   *
+   * Matching normalises, and suggesting used to return the normalised key — so
+   * a real import against the seeded org offered `Did you mean "engineering"?`,
+   * `"bengaluru studio"` and `"senior software engineer"`, none of which is
+   * what those records are called. A suggestion exists to be copied back into
+   * the file; one that has to be re-capitalised first is doing half the job.
+   *
+   * These assertions carried `/i` or the lower-cased string, so they agreed
+   * with the defect instead of catching it. Found by running a file through
+   * the deployed API rather than by reading the code.
+   */
+  it('suggests the name as it is actually spelled', () => {
+    expect(resolveRef('enginering', departments, 'Department', true).problem?.message).toContain(
+      '"Engineering"',
+    );
+    expect(resolveRef('PEOPLE', departments, 'Department', true).problem?.message).toContain(
+      '"People Operations"',
+    );
   });
 });
 
 describe('nearestName', () => {
   it('finds a prefix and an over-long variant', () => {
-    expect(nearestName('Engineer', departments)).toBe('engineering');
-    expect(nearestName('Engineering Team', departments)).toBe('engineering');
+    expect(nearestName('Engineer', departments)).toBe('Engineering');
+    expect(nearestName('Engineering Team', departments)).toBe('Engineering');
   });
 
   /* The commonest real typo is a dropped or transposed letter, which no amount
      of substring matching catches — and it is exactly the case a "did you
      mean" is worth offering for. */
   it('finds a one-character typo', () => {
-    expect(nearestName('Enginering', departments)).toBe('engineering');
-    expect(nearestName('Egnineering', departments)).toBe('engineering');
+    expect(nearestName('Enginering', departments)).toBe('Engineering');
+    expect(nearestName('Egnineering', departments)).toBe('Engineering');
   });
 
   it('offers nothing rather than a wild guess', () => {

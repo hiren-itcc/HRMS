@@ -225,11 +225,28 @@ export class EmployeeImportService {
      */
     const parsed = employeeCreateSchema.safeParse(candidate);
     if (!parsed.success) {
+      /*
+       * Only for columns the first pass has not already spoken about.
+       *
+       * The two passes see the same failure from opposite ends: when a
+       * department cannot be resolved, `resolveRef` says `No department called
+       * "Enginering". Did you mean "Engineering"?` and then the schema finds
+       * `departmentId` absent and says `Department is required`. Both are true,
+       * only the first is useful, and against the real seeded org every failing
+       * row listed each column twice — a blank employment type produced the
+       * identical sentence twice over.
+       *
+       * The resolver's message is the one kept, because it names what was typed
+       * and what to type instead. Columns it said nothing about — a malformed
+       * join date, an invalid email — still come through here.
+       */
+      const explained = new Set(problems.map((p) => p.column));
       for (const issue of parsed.error.issues) {
         const key = String(issue.path[0] ?? '');
         // Report the column heading the person is looking at, not our field name.
         const column =
           EMPLOYEE_IMPORT_COLUMNS.find((c) => c.key === key || `${c.key}Id` === key)?.header ?? key;
+        if (explained.has(column)) continue;
         problems.push({
           column,
           message: issue.message,

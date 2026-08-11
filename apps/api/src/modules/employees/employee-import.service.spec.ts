@@ -149,6 +149,31 @@ describe('preview', () => {
     expect(preview.rows[0]?.problems[0]?.message).toMatch(/Did you mean/);
   });
 
+  /*
+   * Once, not twice.
+   *
+   * Staging runs two passes over the same row: the resolver turns names into
+   * ids, then `employeeCreateSchema` checks the result. An unresolved
+   * department fails both — `No department called "Enginering". Did you mean
+   * "Engineering"?` from the first, `Department is required` from the second,
+   * which is the same fact stated less usefully. Against the real seeded org a
+   * failing row listed every reference column twice, and a blank employment
+   * type produced the identical sentence twice over.
+   *
+   * The assertion above only ever read `problems[0]`, so it passed throughout.
+   */
+  it('states each bad column once, not once per validation pass', async () => {
+    const { service } = makeService();
+    const preview = await service.preview(
+      claims,
+      file(row({ department: 'Enginering' })),
+      'RECORDS',
+    );
+    const columns = preview.rows[0]?.problems.map((p) => p.column) ?? [];
+    expect(columns).toEqual([...new Set(columns)]);
+    expect(columns.filter((c) => c === 'Department')).toHaveLength(1);
+  });
+
   /* An invite has nowhere to go without a personal address — the work one is
      for somebody who has not started. */
   it('requires a personal email in INVITE mode and not in RECORDS mode', async () => {
