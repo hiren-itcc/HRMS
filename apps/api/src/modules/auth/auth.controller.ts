@@ -33,7 +33,43 @@ import { InviteService } from './invite.service';
 import { TokenService } from './token.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
-const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
+
+/**
+ * Two buckets, because these routes do not share a threat model. Do not tidy
+ * them back into one — that is the bug this comment exists to prevent, and
+ * `auth.e2e-spec.ts` asserts they stay apart.
+ *
+ * Read from `process.env` rather than `ConfigService` because `@Throttle` is a
+ * decorator, evaluated when the class is defined and long before DI exists.
+ * The Zod schema in `config/env.ts` validates and bounds the same variable at
+ * boot, so a bad value fails the process rather than silently disabling this.
+ */
+const AUTH_LIMIT = Number(process.env.AUTH_THROTTLE_LIMIT ?? 5);
+
+/**
+ * Credential guessing and account enumeration. Deliberately tight, and the
+ * reason `forgot-password` answers identically for a real and an unknown
+ * address is the same concern one layer up.
+ */
+const AUTH_THROTTLE = { default: { limit: AUTH_LIMIT, ttl: 60_000 } };
+
+/**
+ * Refresh is a different question, and sharing the bucket above was a real bug
+ * rather than a conservative choice.
+ *
+ * The web client calls this on **every app bootstrap** (`session-provider.tsx`)
+ * and again on any 401 (`api-client.ts`). At five a minute, a signed-in person
+ * who reloads a few times, opens a few tabs, or shares an office IP with
+ * colleagues gets a 429 — and `tryRefresh()` reads any non-ok response as
+ * failure and hard-redirects them to sign-in. Being signed out for browsing too
+ * fast is a worse outcome than anything this limit was protecting against.
+ *
+ * What actually guards this route is the token itself: httpOnly, Secure,
+ * SameSite=Lax, scoped to `/auth`, and **rotated with reuse detection** in
+ * `token.service.ts`. Replaying a stolen cookie revokes the entire session
+ * chain, which a per-IP counter does not improve on.
+ */
+const REFRESH_THROTTLE = { default: { limit: 60, ttl: 60_000 } };
 
 @ApiTags('auth')
 @Controller('auth')
@@ -68,7 +104,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle(AUTH_THROTTLE)
+  @Throttle(REFRESH_THROTTLE)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

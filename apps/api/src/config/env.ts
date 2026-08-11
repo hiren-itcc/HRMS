@@ -11,6 +11,21 @@ export const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().default(30),
+  /**
+   * Requests a minute per IP to `login`, `forgot-password`, `reset-password`
+   * and the invite routes. Five in production, and omitting this keeps five.
+   *
+   * Configurable only so the end-to-end suite can raise it: nine sign-ins
+   * across five specs from one CI IP is over budget by design, and the specs
+   * exist to test the product rather than to re-test this counter. The
+   * counter is tested directly instead — `auth.e2e-spec.ts` proves it refuses
+   * at whatever this is set to.
+   *
+   * The `max` is the point of validating it at all: it is what stops a
+   * misconfiguration quietly turning the control off. `refresh` deliberately
+   * does not use this — see the comment in `auth.controller.ts`.
+   */
+  AUTH_THROTTLE_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
   WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   /**
    * Resend API key. Optional on purpose: without it the mail transport logs

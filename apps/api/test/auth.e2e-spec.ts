@@ -108,3 +108,64 @@ describe('POST /auth/login', () => {
     expect(wrong.body.message).toEqual(unknown.body.message);
   });
 });
+
+/**
+ * The rate limits, which had no test at all until the end-to-end suite ran into
+ * them — nine sign-ins across five browser specs from one CI IP, against five a
+ * minute, and 429s cascading through four of them.
+ *
+ * Testing it here rather than there is the point: the browser specs exist to
+ * test the product, and a control is better proved once, cheaply, than fought
+ * by everything else.
+ */
+describe('auth rate limiting', () => {
+  let app: INestApplication;
+
+  /* Whatever the environment is configured for, rather than a magic 5 — the
+     test proves the mechanism, not a number somebody may legitimately change. */
+  const limit = Number(process.env.AUTH_THROTTLE_LIMIT ?? 5);
+
+  beforeAll(async () => {
+    app = await createTestApp();
+  });
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  it('refuses sign-in past the configured limit', async () => {
+    const attempt = () =>
+      request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: 'nobody@nowhere.invalid', password: 'Not-The-Password1' });
+
+    let refused = false;
+    // One past the limit: the last is the one that must be turned away.
+    for (let i = 0; i <= limit; i += 1) {
+      const res = await attempt();
+      if (res.status === 429) refused = true;
+    }
+    expect(refused).toBe(true);
+  });
+
+  /*
+   * The regression test for the split, and the thing that catches somebody
+   * merging the two throttle consts back into one.
+   *
+   * Refresh is called on every app bootstrap and again on any 401, so sharing
+   * the sign-in bucket meant a signed-in person who reloaded a few times, or
+   * shared an office IP, was thrown back to the login screen. It is guarded by
+   * rotation and reuse detection instead, which a per-IP counter does not
+   * improve on.
+   *
+   * No cookie is sent, so every one of these is a legitimate 401 — what is
+   * being asserted is that none of them is a 429.
+   */
+  it('does not apply the sign-in limit to refresh', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i <= limit + 2; i += 1) {
+      const res = await request(app.getHttpServer()).post('/api/v1/auth/refresh');
+      statuses.push(res.status);
+    }
+    expect(statuses).not.toContain(429);
+  });
+});

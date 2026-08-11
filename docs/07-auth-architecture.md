@@ -58,7 +58,7 @@ A stolen-then-reused refresh token kills the whole chain — attacker and victim
 - **Api client:** single fetch wrapper attaches in-memory access token; on 401 it queues concurrent requests, calls `/auth/refresh` **once**, replays queue; refresh failure → hard redirect to `/login?next=`.
 - **Bootstrap:** app shell calls `/auth/refresh` on first load (cookie present?) → access token + `GET /auth/me` into a `SessionProvider` (React context — session identity is not Zustand state).
 - **`middleware.ts`** only checks cookie *presence* for authed segments (fast redirect UX). It is not a security boundary — the API is (doc 04 §enforcement).
-- Permission-aware UI via `useCan('leave.approve.team')` reading `/auth/me` perms.
+- Permission-aware UI via `can('leave.approve.team')` from `useSession()`, reading `/auth/me` perms. There is no `useCan` hook — this line claimed one for months and anybody who believed it wrote an import that does not resolve.
 
 ## Header-token variant (designed-in, not built, and not planned)
 
@@ -69,7 +69,28 @@ This is a property of the token design, not a scheduled piece of work. **The mob
 ## Security hardening checklist (Phase 1 scope)
 
 - [x] helmet, CORS allowlist (web origin only, `credentials: true`)
-- [x] Global rate limits + strict auth throttle (doc 03)
+- [x] Global rate limits + strict auth throttle (doc 03), **split by threat
+      model**: `login`, `forgot-password`, `reset-password` and the invite
+      routes share a tight 5/min/IP bucket; `refresh` has its own at 60/min.
+
+      Sharing one bucket was a real defect rather than a conservative choice.
+      The web client calls `/auth/refresh` on every app bootstrap
+      (`session-provider.tsx`) and again on any 401 (`api-client.ts`), so at
+      five a minute a signed-in person who reloaded a few times, opened a few
+      tabs, or shared an office IP with colleagues got a 429 — and `tryRefresh`
+      reads any non-ok response as failure and hard-redirects to sign-in. They
+      were signed out for browsing too fast.
+
+      What guards that route is the token, not the counter: httpOnly, Secure,
+      SameSite=Lax, scoped to `/auth`, and rotated with reuse detection, so
+      replaying a stolen cookie revokes the whole chain. A per-IP limit adds
+      nothing to that and costs legitimate users behind one address.
+
+      The sign-in limit is `AUTH_THROTTLE_LIMIT`, default 5, capped at 100 by
+      the env schema so a misconfiguration cannot switch it off. Only the
+      end-to-end job raises it — nine sign-ins from one CI IP is over budget by
+      design — and the limit itself is proved by `auth.e2e-spec.ts`, which runs
+      at the default. It had no test at all until the browser suite ran into it.
 - [x] Validation on every DTO (`ValidationPipe` whitelist+transform → unknown fields rejected)
 - [x] Audit log on: login success/fail, refresh reuse, password change, role/permission change, employee delete, balance adjust
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env
