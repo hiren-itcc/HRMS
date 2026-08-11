@@ -56,19 +56,24 @@ export const config = {
     '/reports/:path*',
     '/settings/:path*',
     /*
-     * These five were missing, and the list had quietly stopped matching the
-     * comment above it. Each shipped after the matcher was written, so an
-     * unauthenticated visit to /payroll or /assets rendered an empty shell
-     * whose every request then 401'd, rather than landing on sign-in.
+     * Each of these shipped after the matcher was written, and the list had
+     * quietly stopped matching the comment above it — so an unauthenticated
+     * visit to /payroll or /assets rendered an empty shell whose every request
+     * then 401'd, rather than landing on sign-in.
      *
      * Not a security hole — this file is UX only, and the API is the real
      * boundary — but the failure mode is a blank page instead of a login form.
+     *
+     * Deliberately not counted in this comment any more. It said "these five"
+     * and there were then six, which is a footnote nobody remembers to update
+     * and a small lie every time a module ships.
      */
     '/payroll/:path*',
     '/recruitment/:path*',
     '/resignations/:path*',
     '/assets/:path*',
     '/expenses/:path*',
+    '/performance/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',

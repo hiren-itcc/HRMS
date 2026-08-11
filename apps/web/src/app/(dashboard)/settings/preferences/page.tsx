@@ -57,10 +57,28 @@ const MONTHS = [
   'December',
 ];
 
+/**
+ * Every switchable module, and it has to stay every one.
+ *
+ * This list had five of the nine keys in `modulesSchema`. `payroll`, `assets`,
+ * `wfh` and `expenses` were all switchable in the schema and honoured by the
+ * sidebar, and reachable from no screen at all — so an organization that did
+ * not want them had no way to say so. Each was added when its module shipped
+ * and none of them was added here.
+ *
+ * The type is `keyof OrgSettings['modules']`, so a new key does not force an
+ * entry — nothing breaks, it just quietly cannot be turned off. Worth checking
+ * this file whenever `modulesSchema` grows.
+ */
 const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: string }[] = [
   { key: 'attendance', label: 'Attendance', hint: 'Clock in/out, calendar, corrections' },
   { key: 'leave', label: 'Leave', hint: 'Requests, balances, approvals' },
+  { key: 'wfh', label: 'Remote work', hint: 'Working-from-home requests and the weekly cap' },
   { key: 'documents', label: 'Documents', hint: 'Folders and employee documents' },
+  { key: 'payroll', label: 'Payroll', hint: 'Runs, payslips and salary structures' },
+  { key: 'expenses', label: 'Expenses', hint: 'Claims, approvals and reimbursement categories' },
+  { key: 'assets', label: 'Assets', hint: 'The register of equipment issued to people' },
+  { key: 'performance', label: 'Performance', hint: 'Goals, review cycles and ratings' },
   { key: 'announcements', label: 'Announcements', hint: 'Company-wide posts' },
   { key: 'reports', label: 'Reports', hint: 'Analytics and exports' },
 ];

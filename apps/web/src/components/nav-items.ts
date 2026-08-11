@@ -13,6 +13,7 @@ import {
   Palmtree,
   Receipt,
   Settings,
+  Target,
   UserSearch,
   Users,
   Wallet,
@@ -58,6 +59,15 @@ export const NAV_ITEMS: NavItem[] = [
     // A hiring manager holds only the team read and must still get in — the API
     // narrows them to their own openings once they are there.
     perms: ['recruitment.read', 'recruitment.read.team'],
+  },
+  {
+    href: '/performance',
+    label: 'Performance',
+    icon: Target,
+    // read.own is enough to get in: everybody has their own goals, and the
+    // team and cycles tabs gate themselves.
+    perms: ['performance.read', 'performance.read.team', 'performance.read.own'],
+    module: 'performance',
   },
   {
     href: '/resignations',
