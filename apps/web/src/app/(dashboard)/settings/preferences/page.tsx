@@ -36,6 +36,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Field } from '@/components/field';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { ExitChecklistEditor } from '@/features/lifecycle/components/exit-checklist-editor';
@@ -715,6 +716,45 @@ export default function PreferencesPage() {
 
       {/* ── Modules ──────────────────────────────────────────────────── */}
       <FadeInItem>
+        {/*
+          Statutory identity. Not decoration: an ECR file cannot be written
+          without the establishment code, and the filings screen refuses before
+          a month can be chosen rather than at download time.
+        */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Statutory</CardTitle>
+            <CardDescription>
+              Who this company is to the EPFO, ESIC and the tax department. A return cannot be
+              generated until the code it is filed under is here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {(
+              [
+                ['pfEstablishmentCode', 'PF establishment code', 'Required for an ECR file'],
+                ['esiEmployerCode', 'ESIC employer code', 'Required for a contribution return'],
+                ['tan', 'TAN', 'Tax deduction account number'],
+                ['pan', 'PAN', 'The company’s own PAN'],
+                ['signatoryName', 'Signatory', 'Named on a return as responsible for it'],
+                ['signatoryDesignation', 'Signatory designation', ''],
+              ] as const
+            ).map(([key, label, hint]) => (
+              <Field key={key} label={label} hint={hint || undefined}>
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    value={draft.statutory[key]}
+                    disabled={!canManage}
+                    onChange={(e) => set('statutory', { [key]: e.target.value })}
+                  />
+                )}
+              </Field>
+            ))}
+            <div className="sm:col-span-2">{saveBar('statutory', 'Save statutory details')}</div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Modules</CardTitle>
