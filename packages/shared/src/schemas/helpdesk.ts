@@ -164,10 +164,12 @@ export type TicketCancelInput = z.infer<typeof ticketCancelSchema>;
 
 /**
  * `own` is every caller's; `queue` needs `helpdesk.respond` and means assigned
- * to me or unassigned; `all` needs `helpdesk.read`. The service narrows rather
- * than trusting this — asking for a wider scope than you hold is refused, not
- * silently answered with a narrower one, because a narrower answer to a wider
- * question is a different question wearing the same name.
+ * to me or unassigned; `all` needs `helpdesk.read`.
+ *
+ * The service narrows rather than trusting this, and asking for more than you
+ * hold quietly gives you what you do hold — the same behaviour expenses and
+ * performance already have, and what `rbac.e2e-spec.ts` pins. So a 200 here is
+ * never evidence that the scope you asked for is the scope you got.
  */
 export const TICKET_SCOPES = ['own', 'queue', 'all'] as const;
 export const ticketScopeSchema = z.enum(TICKET_SCOPES);

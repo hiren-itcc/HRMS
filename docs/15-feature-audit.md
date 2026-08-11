@@ -137,7 +137,7 @@ EMI *schedule* and the reimbursement approval flow, not the payslip line.
 
 | Thing | Where | Status |
 |---|---|---|
-| `leave_approved`, `leave_rejected` emails | `email-templates.service.ts:24` | **Open.** Editable in Settings; no sender. Approving leave notifies nobody. |
+| ~~`leave_approved`, `leave_rejected` emails~~ | `leave-requests.service.ts:145` | ✅ **Sent**, from `announceDecision()`, and tested. This row said "no sender; approving leave notifies nobody" for as long as there was one. |
 | ~~Folder rename~~ | `documents.controller.ts:68` | ✅ **Wired.** Matters more than it looks: a folder cannot be deleted while documents are in it, so a badly-named folder people had already filed into could only be fixed by emptying it first. |
 | ~~Delete a salary revision~~ | `payroll.controller.ts:150` | ✅ **Wired** onto the revision timeline. This audit first called it "unassign a salary", which was **wrong** — it deletes one revision, and the API refuses once that month's payroll is settled. |
 | ~~One employee's attendance month~~ | `attendance.controller.ts:85` | ✅ **Wired** as a card on the employee record — the tab `05:62` specifies. Read-only: there is no admin attendance editor and no endpoint for one. |
@@ -306,7 +306,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
-| ~~**Notifications**~~ ✅ in-app built · email ❌ | ⚠️ | ✅ all four |
+| ~~**Notifications**~~ ✅ built — in-app **and** email, three transports, per-user preference · **no digests, batching or domain events** | ⚠️ | ✅ all four |
 | ~~**Bulk import / export**~~ ✅ built — employees only; no bulk salary or attendance upload | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
 
@@ -472,8 +472,22 @@ which other documents were citing.
     no spec at all — and a gate disabled the day it lands teaches everyone to
     disable gates. Lighthouse is deferred for the same reason it always is: its
     own flake profile.
-16. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
-    sent by anything.
+16. ~~**`leave_approved` / `leave_rejected` emails**~~ ✅ **built** —
+    `leave-requests.service.ts:145` calls `mail.sendTemplate` from
+    `announceDecision()`, pinned by `leave-requests.notify.spec.ts`.
+
+    This item stayed open in writing long after it was closed in code, which is
+    the same failure this document exists to catch, committed by the document
+    itself. Email generally is built too: a mail module with three transports
+    (log, Resend, and a file outbox gated on `MAIL_OUTBOX_DIR` and checked
+    *before* the API key, so a test harness cannot send real mail), and a
+    general fan-out in `notifications.service.ts` that emails
+    `notification_generic` on every `notify()` unless the caller passes
+    `{ email: false }`.
+
+    **Still genuinely absent**: `@nestjs/event-emitter` — senders call
+    `notify()` directly — digests or batching, and per-event templates beyond
+    the five keys in `email-templates.ts`.
 
 ### P2 — market table stakes
 

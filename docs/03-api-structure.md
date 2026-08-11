@@ -462,6 +462,59 @@ would be two payslip lines with the same code.
 There is no "mark paid" route. Whether the money arrived is whether the payroll
 run for the claim's month was published, and that is derived on read.
 
+### Helpdesk (`/helpdesk`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/helpdesk/tickets` — `scope=own\|queue\|all`, filter status/priority/category | `helpdesk.read.own` |
+| GET | `/helpdesk/tickets/:id` — one ticket and its thread | `helpdesk.read.own` |
+| POST | `/helpdesk/tickets` — raise one | `helpdesk.raise.own` |
+| POST | `/helpdesk/tickets/:id/comments` — reply, or `internal: true` for a note | `helpdesk.read.own` |
+| POST | `/helpdesk/tickets/:id/assign` — hand it over, or `null` back to the queue | `helpdesk.respond` |
+| POST | `/helpdesk/tickets/:id/start` · `/wait` · `/resolve` | `helpdesk.respond` |
+| POST | `/helpdesk/tickets/:id/reopen` · `/close` · `/cancel` | `helpdesk.read.own` |
+| PATCH | `/helpdesk/tickets/:id/priority` · `/category` | `helpdesk.respond` |
+| GET | `/helpdesk/summary` — counts behind the tabs | `helpdesk.read.own` |
+| GET | `/helpdesk/categories` | `helpdesk.read.own` |
+| POST / PATCH / DELETE | `/helpdesk/categories` · `/helpdesk/categories/:id` | `helpdesk.manage` |
+
+**The read routes carry the weakest code that could reach them**, as expenses
+does above and for the same reason: the guard cannot know whose ticket an id
+belongs to. Reply, reopen, close and cancel are all `helpdesk.read.own` at the
+guard, and the service decides whether you are the requester on this one or
+somebody working the desk. An unreachable ticket answers **404, not 403** —
+whether a ticket exists is itself information, and a helpdesk that distinguishes
+"forbidden" from "not found" can be probed for whether a colleague has raised a
+grievance.
+
+**Scope narrows rather than refusing.** Asking for `all` without `helpdesk.read`
+returns your own tickets with a 200, matching expenses and performance. A 200 is
+therefore never evidence that the scope you asked for is the scope you got.
+
+**`helpdesk.respond` grants the queue, not the organization.** The queue is
+tickets assigned to you plus unassigned ones; reading one assigned to somebody
+else needs `helpdesk.read`. Collapsing the two would make "may work the desk"
+and "may read every grievance in the company" a single grant.
+
+**There is no `helpdesk.read.team`**, for the reason letters gives: a ticket is
+bilateral between one person and a desk, and the manager it concerns is exactly
+who must not read it by default. An organization that wants team leads on a desk
+grants `helpdesk.respond` to a role composed in Settings — no code needed.
+
+**Comments have three kinds, and only two are writable.** `PUBLIC` and
+`INTERNAL` come from this route; `SYSTEM` is written by the service on every
+transition and is what this module has instead of a status-history table. The
+thread is filtered by `visibleComments` before it is returned, so an internal
+note never reaches the requester's payload at all.
+
+**No notification ever carries a comment body** — every one sends the ticket
+subject. That removes the internal-note leak class outright rather than relying
+on each call site to remember.
+
+There is no `PATCH` on a ticket's subject or description. A correction is a
+comment; editing the text an agent has already read is how a thread stops making
+sense.
+
 ### Assets (`/assets`)
 
 | Method | Path | Permission |
@@ -579,16 +632,38 @@ than becoming `0`.
 | POST | `/announcements/:id/read` — mark read |
 | GET | `/announcements/:id/reads` — read receipts (author/HR) |
 
-### Notifications — **not built**
+### Notifications (`/notifications`)
 
-No `/notifications` endpoints exist. A `Notification` table is in the schema
-with zero reads and zero writes, and there is no module, service or bell.
+This section said "**not built** — no endpoints exist, no module, service or
+bell" long after all three existed. It was written when that was true and never
+revisited; the module shipped, and the doc kept saying otherwise.
 
-The unread/mark-read capability this section once specified was absorbed by
-Announcements, which is the only thing that ever needed it:
-`GET /announcements/unread-count`, `POST /announcements/:id/read` and
-`POST /announcements/read-all`. A general notification feed would be a new
-module — see [15-feature-audit.md](./15-feature-audit.md).
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/notifications` — the feed, `unreadOnly` | Scoped to the JWT subject, nothing else |
+| GET | `/notifications/unread-count` — the bell | |
+| POST | `/notifications/:id/read` · `/read-all` | |
+| GET / PATCH | `/notifications/preferences` | The individual's email switch |
+
+Every route is scoped to `claims.sub` rather than taking a user id, so there is
+no permission code here at all — a notification feed you can ask about somebody
+else is not a feed.
+
+**Senders do not call this controller.** They call `NotificationsService.notify`
+or `notifyPermission`, which writes the in-app row *and* emails the
+`notification_generic` template unless the call passes `{ email: false }`.
+`notifyPermission` resolves recipients through the role graph rather than by
+role code, so a custom role composed in Settings is reached without any module
+naming it. Delivery respects both `User.emailNotifications` and the
+organization's `EmailTemplate.isActive` — either being off is enough.
+
+The module is `@Global` and imports nothing, deliberately: anything that
+notifies is something it could not depend on without closing a cycle.
+
+Announcements keep their own unread/read routes
+(`GET /announcements/unread-count`, `POST /announcements/:id/read`,
+`POST /announcements/read-all`) — a read receipt on a post everyone can see is a
+different thing from a notification addressed to one person.
 
 ### Reports (`/reports`) — read-only aggregates
 All four take `?from=&to=` (an arbitrary range, capped at 366 days) plus an

@@ -57,6 +57,13 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.performanceGoal.deleteMany({ where: { organizationId: orgId } }),
       prisma.reviewCycle.deleteMany({ where: { organizationId: orgId } }),
 
+      // Helpdesk: a comment cascades from its ticket, but a ticket holds its
+      // category by RESTRICT, so the categories cannot go first. Both point at
+      // Employee, so both go before it.
+      prisma.ticketComment.deleteMany({ where: { ticket: { organizationId: orgId } } }),
+      prisma.ticket.deleteMany({ where: { organizationId: orgId } }),
+      prisma.ticketCategory.deleteMany({ where: { organizationId: orgId } }),
+
       // Expenses: an item points at a claim and a category, and a category
       // points at a PayComponent — so all three go before payroll's tables.
       prisma.expenseItem.deleteMany({ where: { claim: { organizationId: orgId } } }),

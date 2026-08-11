@@ -10,6 +10,7 @@ import { seedAttendance } from './attendance';
 import { seedComms } from './comms';
 import { seedExit } from './exit';
 import { seedExpenses } from './expenses';
+import { seedHelpdesk } from './helpdesk';
 import { seedLeave } from './leave';
 import { seedOnboarding } from './onboarding';
 import { seedOrg } from './org';
@@ -176,6 +177,9 @@ async function main() {
   console.log('Performance cycles, goals and reviews…');
   await seedPerformance(prisma, org.id, people, random, todayKey);
 
+  console.log('Helpdesk tickets…');
+  await seedHelpdesk(prisma, org.id, people);
+
   console.log('Announcements, letters and settings…');
   await seedComms(prisma, org.id, org.name, fixtures, people, random, todayKey);
 
@@ -192,6 +196,7 @@ async function main() {
     candidates: await prisma.candidate.count({ where: { organizationId: org.id } }),
     cycles: await prisma.reviewCycle.count({ where: { organizationId: org.id } }),
     reviews: await prisma.performanceReview.count({ where: { organizationId: org.id } }),
+    tickets: await prisma.ticket.count({ where: { organizationId: org.id } }),
   };
 
   console.log(`
@@ -202,6 +207,7 @@ Seed complete — ${org.name}
   ${counts.settlements} settlements · ${counts.letters} letters
   ${counts.openings} job openings · ${counts.candidates} candidates
   ${counts.cycles} review cycles · ${counts.reviews} reviews
+  ${counts.tickets} helpdesk tickets
 
   Password for every account: ${PASSWORD}
 
