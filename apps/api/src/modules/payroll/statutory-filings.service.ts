@@ -86,10 +86,32 @@ export class StatutoryFilingsService {
     return { runId: run.id, rows };
   }
 
+  /**
+   * Whether this organization could file at all, before a month is chosen.
+   *
+   * Returned rather than thrown on the preview, so the screen can say "ECR
+   * unavailable — no PF establishment code in Settings → Statutory" up front.
+   * Failing at download time is the worst possible place to discover it: the
+   * operator has already picked a month, read the exclusions and believed the
+   * numbers.
+   */
+  async readiness(orgId: string): Promise<Record<Kind, string | null>> {
+    const statutory = (await this.settings.get(orgId)).statutory;
+    return {
+      ECR: statutory.pfEstablishmentCode
+        ? null
+        : 'No PF establishment code. Add one in Settings → Statutory before generating an ECR.',
+      ESIC_RETURN: statutory.esiEmployerCode
+        ? null
+        : 'No ESIC employer code. Add one in Settings → Statutory before generating a return.',
+    };
+  }
+
   /** What the file would contain, without writing anything. */
   async preview(claims: AccessTokenClaims, kind: Kind, month: string) {
     const { rows } = await this.rowsFor(claims.orgId, month);
-    return this.build(claims.orgId, kind, rows);
+    const blocked = (await this.readiness(claims.orgId))[kind];
+    return { ...(await this.build(claims.orgId, kind, rows)), blocked };
   }
 
   private async build(orgId: string, kind: Kind, rows: FilingRow[]) {
@@ -137,6 +159,15 @@ export class StatutoryFilingsService {
         `A ${kind === 'ECR' ? 'ECR' : 'ESIC return'} for ${month} was already generated on ${dateKeyOf(existing.generatedAt)}. Download that one, or delete it first if the payroll has genuinely changed.`,
       );
     }
+
+    /*
+     * The same check the preview reports, enforced here as a refusal. A file
+     * missing its establishment code is not a short file — it is one the
+     * portal cannot accept at all, and handing somebody a download that will
+     * be rejected is worse than saying no.
+     */
+    const blocked = (await this.readiness(claims.orgId))[kind];
+    if (blocked) throw new BadRequestException(blocked);
 
     const { runId, rows } = await this.rowsFor(claims.orgId, month);
 

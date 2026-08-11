@@ -274,6 +274,13 @@ export class PayrollController {
     return this.filings.list(user, period);
   }
 
+  @Get('filings/readiness')
+  @RequirePermissions('payroll.read')
+  @ApiOperation({ summary: 'Whether this company can file at all, before a month is chosen' })
+  filingReadiness(@CurrentUser() user: AccessTokenClaims) {
+    return this.filings.readiness(user.orgId);
+  }
+
   @Get('filings/preview')
   @RequirePermissions('payroll.read')
   @ApiOperation({ summary: 'What a return would contain, and who is excluded from it' })
