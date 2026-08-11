@@ -78,6 +78,47 @@ export function providentFund(
 }
 
 /**
+ * The employer's share, split the way a return has to report it.
+ *
+ * A payslip shows one `EMPLOYER_PF` line, and that is right — nobody wants
+ * their pay split into two numbers that add to the one they were told. An ECR
+ * file cannot be built from it, though: EPFO wants the pension component and
+ * the provident-fund remainder separately, and recomputes both from the wage
+ * columns beside them.
+ *
+ * **Two ceilings, and they are not the same one.** `pfWage` follows the
+ * organization's `applyCeiling`, so a generous employer may contribute PF on
+ * full basic. The pension ceiling is the government's and always applies: that
+ * employer still cannot put more than the statutory wage into the pension
+ * scheme. Collapsing the two is the mistake this function exists to prevent.
+ *
+ * The remainder is `employer − eps` rather than 3.67% of anything, so the two
+ * halves always add back to the single figure on the payslip. Deriving it from
+ * a rate instead would let rounding put a rupee between the return and the
+ * payslip it came from.
+ */
+export function employerPfSplit(
+  basic: number,
+  config: PayrollConfig,
+): { eps: number; epf: number; epsWage: number } {
+  const pf = config.pf;
+  if (!pf.enabled || basic <= 0) return { eps: 0, epf: 0, epsWage: 0 };
+
+  const epsWage = Math.min(basic, pf.epsWageCeiling);
+  const eps = round2((epsWage * pf.epsRate) / 100);
+  const { employer } = providentFund(basic, config);
+
+  /*
+   * Never negative. If somebody sets an employer rate below the pension rate,
+   * the pension takes what there is and the remainder is nothing — a negative
+   * EPF share is not a thing a return can carry, and it would be rejected on
+   * upload rather than merely being odd.
+   */
+  const eligible = Math.min(eps, employer);
+  return { eps: eligible, epf: round2(employer - eligible), epsWage };
+}
+
+/**
  * ESI applies only while gross is at or below the threshold.
  *
  * It is a cliff, not a taper: someone earning a rupee over the threshold

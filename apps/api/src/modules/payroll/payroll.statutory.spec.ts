@@ -2,6 +2,7 @@ import { defaultSettings } from '@hrms/shared';
 import {
   computeStatutory,
   employeeStateInsurance,
+  employerPfSplit,
   pfWage,
   professionalTax,
   providentFund,
@@ -180,4 +181,62 @@ describe('pfWage', () => {
       expect(round2((wage * cfg.pf.employerRate) / 100)).toBe(employer);
     },
   );
+});
+
+/**
+ * The employer's share split for a return.
+ *
+ * A payslip shows one EMPLOYER_PF line and should — nobody wants their pay
+ * split into two numbers that add up to the one they were told. An ECR file
+ * needs both halves, and EPFO recomputes them from the wage columns beside
+ * them, so a split that does not reconcile is a rejected return.
+ */
+describe('employerPfSplit', () => {
+  it('splits the ordinary case into pension and remainder', () => {
+    const { eps, epf } = employerPfSplit(15_000, config());
+    // 8.33% of 15,000, and whatever is left of the 12% employer share.
+    expect(eps).toBe(1249.5);
+    expect(epf).toBe(550.5);
+  });
+
+  /* The two halves must add back to the single figure on the payslip, or the
+     return and the payslip it came from disagree by a rupee. */
+  it.each([6_000, 12_000, 15_000, 25_000, 90_000])('reconciles at basic %s', (basic) => {
+    const cfg = config();
+    const { eps, epf } = employerPfSplit(basic, cfg);
+    expect(round2(eps + epf)).toBe(providentFund(basic, cfg).employer);
+  });
+
+  /*
+   * The one worth being careful about. `applyCeiling` is the organization's
+   * choice and may be off; the pension ceiling is the government's and is not.
+   * A generous employer contributing PF on full basic still cannot put more
+   * than the statutory wage into the pension scheme.
+   */
+  it('keeps the pension at the statutory ceiling even when PF is not capped', () => {
+    const cfg = config();
+    cfg.pf.applyCeiling = false;
+    const { eps, epf, epsWage } = employerPfSplit(90_000, cfg);
+
+    expect(epsWage).toBe(15_000);
+    expect(eps).toBe(1249.5);
+    // Everything above the pension ceiling falls to the provident-fund half.
+    expect(round2(eps + epf)).toBe(providentFund(90_000, cfg).employer);
+    expect(epf).toBeGreaterThan(9_000);
+  });
+
+  it('never returns a negative remainder, however the rates are set', () => {
+    const cfg = config();
+    cfg.pf.employerRate = 5;
+    const { eps, epf } = employerPfSplit(15_000, cfg);
+    expect(epf).toBe(0);
+    expect(eps).toBe(providentFund(15_000, cfg).employer);
+  });
+
+  it('is nothing at all when the scheme is off or there is no basic', () => {
+    const cfg = config();
+    cfg.pf.enabled = false;
+    expect(employerPfSplit(15_000, cfg)).toEqual({ eps: 0, epf: 0, epsWage: 0 });
+    expect(employerPfSplit(0, config())).toEqual({ eps: 0, epf: 0, epsWage: 0 });
+  });
 });

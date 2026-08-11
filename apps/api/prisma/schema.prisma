@@ -288,6 +288,21 @@ model Employee {
   phone            String?
   dateOfBirth      DateTime?      @db.Date
   gender           Gender?
+  /// Statutory identifiers. Every one is nullable, and that is the safety
+  /// story rather than laziness: an employee without a UAN is **excluded from
+  /// an ECR return with a stated reason**, never emitted with the field blank.
+  /// `bankTransfer()` already wrote the rule down — "a bank file with a hole in
+  /// it is worse than a short one, because the hole is discovered by the bank
+  /// rather than by us" — and a rejected EPFO upload is the same lesson with a
+  /// slower feedback loop.
+  ///
+  /// The engine has computed PF and ESI correctly since payroll shipped. It is
+  /// these columns, not the arithmetic, that stood between it and a fileable
+  /// return.
+  pan              String?
+  uan              String?
+  pfMemberId       String?
+  esicIpNumber     String?
   /// The path that serves the photo — `/employees/<id>/avatar?v=<hash>`, not a
   /// public URL. The bucket is private (see `supabase.storage.ts`), so the
   /// bytes go through the API like every other file and the `v` token is what

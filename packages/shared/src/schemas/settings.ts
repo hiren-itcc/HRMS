@@ -79,6 +79,18 @@ export const payrollSchema = z.object({
       wageCeiling: z.number().min(0).default(15000),
       /** Turn off to contribute on full basic rather than the capped wage. */
       applyCeiling: z.boolean().default(true),
+      /**
+       * The employer's share is not one contribution — it is a pension
+       * component and a provident-fund remainder, and an ECR return has to
+       * report them separately.
+       *
+       * The pension ceiling is **its own**, and it does not follow
+       * `applyCeiling`: an organization that generously contributes PF on full
+       * basic still cannot put more than the statutory wage into the pension
+       * scheme, because that ceiling is the government's rather than theirs.
+       */
+      epsRate: z.number().min(0).max(100).default(8.33),
+      epsWageCeiling: z.number().min(0).default(15000),
     })
     .prefault({}),
   esi: z
