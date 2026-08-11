@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
-import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
@@ -24,8 +24,18 @@ export async function createTestApp(
     builder = builder.overrideProvider(token).useValue(value);
   }
   const app = (await builder.compile()).createNestApplication();
+  /*
+   * Only what `main.ts` does that these tests depend on: the prefix, and the
+   * cookie parser the refresh flow reads.
+   *
+   * Deliberately **no** `useGlobalPipes`. This app validates with `nestjs-zod`,
+   * registered as an `APP_PIPE` provider inside `AppModule`, so it is already
+   * here. Adding Nest's own `ValidationPipe` on top pulls in `class-validator`,
+   * which is not a dependency — the first run of this suite died on exactly
+   * that, and the fix is to trust the module rather than reconfigure it.
+   */
   app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  app.use(cookieParser());
   await app.init();
   return app;
 }
