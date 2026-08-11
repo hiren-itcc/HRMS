@@ -20,7 +20,7 @@ test.describe('sign in', () => {
     signedInAs,
   }) => {
     await signedInAs('asha');
-    const nav = page.getByRole('navigation');
+    const nav = page.getByRole('navigation', { name: 'Main' }).first();
 
     await expect(nav.getByRole('link', { name: 'Leave' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Performance' })).toBeVisible();

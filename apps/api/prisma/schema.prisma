@@ -50,6 +50,8 @@ model Organization {
   reviewCycles       ReviewCycle[]
   performanceGoals   PerformanceGoal[]
   performanceReviews PerformanceReview[]
+
+  employeeImports EmployeeImport[]
 }
 
 enum UserStatus {
@@ -2136,6 +2138,54 @@ model ExpenseItem {
   receipt  Document?       @relation(fields: [receiptId], references: [id])
 
   @@index([claimId])
+}
+
+enum EmployeeImportMode {
+  RECORDS
+  INVITE
+}
+
+enum EmployeeImportStatus {
+  PREVIEW
+  COMMITTED
+  PARTIAL
+  FAILED
+}
+
+/// A bulk import, from the moment it is previewed to what it actually did.
+///
+/// Stateful rather than stateless, and that is the load-bearing call. The
+/// alternative — the browser posting parsed rows back to commit — means the
+/// commit endpoint trusts a client-supplied row set, so it has to re-validate
+/// everything anyway *and* somebody can commit rows that never appeared in a
+/// preview. Holding it here buys the opposite guarantee: what commits is
+/// exactly what was previewed.
+///
+/// It also buys an audit answer better than two hundred separate
+/// `employee.create` rows, and makes a second commit refusable rather than
+/// duplicating everybody.
+model EmployeeImport {
+  id             String               @id @default(cuid())
+  organizationId String
+  uploadedById   String?
+  fileName       String
+  rowCount       Int
+  mode           EmployeeImportMode   @default(RECORDS)
+  status         EmployeeImportStatus @default(PREVIEW)
+  /// The parsed rows while previewing; **pruned at commit** to just the
+  /// outcome per row. This column holds names, emails and dates of birth, and
+  /// keeping it afterwards would be a second copy of everybody's personal data
+  /// with no retention story and no access control of its own.
+  rows           Json
+  createdCount   Int                  @default(0)
+  failedCount    Int                  @default(0)
+  invitedCount   Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  committedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

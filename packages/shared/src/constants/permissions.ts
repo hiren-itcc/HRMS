@@ -38,6 +38,22 @@ export const PERMISSIONS = [
   'employee.confirm',
 
   /*
+   * Bulk import, and it is separate from `employee.create` on purpose.
+   *
+   * `employee.create` means "may add a person". This means "may add four
+   * hundred people, resolve their reporting lines, and — with a second,
+   * explicit opt-in — email all of them". That is a different blast radius, and
+   * the same argument this file already makes for `employee.onboarding.approve`
+   * sitting apart from `employee.update`.
+   *
+   * The honest counter-argument, recorded because it is a fair one: the dry-run
+   * preview and the row caps are the real controls, and `employee.create` would
+   * do. It is a new code anyway because removing a granted permission later is
+   * a breaking change to a tenant's access model, and adding one is not.
+   */
+  'employee.import',
+
+  /*
    * Resignation is the only workflow in the product an ordinary employee
    * *starts* about themselves, which is why `request.own` exists at all —
    * everything else self-service is a read or an edit of their own record.
@@ -332,6 +348,9 @@ const HR_PERMS: Permission[] = [
   'employee.offboard',
   'employee.onboarding.approve',
   'employee.confirm',
+  // Loading a company's existing people in one go — an HR job, and one that
+  // happens once. Finance and Managers have no use for it.
+  'employee.import',
   'resignation.read',
   'resignation.approve',
   'offboarding.clearance',

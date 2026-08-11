@@ -30,16 +30,28 @@ export type SeededUser = keyof typeof USERS;
  */
 export async function signIn(page: Page, user: SeededUser): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel(/email/i).fill(USERS[user]);
-  await page.getByLabel(/password/i).fill(PASSWORD);
+  /*
+   * Exact labels, not a regex. `PasswordInput` gives its show/hide toggle
+   * `aria-label="Show password"`, so `getByLabel(/password/i)` matches two
+   * elements and Playwright refuses in strict mode — which is what the first
+   * CI run of this suite reported, and the correct answer is a precise
+   * selector rather than `.first()`.
+   */
+  await page.getByLabel('Email', { exact: true }).fill(USERS[user]);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
   /*
-   * Wait on something only a signed-in page has. Never assert on the URL: a
-   * restored session is briefly unauthenticated on the client while the token
-   * is refreshed, so the address bar is right before the app is ready.
+   * Wait on something only a signed-in page has, not on the URL: the address
+   * bar is correct before the app is ready, because a session becomes
+   * authenticated on the client only after the first refresh completes.
+   *
+   * `.first()` because the sidebar renders as both a drawer and a rail
+   * depending on width, and either may be in the tree.
    */
-  await expect(page.getByRole('navigation')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible({
+    timeout: 20_000,
+  });
 }
 
 export const test = base.extend<{ signedInAs: (user: SeededUser) => Promise<void> }>({

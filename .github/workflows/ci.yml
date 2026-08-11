@@ -73,6 +73,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @hrms/api db:generate
+      - name: Build the workspace packages
+        # The seed and the API import `@hrms/shared` and `@hrms/types` from
+        # their built `dist`, not their source. Without this the seed dies on
+        # "Cannot find module .../@hrms/shared/dist/index.js" — which is exactly
+        # how this job failed the first time it ever ran. Only the packages, not
+        # the apps: ts-jest compiles the API from source.
+        run: pnpm turbo run build --filter=@hrms/shared --filter=@hrms/types
       - name: Apply migrations
         run: pnpm --filter @hrms/api db:deploy
       - name: Seed

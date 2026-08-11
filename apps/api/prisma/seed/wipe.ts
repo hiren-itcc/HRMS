@@ -45,6 +45,10 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.offboarding.deleteMany({ where: { organizationId: orgId } }),
       prisma.resignation.deleteMany({ where: { organizationId: orgId } }),
 
+      // An import log points only at the organization, which is not deleted
+      // here — so it has to be named or it survives the wipe.
+      prisma.employeeImport.deleteMany({ where: { organizationId: orgId } }),
+
       // Performance: goals and reviews both point at an employee and at a
       // cycle, and the cycle points only at the organization — which is not
       // deleted here, so it has to be named or it survives and takes
