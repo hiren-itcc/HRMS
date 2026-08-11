@@ -1,4 +1,4 @@
-import { expect, test } from '../fixtures/test';
+import { expect, mainNav, test } from '../fixtures/test';
 
 /**
  * Golden flow #1 (docs/11-roadmap.md:34) — "all four roles log in and see
@@ -12,7 +12,7 @@ test.describe('sign in', () => {
   test('signs an admin in and lands on the dashboard', async ({ page, signedInAs }) => {
     await signedInAs('admin');
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(mainNav(page).getByRole('link', { name: 'Settings' })).toBeVisible();
   });
 
   test('shows an employee their own sections and not the administrative ones', async ({
@@ -20,7 +20,7 @@ test.describe('sign in', () => {
     signedInAs,
   }) => {
     await signedInAs('asha');
-    const nav = page.getByRole('navigation', { name: 'Main' }).first();
+    const nav = mainNav(page);
 
     await expect(nav.getByRole('link', { name: 'Leave' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Performance' })).toBeVisible();

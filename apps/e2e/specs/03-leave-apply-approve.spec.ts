@@ -20,7 +20,7 @@ test('an employee applies and their manager approves it', async ({ page, context
   await signIn(page, 'rohan');
   await page.goto('/leave');
   await page
-    .getByRole('button', { name: /apply|request leave/i })
+    .getByRole('button', { name: /Apply for leave/i })
     .first()
     .click();
 

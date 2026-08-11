@@ -47,17 +47,24 @@ export async function signIn(page: Page, user: SeededUser): Promise<void> {
   await page.getByLabel(/^Password/).fill(PASSWORD);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
-  /*
-   * Wait on something only a signed-in page has, not on the URL: the address
-   * bar is correct before the app is ready, because a session becomes
-   * authenticated on the client only after the first refresh completes.
-   *
-   * `.first()` because the sidebar renders as both a drawer and a rail
-   * depending on width, and either may be in the tree.
-   */
-  await expect(page.getByRole('navigation', { name: 'Main' }).first()).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(mainNav(page)).toBeVisible({ timeout: 20_000 });
+}
+
+/**
+ * The one navigation that is actually on screen.
+ *
+ * `SidebarNav` is rendered twice — once by `AppSidebar` for the rail and once
+ * by `app-header` inside the mobile drawer — so `getByRole('navigation')`
+ * matches two elements and `.first()` picks whichever comes first in the DOM,
+ * which is the hidden one. That is why every signed-in assertion timed out
+ * waiting for something "visible" that was never going to be.
+ *
+ * `:visible` picks the rendered one at whatever width the test runs at, and
+ * scoping link queries through it stops the same duplication biting again on
+ * every nav item.
+ */
+export function mainNav(page: Page) {
+  return page.locator('nav[aria-label="Main"]:visible').first();
 }
 
 export const test = base.extend<{ signedInAs: (user: SeededUser) => Promise<void> }>({

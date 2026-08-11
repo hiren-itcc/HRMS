@@ -17,14 +17,14 @@ test.describe('attendance', () => {
     await signedInAs('asha');
     await page.goto('/attendance');
 
-    const clockIn = page.getByRole('button', { name: /check in/i });
+    const clockIn = page.getByRole('button', { name: /^Clock (in|back in)$/i });
     await expect(clockIn).toBeVisible();
     await clockIn.click();
 
     // Web-first assertion, never a fixed wait: the card re-renders when the
     // mutation settles, and a sleep here would be the flakiest line in the
     // suite.
-    const clockOut = page.getByRole('button', { name: /check out/i });
+    const clockOut = page.getByRole('button', { name: /^Clock out$/i });
     await expect(clockOut).toBeVisible({ timeout: 20_000 });
 
     await clockOut.click();
