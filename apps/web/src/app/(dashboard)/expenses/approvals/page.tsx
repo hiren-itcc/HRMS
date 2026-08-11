@@ -4,10 +4,11 @@ import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
 import { MonthPicker } from '@hrms/ui/components/month-picker';
 import { useQuery } from '@tanstack/react-query';
-import { Check, X } from 'lucide-react';
+import { Check, Eye, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
+import { IconAction } from '@/components/icon-action';
 import { useSession } from '@/components/session-provider';
 import { type ExpenseClaim, expenseKeys, expensesApi } from '@/features/expenses/api';
 import { ClaimStatusBadge } from '@/features/expenses/components/expense-badges';
@@ -97,9 +98,13 @@ export default function ExpenseApprovalsPage() {
         emptyTitle="Nothing waiting"
         emptyHint="Claims appear here the moment somebody submits one."
         actions={(row) => (
-          <Button size="sm" variant="outline" onClick={() => setDeciding(row)}>
-            Review
-          </Button>
+          /*
+            An eye, like every other row action in the app — the word "Review"
+            was the odd one out. It reads as a link to a detail page and is not
+            one: it opens the decision panel below the table, which is why the
+            label names the claim rather than saying "View".
+          */
+          <IconAction label={`Review ${row.title}`} icon={Eye} onClick={() => setDeciding(row)} />
         )}
       />
 
