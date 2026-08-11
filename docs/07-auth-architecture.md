@@ -69,28 +69,46 @@ This is a property of the token design, not a scheduled piece of work. **The mob
 ## Security hardening checklist (Phase 1 scope)
 
 - [x] helmet, CORS allowlist (web origin only, `credentials: true`)
-- [x] Global rate limits + strict auth throttle (doc 03), **split by threat
-      model**: `login`, `forgot-password`, `reset-password` and the invite
-      routes share a tight 5/min/IP bucket; `refresh` has its own at 60/min.
+- [x] Global rate limits + auth throttle (doc 03), **two limits rather than
+      one**: `login`, `forgot-password`, `reset-password` and the invite routes
+      at 5/min; `refresh` at 60/min.
 
-      Sharing one bucket was a real defect rather than a conservative choice.
-      The web client calls `/auth/refresh` on every app bootstrap
+      They were never one *bucket* — `@nestjs/throttler` keys storage per
+      handler, so each route has always had its own counter. They shared the
+      number, and 5/min is a figure calibrated for a person typing a password.
+      `/auth/refresh` is fired by the client on every app bootstrap
       (`session-provider.tsx`) and again on any 401 (`api-client.ts`), so at
-      five a minute a signed-in person who reloaded a few times, opened a few
-      tabs, or shared an office IP with colleagues got a 429 — and `tryRefresh`
-      reads any non-ok response as failure and hard-redirects to sign-in. They
-      were signed out for browsing too fast.
+      five a minute a signed-in person who reloaded a few times or opened a few
+      tabs got a 429 — and the bootstrap reads any failure as "not signed in"
+      and bounces them to the login screen. A spurious sign-out rather than lost
+      data: the 429 comes from the guard, so the handler never runs and the
+      cookie survives.
 
-      What guards that route is the token, not the counter: httpOnly, Secure,
-      SameSite=Lax, scoped to `/auth`, and rotated with reuse detection, so
-      replaying a stolen cookie revokes the whole chain. A per-IP limit adds
-      nothing to that and costs legitimate users behind one address.
+      What guards that route is the token — httpOnly, Secure, SameSite=Lax,
+      scoped to `/auth`, rotated with reuse detection. The limit is not zero
+      because the route is `@Public()` and its reuse branch does three writes,
+      so a ceiling on how fast one source can trigger them is worth keeping.
 
       The sign-in limit is `AUTH_THROTTLE_LIMIT`, default 5, capped at 100 by
       the env schema so a misconfiguration cannot switch it off. Only the
-      end-to-end job raises it — nine sign-ins from one CI IP is over budget by
-      design — and the limit itself is proved by `auth.e2e-spec.ts`, which runs
-      at the default. It had no test at all until the browser suite ran into it.
+      end-to-end job raises it; `auth.e2e-spec.ts` proves the limit refuses at
+      whatever it is set to, and runs at the default. It had no test at all
+      until the browser suite ran into it.
+- [ ] **`TRUST_PROXY` is unset in production, and every limit above is weaker
+      than it reads.** `main.ts` only calls `set('trust proxy')` when the value
+      is above zero, and it defaults to `0`. Render terminates TLS at its edge,
+      so `req.ip` is Render's proxy — confirmed from the live audit log, where
+      every recorded address is a private `10.x` and there are three distinct
+      values across all rows.
+
+      Two consequences. The throttler keys on `req.ip`, so these are not
+      per-client limits at all: they are a handful of buckets shared by every
+      user in the world, and one noisy client can lock everyone out. And
+      `AuditLog.ip` and the session list record Render's infrastructure rather
+      than who did what, which is the one thing an audit trail is for.
+
+      Fix is one variable — `TRUST_PROXY=1` on the API service — and it should
+      land before anybody relies on either the limits or the audit addresses.
 - [x] Validation on every DTO (`ValidationPipe` whitelist+transform → unknown fields rejected)
 - [x] Audit log on: login success/fail, refresh reuse, password change, role/permission change, employee delete, balance adjust
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env

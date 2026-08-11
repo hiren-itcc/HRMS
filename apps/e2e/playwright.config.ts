@@ -32,6 +32,22 @@ export default defineConfig({
     baseURL: WEB,
     timezoneId: 'Asia/Kolkata',
     locale: 'en-IN',
+
+    /*
+     * Clocking in asks the browser for a position, and headless Chromium
+     * denies by default. `getPosition` resolves `refused`, and `clock-card.tsx`
+     * deliberately *throws* on refused rather than punching — distinct from
+     * `unavailable`, which punches with `locationUnavailable: true`. So the
+     * button was clicked, nothing happened, and the request log showed zero
+     * calls to `attendance/check-in`.
+     *
+     * Granting the permission makes the browser behave like somebody who
+     * allowed location, which is what the flow assumes. The app is not changed:
+     * refusing to punch on a denied fix is correct, and geofenced work-mode
+     * detection depends on it.
+     */
+    permissions: ['geolocation'],
+    geolocation: { latitude: 12.9716, longitude: 77.5946 },
     trace: 'on-first-retry',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',

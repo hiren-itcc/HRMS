@@ -157,7 +157,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | `WEB_ORIGIN` | `http://localhost:5173` | **Must be your real site URL.** This is the CORS allow-list; leaving it wrong blocks the browser. |
 | `JWT_ACCESS_TTL` | `15m` | How long a sign-in lasts before silent refresh |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | How long "stay signed in" lasts |
-| `TRUST_PROXY` | `0` | Set to the number of proxies in front of the API (usually `1` behind nginx). Wrong value means wrong client IPs in the audit log. |
+| `TRUST_PROXY` | `0` | Number of proxies in front of the API — **`1` on Render**, which terminates TLS at its edge. Not optional in any hosted deployment: left at `0`, `req.ip` is the proxy, so the audit log records infrastructure instead of people *and* every rate limit becomes a handful of buckets shared by all users rather than a per-client control. Found unset in production on 2026-08-11; every address in the audit log was a private `10.x`. |
 | `UPLOAD_DIR` | `./uploads` | **Must be persistent storage.** A container's local disk is wiped on redeploy, taking every uploaded document with it. |
 | `MAX_UPLOAD_MB` | `10` | |
 | `DEFAULT_USER_PASSWORD` | `Welcome@2026` | Starting password for staff created through the app. **Change it** — the default is public. |
@@ -286,7 +286,7 @@ docker compose run api npx prisma migrate deploy
 - [ ] `DEFAULT_USER_PASSWORD` changed from `Welcome@2026`
 - [ ] `UPLOAD_DIR` on persistent storage that survives redeploys
 - [ ] Database credentials changed from `hrms`/`hrms`
-- [ ] `TRUST_PROXY` matches the actual proxy count
+- [x] `TRUST_PROXY` matches the actual proxy count — `1` on Render. Verify by reading `AuditLog.ip`: public addresses mean it is right, `10.x` means it is not.
 - [ ] **HTTPS terminates in front of the web app.** This repo ships no reverse
       proxy — `docker/compose.yaml` serves plain HTTP. Two things break without
       TLS: the refresh cookie is set `secure` in production and so is never

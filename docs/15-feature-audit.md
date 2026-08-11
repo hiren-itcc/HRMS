@@ -310,6 +310,24 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | **Bulk import / export** | ❌ (reports only) | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
 
+### Found by the end-to-end suite
+
+Worth recording separately, because these are the return on building that layer
+and none of them was reachable from a unit test.
+
+| Defect | How it surfaced |
+|---|---|
+| **An announcement could not be posted from the UI at all.** `publishAt` defaulted to `''` — what an untouched `datetime-local` holds, and what the field's own hint ("Leave empty to post now") tells you to leave it as — and the schema rejected it, so the resolver blocked submit and Publish did nothing. Never noticed because the seed writes announcements through Prisma and never touches the schema | 55 announcement requests in the run and **not one POST** |
+| **`/auth/refresh` was limited like a password form.** The client fires it on every bootstrap, so five a minute signed people out for reloading too often | 18 attempts, 9 refused |
+| **`TRUST_PROXY` unset in production.** `req.ip` was Render's proxy, so rate limits were a handful of shared buckets rather than per-client, and `AuditLog.ip` recorded infrastructure | every address in the live audit log was a private `10.x` |
+| **Every 500 was unattributable.** The exception filter turned an unknown throw into "Something went wrong" and logged nothing | a real 500 in CI could not be read from its own logs |
+| **`clock-card` vanished on any error**, the only component in the app that did, so a failed load looked identical to "you have no clock card" | three rounds chasing a selector that was correct |
+
+The pattern is worth stating: every one is a **cross-boundary** failure — a
+client default meeting a server schema, a limit meeting a client's own call
+pattern, a proxy meeting a request. That is the class of bug a mocked-Prisma
+unit test cannot see by construction, and it is the argument for the layer.
+
 ### Statutory filing — the sharpest commercial gap
 
 The engine computes PF, ESI and PT correctly, and the rates come from settings
