@@ -29,6 +29,27 @@ export const REVIEW_CYCLE_STATUS_LABELS: Record<ReviewCycleStatusCode, string> =
   CLOSED: 'Closed',
 };
 
+/**
+ * Where a running cycle has got to, derived from its dates and today rather
+ * than stored — see the note at the top of this file.
+ *
+ * `RUNNING` and `SELF` are separate because most of a cycle is neither goal
+ * setting nor assessment: it is the months in between, when people are doing
+ * the work. A UI that only knows "open" cannot say anything useful during them.
+ */
+export const CYCLE_PHASES = ['UPCOMING', 'GOALS', 'RUNNING', 'SELF', 'MANAGER', 'CLOSED'] as const;
+export const cyclePhaseSchema = z.enum(CYCLE_PHASES);
+export type CyclePhase = (typeof CYCLE_PHASES)[number];
+
+export const CYCLE_PHASE_LABELS: Record<CyclePhase, string> = {
+  UPCOMING: 'Not open yet',
+  GOALS: 'Setting goals',
+  RUNNING: 'In progress',
+  SELF: 'Self-assessments due',
+  MANAGER: 'Manager reviews due',
+  CLOSED: 'Closed',
+};
+
 export const reviewCycleCreateSchema = z
   .object({
     name: z.string().trim().min(1, 'Give the cycle a name').max(60),

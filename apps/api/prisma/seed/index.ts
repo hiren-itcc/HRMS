@@ -14,6 +14,7 @@ import { seedOnboarding } from './onboarding';
 import { seedOrg } from './org';
 import { seedPayroll } from './payroll';
 import { seedPeople } from './people';
+import { seedPerformance } from './performance';
 import { makeRandom } from './random';
 import { seedRecruitment } from './recruitment';
 import { seedWfh } from './wfh';
@@ -183,6 +184,9 @@ async function main() {
   console.log('Recruitment…');
   await seedRecruitment(prisma, org.id, fixtures, people, random, todayKey);
 
+  console.log('Performance cycles, goals and reviews…');
+  await seedPerformance(prisma, org.id, people, random, todayKey);
+
   console.log('Announcements, letters and settings…');
   await seedComms(prisma, org.id, org.name, fixtures, people, random, todayKey);
 
@@ -197,6 +201,8 @@ async function main() {
     letters: await prisma.letter.count({ where: { organizationId: org.id } }),
     openings: await prisma.jobOpening.count({ where: { organizationId: org.id } }),
     candidates: await prisma.candidate.count({ where: { organizationId: org.id } }),
+    cycles: await prisma.reviewCycle.count({ where: { organizationId: org.id } }),
+    reviews: await prisma.performanceReview.count({ where: { organizationId: org.id } }),
   };
 
   console.log(`
@@ -206,6 +212,7 @@ Seed complete — ${org.name}
   ${counts.remote} remote requests · ${counts.assets} assets · ${counts.payslips} payslips
   ${counts.settlements} settlements · ${counts.letters} letters
   ${counts.openings} job openings · ${counts.candidates} candidates
+  ${counts.cycles} review cycles · ${counts.reviews} reviews
 
   Password for every account: ${PASSWORD}
 

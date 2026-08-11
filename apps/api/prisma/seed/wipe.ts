@@ -45,6 +45,14 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.offboarding.deleteMany({ where: { organizationId: orgId } }),
       prisma.resignation.deleteMany({ where: { organizationId: orgId } }),
 
+      // Performance: goals and reviews both point at an employee and at a
+      // cycle, and the cycle points only at the organization — which is not
+      // deleted here, so it has to be named or it survives and takes
+      // employee.deleteMany down with it.
+      prisma.performanceReview.deleteMany({ where: { organizationId: orgId } }),
+      prisma.performanceGoal.deleteMany({ where: { organizationId: orgId } }),
+      prisma.reviewCycle.deleteMany({ where: { organizationId: orgId } }),
+
       // Expenses: an item points at a claim and a category, and a category
       // points at a PayComponent — so all three go before payroll's tables.
       prisma.expenseItem.deleteMany({ where: { claim: { organizationId: orgId } } }),
