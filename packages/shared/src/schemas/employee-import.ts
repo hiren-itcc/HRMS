@@ -35,6 +35,15 @@ export const EMPLOYEE_IMPORT_COLUMNS = [
   { key: 'shift', header: 'Shift', required: true },
   { key: 'employmentType', header: 'Employment type', required: true },
   { key: 'manager', header: 'Manager', required: false },
+  /*
+   * Statutory identifiers, and the reason they are import columns rather than
+   * only fields on a form: nobody types two hundred UANs one at a time. This
+   * is how an existing company's identifiers actually arrive, and without it
+   * the ECR builder correctly excludes everybody forever.
+   */
+  { key: 'uan', header: 'UAN', required: false },
+  { key: 'pan', header: 'PAN', required: false },
+  { key: 'esicIpNumber', header: 'ESIC IP number', required: false },
 ] as const;
 
 export type EmployeeImportColumn = (typeof EMPLOYEE_IMPORT_COLUMNS)[number]['key'];

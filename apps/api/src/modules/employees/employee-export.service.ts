@@ -63,6 +63,9 @@ export class EmployeeExportService {
       // and the importer refuses an ambiguous one rather than guessing, so a
       // round trip has to survive two people called the same thing.
       manager: employee.manager?.employeeCode ?? '',
+      uan: employee.uan ?? '',
+      pan: employee.pan ?? '',
+      esicIpNumber: employee.esicIpNumber ?? '',
     }));
 
     const columns = EMPLOYEE_IMPORT_COLUMNS.map((c) => ({ key: c.key, header: c.header }));
