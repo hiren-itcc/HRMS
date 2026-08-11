@@ -199,6 +199,8 @@ export interface EcrConfig {
 export function buildEcr(rows: FilingRow[], config: EcrConfig): FilingResult {
   const excluded: Excluded[] = [];
   const members: EcrMember[] = [];
+  /** What the payslips actually took, in whole rupees, for the members filed. */
+  let paidWhole = 0;
 
   for (const row of rows) {
     // Not in the scheme. Same reasoning as ESI above: correct, not an exclusion.
@@ -215,10 +217,24 @@ export function buildEcr(rows: FilingRow[], config: EcrConfig): FilingResult {
 
     const epfWages = config.applyPfCeiling ? Math.min(row.basic, config.pfWageCeiling) : row.basic;
     const epsWages = Math.min(row.basic, config.epsWageCeiling);
-    const epsShare = round2((epsWages * config.epsRate) / 100);
-    // The remainder, not a second rate — so the two halves add back to the
-    // employer figure the payslip already froze.
-    const epsEligible = Math.min(epsShare, row.employerPf);
+
+    /*
+     * Rounded to whole rupees **here**, once, and the remainder derived from
+     * the rounded pension share rather than from the exact one.
+     *
+     * Rounding each column independently is the obvious thing and it is wrong.
+     * At the ceiling the exact figures are 1249.50 and 550.50; `Math.round`
+     * takes halves upward, so the file said 1250 and 551 — a rupee more than
+     * was ever contributed. EPFO recomputes the total from these columns, so
+     * that is a rejected return, and it happens for everybody earning above
+     * the ceiling, which in most companies is most people.
+     *
+     * The fixture missed it because 9,000 basic gives 749.70 and 330.30, which
+     * round in opposite directions and cancel. Found by generating a real file
+     * against real payroll, not by a test.
+     */
+    const employerWhole = Math.round(row.employerPf);
+    const epsWhole = Math.min(Math.round((epsWages * config.epsRate) / 100), employerWhole);
 
     members.push({
       uan: row.uan,
@@ -229,11 +245,12 @@ export function buildEcr(rows: FilingRow[], config: EcrConfig): FilingResult {
       // EDLI is levied on the same wage as the pension scheme.
       edliWages: epsWages,
       employeeShare: row.employeePf,
-      epsShare: epsEligible,
-      epfDifference: round2(row.employerPf - epsEligible),
+      epsShare: epsWhole,
+      epfDifference: employerWhole - epsWhole,
       ncpDays: row.lopDays,
       refundOfAdvances: 0,
     });
+    paidWhole += Math.round(row.employeePf) + employerWhole;
   }
 
   const content = members.map(ecrLine).join('\n');
@@ -254,15 +271,21 @@ export function buildEcr(rows: FilingRow[], config: EcrConfig): FilingResult {
    * Compared on rounded totals because the file carries whole rupees; the
    * tolerance is one rupee per member, which is the most rounding can move it.
    */
-  const filed = totals.employeeShare + totals.epsShare + totals.epfDifference;
-  const paid = round2(
-    rows
-      .filter((r) => r.uan && (r.employeePf > 0 || r.employerPf > 0))
-      .reduce((sum, r) => sum + r.employeePf + r.employerPf, 0),
+  const filed = members.reduce(
+    (sum, m) => sum + Math.round(m.employeeShare) + m.epsShare + m.epfDifference,
+    0,
   );
-  if (Math.abs(filed - paid) > members.length + 1) {
+  /*
+   * Compared **as filed**, in whole rupees, not on the exact values.
+   *
+   * The previous version summed the unrounded figures, which reconciled
+   * perfectly while the file itself was a rupee out per member — the guard
+   * passed on exactly the defect it existed to catch. What goes in the file is
+   * what has to add up.
+   */
+  if (filed !== paidWhole) {
     throw new FilingMismatch(
-      `This return does not reconcile with its payslips: it files ${filed} against ${paid} deducted. Nothing has been generated.`,
+      `This return does not reconcile with its payslips: it files ${filed} against ${paidWhole} deducted. Nothing has been generated.`,
     );
   }
 

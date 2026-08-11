@@ -197,6 +197,40 @@ describe('the ECR return', () => {
     expect(Math.round(filed)).toBe(ee + er);
   });
 
+  /*
+   * The defect a real file found and this fixture had missed.
+   *
+   * At the ceiling the exact shares are 1249.50 and 550.50. Rounding each
+   * column independently takes both halves upward — 1250 and 551 — so the file
+   * claims a rupee more than was ever contributed, and EPFO recomputes the
+   * total from exactly these columns.
+   *
+   * The original fixture used 9,000 basic, where the shares are 749.70 and
+   * 330.30 and round in opposite directions and cancel. It passed for the wrong
+   * reason, which is the most expensive kind of passing test.
+   */
+  it('files columns that add up, at the ceiling where the halves both round up', () => {
+    const atCeiling = row({ basic: 15_000, employeePf: 1_800, employerPf: 1_800 });
+    const parts = buildEcr([atCeiling], config).content.split('#~#');
+    const employee = Number(parts[6]);
+    const eps = Number(parts[7]);
+    const epfDiff = Number(parts[8]);
+
+    expect(eps).toBe(1250);
+    expect(epfDiff).toBe(550);
+    expect(employee + eps + epfDiff).toBe(3_600);
+  });
+
+  /* And the property, across the basics where rounding is worst. */
+  it.each([15_000, 15_001, 24_999, 40_000, 154_000])(
+    'never files more or less than was contributed, at basic %s',
+    (basic) => {
+      const one = row({ basic, employeePf: 1_800, employerPf: 1_800 });
+      const parts = buildEcr([one], config).content.split('#~#');
+      expect(Number(parts[6]) + Number(parts[7]) + Number(parts[8])).toBe(3_600);
+    },
+  );
+
   it('files no-pay days as NCP days', () => {
     const parts = buildEcr([row({ lopDays: 3 })], config).content.split('#~#');
     expect(parts[9]).toBe('3');
