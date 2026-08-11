@@ -43,6 +43,24 @@ export interface StatutoryResult {
  * whenever the rate is not 100%. An organization that contributes on full
  * basic turns `applyCeiling` off.
  */
+/**
+ * The wage PF is actually levied on — basic, or the ceiling, whichever is less.
+ *
+ * Exported and used by `providentFund` below rather than inlined, because the
+ * contribution report needs the same number and got it wrong by computing its
+ * own: it printed the full BASIC line as "PF wages" while the deduction was
+ * taken on the capped wage. On screen that is a mismatch nobody checks. In an
+ * ECR file, where EPFO recomputes contributions from the wage column, it is a
+ * rejected return.
+ *
+ * One definition, two callers, so they cannot drift again.
+ */
+export function pfWage(basic: number, config: PayrollConfig): number {
+  const pf = config.pf;
+  if (!pf.enabled || basic <= 0) return 0;
+  return pf.applyCeiling ? Math.min(basic, pf.wageCeiling) : basic;
+}
+
 export function providentFund(
   basic: number,
   config: PayrollConfig,
@@ -52,7 +70,7 @@ export function providentFund(
 } {
   const pf = config.pf;
   if (!pf.enabled || basic <= 0) return { employee: 0, employer: 0 };
-  const wage = pf.applyCeiling ? Math.min(basic, pf.wageCeiling) : basic;
+  const wage = pfWage(basic, config);
   return {
     employee: round2((wage * pf.employeeRate) / 100),
     employer: round2((wage * pf.employerRate) / 100),
