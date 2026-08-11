@@ -31,6 +31,7 @@ export * from './schemas/offboarding';
 export * from './schemas/onboarding';
 export * from './schemas/organization';
 export * from './schemas/payroll';
+export * from './schemas/performance';
 export * from './schemas/recruitment';
 export * from './schemas/report';
 export * from './schemas/resignation';

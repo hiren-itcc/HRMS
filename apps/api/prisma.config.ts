@@ -5,7 +5,11 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'tsx prisma/seed.ts',
+    // `prisma/seed/index.ts`, not `prisma/seed.ts` — the seed became a
+    // directory and this line did not follow it, so `prisma db seed` has been
+    // failing on a missing file while `pnpm db:seed` (which names the real
+    // path) worked. Nothing noticed because nothing in CI seeds yet.
+    seed: 'tsx prisma/seed/index.ts',
   },
   datasource: {
     url: env('DATABASE_URL'),

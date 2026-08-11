@@ -46,6 +46,10 @@ model Organization {
 
   expenseCategories ExpenseCategory[]
   expenseClaims     ExpenseClaim[]
+
+  reviewCycles       ReviewCycle[]
+  performanceGoals   PerformanceGoal[]
+  performanceReviews PerformanceReview[]
 }
 
 enum UserStatus {
@@ -373,6 +377,13 @@ model Employee {
   candidatesReferred Candidate[]  @relation("CandidatesReferred")
   interviewsGiven    Interview[]  @relation("InterviewsGiven")
   hiredFromOffer     Offer?       @relation("HiredFromOffer")
+
+  /// Performance: their own goals and reviews, and the reviews they were the
+  /// named reviewer on. `reviewsGiven` is by snapshot rather than by the
+  /// current reporting line — see PerformanceReview.reviewerId.
+  goals        PerformanceGoal[]
+  reviews      PerformanceReview[]
+  reviewsGiven PerformanceReview[] @relation("ReviewsGiven")
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -2125,4 +2136,179 @@ model ExpenseItem {
   receipt  Document?       @relation(fields: [receiptId], references: [id])
 
   @@index([claimId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance — cycles, goals and reviews
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ReviewCycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/// Four states, and the two you expect are missing on purpose. `NOT_STARTED` is
+/// `progress = 0` and `IN_PROGRESS` is `progress > 0`; storing them as well
+/// would be two representations of one fact, and they would drift the first
+/// time somebody moved a slider without touching a dropdown. `AT_RISK` is a
+/// past `dueOn` while still ACTIVE, derived on read like everything else here.
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  MISSED
+  CANCELLED
+}
+
+/// Who the review is waiting on — which is exactly what both inboxes render.
+///
+/// Drafting lives *inside* PENDING_SELF and PENDING_MANAGER: the author saves as
+/// often as they like and the status does not move until they submit, the same
+/// way an ExpenseClaim is edited freely while DRAFT. The finer chronology is in
+/// selfSubmittedAt / managerSubmittedAt.
+///
+/// Deliberately not ApprovalStatus, which is PENDING/APPROVED/REJECTED/
+/// CANCELLED. A review is never approved and never rejected; mapping SHARED
+/// onto APPROVED would make that enum's name a lie at every call site, and
+/// ACKNOWLEDGED has no member to map to at all. Widening the shared one instead
+/// would make both representable on every LeaveRequest in the product — the
+/// same argument ExpenseClaimStatus makes for having its own list.
+enum ReviewStatus {
+  PENDING_SELF
+  PENDING_MANAGER
+  SHARED
+  ACKNOWLEDGED
+  CANCELLED
+}
+
+/// A window: what period is being assessed, and when the answers are due.
+///
+/// Nothing here is a phase column. Where a cycle has got to is derived from
+/// these dates and today, because there is no scheduler in this product and a
+/// stored phase would go stale overnight and stay wrong until something
+/// happened to touch it.
+model ReviewCycle {
+  id             String            @id @default(cuid())
+  organizationId String
+  /// "H1 2026". Unique per org, because the same name twice is always a mistake.
+  name           String
+  periodStart    DateTime          @db.Date
+  periodEnd      DateTime          @db.Date
+  /// When assessments are expected. Nullable — nothing enforces it, and
+  /// "overdue" is derived rather than flagged by a job that does not exist.
+  dueOn          DateTime?         @db.Date
+  /// Service before periodEnd needed to be enrolled. On the cycle rather than
+  /// in Setting because it is a per-cycle decision: a mid-year catch-up cycle
+  /// wants a different answer from the annual one. It is also why this module
+  /// needs no settings group at all.
+  minServiceDays Int               @default(90)
+  status         ReviewCycleStatus @default(DRAFT)
+  openedAt       DateTime?
+  closedAt       DateTime?
+  /// Bare id, not a relation — the same call ExpenseClaim.decidedById makes.
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  goals        PerformanceGoal[]
+  reviews      PerformanceReview[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@index([organizationId, periodStart, periodEnd])
+}
+
+/// Something somebody is working towards, inside one cycle.
+///
+/// cycleId is required, and that is the load-bearing call. A goal belongs to a
+/// period. Making it nullable buys "standing goals" and pays for it twice: the
+/// weights-total-100 rule becomes unanswerable (100% of *what*?), and a review's
+/// goal list turns into a nullable join with a silent omission — a standing goal
+/// appearing in no review at all, which nobody expects.
+model PerformanceGoal {
+  id             String     @id @default(cuid())
+  organizationId String
+  cycleId        String
+  employeeId     String
+  title          String
+  description    String?
+  /// What "done" looks like, in words. A number with a unit would be a metric
+  /// engine, which is OKR territory and deliberately not built.
+  target         String?
+  /// Percent, 0-100. Int rather than Decimal: three equal goals become 34/33/33
+  /// rather than 33.33 each, which nobody has ever minded, and it keeps this
+  /// whole module free of Decimal — which serialises to JSON as a string and has
+  /// already put NaN on one screen in this product.
+  progress       Int        @default(0)
+  /// Percent of the review. 0 means unweighted, which is a legitimate choice.
+  weight         Int        @default(0)
+  status         GoalStatus @default(ACTIVE)
+  dueOn          DateTime?  @db.Date
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, employeeId])
+  @@index([employeeId, status])
+  @@index([organizationId, cycleId])
+}
+
+/// One row, two authors.
+///
+/// Not a generic participant table keyed by (review, rater, kind) — that shape
+/// generalises to 360-degree feedback, which is deliberately not built, and
+/// building the general form "in case" is exactly what this repo refuses. If
+/// peer feedback ever lands it is a new table FK'd to this one: additive, no
+/// redesign, the same seam every other module here left.
+model PerformanceReview {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  cycleId            String
+  employeeId         String
+  /// A **snapshot** of the employee's manager taken when the cycle opened, not
+  /// a live join. A reorg in April must not hand a half-written H1 review to
+  /// somebody who has never met the person, and "who reviewed me in H1 2026"
+  /// has to stay answerable in 2028. The same freezing Offer and Payslip do.
+  ///
+  /// Nullable, because whoever is at the top of the chart has no manager. That
+  /// review is enrolled anyway and HR assigns a reviewer, rather than the CEO
+  /// being silently absent from every cycle the company runs.
+  reviewerId         String?
+  status             ReviewStatus @default(PENDING_SELF)
+  selfRating         Int?
+  selfComment        String?
+  selfSubmittedAt    DateTime?
+  managerRating      Int?
+  managerComment     String?
+  /// The part the employee is meant to act on, and the next cycle reads back.
+  /// Merged into the comment it becomes the last paragraph nobody re-reads.
+  managerActions     String?
+  managerSubmittedAt DateTime?
+  sharedAt           DateTime?
+  acknowledgedAt     DateTime?
+  acknowledgeNote    String?
+  reopenNote         String?
+  cancelNote         String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     Employee?    @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+
+  /// What the whole module leans on: it makes opening a cycle idempotent
+  /// (createMany + skipDuplicates) and two reviews for one half-year
+  /// unrepresentable.
+  @@unique([cycleId, employeeId])
+  /// The manager's inbox, HR's coverage view, and one person's history.
+  @@index([reviewerId, status])
+  @@index([cycleId, status])
+  @@index([employeeId, createdAt])
+  @@index([organizationId, status])
 }

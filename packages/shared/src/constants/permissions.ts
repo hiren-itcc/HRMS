@@ -3,7 +3,10 @@ import { RoleCode } from '@hrms/types';
 /**
  * RBAC catalog — the single source of truth (docs/04-rbac.md).
  * Consumed by: the API seed (Permission rows + RolePermission grants),
- * the PermissionsGuard (compile-time-safe codes), and the web `useCan` hook.
+ * the PermissionsGuard (compile-time-safe codes), and `can()` from the web
+ * app's `useSession()`. There is no `useCan` hook, whatever this line used to
+ * say — three docs claimed one and anybody who believed them wrote an import
+ * that does not resolve.
  */
 export const PERMISSIONS = [
   'employee.read.own',
@@ -161,6 +164,48 @@ export const PERMISSIONS = [
   'expense.approve',
   'expense.manage',
 
+  /*
+   * Goals and review cycles. The own / team / all triad again, because it is
+   * the same shape as leave, WFH and expenses: somebody writes something about
+   * themselves, their manager answers it, and HR watches the whole thing.
+   *
+   * `performance.goal.own` sits apart from `performance.read.own` because they
+   * are different windows on the same object. Goal setting closes weeks before
+   * the review does, and an employee keeps reading their goals long after they
+   * can no longer add one — a single code could not express that.
+   *
+   * Setting a goal and writing a review are separate codes at the team scope,
+   * because they are separate decisions months apart: agreeing what somebody
+   * will work on is a planning conversation, and marking them on it afterwards
+   * is a judgement. An organization may well want a team lead doing the first
+   * without the second.
+   *
+   * There is no `performance.approve`. A review is not approved or rejected; it
+   * is written by two people, shared, and acknowledged. Nor is there a separate
+   * code for rating: writing the manager half *is* rating, and splitting them
+   * would describe a workflow where somebody comments without scoring, which
+   * this module does not have.
+   *
+   * There is no `performance.review.own` either. Writing your own
+   * self-assessment is not a privilege HR grants — you were put in a cycle, and
+   * the API says so on the payload (`canSelfAssess`) rather than in a grant.
+   *
+   * There is no org-wide `performance.review.write`, which is the code you
+   * reach for once you notice that somebody at the top of the chart has no
+   * manager, and that a manager who leaves mid-cycle strands every review they
+   * were holding. Both are real, and both are answered by reassigning the
+   * reviewer under `performance.manage` instead. That keeps "your manager wrote
+   * this" true, which is the one claim the module rests on — a code letting HR
+   * type into the manager's box would quietly make it false.
+   */
+  'performance.read.own',
+  'performance.goal.own',
+  'performance.read.team',
+  'performance.goal.team',
+  'performance.review.team',
+  'performance.read',
+  'performance.manage',
+
   'announcement.read',
   'announcement.manage',
 
@@ -235,6 +280,11 @@ const EMPLOYEE_PERMS: Permission[] = [
   // HR grants; withholding it would only mean claims arrive by email.
   'expense.read.own',
   'expense.submit.own',
+  // Writing down what you are working towards, and reading what your manager
+  // said about it. Neither is a privilege: an employee with no goals of their
+  // own is the failure state a review cycle exists to prevent.
+  'performance.read.own',
+  'performance.goal.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -255,6 +305,11 @@ const MANAGER_PERMS: Permission[] = [
   'wfh.approve.team',
   'expense.read.team',
   'expense.approve.team',
+  // The manager half of a review is the whole manager workflow here — there is
+  // no step a manager takes that is not about somebody who reports to them.
+  'performance.read.team',
+  'performance.goal.team',
+  'performance.review.team',
   'document.read.team',
   'report.view.team',
   'payroll.read.team',
@@ -303,6 +358,15 @@ const HR_PERMS: Permission[] = [
    * HR runs payroll and cannot pay it.
    */
   'expense.read',
+  /*
+   * HR opens and closes cycles, reads every review, and writes none of them.
+   * The manager half belongs to the manager — an HR team that could type into
+   * it would make "your manager said this" untrue, which is the one claim the
+   * whole module rests on. Where there is no manager to write it, `manage`
+   * reassigns the reviewer rather than standing in for one.
+   */
+  'performance.read',
+  'performance.manage',
   'announcement.manage',
   'org.manage',
   'report.view',
