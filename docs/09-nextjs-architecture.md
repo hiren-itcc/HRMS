@@ -80,6 +80,21 @@ Two deliberate absences:
   feature module. MSW's only contribution was a postinstall for a browser
   service worker that node tests never load.
 
-The five golden flows remain the target when the infrastructure exists: login →
-dashboard, check-in/out, apply → approve leave, add employee → invite, publish
-announcement → read.
+The five golden flows are built, in `apps/e2e/specs`: login → dashboard,
+check-in/out, apply → approve leave, **HR creates employee → invite → the new
+person signs in**, and publish announcement → read.
+
+That fourth one used to be written here as "add employee → invite", which is a
+weaker flow than doc 11 asked for and the reason the wording is corrected: the
+third actor is the whole point. It is also the only flow that leaves the
+application entirely in the middle, through an email — which is why
+`FileTransport` exists, so the invite link is *asserted* rather than scraped out
+of a log.
+
+Two constraints worth knowing before touching those specs. `storageState` is
+deliberately unused: the access token lives in memory only, so a restored
+session is two cookies on two origins that authenticate only after a refresh —
+and refresh tokens rotate with reuse detection, so two contexts replaying one
+saved cookie revoke each other. And `timezoneId` is pinned to `Asia/Kolkata`,
+because attendance is keyed by date and a UTC runner crossing IST midnight puts
+a check-in on yesterday.
