@@ -297,7 +297,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | Reports | ✅ 4 + dashboard | ✅ + custom report builder |
 | Onboarding | ✅ invite → self-serve → HR review | ✅ |
 | ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
-| **Performance / goals / OKR** | ❌ | ✅ all four |
+| ~~**Performance / goals / OKR**~~ ✅ built — weighted goals, review cycles that enrol, self then manager assessment, shared and signed off · **no 360°, calibration, competency frameworks or nine-box, and a rating feeds no increment** | ⚠️ | ✅ all four |
 | ~~**Expense & reimbursement**~~ ✅ built — categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line · **no mileage rates, per-diems, corporate cards or multi-currency** | ⚠️ | ✅ all four |
 | ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
@@ -430,7 +430,25 @@ which other documents were citing.
     cap, an org default and a per-employee allowance. **Nothing is enforced at
     clock-in**: a remote day nobody approved is still recorded, and flagged on
     read, because refusing the punch would lose the record of a day worked.
-18. Performance / goals / OKR (`11:61` reserves the seam)
+18. ~~Performance / goals / OKR~~ ✅ **built** — review cycles that enrol
+    everybody eligible, weighted goals, a self-assessment then a manager
+    assessment, shared and signed off. Three tables, three enums, seven
+    permission codes, twenty routes and four screens, and the module imports
+    nothing at all.
+
+    Two things worth knowing. The roadmap predicted it would reuse
+    `ApprovalStatus` and it does not — a review is never approved or rejected,
+    and widening the shared enum would have made `SHARED` representable on every
+    leave request in the product (`11:62` now records why). And its migration
+    **grants its own permissions**, which `20260807070000_expenses` did not —
+    that omission is why the admin account could not see Expenses in the sidebar
+    and why a destructive re-seed was the only fix available.
+
+    **Not built**: 360°/peer feedback, calibration, competency frameworks,
+    nine-box, and any link from a rating to a pay increment. The last is the
+    deliberate one — an increment is an effective-dated `EmployeeSalary`
+    revision gated by `payroll.salary.manage`, and wiring a rating into it would
+    be this module writing salary.
 19. ~~Asset management~~ ✅ **built** — a per-item register with issue/return
     history, and the exit checklist's "return company assets" line is now
     computed from it rather than ticked. **No depreciation, procurement or

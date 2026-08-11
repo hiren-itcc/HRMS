@@ -614,6 +614,61 @@ where a tax engine should first appear. HR adds a deduction line for it.
 
 ---
 
+## How you are doing: goals and reviews
+
+HR opens a **cycle** — a window with a period and a date the assessments are
+due. Opening it enrols everybody eligible in one go, and eligibility is a rule
+rather than a list: not still onboarding, not already gone, and enough service
+behind them that there is something to review. Three weeks into the job there
+is not, which is what the cycle's own service threshold is for.
+
+Opening is safe to run again. It enrols whoever has joined since and touches
+nobody else, which is also how somebody who started mid-cycle gets in — there is
+no separate "add a person" step to forget.
+
+Each person writes down a few **goals**, optionally weighted. Weights are a
+choice: three goals with no weights at all is a legitimate answer, and the
+system stays quiet about it. What it will not accept is *half* of them weighted,
+or weights that do not add to 100 — because the first is nearly always somebody
+who stopped halfway, and the second means the sums underneath are wrong.
+
+At the end, the employee writes a **self-assessment**, and their manager answers
+it. Both halves save as drafts as often as you like; neither moves until it is
+submitted. **The manager's half is invisible to the employee until it is
+shared** — and not merely hidden on the screen. The API leaves those fields out
+of the response entirely, so there is no version of the page that has the rating
+in it and is choosing not to draw it.
+
+Once shared, the employee reads it and signs it off. That is the end of the
+review, and the whole of it.
+
+**Who reviews whom is frozen when the cycle opens**, not looked up as you go. A
+reorganisation in April must not hand somebody a half-written review of a person
+they have never worked with, and "who reviewed me in 2026" has to still be
+answerable in 2028. Goals go the other way and use the current reporting line,
+because a goal is about what happens next.
+
+Two things HR can do and one it deliberately cannot. It can move past a
+self-assessment nobody is ever going to write, and it can reassign a review —
+which is the answer both for whoever is at the top of the chart and has no
+manager, and for a manager who leaves halfway through. What it cannot do is
+write the manager's half. "Your manager said this" is the one claim the whole
+thing rests on, and an HR team that could type into that box would quietly make
+it untrue.
+
+**Nobody is chased.** There is no scheduler in this product, so nothing sends a
+reminder when a self-assessment is late. What exists instead is visibility: the
+cycle screen shows how many are outstanding, and a manager's inbox defaults to
+what is waiting on them. A cycle can be closed with reviews unwritten, and the
+count goes into the audit log when it is.
+
+**Not built, deliberately**: 360° and peer feedback, calibration meetings,
+competency frameworks, nine-box grids, and any connection between a rating and
+a pay rise. The last is the one worth being explicit about — a rating that moves
+money needs an approval trail of its own, and it is also the most reliable way
+to stop people writing honest ones. HR reads the rating and raises the salary
+revision by hand.
+
 ## Company property: assets
 
 A register of the things the company owns and who is holding each one.

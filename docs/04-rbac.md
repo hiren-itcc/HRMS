@@ -74,6 +74,10 @@ expense.read.own       expense.submit.own
 expense.read.team      expense.approve.team     (a manager, for their own reports)
 expense.read           expense.approve          expense.manage      (categories, and the payslip line each pays out on)
 
+performance.read.own   performance.goal.own
+performance.read.team  performance.goal.team    performance.review.team   (write the manager half, for their own reports)
+performance.read       performance.manage       (cycles, and reassigning a reviewer)
+
 recruitment.read.team  (a hiring manager's own openings)
 recruitment.read       recruitment.opening.manage
 recruitment.candidate.manage                     (add a candidate, put them forward, move a stage)
@@ -129,6 +133,9 @@ settings.manage        role.manage              audit.read
 | `expense.read.team` / `expense.approve.team` | ✅ | ✅ | — | ✅ | — |
 | `expense.read` (all) | ✅ | ✅ | ✅ | — | — |
 | `expense.approve` / `expense.manage` | ✅ | — | ✅ | — | — |
+| `performance.read.own` / `performance.goal.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `performance.read.team` / `performance.goal.team` / `performance.review.team` | ✅ | ✅ | — | ✅ | — |
+| `performance.read` / `performance.manage` | ✅ | ✅ | — | — | — |
 | `recruitment.read.team` (own openings) / `recruitment.interview.submit` | ✅ | ✅ | — | ✅ | — |
 | `recruitment.read` / `opening.manage` / `candidate.manage` / `offer.manage` / `hire` | ✅ | ✅ | — | — | — |
 | `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |

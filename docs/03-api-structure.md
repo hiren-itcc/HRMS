@@ -384,6 +384,48 @@ refuses plainly if a second ever exists; the roadmap's answer is a per-org
 subdomain, and guessing would publish one company's vacancies under another's
 URL.
 
+### Performance (`/performance`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/performance/cycles` — the cycles | `performance.read.own` |
+| GET | `/performance/cycles/active` — the one running, or `null` | `performance.read.own` |
+| GET | `/performance/cycles/:id` — one cycle, with its coverage counts | `performance.read.own` |
+| POST | `/performance/cycles` — plan one; created as a draft | `performance.manage` |
+| PATCH | `/performance/cycles/:id` — edit a draft's dates | `performance.manage` |
+| POST | `/performance/cycles/:id/open` — enrol everybody eligible; **idempotent** | `performance.manage` |
+| POST | `/performance/cycles/:id/close` — refused with reviews outstanding unless `force` | `performance.manage` |
+| DELETE | `/performance/cycles/:id` — only a draft nobody is enrolled in | `performance.manage` |
+| GET | `/performance/goals` — `scope=own\|team\|all`, filter cycle and status | `performance.read.own` |
+| POST | `/performance/goals` — somebody else's needs `performance.goal.team` | `performance.goal.own` |
+| GET / PATCH / DELETE | `/performance/goals/:id` | `performance.read.own` / `performance.goal.own` |
+| GET | `/performance/reviews` — `scope=own\|team\|all`, `awaitingMe` | `performance.read.own` |
+| GET | `/performance/reviews/:id` — with that cycle's goals attached | `performance.read.own` |
+| PATCH | `/performance/reviews/:id/self` — save a draft | `performance.read.own` |
+| POST | `/performance/reviews/:id/self/submit` | `performance.read.own` |
+| POST | `/performance/reviews/:id/self/skip` — move past one nobody will write | `performance.manage` |
+| PATCH | `/performance/reviews/:id/manager` — save; not visible to them yet | `performance.review.team` |
+| POST | `/performance/reviews/:id/share` — release it to the employee | `performance.review.team` |
+| POST | `/performance/reviews/:id/acknowledge` | `performance.read.own` |
+| POST | `/performance/reviews/:id/reopen` · `/cancel` · `/reassign` | `performance.manage` |
+
+**Writing your own self-assessment is gated by a read code, and that is not an
+oversight.** No permission expresses it, because being asked to assess yourself
+is a consequence of being enrolled in a cycle rather than a privilege somebody
+grants. `performance.read.own` reaches the handler and the service checks you
+are the subject. The client is told what it may do through `canSelfAssess`,
+`canManagerAssess` and `canAcknowledge` on the payload.
+
+**`managerRating`, `managerComment` and `managerActions` are omitted from the
+response**, not nulled, for a reader who may not see them yet. A `null` would be
+indistinguishable from "the manager wrote nothing" — a different fact, and one
+the employee is owed at the right time. Deciding it server-side is also what
+stops a component leaking a rating by rendering it and hiding it.
+
+**`scope=team` on reviews resolves from the reviewer snapshot, not the current
+reporting line.** On goals it is the opposite, and both are deliberate: a review
+belongs to whoever was in the conversation, a goal to whoever manages you now.
+
 ### Expenses (`/expenses`)
 
 | Method | Path | Permission |
