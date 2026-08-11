@@ -49,6 +49,8 @@ export default {
         'settings',
         'db',
         'ci',
+        // The test layers are their own concern: apps/e2e and apps/api/test.
+        'test',
         'docker',
         'deps',
         'docs',

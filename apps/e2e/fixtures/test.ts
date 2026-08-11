@@ -31,14 +31,20 @@ export type SeededUser = keyof typeof USERS;
 export async function signIn(page: Page, user: SeededUser): Promise<void> {
   await page.goto('/login');
   /*
-   * Exact labels, not a regex. `PasswordInput` gives its show/hide toggle
-   * `aria-label="Show password"`, so `getByLabel(/password/i)` matches two
-   * elements and Playwright refuses in strict mode — which is what the first
-   * CI run of this suite reported, and the correct answer is a precise
-   * selector rather than `.first()`.
+   * Anchored, and both halves of that are load-bearing.
+   *
+   * Not `/password/i`: `PasswordInput` gives its show/hide toggle
+   * `aria-label="Show password"`, so a loose match finds two elements and
+   * Playwright refuses in strict mode. Anchoring excludes it, because that
+   * label starts with "Show".
+   *
+   * Not exact either. `Field` renders a required marker as an `aria-hidden`
+   * asterisk plus an `sr-only` "(required)", so the accessible name really is
+   * "Email (required)" — the app is more accessible than an exact match
+   * assumes, and `{ exact: true }` matched nothing at all.
    */
-  await page.getByLabel('Email', { exact: true }).fill(USERS[user]);
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel(/^Email/).fill(USERS[user]);
+  await page.getByLabel(/^Password/).fill(PASSWORD);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
   /*
