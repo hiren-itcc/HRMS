@@ -23,6 +23,7 @@ export * from './schemas/careers';
 export * from './schemas/common';
 export * from './schemas/document';
 export * from './schemas/employee';
+export * from './schemas/employee-import';
 export * from './schemas/expense';
 export * from './schemas/leave';
 export * from './schemas/letter';
