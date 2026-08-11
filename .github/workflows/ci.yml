@@ -87,6 +87,13 @@ jobs:
         # matter, because prisma.config.ts named a file that does not exist.
         run: pnpm --filter @hrms/api db:seed
       - name: Integration tests
+        env:
+          # Prisma 7's client resolves its engine through a dynamic import at
+          # query time, and Jest's default CommonJS VM cannot service one —
+          # every query fails with "a dynamic import callback was invoked
+          # without --experimental-vm-modules". Not an application problem: the
+          # same client works fine under tsx, the seed and the running server.
+          NODE_OPTIONS: --experimental-vm-modules
         run: pnpm --filter @hrms/api test:integration
 
   # Applies every migration to a shadow database and diffs against the schema.
