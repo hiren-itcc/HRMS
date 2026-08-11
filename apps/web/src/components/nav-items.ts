@@ -7,6 +7,7 @@ import {
   DoorOpen,
   FileText,
   LayoutDashboard,
+  LifeBuoy,
   type LucideIcon,
   Megaphone,
   Network,
@@ -92,6 +93,15 @@ export const NAV_ITEMS: NavItem[] = [
     // approvals and categories tabs gate themselves.
     perms: ['expense.read', 'expense.read.team', 'expense.read.own'],
     module: 'expenses',
+  },
+  {
+    href: '/helpdesk',
+    label: 'Helpdesk',
+    icon: LifeBuoy,
+    // read.own is enough to get in: everybody can raise a ticket, and the desk
+    // and categories tabs gate themselves.
+    perms: ['helpdesk.read', 'helpdesk.respond', 'helpdesk.read.own'],
+    module: 'helpdesk',
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {

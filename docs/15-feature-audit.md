@@ -301,7 +301,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | ~~**Expense & reimbursement**~~ ✅ built — categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line · **no mileage rates, per-diems, corporate cards or multi-currency** | ⚠️ | ✅ all four |
 | ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
-| **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
+| ~~**Helpdesk / ticketing**~~ ✅ built — tickets, a two-sided thread with internal notes, a queue and per-desk routing · **no attachments, SLAs, ticket numbers or email-in** | ⚠️ | ✅ Zoho, Darwinbox |
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
@@ -345,6 +345,32 @@ near misses in one file, the deferred manager link resolved a manager who
 appeared **later** in the file (`EMP-0029` → `EMP-0030`), codes allocated
 sequentially, `joinDate` landed on IST midnight, and both refusals fired — a
 second commit and a commit with unresolved rows.
+
+### Open — Finance cannot open the receipt on a claim it is approving
+
+Found while designing the helpdesk, by looking for a pattern to copy for
+attachments and finding one that does not work.
+
+An expense receipt is an ordinary `Document` on the claimant, and reading one
+goes through `DocumentsService.openFile` → `ensureEmployeeAccess`
+(`documents.service.ts:238`), which allows `document.read`, self with
+`document.read.own`, or a direct report with `document.read.team`.
+
+`FINANCE_PERMS` spreads `EMPLOYEE_PERMS` — which carries only
+`document.read.own` — plus `expense.read`, `expense.approve` and
+`expense.manage`. A receipt belongs to the claimant, so `isSelf` is false and
+Finance gets a **403 on the one document its role exists to look at**.
+
+Verified by reading both files rather than by running it, so the failing call
+has not been executed — but the three inputs are not ambiguous.
+
+Not fixed here: it means editing `DocumentsService`, and `docs/11-roadmap.md:70`
+says a design that needs to reach into another module's internals wants an ADR
+first. The fix is a decision about whose permission governs an attachment, not
+a one-line grant — adding `document.read` to Finance would hand it every
+document in the company to solve a receipt.
+
+It is also why the helpdesk defers attachments rather than copying this shape.
 
 ### Open — `AuditLog.ip` is only ever written by the auth path
 
@@ -600,8 +626,29 @@ which other documents were citing.
     that predates this gets NULL and stays unpublished. **Not built**: a careers
     page per organization — the service serves the single tenant and says so
     plainly if a second appears.
-24. Helpdesk, LMS, engagement surveys
-25. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
+24. ~~Helpdesk~~ ✅ **built** — three tables, five permission codes, eighteen
+    routes and four screens. A ticket, a thread carrying public replies,
+    internal notes and system entries, and desks that route by a single named
+    default assignee.
+
+    Two decisions worth keeping visible. There is **no `helpdesk.read.team`**:
+    a ticket is bilateral, and where it is a grievance or a payslip query the
+    manager it concerns is exactly who must not read it by default. And
+    `helpdesk.respond` grants **the queue**, not org-wide reading — otherwise
+    "may work the desk" and "may read every grievance in the company" become
+    one grant.
+
+    **Not built**: attachments (see below), SLAs and escalation — there is no
+    scheduler, so a stored due date goes stale overnight — ticket numbers,
+    email-in, per-category custom fields, routing rules, tags, watchers, merge,
+    CSAT, and a knowledge base.
+
+    Attachments are the one people will ask for first. The shape when it lands
+    is a `TicketAttachment` table with its own upload and stream routes gated
+    on the ticket's own readability, **not** a reuse of `Document` — see the
+    Finance/receipt defect below, which is what reusing it would reproduce.
+25. LMS, engagement surveys
+26. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
 
 ---
 

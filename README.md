@@ -11,7 +11,7 @@ through **Prisma 7**, JWT auth with rotating refresh tokens and reuse detection,
 RBAC held as database rows rather than code, and a coss UI design system on Base
 UI.
 
-Nineteen modules ship — hire to exit, including payroll with statutory returns.
+Twenty modules ship — hire to exit, including payroll with statutory returns.
 
 <!-- Screenshots go here. Suggested: the dashboard, a payslip, the payroll run
      screen, and the attendance calendar. None are committed yet. -->
@@ -59,6 +59,7 @@ Nineteen modules ship — hire to exit, including payroll with statutory returns
 | Module | Highlights |
 |---|---|
 | Documents | Folders and categories, drag-and-drop upload with progress, in-browser preview for PDF/images/DOCX, download, delete |
+| Helpdesk | Tickets against per-desk categories, a thread carrying public replies and internal notes only the desk can see, a queue worked oldest-first, and status changes written onto the thread rather than into a table nobody reads |
 | Assets | A per-item register with issue/return history, feeding the exit clearance checklist |
 | Announcements | Rich-text authoring, categories, priority, pinning, attachments, dashboard widget, search and filters |
 | Letters | Offer, appointment, relieving, experience and salary-certificate letters from editable templates. The body is never client-supplied — the server renders from the resolved template, which is what makes the escaping guarantee hold for a document then frozen forever. Withdrawing one is a void with a reason, because a letter cannot be unmade |

@@ -284,6 +284,14 @@ screen list underneath.
 | 49g | Review | `/performance/reviews/[id]` | The two-sided screen. Write controls come from payload flags, not from `can()` — and the manager half is absent from the payload entirely until it is shared, so it cannot be leaked by a component that renders it and hides it |
 | 49h | Cycles | `/performance/cycles` | `performance.manage`. Opening enrols everybody eligible and is safe to repeat — running it again picks up whoever joined since, which is also how a late joiner gets in |
 
+### Helpdesk (4)
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 49i | My tickets | `/helpdesk` | Newest first — your own list is read from the top. Raising one asks for a desk, a subject and what you need, and **not a priority**: a priority the person asking controls is one that is always urgent |
+| 49j | One ticket | `/helpdesk/[id]` | Every control comes from a `can*` flag on the payload, never from the status, so a button that renders cannot be one the API would refuse. Internal notes carry a badge saying in words that the requester cannot see them — the requester never receives one, so the label is for the agent, who needs to know which entries the other person can read |
+| 49k | The desk | `/helpdesk/queue` | Oldest first, which is why this module has no SLA: a queue is worked from the bottom. Yours plus unassigned; **Everyone's tickets** appears only with `helpdesk.read`, because working the desk and reading every grievance in the company are different grants |
+| 49l | Categories | `/helpdesk/categories` | `helpdesk.manage`. A desk with tickets against it is deactivated, not deleted. The default assignee must hold `helpdesk.respond` — the API refuses otherwise, because a desk routing to somebody who cannot answer goes quiet without anybody noticing |
+
 ### Recruitment (5)
 | # | Screen | Route | Notes |
 |---|---|---|---|
