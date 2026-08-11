@@ -33,6 +33,7 @@ import {
   SelfProfileUpdateDto,
 } from './dto/employee.dto';
 import { EmployeeAvatarService } from './employee-avatar.service';
+import { EmployeeExportService } from './employee-export.service';
 import { EmployeesService } from './employees.service';
 
 @ApiTags('employees')
@@ -42,6 +43,7 @@ export class EmployeesController {
   constructor(
     private readonly employees: EmployeesService,
     private readonly avatars: EmployeeAvatarService,
+    private readonly exports: EmployeeExportService,
   ) {}
 
   @Get()
@@ -56,6 +58,31 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Flat list for manager pickers' })
   options(@CurrentUser() user: AccessTokenClaims) {
     return this.employees.options(user.orgId);
+  }
+
+  /*
+   * Declared above ':id' — as `options` already is — or "export" is read as an
+   * employee id and answers 404 for a route that exists.
+   *
+   * Two codes, not one. `employee.read` is "may see these people";
+   * `report.export` is "may walk out with the dataset", which is a separate
+   * privilege the reports module already established. Requiring both stops a
+   * manager who holds team-scoped reads from extracting their whole team to a
+   * file.
+   */
+  @Get('export')
+  @RequirePermissions('employee.read', 'report.export')
+  @ApiOperation({ summary: 'The current list as a file — the same columns import accepts' })
+  async export(
+    @CurrentUser() user: AccessTokenClaims,
+    @Query() query: EmployeeQueryDto,
+    @Query('format') format: 'csv' | 'excel' = 'csv',
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const payload = await this.exports.export(user, query, format === 'excel' ? 'excel' : 'csv');
+    res.setHeader('Content-Type', payload.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
+    return payload.body;
   }
 
   @Get(':id')

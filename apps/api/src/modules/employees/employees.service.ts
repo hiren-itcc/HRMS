@@ -106,9 +106,18 @@ export class EmployeesService {
    * otherwise `employee.read.team` → caller's direct reports only.
    * Soft-deleted employees never appear.
    */
-  async list(claims: AccessTokenClaims, query: EmployeeQuery) {
-    const ctx = ctxOf(claims);
-    const where: Prisma.EmployeeWhereInput = {
+  /**
+   * The filter behind both the list and the export.
+   *
+   * Shared rather than copied, because the export is the one place where a
+   * second, subtly wider answer to "who may I see" would hand somebody a file
+   * containing people their screen never showed them.
+   */
+  private listWhere(
+    ctx: ReturnType<typeof ctxOf>,
+    query: EmployeeQuery,
+  ): Prisma.EmployeeWhereInput {
+    return {
       organizationId: ctx.orgId,
       deletedAt: null,
       ...this.scopeFilter(ctx),
@@ -119,6 +128,49 @@ export class EmployeesService {
       ...(query.status ? { status: query.status } : {}),
       ...searchWhere(query.search, ['firstName', 'lastName', 'workEmail', 'employeeCode']),
     };
+  }
+
+  /**
+   * Rows for the export, with everything the importer needs to read back.
+   *
+   * `LIST_INCLUDE` is not enough: it carries department, designation and
+   * location, but not shift, employment type or the manager — three columns the
+   * import schema requires. Exporting without them produces a file the product
+   * cannot import, which is worse than no export at all.
+   *
+   * Bank details are deliberately not selected. `detail` gates them behind
+   * `employee.read` for one record at a time; a file is not the place to
+   * relax that.
+   */
+  async exportRows(claims: AccessTokenClaims, query: EmployeeQuery) {
+    const ctx = ctxOf(claims);
+    return this.prisma.employee.findMany({
+      where: this.listWhere(ctx, query),
+      orderBy: { firstName: 'asc' },
+      take: 1000,
+      select: {
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        workEmail: true,
+        personalEmail: true,
+        phone: true,
+        dateOfBirth: true,
+        gender: true,
+        joinDate: true,
+        department: { select: { name: true } },
+        designation: { select: { title: true } },
+        location: { select: { name: true } },
+        shift: { select: { name: true } },
+        employmentType: { select: { name: true } },
+        manager: { select: { employeeCode: true } },
+      },
+    });
+  }
+
+  async list(claims: AccessTokenClaims, query: EmployeeQuery) {
+    const ctx = ctxOf(claims);
+    const where = this.listWhere(ctx, query);
     const [data, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,

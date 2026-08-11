@@ -89,6 +89,14 @@ function EmployeesView() {
                 Add directly
               </Button>
             )}
+            {/* Its own code, not `employee.create` — importing is adding four
+                hundred people and optionally emailing all of them, which is a
+                different decision from adding one. */}
+            {can('employee.import') && (
+              <Button variant="ghost" size="sm" render={<Link href="/employees/import" />}>
+                Import
+              </Button>
+            )}
             <Select
               value={departmentId ?? ALL}
               onValueChange={(v) => params.setFilter('departmentId', v === ALL ? undefined : v)}
