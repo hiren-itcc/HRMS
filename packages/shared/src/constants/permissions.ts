@@ -222,6 +222,39 @@ export const PERMISSIONS = [
   'performance.read',
   'performance.manage',
 
+  /*
+   * The helpdesk. Somebody asks the company a question, and somebody at a desk
+   * answers it.
+   *
+   * There is no `helpdesk.read.team`, for the reason letters gives above: a
+   * ticket is a bilateral thing between one person and a desk. It may be a
+   * payslip query, a grievance about a manager, or a request to correct a date
+   * of birth — and the manager it concerns is exactly who must not read it by
+   * default. Adding the scope later is one code; removing it after tenants have
+   * granted it is a breaking change to their access model.
+   *
+   * `helpdesk.respond` grants **the queue** — tickets assigned to you, plus
+   * unassigned ones — and not org-wide reading, which is `helpdesk.read`.
+   * Collapsing the two would make "may work the desk" and "may read every
+   * grievance in the company" the same grant, and they are not the same grant.
+   *
+   * `helpdesk.raise.own` exists rather than being implied by `read.own`, the
+   * same call `expense.submit.own` and `resignation.request.own` make. Raising
+   * a ticket is not really a privilege HR withholds — doing so only means the
+   * question arrives as a direct message instead — but the code lets an
+   * organization switch it off for a population without touching the module.
+   *
+   * A manager holds nothing here beyond their own two codes, and that is a
+   * decision rather than an oversight. An organization that wants team leads
+   * answering tickets composes a role in Settings and grants
+   * `helpdesk.respond`; no code is needed for that.
+   */
+  'helpdesk.read.own',
+  'helpdesk.raise.own',
+  'helpdesk.read',
+  'helpdesk.respond',
+  'helpdesk.manage',
+
   'announcement.read',
   'announcement.manage',
 
@@ -312,6 +345,11 @@ const EMPLOYEE_PERMS: Permission[] = [
   // own is the failure state a review cycle exists to prevent.
   'performance.read.own',
   'performance.goal.own',
+  // Asking the company a question, and reading the answer. Everybody gets both
+  // — a helpdesk that only some people may write to is a helpdesk whose queue
+  // is somebody's inbox instead.
+  'helpdesk.read.own',
+  'helpdesk.raise.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -397,6 +435,15 @@ const HR_PERMS: Permission[] = [
    */
   'performance.read',
   'performance.manage',
+  /*
+   * HR is the desk out of the box, because in a company without a separate IT
+   * or facilities function it is who the questions were already going to. An
+   * organization that runs more than one desk composes a role in Settings and
+   * grants `helpdesk.respond` to it.
+   */
+  'helpdesk.read',
+  'helpdesk.respond',
+  'helpdesk.manage',
   'announcement.manage',
   'org.manage',
   'report.view',

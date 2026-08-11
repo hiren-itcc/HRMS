@@ -43,6 +43,8 @@ export default {
         // Goals, review cycles and reviews.
         'performance',
         'notifications',
+        // Tickets, threads, and the desks they route to.
+        'helpdesk',
         'wfh',
         'mail',
         'reports',

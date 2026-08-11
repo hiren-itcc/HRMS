@@ -25,6 +25,7 @@ export * from './schemas/document';
 export * from './schemas/employee';
 export * from './schemas/employee-import';
 export * from './schemas/expense';
+export * from './schemas/helpdesk';
 export * from './schemas/leave';
 export * from './schemas/letter';
 export * from './schemas/notification';

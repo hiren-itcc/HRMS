@@ -53,6 +53,9 @@ model Organization {
 
   employeeImports  EmployeeImport[]
   statutoryFilings StatutoryFiling[]
+
+  ticketCategories TicketCategory[]
+  tickets          Ticket[]
 }
 
 enum UserStatus {
@@ -82,11 +85,15 @@ model User {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  role         Role                 @relation(fields: [roleId], references: [id])
-  employee     Employee?
-  sessions     RefreshSession[]
-  resetTokens  PasswordResetToken[]
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  role           Role                 @relation(fields: [roleId], references: [id])
+  employee       Employee?
+  sessions       RefreshSession[]
+  resetTokens    PasswordResetToken[]
+  /// Helpdesk replies are authored by a User rather than an Employee: an
+  /// administrator answering a ticket may have no employee record, the same
+  /// call `Document.uploadedById` already makes.
+  ticketComments TicketComment[]
 
   @@index([organizationId])
   @@index([roleId])
@@ -402,6 +409,12 @@ model Employee {
   goals        PerformanceGoal[]
   reviews      PerformanceReview[]
   reviewsGiven PerformanceReview[] @relation("ReviewsGiven")
+
+  /// Helpdesk: what they asked, what they were handed, and the categories that
+  /// route to them by default.
+  ticketsRaised         Ticket[]         @relation("TicketsRaised")
+  ticketsAssigned       Ticket[]         @relation("TicketsAssigned")
+  ticketCategoriesOwned TicketCategory[] @relation("TicketCategoriesOwned")
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -2417,4 +2430,119 @@ model PerformanceReview {
   @@index([cycleId, status])
   @@index([employeeId, createdAt])
   @@index([organizationId, status])
+}
+
+// ─── Helpdesk ─────────────────────────────────────────────────────────
+//
+// Somebody asks the company a question, and somebody at a desk answers it.
+//
+// There is no Decimal here and nothing is money. There is no due date either:
+// this product has no scheduler, so a stored deadline is a field that goes
+// stale overnight and stays wrong until something happens to touch it. Age is
+// derived from createdAt, and "oldest first" is what a queue actually sorts on.
+//
+// There is also no status-history table. TicketCommentKind.SYSTEM puts the
+// history on the thread the requester is already reading, while AuditLog keeps
+// the tamper-evident copy for whoever holds audit.read. The alternative was a
+// third representation of what happened, and three things that can disagree.
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_REQUESTER
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketCommentKind {
+  PUBLIC
+  INTERNAL
+  SYSTEM
+}
+
+/// A desk. `defaultAssigneeId` is the whole routing engine, deliberately —
+/// rules, round-robin and load balancing are what a second product does.
+model TicketCategory {
+  id                String   @id @default(cuid())
+  organizationId    String
+  name              String
+  description       String?
+  /// Validated at save time to actually hold `helpdesk.respond`. A category
+  /// routing to somebody who cannot act on it produces a queue of silently
+  /// dead tickets that nobody notices for a week.
+  defaultAssigneeId String?
+  /// Deactivated rather than deleted, like ExpenseCategory: a category with
+  /// tickets against it must not vanish out from under them.
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  defaultAssignee Employee?    @relation("TicketCategoriesOwned", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  tickets         Ticket[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model Ticket {
+  id             String         @id @default(cuid())
+  organizationId String
+  categoryId     String
+  requesterId    String
+  assigneeId     String?
+  subject        String
+  description    String
+  status         TicketStatus   @default(OPEN)
+  /// Set by whoever works the desk, never by the person asking: a priority the
+  /// requester controls is one that is always URGENT.
+  priority       TicketPriority @default(NORMAL)
+  /// What was actually done. Required at resolve — "resolved" without it is
+  /// not a resolution.
+  resolution     String?
+  assignedAt     DateTime?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  /// RESTRICT rather than CASCADE, so the database agrees with the service:
+  /// a category holding tickets is deactivated, not removed.
+  category     TicketCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  requester    Employee        @relation("TicketsRaised", fields: [requesterId], references: [id], onDelete: Cascade)
+  /// SET NULL: an agent leaving returns their tickets to the queue rather than
+  /// taking them with her.
+  assignee     Employee?       @relation("TicketsAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments     TicketComment[]
+
+  @@index([organizationId, status])
+  /// The queue: assigned to me, or unassigned.
+  @@index([organizationId, assigneeId, status])
+  @@index([requesterId, createdAt])
+  @@index([categoryId, status])
+}
+
+model TicketComment {
+  id        String            @id @default(cuid())
+  ticketId  String
+  /// A User, not an Employee — see User.ticketComments. SET NULL so a reply
+  /// survives the account that wrote it.
+  authorId  String?
+  kind      TicketCommentKind @default(PUBLIC)
+  body      String
+  createdAt DateTime          @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
 }
