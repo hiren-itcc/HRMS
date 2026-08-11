@@ -23,7 +23,27 @@ export const announcementCreateSchema = z
     departmentId: optionalId,
     locationId: optionalId,
     isPinned: z.boolean().default(false),
-    publishAt: isoDateTime.optional(),
+    /**
+     * `''` is what an untouched `datetime-local` input posts, and the field's
+     * own hint in the compose dialog reads "Leave empty to post now" — so the
+     * empty case is the *documented* one, not an edge.
+     *
+     * Without this escape it failed both branches of `isoDateTime` and
+     * `.optional()` admits only `undefined`, so the resolver rejected the form
+     * and Publish did nothing at all. Doing exactly what the hint said made the
+     * button dead, and there was no error anybody would connect to the date
+     * field they had deliberately not filled in.
+     *
+     * `undefined` rather than `null`, because the service reads
+     * `input.publishAt ? new Date(input.publishAt) : new Date()` — absent means
+     * "now", which is what the hint promises.
+     *
+     * `expiresAt` below has carried the same escape all along, which is how
+     * this got missed: somebody hit it once and fixed the field they were
+     * looking at. Found by the end-to-end suite, which showed 55 announcement
+     * requests and not one POST.
+     */
+    publishAt: isoDateTime.or(z.literal('').transform(() => undefined)).optional(),
     expiresAt: isoDateTime.nullish().or(z.literal('').transform(() => null)),
   })
   .refine((d) => d.audience !== 'DEPARTMENT' || Boolean(d.departmentId), {

@@ -36,6 +36,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Field } from '@/components/field';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { ExitChecklistEditor } from '@/features/lifecycle/components/exit-checklist-editor';
@@ -57,10 +58,29 @@ const MONTHS = [
   'December',
 ];
 
+/**
+ * Every switchable module, and it has to stay every one.
+ *
+ * This list had five of the nine keys in `modulesSchema`. `payroll`, `assets`,
+ * `wfh` and `expenses` were all switchable in the schema and honoured by the
+ * sidebar, and reachable from no screen at all — so an organization that did
+ * not want them had no way to say so. Each was added when its module shipped
+ * and none of them was added here.
+ *
+ * The type is `keyof OrgSettings['modules']`, so a new key does not force an
+ * entry — nothing breaks, it just quietly cannot be turned off. Worth checking
+ * this file whenever `modulesSchema` grows.
+ */
 const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: string }[] = [
   { key: 'attendance', label: 'Attendance', hint: 'Clock in/out, calendar, corrections' },
   { key: 'leave', label: 'Leave', hint: 'Requests, balances, approvals' },
+  { key: 'wfh', label: 'Remote work', hint: 'Working-from-home requests and the weekly cap' },
   { key: 'documents', label: 'Documents', hint: 'Folders and employee documents' },
+  { key: 'payroll', label: 'Payroll', hint: 'Runs, payslips and salary structures' },
+  { key: 'expenses', label: 'Expenses', hint: 'Claims, approvals and reimbursement categories' },
+  { key: 'assets', label: 'Assets', hint: 'The register of equipment issued to people' },
+  { key: 'performance', label: 'Performance', hint: 'Goals, review cycles and ratings' },
+  { key: 'helpdesk', label: 'Helpdesk', hint: 'Tickets, the desk queue and its categories' },
   { key: 'announcements', label: 'Announcements', hint: 'Company-wide posts' },
   { key: 'reports', label: 'Reports', hint: 'Analytics and exports' },
 ];
@@ -697,6 +717,45 @@ export default function PreferencesPage() {
 
       {/* ── Modules ──────────────────────────────────────────────────── */}
       <FadeInItem>
+        {/*
+          Statutory identity. Not decoration: an ECR file cannot be written
+          without the establishment code, and the filings screen refuses before
+          a month can be chosen rather than at download time.
+        */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Statutory</CardTitle>
+            <CardDescription>
+              Who this company is to the EPFO, ESIC and the tax department. A return cannot be
+              generated until the code it is filed under is here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {(
+              [
+                ['pfEstablishmentCode', 'PF establishment code', 'Required for an ECR file'],
+                ['esiEmployerCode', 'ESIC employer code', 'Required for a contribution return'],
+                ['tan', 'TAN', 'Tax deduction account number'],
+                ['pan', 'PAN', 'The company’s own PAN'],
+                ['signatoryName', 'Signatory', 'Named on a return as responsible for it'],
+                ['signatoryDesignation', 'Signatory designation', ''],
+              ] as const
+            ).map(([key, label, hint]) => (
+              <Field key={key} label={label} hint={hint || undefined}>
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    value={draft.statutory[key]}
+                    disabled={!canManage}
+                    onChange={(e) => set('statutory', { [key]: e.target.value })}
+                  />
+                )}
+              </Field>
+            ))}
+            <div className="sm:col-span-2">{saveBar('statutory', 'Save statutory details')}</div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Modules</CardTitle>

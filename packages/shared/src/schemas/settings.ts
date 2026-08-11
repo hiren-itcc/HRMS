@@ -79,6 +79,18 @@ export const payrollSchema = z.object({
       wageCeiling: z.number().min(0).default(15000),
       /** Turn off to contribute on full basic rather than the capped wage. */
       applyCeiling: z.boolean().default(true),
+      /**
+       * The employer's share is not one contribution — it is a pension
+       * component and a provident-fund remainder, and an ECR return has to
+       * report them separately.
+       *
+       * The pension ceiling is **its own**, and it does not follow
+       * `applyCeiling`: an organization that generously contributes PF on full
+       * basic still cannot put more than the statutory wage into the pension
+       * scheme, because that ceiling is the government's rather than theirs.
+       */
+      epsRate: z.number().min(0).max(100).default(8.33),
+      epsWageCeiling: z.number().min(0).default(15000),
     })
     .prefault({}),
   esi: z
@@ -328,6 +340,8 @@ export const modulesSchema = z.object({
   assets: z.boolean().default(true),
   wfh: z.boolean().default(true),
   expenses: z.boolean().default(true),
+  performance: z.boolean().default(true),
+  helpdesk: z.boolean().default(true),
 });
 
 // ── Work from home ────────────────────────────────────────────────────
@@ -360,6 +374,37 @@ export const wfhSchema = z.object({
 
 // ── Registry ──────────────────────────────────────────────────────────
 
+// ── Statutory identity ────────────────────────────────────────────────
+
+/**
+ * Who the employer is, as the government knows them.
+ *
+ * A settings group rather than columns on `Organization`, because these are
+ * configuration edited from a screen and nothing ever queries by them — and
+ * because adding a key here needs no migration, which is the whole reason that
+ * table's own header comment gives for settings existing.
+ *
+ * Every field is optional and every one is a **precondition** rather than a
+ * decoration: an ECR file without an establishment code is not a short file,
+ * it is an unusable one. The filings screen refuses before a month can even be
+ * chosen, so nobody discovers this at download time.
+ */
+export const statutorySchema = z.object({
+  /** Tax deduction account number, for TDS returns. */
+  tan: z.string().trim().max(15).default(''),
+  /** The company's own PAN. */
+  pan: z.string().trim().max(10).default(''),
+  /** EPFO establishment code — the ECR header cannot be written without it. */
+  pfEstablishmentCode: z.string().trim().max(25).default(''),
+  /** ESIC employer code, for the contribution return. */
+  esiEmployerCode: z.string().trim().max(25).default(''),
+  /** Named on a return as the person responsible for it. */
+  signatoryName: z.string().trim().max(120).default(''),
+  signatoryDesignation: z.string().trim().max(120).default(''),
+});
+
+export type StatutorySettings = z.infer<typeof statutorySchema>;
+
 export const orgSettingsSchema = z.object({
   workingWeek: workingWeekSchema,
   leave: leavePolicySchema,
@@ -368,6 +413,7 @@ export const orgSettingsSchema = z.object({
   exitChecklist: exitChecklistSchema,
   settlement: settlementSchema,
   wfh: wfhSchema,
+  statutory: statutorySchema,
   modules: modulesSchema,
 });
 
@@ -427,6 +473,7 @@ export const orgSettingsPatchSchema = z
     exitChecklist: asPatch(exitChecklistSchema).optional(),
     settlement: asPatch(settlementSchema).optional(),
     wfh: asPatch(wfhSchema).optional(),
+    statutory: asPatch(statutorySchema).optional(),
     modules: asPatch(modulesSchema).optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, { message: 'Nothing to update' });
@@ -445,6 +492,7 @@ export const SETTINGS_GROUPS = [
   'exitChecklist',
   'settlement',
   'wfh',
+  'statutory',
   'modules',
 ] as const;
 
@@ -458,6 +506,7 @@ export function defaultSettings(): OrgSettings {
     exitChecklist: {},
     settlement: {},
     wfh: {},
+    statutory: {},
     modules: {},
   });
 }

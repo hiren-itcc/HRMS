@@ -137,7 +137,7 @@ EMI *schedule* and the reimbursement approval flow, not the payslip line.
 
 | Thing | Where | Status |
 |---|---|---|
-| `leave_approved`, `leave_rejected` emails | `email-templates.service.ts:24` | **Open.** Editable in Settings; no sender. Approving leave notifies nobody. |
+| ~~`leave_approved`, `leave_rejected` emails~~ | `leave-requests.service.ts:145` | ✅ **Sent**, from `announceDecision()`, and tested. This row said "no sender; approving leave notifies nobody" for as long as there was one. |
 | ~~Folder rename~~ | `documents.controller.ts:68` | ✅ **Wired.** Matters more than it looks: a folder cannot be deleted while documents are in it, so a badly-named folder people had already filed into could only be fixed by emptying it first. |
 | ~~Delete a salary revision~~ | `payroll.controller.ts:150` | ✅ **Wired** onto the revision timeline. This audit first called it "unassign a salary", which was **wrong** — it deletes one revision, and the API refuses once that month's payroll is settled. |
 | ~~One employee's attendance month~~ | `attendance.controller.ts:85` | ✅ **Wired** as a card on the employee record — the tab `05:62` specifies. Read-only: there is no admin attendance editor and no endpoint for one. |
@@ -297,18 +297,97 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | Reports | ✅ 4 + dashboard | ✅ + custom report builder |
 | Onboarding | ✅ invite → self-serve → HR review | ✅ |
 | ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
-| **Performance / goals / OKR** | ❌ | ✅ all four |
+| ~~**Performance / goals / OKR**~~ ✅ built — weighted goals, review cycles that enrol, self then manager assessment, shared and signed off · **no 360°, calibration, competency frameworks or nine-box, and a rating feeds no increment** | ⚠️ | ✅ all four |
 | ~~**Expense & reimbursement**~~ ✅ built — categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line · **no mileage rates, per-diems, corporate cards or multi-currency** | ⚠️ | ✅ all four |
 | ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
-| **Helpdesk / ticketing** | ❌ | ✅ Zoho, Darwinbox |
+| ~~**Helpdesk / ticketing**~~ ✅ built — tickets, a two-sided thread with internal notes, a queue and per-desk routing · **no attachments, SLAs, ticket numbers or email-in** | ⚠️ | ✅ Zoho, Darwinbox |
 | **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
-| **Mobile app** | ❌ | ✅ all four |
-| ~~**Notifications**~~ ✅ in-app built · email ❌ | ⚠️ | ✅ all four |
-| **Bulk import / export** | ❌ (reports only) | ✅ all four |
+| **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
+| ~~**Notifications**~~ ✅ built — in-app **and** email, three transports, per-user preference · **no digests, batching or domain events** | ⚠️ | ✅ all four |
+| ~~**Bulk import / export**~~ ✅ built — employees only; no bulk salary or attendance upload | ✅ all four |
 | Multi-entity payroll | ❌ (schema is org-scoped and ready) | ✅ Keka, greytHR |
+
+### Found by the end-to-end suite
+
+Worth recording separately, because these are the return on building that layer
+and none of them was reachable from a unit test.
+
+| Defect | How it surfaced |
+|---|---|
+| **An announcement could not be posted from the UI at all.** `publishAt` defaulted to `''` — what an untouched `datetime-local` holds, and what the field's own hint ("Leave empty to post now") tells you to leave it as — and the schema rejected it, so the resolver blocked submit and Publish did nothing. Never noticed because the seed writes announcements through Prisma and never touches the schema | 55 announcement requests in the run and **not one POST** |
+| **`/auth/refresh` was limited like a password form.** The client fires it on every bootstrap, so five a minute signed people out for reloading too often | 18 attempts, 9 refused |
+| **`TRUST_PROXY` unset in production.** `req.ip` was Render's proxy, so rate limits were a handful of shared buckets rather than per-client, and `AuditLog.ip` recorded infrastructure | every address in the live audit log was a private `10.x` |
+| **…and setting it to `1` did not fix it.** Render fronts services with Cloudflare, so `X-Forwarded-For` carries **three** hops; Express takes the *(n+1)th from the right*, so `1` lands on the Render internal address. Wants `2` | the audit log kept recording `10.x` after the change — which reads as "never took effect", and was not that. Counted from the real header rather than assumed |
+| **Every 500 was unattributable.** The exception filter turned an unknown throw into "Something went wrong" and logged nothing | a real 500 in CI could not be read from its own logs |
+| **`clock-card` vanished on any error**, the only component in the app that did, so a failed load looked identical to "you have no clock card" | three rounds chasing a selector that was correct |
+
+The pattern is worth stating: every one is a **cross-boundary** failure — a
+client default meeting a server schema, a limit meeting a client's own call
+pattern, a proxy meeting a request. That is the class of bug a mocked-Prisma
+unit test cannot see by construction, and it is the argument for the layer.
+
+### Found by running a real import against the dev database
+
+Neither of these is reachable from the unit tests, and both were visible in the
+first preview response of the first real file. Workstream C had 26 parser tests
+and a full service spec and had never once been pointed at a database.
+
+| Defect | How it surfaced |
+|---|---|
+| **Every suggestion was lower-cased.** Matching normalises to a key, and `nearestName` returned *the key* — so the preview offered `Did you mean "engineering"?`, `"bengaluru studio"`, `"senior software engineer"`. A suggestion exists to be copied back into the file; none of those is what the record is called | read the preview response against the seeded org. The unit tests asserted the lower-cased string, and one used `/i` — they agreed with the defect rather than catching it |
+| **Every bad column was reported twice.** The two staging passes see the same failure from opposite ends: the resolver says `No department called "Enginering". Did you mean…`, then the schema finds `departmentId` absent and adds `Department is required` | a three-row file produced 10 and 12 problems; a blank employment type produced the identical sentence twice. The existing assertion only ever read `problems[0]` |
+
+What *did* hold up, against a real database: the fuzzy resolver caught all four
+near misses in one file, the deferred manager link resolved a manager who
+appeared **later** in the file (`EMP-0029` → `EMP-0030`), codes allocated
+sequentially, `joinDate` landed on IST midnight, and both refusals fired — a
+second commit and a commit with unresolved rows.
+
+### Open — Finance cannot open the receipt on a claim it is approving
+
+Found while designing the helpdesk, by looking for a pattern to copy for
+attachments and finding one that does not work.
+
+An expense receipt is an ordinary `Document` on the claimant, and reading one
+goes through `DocumentsService.openFile` → `ensureEmployeeAccess`
+(`documents.service.ts:238`), which allows `document.read`, self with
+`document.read.own`, or a direct report with `document.read.team`.
+
+`FINANCE_PERMS` spreads `EMPLOYEE_PERMS` — which carries only
+`document.read.own` — plus `expense.read`, `expense.approve` and
+`expense.manage`. A receipt belongs to the claimant, so `isSelf` is false and
+Finance gets a **403 on the one document its role exists to look at**.
+
+Verified by reading both files rather than by running it, so the failing call
+has not been executed — but the three inputs are not ambiguous.
+
+Not fixed here: it means editing `DocumentsService`, and `docs/11-roadmap.md:70`
+says a design that needs to reach into another module's internals wants an ADR
+first. The fix is a decision about whose permission governs an attachment, not
+a one-line grant — adding `document.read` to Finance would hand it every
+document in the company to solve a receipt.
+
+It is also why the helpdesk defers attachments rather than copying this shape.
+
+### Open — `AuditLog.ip` is only ever written by the auth path
+
+Found while checking whether `TRUST_PROXY` had taken effect, by reading the live
+table rather than the code. Sign-ins carry an address; **every other mutation
+carries `NULL`** — 18 of the last 200 rows, including
+`payroll.filing.generate`, `employee.update` and `settings.update`.
+
+The cause is that `auditMutation` (`common/utils/audit.ts`) takes
+`{ orgId, userId }` and has no `ip` parameter at all. That context is the
+decoded JWT, which is the right thing for *who* and the wrong place for *where
+from* — a token payload cannot know the request's address.
+
+Not fixed here, because it is a signature change across **126 call sites in 41
+files** and wants its own change rather than a rider on a test fix. It also
+narrows what `TRUST_PROXY` bought: correct client addresses now reach rate
+limiting and sign-in rows, but the mutation trail records no address either way.
 
 ### Statutory filing — the sharpest commercial gap
 
@@ -320,8 +399,8 @@ is what an Indian payroll buyer is actually purchasing:
 |---|---|
 | **Form 16** (Part A + B) | ❌ — `11:89` scopes it as "a tax engine, not a payroll feature" |
 | **Form 24Q** quarterly TDS return | ❌ |
-| **ECR** text file for the EPFO portal | ❌ |
-| **ESIC** contribution challan | ❌ |
+| **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
+| **ESIC** contribution challan | ✅ built — same caveat |
 | **Form 12BB** / investment declarations | ❌ |
 | **Old vs new regime** TDS projection | ❌ — monthly TDS is typed in per employee |
 | **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
@@ -387,11 +466,54 @@ which other documents were citing.
 
 **Still open:**
 
-15. **Playwright and the five golden flows.** Blocked on CI infrastructure — a
-    Postgres service container, a seeded database and a running API — not on
-    effort. This is the next infrastructure job.
-16. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
-    sent by anything.
+15. ~~Playwright and the five golden flows~~ ✅ **built**, and this item was
+    wrong about the blocker. It named "a Postgres service container" — `ci.yml`
+    had one all along. What was actually missing was narrower: nothing ever
+    applied migrations to it (the drift check only populates a *shadow*
+    database, so `hrms` held an empty schema at the end of every run), nothing
+    seeded, nothing started either server, and Playwright was not installed.
+
+    CI is now five jobs: `check` (no database, gates the rest), `integration`,
+    `migration-drift`, and `e2e` — the last gated to `master` or a PR labelled
+    `e2e`, exactly as `10:59` specified before it existed.
+
+    **Two layers, not one, and the reason is this document's own §1.** A
+    Playwright spec would *not* have caught the password-reset enumeration bug,
+    even aimed straight at it: the failure needs a mail transport that throws,
+    and with no API key the transport is `LogTransport`, which never does. Both
+    addresses answer 200 and the spec passes. So the regression test is a
+    Supertest one that injects a refusing transport and asserts the two
+    responses are byte-identical — `apps/api/test/auth.e2e-spec.ts`. The general
+    rule, worth applying to anything that promises indistinguishability: assert
+    the **equality of two responses under an injected failure**, not the success
+    of one.
+
+    Also added: a `FileTransport` behind `MAIL_OUTBOX_DIR`, so the invite flow
+    asserts on a real link instead of scraping a pino log; a positive
+    "is this the throwaway" database guard that refuses anything hosted, with
+    the actual production URL as one of its test cases; and `dependabot.yml`.
+
+    **Not done**: the coverage gate. A global 80% threshold would fail on the
+    commit that adds it — organization, audit and all five payroll services have
+    no spec at all — and a gate disabled the day it lands teaches everyone to
+    disable gates. Lighthouse is deferred for the same reason it always is: its
+    own flake profile.
+16. ~~**`leave_approved` / `leave_rejected` emails**~~ ✅ **built** —
+    `leave-requests.service.ts:145` calls `mail.sendTemplate` from
+    `announceDecision()`, pinned by `leave-requests.notify.spec.ts`.
+
+    This item stayed open in writing long after it was closed in code, which is
+    the same failure this document exists to catch, committed by the document
+    itself. Email generally is built too: a mail module with three transports
+    (log, Resend, and a file outbox gated on `MAIL_OUTBOX_DIR` and checked
+    *before* the API key, so a test harness cannot send real mail), and a
+    general fan-out in `notifications.service.ts` that emails
+    `notification_generic` on every `notify()` unless the caller passes
+    `{ email: false }`.
+
+    **Still genuinely absent**: `@nestjs/event-emitter` — senders call
+    `notify()` directly — digests or batching, and per-event templates beyond
+    the five keys in `email-templates.ts`.
 
 ### P2 — market table stakes
 
@@ -430,17 +552,63 @@ which other documents were citing.
     cap, an org default and a per-employee allowance. **Nothing is enforced at
     clock-in**: a remote day nobody approved is still recorded, and flagged on
     read, because refusing the punch would lose the record of a day worked.
-18. Performance / goals / OKR (`11:61` reserves the seam)
+18. ~~Performance / goals / OKR~~ ✅ **built** — review cycles that enrol
+    everybody eligible, weighted goals, a self-assessment then a manager
+    assessment, shared and signed off. Three tables, three enums, seven
+    permission codes, twenty routes and four screens, and the module imports
+    nothing at all.
+
+    Two things worth knowing. The roadmap predicted it would reuse
+    `ApprovalStatus` and it does not — a review is never approved or rejected,
+    and widening the shared enum would have made `SHARED` representable on every
+    leave request in the product (`11:62` now records why). And its migration
+    **grants its own permissions**, which `20260807070000_expenses` did not —
+    that omission is why the admin account could not see Expenses in the sidebar
+    and why a destructive re-seed was the only fix available.
+
+    **Not built**: 360°/peer feedback, calibration, competency frameworks,
+    nine-box, and any link from a rating to a pay increment. The last is the
+    deliberate one — an increment is an effective-dated `EmployeeSalary`
+    revision gated by `payroll.salary.manage`, and wiring a rating into it would
+    be this module writing salary.
 19. ~~Asset management~~ ✅ **built** — a per-item register with issue/return
     history, and the exit checklist's "return company assets" line is now
     computed from it rather than ticked. **No depreciation, procurement or
     vendor management**: this is an asset register, not a fixed-asset ledger.
-20. Bulk employee import/export
+20. ~~Bulk employee import/export~~ ✅ **built** — `GET /employees/export`
+    (CSV or Excel, behind `report.export` as well as `employee.read`, because
+    "may read an employee" and "may walk out with the dataset" are different
+    permissions), and a three-step import: `GET import/template`,
+    `POST import/preview`, `POST import/:id/commit`.
+
+    The preview is the feature. A commit is **refused unless its preview is
+    clean**, so a half-imported file is not a state the system can reach, and
+    unresolved references are matched by name — containment first, then
+    Levenshtein within `max(2, len/3)` — and shown for confirmation rather than
+    guessed at silently. Rows are created **sequentially, never
+    `Promise.all`**: `nextCode()` has no retry, and concurrent inserts race it.
+
+    Leading `=`, `+`, `-` and `@` are stripped on export, so a cell cannot
+    become a formula when the file is opened in Excel.
 21. ~~Notifications~~ ✅ **built** — in-app, with a bell that polls. P0 #4
     resolved toward building after all. **Email notifications remain absent**,
     so a resignation moving through approval reaches nobody who does not open
     the app.
-22. Form 16, Form 24Q, ECR, ESIC challan
+22. **Form 16, Form 24Q, ECR, ESIC challan** — half built. **ECR and the ESIC
+    contribution return ship**; Form 16 and Form 24Q do not, and are still
+    scoped out as a tax engine rather than a payroll feature (`11:89`).
+
+    A Returns tab under Payroll, a Statutory card in Settings for the
+    establishment codes, and a readiness gate that fires *before* a month can
+    be chosen — refusing at download time would be the worst moment, once the
+    operator has picked a period and believed the totals. Exclusions render
+    before the totals and never collapsed: somebody left out for want of a UAN
+    is a person whose contribution is not reaching their account.
+
+    **No file here has been accepted by a portal.** The golden-file tests are
+    the strongest check CI can offer and they are not the same thing as an
+    upload succeeding, so the screen says so rather than letting somebody find
+    out by filing.
 
 ### P3 — differentiators, once the above is settled
 
@@ -458,9 +626,29 @@ which other documents were citing.
     that predates this gets NULL and stays unpublished. **Not built**: a careers
     page per organization — the service serves the single tenant and says so
     plainly if a second appears.
-24. Helpdesk, LMS, engagement surveys
-25. Mobile app (`07:55` designs the auth variant)
-26. Multi-tenant self-signup (`11:65` — `organizationId` scoping is already there)
+24. ~~Helpdesk~~ ✅ **built** — three tables, five permission codes, eighteen
+    routes and four screens. A ticket, a thread carrying public replies,
+    internal notes and system entries, and desks that route by a single named
+    default assignee.
+
+    Two decisions worth keeping visible. There is **no `helpdesk.read.team`**:
+    a ticket is bilateral, and where it is a grievance or a payslip query the
+    manager it concerns is exactly who must not read it by default. And
+    `helpdesk.respond` grants **the queue**, not org-wide reading — otherwise
+    "may work the desk" and "may read every grievance in the company" become
+    one grant.
+
+    **Not built**: attachments (see below), SLAs and escalation — there is no
+    scheduler, so a stored due date goes stale overnight — ticket numbers,
+    email-in, per-category custom fields, routing rules, tags, watchers, merge,
+    CSAT, and a knowledge base.
+
+    Attachments are the one people will ask for first. The shape when it lands
+    is a `TicketAttachment` table with its own upload and stream routes gated
+    on the ticket's own readability, **not** a reuse of `Document` — see the
+    Finance/receipt defect below, which is what reusing it would reproduce.
+25. LMS, engagement surveys
+26. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
 
 ---
 

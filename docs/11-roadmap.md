@@ -59,11 +59,11 @@ The architecture reserves an explicit seam for each planned module — adding on
 | ~~**Payroll**~~ | ✅ **Shipped.** `modules/payroll` + `features/payroll`; derives loss of pay from Leave and Attendance at calculation | none — seven new tables FK to Employee, exactly as designed | none in the end: payslips are HTML + browser print rather than server-rendered PDFs, and calculation is fast enough to stay synchronous, so neither BullMQ nor Redis was needed |
 | ~~**Recruitment**~~ | ✅ **Shipped, internal half.** Five tables, six enums, seven permission codes, fourteen routes and five screens. The prediction held exactly: `Candidate` is not `Employee`, and `POST /recruitment/offers/:id/hire` *converts* by calling the same `OnboardingService.onboard` that HR's own screen calls, so employee-code generation, the INVITED user and the invite to the **personal** address stay in one place | none — five new tables FK to Employee, Department, Designation, Location, EmploymentType and Document | ✅ **and the second half shipped too.** The careers page cost one nullable column and one widened one — `JobOpening.slug`, and `Document.uploadedById` losing NOT NULL because an anonymous CV has no uploader, the same call `AuditLog.actorId` already made for the lifecycle tick. `@nestjs/throttler` turned out to be a dependency already, with `ThrottlerGuard` global, so the rate limit is one decorator rather than a new package |
 | ~~**Expenses**~~ | ✅ **Shipped.** Three tables, one enum, seven permission codes, thirteen routes and four screens. The prediction held again: a claim becomes a payslip line through `PayrollAdjustmentsService`, so the calculation engine needed no change — the payslip end was already built, and `PayComponent.taxable` had carried the note "Reimbursements and employer contributions do not" since payroll shipped | none — three new tables FK to Organization, Employee, PayComponent and Document | none |
-| **Performance** | own module (cycles, goals, reviews) reusing ApprovalStatus machine + notifications | none | none |
+| ~~**Performance**~~ | ✅ **Shipped.** Three tables, three enums, seven permission codes, twenty routes and four screens. **The ApprovalStatus half of this prediction did not survive contact** — see below. The rest did: notifications reuse `notify`/`notifyPermission` unchanged, and the manager-routing pattern (`Employee.managerId`, the own/team/all triad, the `'__none__'` scope sentinel, 404-not-403 on an unreadable row) carried over exactly | none — verified: the migration has zero `ALTER TABLE` against any pre-existing table, zero `DROP`, zero `ALTER COLUMN` | none, and in the strongest sense available: `PerformanceModule` has an empty `imports` array, which no previously shipped module managed |
 | ~~**Assets**~~ | ✅ **Shipped.** Three tables, four permission codes, three screens. The exit checklist’s “return company assets” line is now computed from real assignments and cannot be ticked by hand. **Not via an event** — `@nestjs/event-emitter` is still not a dependency, so `AssetClearanceService` writes the task directly | one additive column, `OffboardingTask.kind` | none |
 | ~~**WFH / Hybrid**~~ | ✅ **Shipped.** One table, one nullable column on Employee, six permission codes. Attendance already detected who worked remotely; this is only the forward half — asking, agreeing, and a weekly cap | one nullable column, `Employee.remoteDaysPerWeek` | none |
+| ~~**Helpdesk**~~ | ✅ **Shipped.** Three tables, three enums, five permission codes, eighteen routes and four screens. The prediction held in the strongest form available: `HelpdeskModule` has an empty `imports` array, the second module to manage it, because `NotificationsModule` and `StorageModule` are both `@Global` and everything else it needs is `PrismaService`. Two shapes were **not** reused on purpose — `ApprovalStatus`, because a ticket is never approved or rejected and `WAITING_ON_REQUESTER` has no member to map to, and the own/team/all triad, because there is no `.team` scope here at all | none — the migration has zero `ALTER TABLE` against any pre-existing table, zero `DROP`, zero `ALTER COLUMN`; `Organization`, `Employee` and `User` gain relation arrays, which emit no DDL | none |
 | **AI features** | `modules/ai` behind AI Gateway (leave-policy Q&A over docs, attrition signals from Reports read-models) | none | LLM provider key; pgvector if RAG |
-| **Mobile app** | new consumer of `/api/v1` — contract already Swagger-frozen; auth variant designed (doc 07) | none | push notifications (FCM) — **and the NotificationsModule they would sit behind, which was never built** (doc 03) |
 | **Multi-tenant SaaS** | activate the dormant `organizationId` scoping: org signup flow + Postgres RLS + per-org subdomain | none (already scoped) | RLS policies, billing |
 
 **Platform upgrades, triggered not scheduled:** SSE/WebSocket notifications when polling chafes · RS256 + JWKS when a second service consumes JWTs · read replicas when reports strain OLTP · Redis cache when p95 > 300 ms on hot lists.
@@ -105,6 +105,30 @@ a calling service makes and never something an API client can send.
 The alternative — expenses writing `prisma.payrollAdjustment` itself — would
 have been a second copy of the statutory-component refusal and the locked-month
 check, and one of the two would have drifted.
+
+Performance is the first module where a prediction in this table was **wrong**,
+and it is worth recording as carefully as the ones that held. The row promised
+it would reuse the `ApprovalStatus` machine. It does not, and forcing it would
+have been a mistake: that enum is `PENDING/APPROVED/REJECTED/CANCELLED`, and a
+review is never approved and never rejected. It is written by two people,
+shared, and signed off. `SHARED` mapped onto `APPROVED` makes the enum's name a
+lie at every call site, and `ACKNOWLEDGED` has no member to map to at all.
+Widening the shared enum instead would have made both representable on every
+`LeaveRequest`, `AttendanceRequest` and `RemoteWorkRequest` in the product —
+a redesign of three modules this one has no business touching, which is exactly
+what rule 4 forbids.
+
+`ExpenseClaimStatus` had already set this precedent for the same reason, so the
+honest reading is that the prediction was written from the shape of the
+workflow rather than from the vocabulary it needs. What *did* carry over is the
+larger half and the part that would have been expensive to get wrong: the
+manager-routing pattern, the permission triad, the scope sentinel, and the
+notification calls, all unchanged.
+
+Performance also changes **no existing signature at all** — worth stating
+because expenses is on record above as the first module that did. It calls
+`NotificationsService.notify`, `notifyPermission` and `auditMutation` exactly as
+they already are.
 
 Recruitment is the cleanest confirmation so far, because the prediction in this
 very table was written before the code and turned out to be checkable. It

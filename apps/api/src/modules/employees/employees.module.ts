@@ -4,6 +4,7 @@ import { LifecycleModule } from '../lifecycle/lifecycle.module';
 import { DirectoryController } from './directory.controller';
 import { DirectoryService } from './directory.service';
 import { EmployeeAvatarService } from './employee-avatar.service';
+import { EmployeeExportService } from './employee-export.service';
 import { EmployeesController, MeController } from './employees.controller';
 import { EmployeesService } from './employees.service';
 
@@ -16,7 +17,7 @@ import { EmployeesService } from './employees.service';
 @Module({
   imports: [AuditModule, LifecycleModule],
   controllers: [EmployeesController, MeController, DirectoryController],
-  providers: [EmployeesService, DirectoryService, EmployeeAvatarService],
+  providers: [EmployeesService, DirectoryService, EmployeeAvatarService, EmployeeExportService],
   exports: [EmployeesService],
 })
 export class EmployeesModule {}

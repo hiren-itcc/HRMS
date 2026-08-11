@@ -14,7 +14,9 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Loader2, LogIn, LogOut, MapPinOff, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ErrorState } from '@/components/error-state';
 import { errorMessage } from '@/hooks/use-crud';
+import { ApiError } from '@/lib/api-client';
 import {
   attendanceApi,
   formatDuration,
@@ -122,8 +124,25 @@ export function ClockCard() {
     onError: (err) => onPunchError(err, 'Could not clock out'),
   });
 
-  // No employee record linked (e.g. the bootstrap admin) — nothing to clock
-  if (today.isError) return null;
+  /*
+   * Two different failures, and treating them as one hid a real bug.
+   *
+   * "No employee record linked" — the bootstrap admin — genuinely has nothing
+   * to clock, and rendering nothing is right. Anything else is a load that
+   * failed, and this was the only component in the app that answered that by
+   * disappearing: a 429 or a 500 looked exactly like "you have no clock card".
+   * The end-to-end suite spent three rounds chasing a selector that was
+   * correct, against a card that was never rendered.
+   *
+   * 4xx below 500 that is not a rate limit is the "nothing to clock" shape —
+   * a 404 or a 400 from an account with no employee. Everything else says so.
+   */
+  if (today.isError) {
+    const status = today.error instanceof ApiError ? today.error.status : 0;
+    const nothingToClock = status >= 400 && status < 500 && status !== 429;
+    if (nothingToClock) return null;
+    return <ErrorState onRetry={() => today.refetch()} retrying={today.isFetching} />;
+  }
   if (today.isLoading || !today.data) {
     return <Skeleton className="h-44 w-full rounded-2xl" />;
   }

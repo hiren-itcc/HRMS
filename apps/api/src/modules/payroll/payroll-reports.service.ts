@@ -3,7 +3,9 @@ import { COMPONENT_CODES } from '@hrms/shared';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import type { ReportRow } from '../reports/report-export';
+import { SettingsService } from '../settings/settings.service';
 import { toDays, toMoney } from './payroll.mapper';
+import { type PayrollConfig, pfWage } from './payroll.statutory';
 
 /**
  * Payroll reports.
@@ -24,7 +26,10 @@ export interface PayrollReport {
 
 @Injectable()
 export class PayrollReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async build(
     orgId: string,
@@ -50,8 +55,14 @@ export class PayrollReportsService {
         return this.register(query.month, payslips);
       case 'bank-transfer':
         return this.bankTransfer(query.month, payslips);
-      case 'pf':
-        return this.statutory(query.month, payslips, 'pf');
+      case 'pf': {
+        /*
+         * Only PF needs the config, and only for the wage the contribution was
+         * levied on. ESI is levied on gross, which the payslip already holds.
+         */
+        const config = (await this.settings.get(orgId)).payroll;
+        return this.statutory(query.month, payslips, 'pf', config);
+      }
       case 'esi':
         return this.statutory(query.month, payslips, 'esi');
       case 'tax':
@@ -158,6 +169,7 @@ export class PayrollReportsService {
     month: string,
     payslips: PayslipWithLines[],
     scheme: 'pf' | 'esi',
+    config?: PayrollConfig,
   ): PayrollReport {
     const employeeCode = scheme === 'pf' ? COMPONENT_CODES.PF : COMPONENT_CODES.ESI;
     const employerCode =
@@ -168,8 +180,28 @@ export class PayrollReportsService {
       .map((p) => ({
         employeeCode: p.employeeCode,
         employeeName: p.employeeName,
+        /*
+         * The wage the contribution was actually taken on, not the full basic.
+         *
+         * This column used to be the BASIC line outright, which disagreed with
+         * the deduction beside it for everybody earning above the ceiling — 22
+         * of 26 rows on a seeded month. The deduction was right; the wage was
+         * not. `pfWage` is the same function `providentFund` levies with, so
+         * the two cannot drift apart again.
+         *
+         * Known limitation, and it is the reason the fix is not finished here:
+         * the ceiling is read from *current* settings, so a report for a month
+         * before a statutory ceiling change would show today's cap. The proper
+         * answer is freezing the levied wage onto the payslip at calculation
+         * time, the way every other figure on it is frozen. Recorded as the
+         * follow-up rather than smuggled in behind a bug fix.
+         */
         wages:
-          scheme === 'pf' ? this.lineAmount(p, COMPONENT_CODES.BASIC) : toMoney(p.grossEarnings),
+          scheme === 'pf'
+            ? config
+              ? pfWage(this.lineAmount(p, COMPONENT_CODES.BASIC), config)
+              : this.lineAmount(p, COMPONENT_CODES.BASIC)
+            : toMoney(p.grossEarnings),
         employee: this.lineAmount(p, employeeCode),
         employer: this.lineAmount(p, employerCode),
       }))

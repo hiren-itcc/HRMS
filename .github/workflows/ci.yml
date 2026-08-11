@@ -9,9 +9,98 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Every job that talks to a database uses this. It is a throwaway container,
+  # which is what lets the seed's own guard pass without SEED_ALLOW_RESET —
+  # and setting that variable here would be wrong, because it would then be
+  # set in any workflow somebody copied this file into.
+  DATABASE_URL: postgresql://hrms:hrms@localhost:5432/hrms?schema=public
+  JWT_ACCESS_SECRET: ci-only-secret-not-used-anywhere-0000000000
+
 jobs:
-  ci:
+  # Everything that needs no database. Fast, and it gates the rest.
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hrms/api db:generate
+      - name: Lint (Biome)
+        run: pnpm exec biome ci .
+      - name: Typecheck
+        run: pnpm turbo run typecheck
+      - name: Build
+        run: pnpm turbo run build
+      - name: Unit tests
+        run: pnpm turbo run test -- --passWithNoTests
+      - name: Dependency audit
+        # Advisory for now: a failing audit on a transitive dependency should
+        # not block a docs commit. Promote to a hard failure once the current
+        # tree is clean and staying clean.
+        run: pnpm audit --audit-level=high || true
+
+  # The layer the unit suite structurally cannot reach: guards, RBAC and the
+  # endpoint contracts, against a real Nest app and a real Postgres.
+  integration:
+    runs-on: ubuntu-latest
+    needs: [check]
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hrms
+          POSTGRES_PASSWORD: hrms
+          POSTGRES_DB: hrms
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hrms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hrms/api db:generate
+      - name: Build the workspace packages
+        # The seed and the API import `@hrms/shared` and `@hrms/types` from
+        # their built `dist`, not their source. Without this the seed dies on
+        # "Cannot find module .../@hrms/shared/dist/index.js" — which is exactly
+        # how this job failed the first time it ever ran. Only the packages, not
+        # the apps: ts-jest compiles the API from source.
+        run: pnpm turbo run build --filter=@hrms/shared --filter=@hrms/types
+      - name: Apply migrations
+        run: pnpm --filter @hrms/api db:deploy
+      - name: Seed
+        # `pnpm db:seed`, not `prisma db seed` — and the difference used to
+        # matter, because prisma.config.ts named a file that does not exist.
+        run: pnpm --filter @hrms/api db:seed
+      - name: Integration tests
+        env:
+          # Prisma 7's client resolves its engine through a dynamic import at
+          # query time, and Jest's default CommonJS VM cannot service one —
+          # every query fails with "a dynamic import callback was invoked
+          # without --experimental-vm-modules". Not an application problem: the
+          # same client works fine under tsx, the seed and the running server.
+          NODE_OPTIONS: --experimental-vm-modules
+        run: pnpm --filter @hrms/api test:integration
+
+  # Applies every migration to a shadow database and diffs against the schema.
+  # Catches both drift and a migration that fails to apply at all.
+  migration-drift:
+    runs-on: ubuntu-latest
+    needs: [check]
     timeout-minutes: 15
     services:
       postgres:
@@ -20,47 +109,22 @@ jobs:
           POSTGRES_USER: hrms
           POSTGRES_PASSWORD: hrms
           POSTGRES_DB: hrms
-        ports:
-          - "5432:5432"
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U hrms"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-    env:
-      DATABASE_URL: postgresql://hrms:hrms@localhost:5432/hrms?schema=public
-      JWT_ACCESS_SECRET: ci-only-secret-not-used-anywhere-0000000000
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm --filter @hrms/api db:generate
-
-      - name: Lint (Biome)
-        run: pnpm exec biome ci .
-
-      - name: Typecheck
-        run: pnpm turbo run typecheck
-
-      - name: Build
-        run: pnpm turbo run build
-
-      - name: Test
-        run: pnpm turbo run test -- --passWithNoTests
-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hrms/api db:generate
       - name: Migration drift check
-        # Applies every migration to a shadow DB and diffs against the schema —
-        # catches both drift and migrations that fail to apply.
         env:
           SHADOW_DATABASE_URL: postgresql://hrms:hrms@localhost:5432/hrms_shadow
         run: |
@@ -69,3 +133,65 @@ jobs:
             --from-migrations prisma/migrations \
             --to-schema prisma/schema.prisma \
             --exit-code || (echo "::error::schema.prisma has changes not captured in a migration" && exit 1)
+
+  # The five golden flows. On master, or on a PR labelled `e2e` — per
+  # docs/10-engineering-standards.md §17, which specified this job before it
+  # existed. Browser runs are slow and this is the whole reason for the gate.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [check]
+    timeout-minutes: 30
+    if: >-
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hrms
+          POSTGRES_PASSWORD: hrms
+          POSTGRES_DB: hrms
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hrms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      WEB_ORIGIN: http://localhost:5173
+      # Set at BUILD time, not just at run time — Next.js inlines it. Setting it
+      # only on the server command would build a front end pointed wherever the
+      # last developer's .env.local pointed.
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      MAIL_OUTBOX_DIR: ${{ github.workspace }}/.tmp/outbox
+      PORT: "4000"
+      # Nine sign-ins across five specs, from one IP, against a production
+      # limit of five a minute — the suite was throttling itself out and four
+      # specs failed on 429s that looked like broken selectors. Raised only
+      # here; the limit itself is proved by the integration job, which runs at
+      # the default. See apps/api/src/config/env.ts.
+      AUTH_THROTTLE_LIMIT: "60"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hrms/api db:generate
+      - run: pnpm turbo run build
+      - name: Apply migrations and seed
+        run: |
+          pnpm --filter @hrms/api db:deploy
+          pnpm --filter @hrms/api db:seed
+      - name: Install Chromium
+        run: pnpm --filter @hrms/e2e exec playwright install --with-deps chromium
+      - name: Run the golden flows
+        run: pnpm --filter @hrms/e2e test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/e2e/playwright-report
+          retention-days: 7

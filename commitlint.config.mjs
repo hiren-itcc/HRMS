@@ -35,11 +35,24 @@ export default {
         // something.
         'assets',
         'recruitment',
+        // Two more that shipped after the list was written, exactly as payroll
+        // did above. The rule is a warning rather than an error, so a missing
+        // scope never blocks a commit — which is also why nobody noticed.
+        'expenses',
+        'careers',
+        // Goals, review cycles and reviews.
+        'performance',
+        'notifications',
+        // Tickets, threads, and the desks they route to.
+        'helpdesk',
+        'wfh',
         'mail',
         'reports',
         'settings',
         'db',
         'ci',
+        // The test layers are their own concern: apps/e2e and apps/api/test.
+        'test',
         'docker',
         'deps',
         'docs',

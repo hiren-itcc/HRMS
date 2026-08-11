@@ -51,16 +51,43 @@
 ### `ci.yml` — every PR and push to `master`
 
 ```
-setup (pnpm cache + turbo remote cache)
-├─ lint        turbo run lint      (biome, affected-only on PRs)
-├─ typecheck   turbo run typecheck
-├─ test        turbo run test      (unit + integration; Postgres service container)
-├─ build       turbo run build     (web + api + packages)
-└─ e2e         Playwright golden flows — master only, or PR label "e2e"
-    prisma migrate diff --exit-code   → blocks drift between schema and migrations
+check              no database — gates everything below
+  ├─ biome ci .
+  ├─ turbo run typecheck
+  ├─ turbo run build
+  ├─ turbo run test           unit only; mocked Prisma, runs on a plane
+  └─ pnpm audit --audit-level=high   (advisory)
+integration        Postgres → migrate deploy → seed → jest test/*.e2e-spec.ts
+migration-drift    Postgres → prisma migrate diff --exit-code
+e2e                Postgres → migrate + seed → build → Playwright, 5 flows
+                   master only, or a PR labelled "e2e"
 ```
 
-Turborepo's affected-graph keeps PR CI < 5 min; `master` runs the full matrix.
+**Unit and integration are separate suites, not one.** `pnpm test` mocks Prisma
+and needs nothing; `pnpm test:integration` builds the real `AppModule` against a
+real Postgres. The second is the only layer that can see `PermissionsGuard`
+reading actual `RolePermission` rows, and the only one that can inject a failing
+mail transport — which is what it took to catch the password-reset enumeration
+bug that reached production.
+
+**The rule that bug taught, worth applying generally:** for an endpoint that
+promises indistinguishability, assert the **equality of two responses under an
+injected failure**, not the success of one. A browser test aimed straight at
+that endpoint would have passed, because without a mail key the transport is
+`LogTransport` and never throws.
+
+**Anything destructive asserts its target first.** `assertDisposable` in
+`apps/api/src/common/utils/database-target.ts` is a positive check — "is this
+the throwaway I am allowed to destroy" — rather than a denylist, which rots the
+moment another environment appears. Both the seed and the E2E setup go through
+it. It matters here specifically because the checked-in `.env` says
+`NODE_ENV=development` while `DATABASE_URL` points at a hosted database, so an
+environment check protects nothing.
+
+**No coverage gate yet, deliberately.** A global 80% threshold fails on the
+commit that introduces it — organization, audit and the payroll services have no
+specs — and a gate that must be disabled the day it lands teaches everyone to
+disable gates. Ratchet per-path thresholds up instead.
 
 ### `deploy.yml` — on tag `v*` (staging auto; production behind GitHub Environment approval)
 

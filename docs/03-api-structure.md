@@ -4,7 +4,7 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 
 ## Conventions
 
-- **Auth:** `Authorization: Bearer <access-token>` on every route except `auth/*` public endpoints. Refresh token travels only as an httpOnly cookie (web) or request body (future mobile).
+- **Auth:** `Authorization: Bearer <access-token>` on every route except `auth/*` public endpoints. Refresh token travels only as an httpOnly cookie (web); the request-body variant for a non-browser client is designed but unbuilt and unplanned (doc 07).
 - **Permissions:** each route declares `@RequirePermissions('resource.action')` (doc 04). "Self" endpoints (`/me/...`) bypass the matrix — they are scoped by the JWT subject.
 - **Envelope:** success returns the resource directly; errors return RFC-7807-style `{ statusCode, error, message, details? }`. No `{ success: true }` wrappers.
 - **Lists:** `?page=&limit=&sort=&order=&search=` + module-specific filters. Response: `{ data: T[], meta: { page, limit, total } }`.
@@ -384,6 +384,48 @@ refuses plainly if a second ever exists; the roadmap's answer is a per-org
 subdomain, and guessing would publish one company's vacancies under another's
 URL.
 
+### Performance (`/performance`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/performance/cycles` — the cycles | `performance.read.own` |
+| GET | `/performance/cycles/active` — the one running, or `null` | `performance.read.own` |
+| GET | `/performance/cycles/:id` — one cycle, with its coverage counts | `performance.read.own` |
+| POST | `/performance/cycles` — plan one; created as a draft | `performance.manage` |
+| PATCH | `/performance/cycles/:id` — edit a draft's dates | `performance.manage` |
+| POST | `/performance/cycles/:id/open` — enrol everybody eligible; **idempotent** | `performance.manage` |
+| POST | `/performance/cycles/:id/close` — refused with reviews outstanding unless `force` | `performance.manage` |
+| DELETE | `/performance/cycles/:id` — only a draft nobody is enrolled in | `performance.manage` |
+| GET | `/performance/goals` — `scope=own\|team\|all`, filter cycle and status | `performance.read.own` |
+| POST | `/performance/goals` — somebody else's needs `performance.goal.team` | `performance.goal.own` |
+| GET / PATCH / DELETE | `/performance/goals/:id` | `performance.read.own` / `performance.goal.own` |
+| GET | `/performance/reviews` — `scope=own\|team\|all`, `awaitingMe` | `performance.read.own` |
+| GET | `/performance/reviews/:id` — with that cycle's goals attached | `performance.read.own` |
+| PATCH | `/performance/reviews/:id/self` — save a draft | `performance.read.own` |
+| POST | `/performance/reviews/:id/self/submit` | `performance.read.own` |
+| POST | `/performance/reviews/:id/self/skip` — move past one nobody will write | `performance.manage` |
+| PATCH | `/performance/reviews/:id/manager` — save; not visible to them yet | `performance.review.team` |
+| POST | `/performance/reviews/:id/share` — release it to the employee | `performance.review.team` |
+| POST | `/performance/reviews/:id/acknowledge` | `performance.read.own` |
+| POST | `/performance/reviews/:id/reopen` · `/cancel` · `/reassign` | `performance.manage` |
+
+**Writing your own self-assessment is gated by a read code, and that is not an
+oversight.** No permission expresses it, because being asked to assess yourself
+is a consequence of being enrolled in a cycle rather than a privilege somebody
+grants. `performance.read.own` reaches the handler and the service checks you
+are the subject. The client is told what it may do through `canSelfAssess`,
+`canManagerAssess` and `canAcknowledge` on the payload.
+
+**`managerRating`, `managerComment` and `managerActions` are omitted from the
+response**, not nulled, for a reader who may not see them yet. A `null` would be
+indistinguishable from "the manager wrote nothing" — a different fact, and one
+the employee is owed at the right time. Deciding it server-side is also what
+stops a component leaking a rating by rendering it and hiding it.
+
+**`scope=team` on reviews resolves from the reviewer snapshot, not the current
+reporting line.** On goals it is the opposite, and both are deliberate: a review
+belongs to whoever was in the conversation, a goal to whoever manages you now.
+
 ### Expenses (`/expenses`)
 
 | Method | Path | Permission |
@@ -419,6 +461,59 @@ would be two payslip lines with the same code.
 
 There is no "mark paid" route. Whether the money arrived is whether the payroll
 run for the claim's month was published, and that is derived on read.
+
+### Helpdesk (`/helpdesk`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/helpdesk/tickets` — `scope=own\|queue\|all`, filter status/priority/category | `helpdesk.read.own` |
+| GET | `/helpdesk/tickets/:id` — one ticket and its thread | `helpdesk.read.own` |
+| POST | `/helpdesk/tickets` — raise one | `helpdesk.raise.own` |
+| POST | `/helpdesk/tickets/:id/comments` — reply, or `internal: true` for a note | `helpdesk.read.own` |
+| POST | `/helpdesk/tickets/:id/assign` — hand it over, or `null` back to the queue | `helpdesk.respond` |
+| POST | `/helpdesk/tickets/:id/start` · `/wait` · `/resolve` | `helpdesk.respond` |
+| POST | `/helpdesk/tickets/:id/reopen` · `/close` · `/cancel` | `helpdesk.read.own` |
+| PATCH | `/helpdesk/tickets/:id/priority` · `/category` | `helpdesk.respond` |
+| GET | `/helpdesk/summary` — counts behind the tabs | `helpdesk.read.own` |
+| GET | `/helpdesk/categories` | `helpdesk.read.own` |
+| POST / PATCH / DELETE | `/helpdesk/categories` · `/helpdesk/categories/:id` | `helpdesk.manage` |
+
+**The read routes carry the weakest code that could reach them**, as expenses
+does above and for the same reason: the guard cannot know whose ticket an id
+belongs to. Reply, reopen, close and cancel are all `helpdesk.read.own` at the
+guard, and the service decides whether you are the requester on this one or
+somebody working the desk. An unreachable ticket answers **404, not 403** —
+whether a ticket exists is itself information, and a helpdesk that distinguishes
+"forbidden" from "not found" can be probed for whether a colleague has raised a
+grievance.
+
+**Scope narrows rather than refusing.** Asking for `all` without `helpdesk.read`
+returns your own tickets with a 200, matching expenses and performance. A 200 is
+therefore never evidence that the scope you asked for is the scope you got.
+
+**`helpdesk.respond` grants the queue, not the organization.** The queue is
+tickets assigned to you plus unassigned ones; reading one assigned to somebody
+else needs `helpdesk.read`. Collapsing the two would make "may work the desk"
+and "may read every grievance in the company" a single grant.
+
+**There is no `helpdesk.read.team`**, for the reason letters gives: a ticket is
+bilateral between one person and a desk, and the manager it concerns is exactly
+who must not read it by default. An organization that wants team leads on a desk
+grants `helpdesk.respond` to a role composed in Settings — no code needed.
+
+**Comments have three kinds, and only two are writable.** `PUBLIC` and
+`INTERNAL` come from this route; `SYSTEM` is written by the service on every
+transition and is what this module has instead of a status-history table. The
+thread is filtered by `visibleComments` before it is returned, so an internal
+note never reaches the requester's payload at all.
+
+**No notification ever carries a comment body** — every one sends the ticket
+subject. That removes the internal-note leak class outright rather than relying
+on each call site to remember.
+
+There is no `PATCH` on a ticket's subject or description. A correction is a
+comment; editing the text an agent has already read is how a thread stops making
+sense.
 
 ### Assets (`/assets`)
 
@@ -537,16 +632,38 @@ than becoming `0`.
 | POST | `/announcements/:id/read` — mark read |
 | GET | `/announcements/:id/reads` — read receipts (author/HR) |
 
-### Notifications — **not built**
+### Notifications (`/notifications`)
 
-No `/notifications` endpoints exist. A `Notification` table is in the schema
-with zero reads and zero writes, and there is no module, service or bell.
+This section said "**not built** — no endpoints exist, no module, service or
+bell" long after all three existed. It was written when that was true and never
+revisited; the module shipped, and the doc kept saying otherwise.
 
-The unread/mark-read capability this section once specified was absorbed by
-Announcements, which is the only thing that ever needed it:
-`GET /announcements/unread-count`, `POST /announcements/:id/read` and
-`POST /announcements/read-all`. A general notification feed would be a new
-module — see [15-feature-audit.md](./15-feature-audit.md).
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/notifications` — the feed, `unreadOnly` | Scoped to the JWT subject, nothing else |
+| GET | `/notifications/unread-count` — the bell | |
+| POST | `/notifications/:id/read` · `/read-all` | |
+| GET / PATCH | `/notifications/preferences` | The individual's email switch |
+
+Every route is scoped to `claims.sub` rather than taking a user id, so there is
+no permission code here at all — a notification feed you can ask about somebody
+else is not a feed.
+
+**Senders do not call this controller.** They call `NotificationsService.notify`
+or `notifyPermission`, which writes the in-app row *and* emails the
+`notification_generic` template unless the call passes `{ email: false }`.
+`notifyPermission` resolves recipients through the role graph rather than by
+role code, so a custom role composed in Settings is reached without any module
+naming it. Delivery respects both `User.emailNotifications` and the
+organization's `EmailTemplate.isActive` — either being off is enough.
+
+The module is `@Global` and imports nothing, deliberately: anything that
+notifies is something it could not depend on without closing a cycle.
+
+Announcements keep their own unread/read routes
+(`GET /announcements/unread-count`, `POST /announcements/:id/read`,
+`POST /announcements/read-all`) — a read receipt on a post everyone can see is a
+different thing from a notification addressed to one person.
 
 ### Reports (`/reports`) — read-only aggregates
 All four take `?from=&to=` (an arbitrary range, capped at 366 days) plus an
@@ -705,4 +822,4 @@ minutes.
 - **Scoping middleware:** every query passes through the tenant scope (`organizationId` from JWT) — enforced in services, verified by tests, so a future second tenant leaks nothing.
 - **Approver resolution (Phase 1):** an employee's approver = their `manager`'s user; HR/Admin can act on anything they hold `*.approve` for. Multi-step approval chains are a future module (doc 11) — the `ApprovalStatus` machine already supports it.
 - **Rate limits:** `auth/*` 5/min/IP; global 100/min/user (NestJS Throttler).
-- **Swagger:** DTOs annotated; every endpoint tagged by module → the docs page is the API contract for the future mobile app.
+- **Swagger:** DTOs annotated; every endpoint tagged by module → the docs page is the API contract for any consumer other than `apps/web`. It was written for a mobile app that is no longer planned (doc 11 §20); the contract is worth keeping frozen regardless, because it is the reason a second consumer never becomes a redesign.

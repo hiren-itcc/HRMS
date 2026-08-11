@@ -33,7 +33,58 @@ import { InviteService } from './invite.service';
 import { TokenService } from './token.service';
 
 export const REFRESH_COOKIE = 'refresh_token';
-const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
+
+/**
+ * Two limits, because these routes are asked for by different things.
+ *
+ * They were never one *bucket* — `@nestjs/throttler` keys storage per handler
+ * (`generateKey` is `class-handler-name`), so every route below has always had
+ * its own counter. What they shared was the number, and 5/min is a figure
+ * calibrated for a person typing a password. It is the wrong figure for a route
+ * the client fires by itself.
+ *
+ * A resolvable rather than a captured value: `@Throttle` decorators are
+ * evaluated when the class is defined, which is *before* `ConfigModule` loads
+ * `.env` into `process.env`. Reading at module scope would silently ignore
+ * anything set in a local `.env` and quietly keep the default. This function
+ * runs per request, by which time Zod has validated the value and written it
+ * back. `|| 5` is not belt-and-braces — it is what turns a `NaN` into
+ * fail-closed rather than a limit that never trips.
+ */
+const authLimit = () => Number(process.env.AUTH_THROTTLE_LIMIT) || 5;
+
+/**
+ * Credential guessing and account enumeration. Deliberately tight, and the
+ * reason `forgot-password` answers identically for a real and an unknown
+ * address is the same concern one layer up.
+ */
+const AUTH_THROTTLE = { default: { limit: authLimit, ttl: 60_000 } };
+
+/**
+ * Refresh is asked for by the client, not by a person.
+ *
+ * `session-provider.tsx` calls it on **every app bootstrap** and `api-client.ts`
+ * calls it again on any 401. At five a minute a signed-in person who reloads a
+ * few times, opens a few tabs, or shares an outbound address with colleagues
+ * gets a 429 — and the bootstrap treats any failure as "not signed in", so they
+ * are bounced to the login screen with a session that is still perfectly valid
+ * on the server. A spurious sign-out, not lost data: the 429 comes from the
+ * guard, so the handler never runs and the cookie is never cleared.
+ *
+ * What guards this route is the token: httpOnly, Secure, SameSite=Lax, scoped
+ * to `/auth`, and rotated with reuse detection in `token.service.ts`, so
+ * replaying a stolen cookie revokes the whole chain. A counter adds nothing to
+ * that against a single-request replay, and nothing at all against guessing a
+ * 256-bit token.
+ *
+ * It is not zero, though, and the reason is narrower than "defence in depth".
+ * This route is `@Public()`, and its reuse branch does three writes —
+ * `revokeAllForUser`, a user read, an audit row. Anyone holding a *stale*
+ * token for somebody can fire that at will, so some ceiling on how fast one
+ * source can do it is worth keeping. 60/min is far above any real client and
+ * far below a useful attack rate.
+ */
+const REFRESH_THROTTLE = { default: { limit: 60, ttl: 60_000 } };
 
 @ApiTags('auth')
 @Controller('auth')
@@ -68,7 +119,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle(AUTH_THROTTLE)
+  @Throttle(REFRESH_THROTTLE)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

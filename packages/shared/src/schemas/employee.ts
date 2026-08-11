@@ -97,6 +97,21 @@ export const employeeCreateSchema = z.object({
     .or(dateOnlySchema)
     .optional(),
   gender: genderSchema.optional(),
+  /*
+   * Statutory identifiers. Optional, because most organizations backfill them
+   * long after the employee record exists — and because an employee who has
+   * not been enrolled in a scheme genuinely has none.
+   *
+   * They are here rather than only on an admin screen because the columns were
+   * added and nothing could write them: the ECR builder excluded every
+   * employee for want of a UAN, correctly, and there was no way to supply one.
+   * A field the product refuses to work without and offers no way to enter is
+   * worse than a missing feature.
+   */
+  pan: optionalStr(10),
+  uan: optionalStr(12),
+  pfMemberId: optionalStr(25),
+  esicIpNumber: optionalStr(17),
   addressLine: optionalStr(200),
   city: optionalStr(80),
   country: optionalStr(80),

@@ -18,9 +18,11 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { EmployeeImportModule } from './modules/employees/employee-import.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { HealthController } from './modules/health/health.controller';
+import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
 import { LeaveModule } from './modules/leave/leave.module';
 import { LettersModule } from './modules/letters/letters.module';
 import { LifecycleJobsModule } from './modules/lifecycle/lifecycle-jobs.module';
@@ -29,6 +31,7 @@ import { OffboardingModule } from './modules/offboarding/offboarding.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { PerformanceModule } from './modules/performance/performance.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -54,6 +57,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
     AuthModule,
     OrganizationModule,
     EmployeesModule,
+    EmployeeImportModule,
     DocumentsModule,
     LettersModule,
     OnboardingModule,
@@ -61,6 +65,8 @@ import { WfhModule } from './modules/wfh/wfh.module';
     OffboardingModule,
     AssetsModule,
     ExpensesModule,
+    PerformanceModule,
+    HelpdeskModule,
     LifecycleJobsModule,
     DashboardModule,
     AttendanceModule,

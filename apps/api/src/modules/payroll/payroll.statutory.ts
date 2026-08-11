@@ -43,6 +43,24 @@ export interface StatutoryResult {
  * whenever the rate is not 100%. An organization that contributes on full
  * basic turns `applyCeiling` off.
  */
+/**
+ * The wage PF is actually levied on — basic, or the ceiling, whichever is less.
+ *
+ * Exported and used by `providentFund` below rather than inlined, because the
+ * contribution report needs the same number and got it wrong by computing its
+ * own: it printed the full BASIC line as "PF wages" while the deduction was
+ * taken on the capped wage. On screen that is a mismatch nobody checks. In an
+ * ECR file, where EPFO recomputes contributions from the wage column, it is a
+ * rejected return.
+ *
+ * One definition, two callers, so they cannot drift again.
+ */
+export function pfWage(basic: number, config: PayrollConfig): number {
+  const pf = config.pf;
+  if (!pf.enabled || basic <= 0) return 0;
+  return pf.applyCeiling ? Math.min(basic, pf.wageCeiling) : basic;
+}
+
 export function providentFund(
   basic: number,
   config: PayrollConfig,
@@ -52,11 +70,52 @@ export function providentFund(
 } {
   const pf = config.pf;
   if (!pf.enabled || basic <= 0) return { employee: 0, employer: 0 };
-  const wage = pf.applyCeiling ? Math.min(basic, pf.wageCeiling) : basic;
+  const wage = pfWage(basic, config);
   return {
     employee: round2((wage * pf.employeeRate) / 100),
     employer: round2((wage * pf.employerRate) / 100),
   };
+}
+
+/**
+ * The employer's share, split the way a return has to report it.
+ *
+ * A payslip shows one `EMPLOYER_PF` line, and that is right — nobody wants
+ * their pay split into two numbers that add to the one they were told. An ECR
+ * file cannot be built from it, though: EPFO wants the pension component and
+ * the provident-fund remainder separately, and recomputes both from the wage
+ * columns beside them.
+ *
+ * **Two ceilings, and they are not the same one.** `pfWage` follows the
+ * organization's `applyCeiling`, so a generous employer may contribute PF on
+ * full basic. The pension ceiling is the government's and always applies: that
+ * employer still cannot put more than the statutory wage into the pension
+ * scheme. Collapsing the two is the mistake this function exists to prevent.
+ *
+ * The remainder is `employer − eps` rather than 3.67% of anything, so the two
+ * halves always add back to the single figure on the payslip. Deriving it from
+ * a rate instead would let rounding put a rupee between the return and the
+ * payslip it came from.
+ */
+export function employerPfSplit(
+  basic: number,
+  config: PayrollConfig,
+): { eps: number; epf: number; epsWage: number } {
+  const pf = config.pf;
+  if (!pf.enabled || basic <= 0) return { eps: 0, epf: 0, epsWage: 0 };
+
+  const epsWage = Math.min(basic, pf.epsWageCeiling);
+  const eps = round2((epsWage * pf.epsRate) / 100);
+  const { employer } = providentFund(basic, config);
+
+  /*
+   * Never negative. If somebody sets an employer rate below the pension rate,
+   * the pension takes what there is and the remainder is nothing — a negative
+   * EPF share is not a thing a return can carry, and it would be rejected on
+   * upload rather than merely being odd.
+   */
+  const eligible = Math.min(eps, employer);
+  return { eps: eligible, epf: round2(employer - eligible), epsWage };
 }
 
 /**

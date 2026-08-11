@@ -46,6 +46,16 @@ model Organization {
 
   expenseCategories ExpenseCategory[]
   expenseClaims     ExpenseClaim[]
+
+  reviewCycles       ReviewCycle[]
+  performanceGoals   PerformanceGoal[]
+  performanceReviews PerformanceReview[]
+
+  employeeImports  EmployeeImport[]
+  statutoryFilings StatutoryFiling[]
+
+  ticketCategories TicketCategory[]
+  tickets          Ticket[]
 }
 
 enum UserStatus {
@@ -75,11 +85,15 @@ model User {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  organization Organization         @relation(fields: [organizationId], references: [id])
-  role         Role                 @relation(fields: [roleId], references: [id])
-  employee     Employee?
-  sessions     RefreshSession[]
-  resetTokens  PasswordResetToken[]
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  role           Role                 @relation(fields: [roleId], references: [id])
+  employee       Employee?
+  sessions       RefreshSession[]
+  resetTokens    PasswordResetToken[]
+  /// Helpdesk replies are authored by a User rather than an Employee: an
+  /// administrator answering a ticket may have no employee record, the same
+  /// call `Document.uploadedById` already makes.
+  ticketComments TicketComment[]
 
   @@index([organizationId])
   @@index([roleId])
@@ -282,6 +296,21 @@ model Employee {
   phone            String?
   dateOfBirth      DateTime?      @db.Date
   gender           Gender?
+  /// Statutory identifiers. Every one is nullable, and that is the safety
+  /// story rather than laziness: an employee without a UAN is **excluded from
+  /// an ECR return with a stated reason**, never emitted with the field blank.
+  /// `bankTransfer()` already wrote the rule down — "a bank file with a hole in
+  /// it is worse than a short one, because the hole is discovered by the bank
+  /// rather than by us" — and a rejected EPFO upload is the same lesson with a
+  /// slower feedback loop.
+  ///
+  /// The engine has computed PF and ESI correctly since payroll shipped. It is
+  /// these columns, not the arithmetic, that stood between it and a fileable
+  /// return.
+  pan              String?
+  uan              String?
+  pfMemberId       String?
+  esicIpNumber     String?
   /// The path that serves the photo — `/employees/<id>/avatar?v=<hash>`, not a
   /// public URL. The bucket is private (see `supabase.storage.ts`), so the
   /// bytes go through the API like every other file and the `v` token is what
@@ -373,6 +402,19 @@ model Employee {
   candidatesReferred Candidate[]  @relation("CandidatesReferred")
   interviewsGiven    Interview[]  @relation("InterviewsGiven")
   hiredFromOffer     Offer?       @relation("HiredFromOffer")
+
+  /// Performance: their own goals and reviews, and the reviews they were the
+  /// named reviewer on. `reviewsGiven` is by snapshot rather than by the
+  /// current reporting line — see PerformanceReview.reviewerId.
+  goals        PerformanceGoal[]
+  reviews      PerformanceReview[]
+  reviewsGiven PerformanceReview[] @relation("ReviewsGiven")
+
+  /// Helpdesk: what they asked, what they were handed, and the categories that
+  /// route to them by default.
+  ticketsRaised         Ticket[]         @relation("TicketsRaised")
+  ticketsAssigned       Ticket[]         @relation("TicketsAssigned")
+  ticketCategoriesOwned TicketCategory[] @relation("TicketCategoriesOwned")
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId, status])
@@ -2125,4 +2167,382 @@ model ExpenseItem {
   receipt  Document?       @relation(fields: [receiptId], references: [id])
 
   @@index([claimId])
+}
+
+enum StatutoryFilingKind {
+  ECR
+  ESIC_RETURN
+}
+
+/// A generated statutory return, frozen at the moment it was produced.
+///
+/// The content is stored rather than rebuilt on demand, and that is the whole
+/// point of the table. Correcting somebody's UAN and regenerating produces a
+/// *new* filing; it does not silently change the one already uploaded to a
+/// government portal. `Letter.bodyHtml` and `Payslip`'s snapshot columns make
+/// the same bargain for the same reason.
+///
+/// The unique constraint turns "generate it again" into a decision somebody has
+/// to make rather than an accident that leaves two files for one month.
+model StatutoryFiling {
+  id             String              @id @default(cuid())
+  organizationId String
+  kind           StatutoryFilingKind
+  /// `YYYY-MM`, matching PayrollRun.month.
+  period         String
+  runId          String
+  /// The file exactly as downloaded — not regenerated, ever.
+  content        String
+  rowCount       Int
+  /// How many people were left out for want of an identifier. Surfaced on the
+  /// screen, because a short file nobody noticed is the failure this whole
+  /// design is arranged to prevent.
+  excludedCount  Int                 @default(0)
+  /// The exclusions themselves, and the column totals the portal will check.
+  detail         Json
+  generatedAt    DateTime            @default(now())
+  generatedById  String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, kind, period])
+  @@index([organizationId, period])
+}
+
+enum EmployeeImportMode {
+  RECORDS
+  INVITE
+}
+
+enum EmployeeImportStatus {
+  PREVIEW
+  COMMITTED
+  PARTIAL
+  FAILED
+}
+
+/// A bulk import, from the moment it is previewed to what it actually did.
+///
+/// Stateful rather than stateless, and that is the load-bearing call. The
+/// alternative — the browser posting parsed rows back to commit — means the
+/// commit endpoint trusts a client-supplied row set, so it has to re-validate
+/// everything anyway *and* somebody can commit rows that never appeared in a
+/// preview. Holding it here buys the opposite guarantee: what commits is
+/// exactly what was previewed.
+///
+/// It also buys an audit answer better than two hundred separate
+/// `employee.create` rows, and makes a second commit refusable rather than
+/// duplicating everybody.
+model EmployeeImport {
+  id             String               @id @default(cuid())
+  organizationId String
+  uploadedById   String?
+  fileName       String
+  rowCount       Int
+  mode           EmployeeImportMode   @default(RECORDS)
+  status         EmployeeImportStatus @default(PREVIEW)
+  /// The parsed rows while previewing; **pruned at commit** to just the
+  /// outcome per row. This column holds names, emails and dates of birth, and
+  /// keeping it afterwards would be a second copy of everybody's personal data
+  /// with no retention story and no access control of its own.
+  rows           Json
+  createdCount   Int                  @default(0)
+  failedCount    Int                  @default(0)
+  invitedCount   Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  committedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance — cycles, goals and reviews
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ReviewCycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/// Four states, and the two you expect are missing on purpose. `NOT_STARTED` is
+/// `progress = 0` and `IN_PROGRESS` is `progress > 0`; storing them as well
+/// would be two representations of one fact, and they would drift the first
+/// time somebody moved a slider without touching a dropdown. `AT_RISK` is a
+/// past `dueOn` while still ACTIVE, derived on read like everything else here.
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  MISSED
+  CANCELLED
+}
+
+/// Who the review is waiting on — which is exactly what both inboxes render.
+///
+/// Drafting lives *inside* PENDING_SELF and PENDING_MANAGER: the author saves as
+/// often as they like and the status does not move until they submit, the same
+/// way an ExpenseClaim is edited freely while DRAFT. The finer chronology is in
+/// selfSubmittedAt / managerSubmittedAt.
+///
+/// Deliberately not ApprovalStatus, which is PENDING/APPROVED/REJECTED/
+/// CANCELLED. A review is never approved and never rejected; mapping SHARED
+/// onto APPROVED would make that enum's name a lie at every call site, and
+/// ACKNOWLEDGED has no member to map to at all. Widening the shared one instead
+/// would make both representable on every LeaveRequest in the product — the
+/// same argument ExpenseClaimStatus makes for having its own list.
+enum ReviewStatus {
+  PENDING_SELF
+  PENDING_MANAGER
+  SHARED
+  ACKNOWLEDGED
+  CANCELLED
+}
+
+/// A window: what period is being assessed, and when the answers are due.
+///
+/// Nothing here is a phase column. Where a cycle has got to is derived from
+/// these dates and today, because there is no scheduler in this product and a
+/// stored phase would go stale overnight and stay wrong until something
+/// happened to touch it.
+model ReviewCycle {
+  id             String            @id @default(cuid())
+  organizationId String
+  /// "H1 2026". Unique per org, because the same name twice is always a mistake.
+  name           String
+  periodStart    DateTime          @db.Date
+  periodEnd      DateTime          @db.Date
+  /// When assessments are expected. Nullable — nothing enforces it, and
+  /// "overdue" is derived rather than flagged by a job that does not exist.
+  dueOn          DateTime?         @db.Date
+  /// Service before periodEnd needed to be enrolled. On the cycle rather than
+  /// in Setting because it is a per-cycle decision: a mid-year catch-up cycle
+  /// wants a different answer from the annual one. It is also why this module
+  /// needs no settings group at all.
+  minServiceDays Int               @default(90)
+  status         ReviewCycleStatus @default(DRAFT)
+  openedAt       DateTime?
+  closedAt       DateTime?
+  /// Bare id, not a relation — the same call ExpenseClaim.decidedById makes.
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  goals        PerformanceGoal[]
+  reviews      PerformanceReview[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@index([organizationId, periodStart, periodEnd])
+}
+
+/// Something somebody is working towards, inside one cycle.
+///
+/// cycleId is required, and that is the load-bearing call. A goal belongs to a
+/// period. Making it nullable buys "standing goals" and pays for it twice: the
+/// weights-total-100 rule becomes unanswerable (100% of *what*?), and a review's
+/// goal list turns into a nullable join with a silent omission — a standing goal
+/// appearing in no review at all, which nobody expects.
+model PerformanceGoal {
+  id             String     @id @default(cuid())
+  organizationId String
+  cycleId        String
+  employeeId     String
+  title          String
+  description    String?
+  /// What "done" looks like, in words. A number with a unit would be a metric
+  /// engine, which is OKR territory and deliberately not built.
+  target         String?
+  /// Percent, 0-100. Int rather than Decimal: three equal goals become 34/33/33
+  /// rather than 33.33 each, which nobody has ever minded, and it keeps this
+  /// whole module free of Decimal — which serialises to JSON as a string and has
+  /// already put NaN on one screen in this product.
+  progress       Int        @default(0)
+  /// Percent of the review. 0 means unweighted, which is a legitimate choice.
+  weight         Int        @default(0)
+  status         GoalStatus @default(ACTIVE)
+  dueOn          DateTime?  @db.Date
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, employeeId])
+  @@index([employeeId, status])
+  @@index([organizationId, cycleId])
+}
+
+/// One row, two authors.
+///
+/// Not a generic participant table keyed by (review, rater, kind) — that shape
+/// generalises to 360-degree feedback, which is deliberately not built, and
+/// building the general form "in case" is exactly what this repo refuses. If
+/// peer feedback ever lands it is a new table FK'd to this one: additive, no
+/// redesign, the same seam every other module here left.
+model PerformanceReview {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  cycleId            String
+  employeeId         String
+  /// A **snapshot** of the employee's manager taken when the cycle opened, not
+  /// a live join. A reorg in April must not hand a half-written H1 review to
+  /// somebody who has never met the person, and "who reviewed me in H1 2026"
+  /// has to stay answerable in 2028. The same freezing Offer and Payslip do.
+  ///
+  /// Nullable, because whoever is at the top of the chart has no manager. That
+  /// review is enrolled anyway and HR assigns a reviewer, rather than the CEO
+  /// being silently absent from every cycle the company runs.
+  reviewerId         String?
+  status             ReviewStatus @default(PENDING_SELF)
+  selfRating         Int?
+  selfComment        String?
+  selfSubmittedAt    DateTime?
+  managerRating      Int?
+  managerComment     String?
+  /// The part the employee is meant to act on, and the next cycle reads back.
+  /// Merged into the comment it becomes the last paragraph nobody re-reads.
+  managerActions     String?
+  managerSubmittedAt DateTime?
+  sharedAt           DateTime?
+  acknowledgedAt     DateTime?
+  acknowledgeNote    String?
+  reopenNote         String?
+  cancelNote         String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     Employee?    @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+
+  /// What the whole module leans on: it makes opening a cycle idempotent
+  /// (createMany + skipDuplicates) and two reviews for one half-year
+  /// unrepresentable.
+  @@unique([cycleId, employeeId])
+  /// The manager's inbox, HR's coverage view, and one person's history.
+  @@index([reviewerId, status])
+  @@index([cycleId, status])
+  @@index([employeeId, createdAt])
+  @@index([organizationId, status])
+}
+
+// ─── Helpdesk ─────────────────────────────────────────────────────────
+//
+// Somebody asks the company a question, and somebody at a desk answers it.
+//
+// There is no Decimal here and nothing is money. There is no due date either:
+// this product has no scheduler, so a stored deadline is a field that goes
+// stale overnight and stays wrong until something happens to touch it. Age is
+// derived from createdAt, and "oldest first" is what a queue actually sorts on.
+//
+// There is also no status-history table. TicketCommentKind.SYSTEM puts the
+// history on the thread the requester is already reading, while AuditLog keeps
+// the tamper-evident copy for whoever holds audit.read. The alternative was a
+// third representation of what happened, and three things that can disagree.
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_REQUESTER
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketCommentKind {
+  PUBLIC
+  INTERNAL
+  SYSTEM
+}
+
+/// A desk. `defaultAssigneeId` is the whole routing engine, deliberately —
+/// rules, round-robin and load balancing are what a second product does.
+model TicketCategory {
+  id                String   @id @default(cuid())
+  organizationId    String
+  name              String
+  description       String?
+  /// Validated at save time to actually hold `helpdesk.respond`. A category
+  /// routing to somebody who cannot act on it produces a queue of silently
+  /// dead tickets that nobody notices for a week.
+  defaultAssigneeId String?
+  /// Deactivated rather than deleted, like ExpenseCategory: a category with
+  /// tickets against it must not vanish out from under them.
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  defaultAssignee Employee?    @relation("TicketCategoriesOwned", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  tickets         Ticket[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model Ticket {
+  id             String         @id @default(cuid())
+  organizationId String
+  categoryId     String
+  requesterId    String
+  assigneeId     String?
+  subject        String
+  description    String
+  status         TicketStatus   @default(OPEN)
+  /// Set by whoever works the desk, never by the person asking: a priority the
+  /// requester controls is one that is always URGENT.
+  priority       TicketPriority @default(NORMAL)
+  /// What was actually done. Required at resolve — "resolved" without it is
+  /// not a resolution.
+  resolution     String?
+  assignedAt     DateTime?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  /// RESTRICT rather than CASCADE, so the database agrees with the service:
+  /// a category holding tickets is deactivated, not removed.
+  category     TicketCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  requester    Employee        @relation("TicketsRaised", fields: [requesterId], references: [id], onDelete: Cascade)
+  /// SET NULL: an agent leaving returns their tickets to the queue rather than
+  /// taking them with her.
+  assignee     Employee?       @relation("TicketsAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments     TicketComment[]
+
+  @@index([organizationId, status])
+  /// The queue: assigned to me, or unassigned.
+  @@index([organizationId, assigneeId, status])
+  @@index([requesterId, createdAt])
+  @@index([categoryId, status])
+}
+
+model TicketComment {
+  id        String            @id @default(cuid())
+  ticketId  String
+  /// A User, not an Employee — see User.ticketComments. SET NULL so a reply
+  /// survives the account that wrote it.
+  authorId  String?
+  kind      TicketCommentKind @default(PUBLIC)
+  body      String
+  createdAt DateTime          @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
 }

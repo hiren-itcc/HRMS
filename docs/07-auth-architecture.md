@@ -1,6 +1,6 @@
 # 12 — Authentication Architecture
 
-Passport JWT (access) + opaque rotating refresh tokens (sessions in DB). Designed so the future mobile app reuses the same endpoints with a different token transport (ADR §1.4).
+Passport JWT (access) + opaque rotating refresh tokens (sessions in DB). Designed so a non-browser client could reuse the same endpoints with a different token transport (ADR §1.4). No such client is planned — see the header-token variant below.
 
 ## Token model
 
@@ -58,16 +58,57 @@ A stolen-then-reused refresh token kills the whole chain — attacker and victim
 - **Api client:** single fetch wrapper attaches in-memory access token; on 401 it queues concurrent requests, calls `/auth/refresh` **once**, replays queue; refresh failure → hard redirect to `/login?next=`.
 - **Bootstrap:** app shell calls `/auth/refresh` on first load (cookie present?) → access token + `GET /auth/me` into a `SessionProvider` (React context — session identity is not Zustand state).
 - **`middleware.ts`** only checks cookie *presence* for authed segments (fast redirect UX). It is not a security boundary — the API is (doc 04 §enforcement).
-- Permission-aware UI via `useCan('leave.approve.team')` reading `/auth/me` perms.
+- Permission-aware UI via `can('leave.approve.team')` from `useSession()`, reading `/auth/me` perms. There is no `useCan` hook — this line claimed one for months and anybody who believed it wrote an import that does not resolve.
 
-## Future mobile app (designed-in, not built)
+## Header-token variant (designed-in, not built, and not planned)
 
-Same endpoints; refresh token returned in body when client sends `X-Client: mobile`, stored in device secure storage (Keychain/Keystore), sent in body to `/auth/refresh`. Session rows already track per-device metadata — no schema change.
+A non-browser client cannot use the httpOnly refresh cookie, so the design allows for one: same endpoints, refresh token returned in the body when the client sends `X-Client: mobile`, stored in device secure storage (Keychain/Keystore), sent in the body to `/auth/refresh`. Session rows already track per-device metadata — no schema change.
+
+This is a property of the token design, not a scheduled piece of work. **The mobile app it was drawn for has been dropped from the roadmap** (doc 11 §20); the variant is recorded because it is what constrains the cookie decision in ADR A2, and it is what any future non-browser consumer would use.
 
 ## Security hardening checklist (Phase 1 scope)
 
 - [x] helmet, CORS allowlist (web origin only, `credentials: true`)
-- [x] Global rate limits + strict auth throttle (doc 03)
+- [x] Global rate limits + auth throttle (doc 03), **two limits rather than
+      one**: `login`, `forgot-password`, `reset-password` and the invite routes
+      at 5/min; `refresh` at 60/min.
+
+      They were never one *bucket* — `@nestjs/throttler` keys storage per
+      handler, so each route has always had its own counter. They shared the
+      number, and 5/min is a figure calibrated for a person typing a password.
+      `/auth/refresh` is fired by the client on every app bootstrap
+      (`session-provider.tsx`) and again on any 401 (`api-client.ts`), so at
+      five a minute a signed-in person who reloaded a few times or opened a few
+      tabs got a 429 — and the bootstrap reads any failure as "not signed in"
+      and bounces them to the login screen. A spurious sign-out rather than lost
+      data: the 429 comes from the guard, so the handler never runs and the
+      cookie survives.
+
+      What guards that route is the token — httpOnly, Secure, SameSite=Lax,
+      scoped to `/auth`, rotated with reuse detection. The limit is not zero
+      because the route is `@Public()` and its reuse branch does three writes,
+      so a ceiling on how fast one source can trigger them is worth keeping.
+
+      The sign-in limit is `AUTH_THROTTLE_LIMIT`, default 5, capped at 100 by
+      the env schema so a misconfiguration cannot switch it off. Only the
+      end-to-end job raises it; `auth.e2e-spec.ts` proves the limit refuses at
+      whatever it is set to, and runs at the default. It had no test at all
+      until the browser suite ran into it.
+- [ ] **`TRUST_PROXY` is unset in production, and every limit above is weaker
+      than it reads.** `main.ts` only calls `set('trust proxy')` when the value
+      is above zero, and it defaults to `0`. Render terminates TLS at its edge,
+      so `req.ip` is Render's proxy — confirmed from the live audit log, where
+      every recorded address is a private `10.x` and there are three distinct
+      values across all rows.
+
+      Two consequences. The throttler keys on `req.ip`, so these are not
+      per-client limits at all: they are a handful of buckets shared by every
+      user in the world, and one noisy client can lock everyone out. And
+      `AuditLog.ip` and the session list record Render's infrastructure rather
+      than who did what, which is the one thing an audit trail is for.
+
+      Fix is one variable — `TRUST_PROXY=1` on the API service — and it should
+      land before anybody relies on either the limits or the audit addresses.
 - [x] Validation on every DTO (`ValidationPipe` whitelist+transform → unknown fields rejected)
 - [x] Audit log on: login success/fail, refresh reuse, password change, role/permission change, employee delete, balance adjust
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env

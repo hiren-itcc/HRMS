@@ -5,6 +5,7 @@ import {
   type ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
@@ -14,11 +15,21 @@ import { Prisma } from '../../generated/prisma/client';
  * Normalizes every error to the RFC-7807-style body the frontend types
  * against (docs/03-api-structure.md §conventions). Unknown errors become
  * an opaque 500 — internals are never leaked to clients.
+ *
+ * **Opaque to the client, never opaque to us.** Until now an unexpected
+ * exception became "Something went wrong" and was written down nowhere at all,
+ * so every 500 this app has ever served was unattributable: the request log
+ * recorded that one happened and nothing about why. That is the same shape as
+ * the password-reset failure — an error that reached a user leaving no trace —
+ * and it is why the first genuine 500 in CI could not be read from its logs.
  */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
+    const request = host.switchToHttp().getRequest<{ method?: string; url?: string }>();
 
     let body: ApiErrorBody;
     if (exception instanceof HttpException) {
@@ -53,6 +64,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error: 'InternalServerError',
         message: 'Something went wrong',
       };
+    }
+
+    /*
+     * Anything that reached the client as a 500 gets written down with its
+     * stack, whatever produced it — an unknown throw, or a Prisma code this
+     * file has no mapping for. A 4xx is the caller's problem and already
+     * described in the body; logging those too would bury the ones that matter.
+     */
+    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        `${request?.method ?? '?'} ${request?.url ?? '?'} failed`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
     }
 
     response.status(body.statusCode).json(body);

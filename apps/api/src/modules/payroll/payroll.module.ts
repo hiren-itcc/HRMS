@@ -7,6 +7,7 @@ import { PayrollReportsService } from './payroll-reports.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsService } from './payslips.service';
 import { SalaryStructuresService } from './salary-structures.service';
+import { StatutoryFilingsService } from './statutory-filings.service';
 
 /** Payroll (docs/03-api-structure.md §payroll). */
 @Module({
@@ -21,6 +22,7 @@ import { SalaryStructuresService } from './salary-structures.service';
     PayrollRunsService,
     PayslipsService,
     PayrollReportsService,
+    StatutoryFilingsService,
   ],
   /*
    * Expenses turns an approved claim into a payslip line through this service

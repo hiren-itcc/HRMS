@@ -1,0 +1,15 @@
+{
+  "name": "@hrms/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "typescript": "^5.7.3",
+    "@types/node": "^24.0.0"
+  }
+}

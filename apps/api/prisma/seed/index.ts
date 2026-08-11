@@ -3,17 +3,20 @@ import { ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { dateKeyOf } from '../../src/common/utils/calendar';
+import { hostOf, isLocal } from '../../src/common/utils/database-target';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { seedAssets } from './assets';
 import { seedAttendance } from './attendance';
 import { seedComms } from './comms';
 import { seedExit } from './exit';
 import { seedExpenses } from './expenses';
+import { seedHelpdesk } from './helpdesk';
 import { seedLeave } from './leave';
 import { seedOnboarding } from './onboarding';
 import { seedOrg } from './org';
 import { seedPayroll } from './payroll';
 import { seedPeople } from './people';
+import { seedPerformance } from './performance';
 import { makeRandom } from './random';
 import { seedRecruitment } from './recruitment';
 import { seedWfh } from './wfh';
@@ -47,18 +50,6 @@ const DATABASE_URL = requireEnv('DATABASE_URL');
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: DATABASE_URL }),
 });
-
-/** The host in a connection string, for the guard and for the banner. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return 'unknown host';
-  }
-}
-
-const isLocal = (host: string) =>
-  host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local');
 
 /**
  * The guard used to be `NODE_ENV === 'production'`, which protected nothing:
@@ -183,6 +174,12 @@ async function main() {
   console.log('Recruitment…');
   await seedRecruitment(prisma, org.id, fixtures, people, random, todayKey);
 
+  console.log('Performance cycles, goals and reviews…');
+  await seedPerformance(prisma, org.id, people, random, todayKey);
+
+  console.log('Helpdesk tickets…');
+  await seedHelpdesk(prisma, org.id, people);
+
   console.log('Announcements, letters and settings…');
   await seedComms(prisma, org.id, org.name, fixtures, people, random, todayKey);
 
@@ -197,6 +194,9 @@ async function main() {
     letters: await prisma.letter.count({ where: { organizationId: org.id } }),
     openings: await prisma.jobOpening.count({ where: { organizationId: org.id } }),
     candidates: await prisma.candidate.count({ where: { organizationId: org.id } }),
+    cycles: await prisma.reviewCycle.count({ where: { organizationId: org.id } }),
+    reviews: await prisma.performanceReview.count({ where: { organizationId: org.id } }),
+    tickets: await prisma.ticket.count({ where: { organizationId: org.id } }),
   };
 
   console.log(`
@@ -206,6 +206,8 @@ Seed complete — ${org.name}
   ${counts.remote} remote requests · ${counts.assets} assets · ${counts.payslips} payslips
   ${counts.settlements} settlements · ${counts.letters} letters
   ${counts.openings} job openings · ${counts.candidates} candidates
+  ${counts.cycles} review cycles · ${counts.reviews} reviews
+  ${counts.tickets} helpdesk tickets
 
   Password for every account: ${PASSWORD}
 

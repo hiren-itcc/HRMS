@@ -122,8 +122,8 @@ path, or reintroduce staleness the current design does not have.
 | Layer | Tool | Status |
 |---|---|---|
 | Unit | Jest (Nest default) | **Built.** 36 suites, 509 tests — balance math, rotation/reuse, scope filters, payroll calculation, geofencing, offboarding, the org tree. The web app has its own Vitest layer (doc 09); `pnpm turbo run test` runs both. |
-| Integration | Jest + Testcontainers (Postgres) | **Not built.** No Testcontainers dependency; nothing runs against a real database. |
-| E2E (API) | Supertest | **Not built.** `supertest` is installed and imported by no spec. |
+| Integration | Jest + Supertest against a real Postgres | ✅ **Built** — `apps/api/test/*.e2e-spec.ts`, run by the `integration` CI job after `migrate deploy` and a seed. **Testcontainers is deliberately not used**: with a service container in CI it buys only local convenience and costs a Docker requirement on every machine, and `docker/compose.yaml` already provides local Postgres. |
+| E2E (API) | Supertest | ✅ **Built.** It was installed and imported by no spec for months, which is how the password-reset enumeration bug reached production — the failure needed an injected transport, so no mocked-Prisma unit test and no browser flow could see it. |
 
 Coverage gate: **not enforced.** `ci.yml` runs `turbo run test` with no coverage
 threshold, so "services ≥ 80%" is an intention rather than a gate.
