@@ -387,9 +387,38 @@ which other documents were citing.
 
 **Still open:**
 
-15. **Playwright and the five golden flows.** Blocked on CI infrastructure — a
-    Postgres service container, a seeded database and a running API — not on
-    effort. This is the next infrastructure job.
+15. ~~Playwright and the five golden flows~~ ✅ **built**, and this item was
+    wrong about the blocker. It named "a Postgres service container" — `ci.yml`
+    had one all along. What was actually missing was narrower: nothing ever
+    applied migrations to it (the drift check only populates a *shadow*
+    database, so `hrms` held an empty schema at the end of every run), nothing
+    seeded, nothing started either server, and Playwright was not installed.
+
+    CI is now five jobs: `check` (no database, gates the rest), `integration`,
+    `migration-drift`, and `e2e` — the last gated to `master` or a PR labelled
+    `e2e`, exactly as `10:59` specified before it existed.
+
+    **Two layers, not one, and the reason is this document's own §1.** A
+    Playwright spec would *not* have caught the password-reset enumeration bug,
+    even aimed straight at it: the failure needs a mail transport that throws,
+    and with no API key the transport is `LogTransport`, which never does. Both
+    addresses answer 200 and the spec passes. So the regression test is a
+    Supertest one that injects a refusing transport and asserts the two
+    responses are byte-identical — `apps/api/test/auth.e2e-spec.ts`. The general
+    rule, worth applying to anything that promises indistinguishability: assert
+    the **equality of two responses under an injected failure**, not the success
+    of one.
+
+    Also added: a `FileTransport` behind `MAIL_OUTBOX_DIR`, so the invite flow
+    asserts on a real link instead of scraping a pino log; a positive
+    "is this the throwaway" database guard that refuses anything hosted, with
+    the actual production URL as one of its test cases; and `dependabot.yml`.
+
+    **Not done**: the coverage gate. A global 80% threshold would fail on the
+    commit that adds it — organization, audit and all five payroll services have
+    no spec at all — and a gate disabled the day it lands teaches everyone to
+    disable gates. Lighthouse is deferred for the same reason it always is: its
+    own flake profile.
 16. **`leave_approved` / `leave_rejected` emails** — editable in Settings, never
     sent by anything.
 

@@ -3,6 +3,7 @@ import { ROLE_PERMISSIONS, SYSTEM_ROLES } from '@hrms/shared';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { dateKeyOf } from '../../src/common/utils/calendar';
+import { hostOf, isLocal } from '../../src/common/utils/database-target';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { seedAssets } from './assets';
 import { seedAttendance } from './attendance';
@@ -48,18 +49,6 @@ const DATABASE_URL = requireEnv('DATABASE_URL');
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: DATABASE_URL }),
 });
-
-/** The host in a connection string, for the guard and for the banner. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return 'unknown host';
-  }
-}
-
-const isLocal = (host: string) =>
-  host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local');
 
 /**
  * The guard used to be `NODE_ENV === 'production'`, which protected nothing:

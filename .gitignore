@@ -35,3 +35,9 @@ apps/api/uploads/
 # Pre-wipe dumps from prisma/scripts/backup-org.ts. Real people, real bank
 # details — a file that must never be pushed to a public remote.
 org-backup*.json
+
+# E2E artefacts
+apps/e2e/playwright-report/
+apps/e2e/test-results/
+apps/e2e/.auth/
+.tmp/
