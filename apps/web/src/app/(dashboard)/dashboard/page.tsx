@@ -245,7 +245,7 @@ export default function DashboardPage() {
               : 'Currently employed'
           }
           icon={Users}
-          gradient="primary"
+          gradient="slate"
           loading={summary.isLoading}
         />
       ),
@@ -270,7 +270,7 @@ export default function DashboardPage() {
                 : 'Nothing pending'
           }
           icon={DoorOpen}
-          gradient="rose"
+          gradient="fuchsia"
           loading={summary.isLoading}
         />
       ),
@@ -287,7 +287,7 @@ export default function DashboardPage() {
               : 'All on track'
           }
           icon={BadgeCheck}
-          gradient="sky"
+          gradient="violet"
           loading={summary.isLoading}
         />
       ),
@@ -320,7 +320,7 @@ export default function DashboardPage() {
                   .join(' · ') || 'Nothing left this year'
           }
           icon={Palmtree}
-          gradient="emerald"
+          gradient="lime"
           loading={summary.isLoading}
         />
       ),
@@ -344,7 +344,7 @@ export default function DashboardPage() {
                   .join(' · ')
           }
           icon={Hourglass}
-          gradient="amber"
+          gradient="indigo"
           loading={summary.isLoading}
         />
       ),
@@ -366,7 +366,7 @@ export default function DashboardPage() {
               : undefined
           }
           icon={CalendarCheck}
-          gradient="sky"
+          gradient="stone"
           loading={myMonth.isLoading}
         />
       ),

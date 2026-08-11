@@ -491,18 +491,64 @@
       var(--brand-ramp-3) 100%
     );
   }
-  /* 600-shades: keeps white text ≥ ~4:1 (ui-ux-pro-max accessibility note) */
+  /*
+   * Ten categorical accents, every one of them ≥ 4.5:1 against white.
+   *
+   * This block used to hold four, and to claim "600-shades: keeps white text
+   * ≥ ~4:1". Measured, it did not: `.gradient-amber` was **3.19:1** and the
+   * card's own hint line, which renders at 75% white, was **2.43:1** — under
+   * the 3:1 floor for large text, never mind the 4.5:1 for normal. The claim
+   * was written next to values that never met it, and nothing checked, because
+   * `contrast-gate.mjs` reads compiled *tokens* and these are hardcoded hex in
+   * a `background-image`.
+   *
+   * So the four moved a shade darker as the six were added. That is a real
+   * appearance change to sky, emerald and amber, made deliberately: a palette
+   * where seven tiles are AA and four are not is worse than either a uniformly
+   * dark one or a uniformly light one, and only one of those two is legible.
+   *
+   * The band is now 4.60–5.47 pure white, 3.13–3.81 at 75%. Tight on purpose —
+   * these sit side by side in one grid, so a tile that is much darker than its
+   * neighbours reads as *meaning* something rather than as a different label.
+   *
+   * Still categorical, so still theme-independent: `themes.css` overrides only
+   * `--brand-ramp-*`, and `.gradient-primary` is the one that follows the
+   * brand. An accent scale that moved with the chrome would stop telling
+   * things apart, which is its whole job.
+   *
+   * Slate and stone are the two neutrals, and they are not filler: with ten
+   * chromatic hues the wheel gets crowded, and two low-saturation tiles read
+   * apart by chroma where a tenth and eleventh hue would not.
+   */
   .gradient-sky {
-    background-image: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
+    background-image: linear-gradient(135deg, #0369a1 0%, #0e7490 100%);
   }
   .gradient-emerald {
-    background-image: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+    background-image: linear-gradient(135deg, #047857 0%, #0f766e 100%);
   }
   .gradient-amber {
-    background-image: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+    background-image: linear-gradient(135deg, #b45309 0%, #c2410c 100%);
   }
   .gradient-rose {
     background-image: linear-gradient(135deg, #e11d48 0%, #db2777 100%);
+  }
+  .gradient-indigo {
+    background-image: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
+  }
+  .gradient-violet {
+    background-image: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
+  }
+  .gradient-fuchsia {
+    background-image: linear-gradient(135deg, #c026d3 0%, #a21caf 100%);
+  }
+  .gradient-lime {
+    background-image: linear-gradient(135deg, #4d7c0f 0%, #15803d 100%);
+  }
+  .gradient-slate {
+    background-image: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  }
+  .gradient-stone {
+    background-image: linear-gradient(135deg, #78716c 0%, #57534e 100%);
   }
 
   /* Glassmorphism (ui-ux-pro-max: blur 10–20px, 1px translucent border) */

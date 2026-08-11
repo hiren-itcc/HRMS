@@ -4,7 +4,27 @@ import { Skeleton } from '@hrms/ui/components/skeleton';
 import { cn } from '@hrms/ui/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
-export type StatGradient = 'primary' | 'sky' | 'emerald' | 'amber' | 'rose';
+/**
+ * Eleven, because the dashboard can render eleven tiles at once and five meant
+ * three of them appeared twice in one grid — which reads as a relationship
+ * between two unrelated numbers rather than as decoration.
+ *
+ * `primary` follows the brand and therefore the theme; the other ten are
+ * categorical and fixed. All ten measure ≥ 4.5:1 against white — see the note
+ * in `globals.css`, including what that cost the original four.
+ */
+export type StatGradient =
+  | 'primary'
+  | 'sky'
+  | 'emerald'
+  | 'amber'
+  | 'rose'
+  | 'indigo'
+  | 'violet'
+  | 'fuchsia'
+  | 'lime'
+  | 'slate'
+  | 'stone';
 
 const GRADIENT: Record<StatGradient, string> = {
   primary: 'gradient-primary',
@@ -12,6 +32,12 @@ const GRADIENT: Record<StatGradient, string> = {
   emerald: 'gradient-emerald',
   amber: 'gradient-amber',
   rose: 'gradient-rose',
+  indigo: 'gradient-indigo',
+  violet: 'gradient-violet',
+  fuchsia: 'gradient-fuchsia',
+  lime: 'gradient-lime',
+  slate: 'gradient-slate',
+  stone: 'gradient-stone',
 };
 
 interface StatCardProps {
