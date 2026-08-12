@@ -39,6 +39,14 @@ export interface Reconciliation {
 }
 
 /**
+ * Thrown by `reconcile` on a non-finite TDS amount. A named class rather than
+ * a bare `Error` so this specific, deliberate failure — an upstream
+ * Decimal-to-number conversion already broke — is distinguishable in the
+ * stack from any other 500 `TdsReturnsService.evaluate` lets through.
+ */
+export class NonFiniteAmount extends Error {}
+
+/**
  * Half a paisa. Payslip TDS is a sum over `Decimal(14, 2)` columns, so a drift
  * below this is floating-point arithmetic and anything above it is somebody
  * depositing a different number from the one payroll produced.
@@ -67,7 +75,7 @@ export function reconcile(months: MonthTds[]): Reconciliation {
       !Number.isFinite(entry.payslipTds) ||
       (entry.challanTds !== null && !Number.isFinite(entry.challanTds))
     ) {
-      throw new Error(
+      throw new NonFiniteAmount(
         `tds-reconcile: non-finite TDS amount for month ${entry.month} (payslipTds=${entry.payslipTds}, challanTds=${entry.challanTds}) — this is an upstream data bug, not a reconciliation result`,
       );
     }

@@ -124,7 +124,7 @@ export class TdsReturnsService {
   ): Promise<TdsReadiness> {
     const statutory = (await this.settings.get(claims.orgId)).statutory;
     const gathered = await this.gather(claims.orgId, financialYear, quarter);
-    return this.evaluate(statutory, gathered);
+    return this.evaluate(statutory, gathered, quarter);
   }
 
   /**
@@ -135,6 +135,7 @@ export class TdsReturnsService {
   private evaluate(
     statutory: OrgSettings['statutory'],
     gathered: Awaited<ReturnType<TdsReturnsService['gather']>>,
+    quarter: TdsQuarterCode,
   ): TdsReadiness {
     const { months, runs, deductees, challanByMonth } = gathered;
 
@@ -252,14 +253,30 @@ export class TdsReturnsService {
      */
     const noPan = months.flatMap((month) => (deductees[month] ?? []).filter((d) => !d.pan));
     const names = [...new Set(noPan.map((d) => `${d.employeeName} (${d.employeeCode})`))];
+    const warnings: string[] = [];
+    /*
+     * Recorded here, not only on screen. `apps/web/.../24q/page.tsx` shows
+     * this as a static banner for Q4, but that reminder lives in the browser
+     * only — it is invisible a week later when somebody returns to the
+     * "Generated" list and downloads the frozen file. Pushing it into
+     * `warnings` means it flows into `detail.warnings` on the stored
+     * `TdsReturn` row in `generate()`, next to the file, for as long as the
+     * file exists.
+     */
+    if (quarter === 'Q4') {
+      warnings.push(
+        'Q4 additionally requires Annexure II, the annual salary annexure, which this return does not produce. This file covers Annexure I only.',
+      );
+    }
+    if (names.length) {
+      warnings.push(
+        `${names.length} ${names.length === 1 ? 'person has' : 'people have'} no PAN on record and will be filed as PAN-not-available, which attracts deduction at 20%: ${names.join(', ')}.`,
+      );
+    }
     return {
       blocked: null,
       layoutBlocked,
-      warnings: names.length
-        ? [
-            `${names.length} ${names.length === 1 ? 'person has' : 'people have'} no PAN on record and will be filed as PAN-not-available, which attracts deduction at 20%: ${names.join(', ')}.`,
-          ]
-        : [],
+      warnings,
       months,
     };
   }
@@ -336,7 +353,7 @@ export class TdsReturnsService {
      */
     const statutory = (await this.settings.get(claims.orgId)).statutory;
     const gathered = await this.gather(claims.orgId, financialYear, quarter);
-    const readiness = this.evaluate(statutory, gathered);
+    const readiness = this.evaluate(statutory, gathered, quarter);
     // Either refusal stops a file being written: bad data, or a layout nobody
     // has transcribed. The screen shows them separately; generation does not
     // care which one it is.

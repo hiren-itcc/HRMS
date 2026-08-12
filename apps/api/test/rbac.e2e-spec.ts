@@ -224,15 +224,24 @@ describe('RBAC across roles', () => {
         });
       expect(created.status).toBe(201);
 
-      const listed = await get('/payroll/challans', 'hr');
-      expect(listed.status).toBe(200);
-      expect(listed.body).toEqual(
-        expect.arrayContaining([expect.objectContaining({ period, tds: 4242 })]),
-      );
-
-      await request(app.getHttpServer())
-        .delete(`/api/v1/payroll/challans/${created.body.id}`)
-        .set(as(token.hr as string));
+      /*
+       * `TdsChallan` has `@@unique([organizationId, period])`, so a row left
+       * behind by a failed assertion below poisons every subsequent run of
+       * this test with a unique-constraint error, not the assertion's own
+       * failure. The cleanup DELETE has to run whether or not the assertions
+       * pass.
+       */
+      try {
+        const listed = await get('/payroll/challans', 'hr');
+        expect(listed.status).toBe(200);
+        expect(listed.body).toEqual(
+          expect.arrayContaining([expect.objectContaining({ period, tds: 4242 })]),
+        );
+      } finally {
+        await request(app.getHttpServer())
+          .delete(`/api/v1/payroll/challans/${created.body.id}`)
+          .set(as(token.hr as string));
+      }
     });
   });
 

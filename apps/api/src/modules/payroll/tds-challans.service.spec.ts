@@ -76,7 +76,15 @@ describe('TdsChallansService', () => {
 
     await service.create(claims, input);
 
-    expect(prisma.auditLog.create).toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'payroll.challan.create',
+          entity: 'TdsChallan',
+          entityId: 'c1',
+        }),
+      }),
+    );
   });
 
   it('404s a challan belonging to another organization', async () => {

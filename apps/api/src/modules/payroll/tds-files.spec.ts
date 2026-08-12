@@ -41,9 +41,13 @@ const base = {
 
 describe('build24Q', () => {
   it('reports honestly whether the layout was transcribed', () => {
-    // The flag and the version string must agree. Task 13 sets the version to
-    // the document's own; until then this records that nobody has.
-    expect(LAYOUT_TRANSCRIBED).toBe(FVU_SPEC_VERSION !== 'UNTRANSCRIBED');
+    // Asserts the actual current state, not the implementation line restated:
+    // nobody has transcribed the layout yet, so the sentinel version is still
+    // in place and the flag must be false. Task 13 flips both together, and
+    // when it does this test has to be updated to match rather than pass by
+    // construction.
+    expect(FVU_SPEC_VERSION).toBe('UNTRANSCRIBED');
+    expect(LAYOUT_TRANSCRIBED).toBe(false);
   });
 
   // Task 13: unskip once the layout is transcribed and the fixture is written

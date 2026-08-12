@@ -246,6 +246,44 @@ describe('TdsReturnsService readiness', () => {
     expect(result.blocked).toBeNull();
     expect(result.warnings.join(' ')).toMatch(/PAN/i);
   });
+
+  it('warns that a Q4 return still needs Annexure II', async () => {
+    // Q4 additionally requires Annexure II, the annual salary annexure, which
+    // this feature does not produce. The warning has to land in the stored
+    // row, not only on screen, or an operator downloading the frozen file a
+    // week later sees no reminder anywhere near it.
+    const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue(
+      ['2027-01', '2027-02', '2027-03'].map((month, i) => ({
+        id: `r${i}`,
+        month,
+        status: 'PUBLISHED',
+      })),
+    );
+    const service = new TdsReturnsService(prisma as never, settings as never);
+
+    const result = await service.readiness(claims, '2026-27', 'Q4');
+
+    expect(result.blocked).toBeNull();
+    expect(result.warnings.join(' ')).toMatch(/Annexure II/i);
+  });
+
+  it('does not warn about Annexure II for a quarter other than Q4', async () => {
+    const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue(
+      ['2026-07', '2026-08', '2026-09'].map((month, i) => ({
+        id: `r${i}`,
+        month,
+        status: 'PUBLISHED',
+      })),
+    );
+    const service = new TdsReturnsService(prisma as never, settings as never);
+
+    const result = await service.readiness(claims, '2026-27', 'Q2');
+
+    expect(result.blocked).toBeNull();
+    expect(result.warnings.join(' ')).not.toMatch(/Annexure/i);
+  });
 });
 
 describe('TdsReturnsService generate', () => {

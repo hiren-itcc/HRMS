@@ -88,21 +88,15 @@ export class TdsController {
   // ── Form 24Q ──────────────────────────────────────────────────────────
 
   /*
-   * `returns/readiness` and `returns/preview` are declared before
-   * `returns/:id/file` so neither is ever read as an id — the same ordering
-   * trap `filings` had to step around in PayrollController.
+   * `returns/preview` is declared before `returns/:id/file` so it is never
+   * read as an id — the same ordering trap `filings` had to step around in
+   * PayrollController.
+   *
+   * There is no `GET /returns/readiness` route. `TdsReturnsService.readiness`
+   * still exists and both `preview` and `generate` call it, but the web only
+   * ever reads the readiness fields off `preview`'s payload, which is a
+   * strict superset — nothing called the standalone route.
    */
-  @Get('returns/readiness')
-  @RequirePermissions('payroll.read')
-  @ApiOperation({ summary: 'Whether a quarter can be filed at all, before it is chosen' })
-  readiness(
-    @CurrentUser() user: AccessTokenClaims,
-    @Query('fy') fy: string,
-    @Query('quarter') quarter: string,
-  ) {
-    return this.returns.readiness(user, this.year(fy), this.quarter(quarter));
-  }
-
   @Get('returns/preview')
   @RequirePermissions('payroll.read')
   @ApiOperation({ summary: 'What the return would contain' })

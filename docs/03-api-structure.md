@@ -746,7 +746,6 @@ it dropped.
 | PATCH | `/payroll/challans/:id` | `payroll.filing` |
 | DELETE | `/payroll/challans/:id` | `payroll.filing` |
 | GET | `/payroll/returns?fy=` | `payroll.read` |
-| GET | `/payroll/returns/readiness?fy=&quarter=` | `payroll.read` |
 | GET | `/payroll/returns/preview?fy=&quarter=` | `payroll.read` |
 | POST | `/payroll/returns?fy=&quarter=` | `payroll.filing` |
 | GET | `/payroll/returns/:id/file` | `payroll.filing` |

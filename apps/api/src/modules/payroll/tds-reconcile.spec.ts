@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { reconcile } from './tds-reconcile';
+import { NonFiniteAmount, reconcile } from './tds-reconcile';
 
 describe('reconcile', () => {
   it('balances when every month has a challan matching its payslips', () => {
@@ -77,7 +77,7 @@ describe('reconcile', () => {
   it('refuses to call it balanced when payslipTds is NaN', () => {
     expect(() =>
       reconcile([{ month: '2026-07', payslipTds: Number.NaN, challanTds: 12_500 }]),
-    ).toThrow();
+    ).toThrow(NonFiniteAmount);
   });
 
   // Same failure mode on the other input: a challan amount that failed to
@@ -85,7 +85,7 @@ describe('reconcile', () => {
   it('refuses to call it balanced when challanTds is NaN', () => {
     expect(() =>
       reconcile([{ month: '2026-07', payslipTds: 12_500, challanTds: Number.NaN }]),
-    ).toThrow();
+    ).toThrow(NonFiniteAmount);
   });
 });
 
