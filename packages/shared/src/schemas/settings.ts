@@ -109,10 +109,25 @@ export const payrollSchema = z.object({
        * Ascending slabs on monthly gross; the first slab whose `upTo` the
        * gross does not exceed wins. PT is a state tax, so the amounts differ
        * by state and belong in configuration rather than in code.
+       *
+       * **The default is Gujarat**, because that is where the organization
+       * running this operates. Naming the state matters: a default nobody can
+       * see is still a default everybody is charged by, and there is no UI for
+       * this group yet — nothing on the settings screen writes `payroll`, so
+       * `mergeSettings` serves these numbers to every org on every payroll run.
+       *
+       * Two bands, not four. Notification GHN-35-PFT-2022-S.3(2)(10)-TH of
+       * 8 April 2022 exempted monthly wages up to ₹12,000 with effect from
+       * 1 April 2022, which removed the ₹6,000–₹11,999 bracket that used to
+       * pay ₹80 and ₹150. Published slab tables that still show those bands
+       * are pre-2022 and wrong; several are still online. ₹200 × 12 = ₹2,400,
+       * inside the ₹2,500 a year Article 276 allows any state to levy.
+       *
+       * Checked 2026-08-12. A state that revises its slabs makes this an edit
+       * here until the settings screen learns to write the payroll group.
        */
       slabs: z.array(z.object({ upTo: z.number().min(0), amount: z.number().min(0) })).default([
-        { upTo: 15000, amount: 0 },
-        { upTo: 20000, amount: 150 },
+        { upTo: 12000, amount: 0 },
         { upTo: Number.MAX_SAFE_INTEGER, amount: 200 },
       ]),
     })

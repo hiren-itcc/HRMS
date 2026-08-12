@@ -296,11 +296,17 @@ payroll runs through this, and neither belongs in this spec.
 1. **PF/ESI/PT rates have no UI.** `settings.ts:95–120` defines them and
    `PATCH /settings` accepts them, but the preferences page never calls
    `set('payroll', …)` — grepping `employeeRate|wageCeiling|professionalTax`
-   across `apps/web/src` returns zero hits. Every organization runs on the
-   hardcoded defaults, and **the default PT slabs are Karnataka-shaped**. For a
-   company in another state, professional tax is being deducted at the wrong
-   rate right now. `payroll.statutory.ts`'s own header claims "a rate change
-   should be an edit rather than a release." It is not.
+   across `apps/web/src` returns zero hits. Every organization therefore runs
+   on whatever the zod defaults say, because `mergeSettings` supplies them on
+   the read path and nothing can overwrite them from a screen.
+
+   **Half of this is now fixed.** The shipped PT default was a three-band table
+   that was not this company's state at all; it is now Gujarat's two bands, nil
+   to ₹12,000 then ₹200, per notification GHN-35-PFT-2022-S.3(2)(10)-TH.
+   The remaining defect is the missing screen: `payroll.statutory.ts`'s own
+   header claims "a rate change should be an edit rather than a release", and
+   until the settings page writes the `payroll` group that is still false.
+   A second state, or a revised slab, is a code change today.
 2. **Pay components have no UI.** `payroll.controller.ts` exposes only
    `@Get('components')`. A custom allowance requires a script or a direct
    database write.

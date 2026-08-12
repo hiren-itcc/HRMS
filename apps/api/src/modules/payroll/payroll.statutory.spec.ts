@@ -61,19 +61,31 @@ describe('employeeStateInsurance', () => {
 });
 
 describe('professionalTax', () => {
-  it('charges nothing in the lowest slab', () => {
+  /*
+   * The only test here that asserts the *default* rather than the behaviour.
+   *
+   * Everything below builds its own slabs, deliberately: when these tests took
+   * their bands from whatever `defaultSettings()` happened to ship, changing
+   * the state read as the slab logic breaking. Boundary handling is not a
+   * property of Gujarat.
+   */
+  it('ships the Gujarat default — nil to 12,000, then 200', () => {
     expect(professionalTax(12_000, config())).toBe(0);
-  });
-
-  it('charges the slab the gross falls in', () => {
-    expect(professionalTax(18_000, config())).toBe(150);
+    expect(professionalTax(12_001, config())).toBe(200);
+    expect(professionalTax(18_000, config())).toBe(200);
   });
 
   it('includes the slab boundary in the lower band', () => {
-    expect(professionalTax(15_000, config())).toBe(0);
-    expect(professionalTax(15_001, config())).toBe(150);
-    expect(professionalTax(20_000, config())).toBe(150);
-    expect(professionalTax(20_001, config())).toBe(200);
+    const cfg = config();
+    cfg.professionalTax.slabs = [
+      { upTo: 15_000, amount: 0 },
+      { upTo: 20_000, amount: 150 },
+      { upTo: Number.MAX_SAFE_INTEGER, amount: 200 },
+    ];
+    expect(professionalTax(15_000, cfg)).toBe(0);
+    expect(professionalTax(15_001, cfg)).toBe(150);
+    expect(professionalTax(20_000, cfg)).toBe(150);
+    expect(professionalTax(20_001, cfg)).toBe(200);
   });
 
   it('charges the highest slab above every band', () => {
@@ -107,13 +119,14 @@ describe('professionalTax', () => {
 describe('computeStatutory', () => {
   it('levies PF on basic and ESI/PT on gross', () => {
     // Basic 10,000 within the PF ceiling; gross 20,000 within the ESI
-    // threshold and in the middle PT band.
+    // threshold and above Gujarat's single PT threshold of 12,000. Three
+    // different bases in one assertion, which is the point of it.
     expect(computeStatutory({ basic: 10_000, gross: 20_000, config: config() })).toEqual({
       employeePf: 1200,
       employerPf: 1200,
       employeeEsi: 150,
       employerEsi: 650,
-      professionalTax: 150,
+      professionalTax: 200,
     });
   });
 
