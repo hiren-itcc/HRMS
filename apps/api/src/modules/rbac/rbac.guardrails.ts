@@ -35,6 +35,26 @@ export function editBlockedReason(role: RoleLike): GuardrailReason {
 }
 
 /**
+ * Why this role cannot be deleted, or null when it can.
+ *
+ * `holders` must count **every** user attached to the role, suspended logins
+ * included — the opposite of the rule the admin floor uses. The floor asks
+ * "can anyone still sign in and administer this", so it counts ACTIVE users
+ * only; this asks "will the foreign key let the row go", and `User.roleId`
+ * restricts on a suspended row exactly as hard as on an active one. Counting
+ * ACTIVE here would produce a confident "0 people hold this" followed by a
+ * Prisma constraint error.
+ */
+export function deleteBlockedReason(role: RoleLike, holders: number): GuardrailReason {
+  const system = editBlockedReason(role);
+  if (system) return system;
+  if (holders > 0) {
+    return `${holders} ${holders === 1 ? 'person still holds' : 'people still hold'} this role — move them to another role first`;
+  }
+  return null;
+}
+
+/**
  * Would this edit leave nobody able to administer the workspace?
  *
  * Keyed on **users**, not on the ADMIN code. Pinning the floor to `ADMIN`

@@ -14,14 +14,34 @@ export const ROLE_OPTIONS: { value: RoleCodeInput; label: string }[] = [
   { value: 'ADMIN', label: 'Admin — everything' },
 ];
 
-/** Short form for badges and summaries, where the explanation doesn't fit. */
-export const ROLE_LABEL: Record<RoleCodeInput, string> = {
+/**
+ * Short form for badges and summaries, where the explanation doesn't fit.
+ *
+ * `Partial` on purpose. A custom role composed in Settings → Roles has no entry
+ * here, and typing this as a total `Record<RoleCodeInput, string>` — which it
+ * was, back when that type was an enum of the five system codes — let a lookup
+ * on a custom code return `undefined` with the compiler's blessing and render
+ * as the literal text "undefined". Read it through `roleLabel`, never directly.
+ */
+export const ROLE_LABEL: Partial<Record<string, string>> = {
   EMPLOYEE: 'Employee',
   MANAGER: 'Manager',
   HR: 'HR',
   FINANCE: 'Finance',
   ADMIN: 'Admin',
 };
+
+/**
+ * What to call a role in a sentence or a badge.
+ *
+ * Falls back to the code itself — "IT_ADMIN" is blunt but true, and a custom
+ * role's friendly name lives on the role record rather than in this map. Pass
+ * `name` when the caller has that record to hand.
+ */
+export function roleLabel(code: string | null | undefined, name?: string | null): string {
+  if (!code) return '—';
+  return ROLE_LABEL[code] ?? name ?? code;
+}
 
 /**
  * What to call an *account* that has no employee record behind it.
@@ -35,7 +55,7 @@ export const ROLE_LABEL: Record<RoleCodeInput, string> = {
  * would change the product's vocabulary for a role that is called Admin
  * everywhere else, including in the permission matrix.
  */
-export const ACCOUNT_LABEL: Record<RoleCodeInput, string> = {
+export const ACCOUNT_LABEL: Partial<Record<string, string>> = {
   EMPLOYEE: 'Employee Account',
   MANAGER: 'Manager Account',
   HR: 'HR Account',

@@ -4,10 +4,24 @@ import { dateOnlySchema, paginationQuerySchema } from './common';
 const trimmed = (max: number) => z.string().trim().max(max);
 
 /**
- * The five seeded system roles (docs/04-rbac.md). Shared by the create form's
- * `loginRole` and by the role-change action so the two can never drift apart.
+ * The code of a role in this organization — one of the five seeded system
+ * roles (docs/04-rbac.md) or a custom one composed in Settings → Roles.
+ * Shared by the create form's `loginRole` and by the role-change action so the
+ * two can never drift apart.
+ *
+ * Deliberately a shape, not an enum of the five system codes. The enum could
+ * not express a custom role, so composing one produced a role nobody could be
+ * assigned to. Nothing is lost by widening it: `EmployeesService.changeRole`
+ * already looks the code up in the caller's organization and rejects a miss
+ * with "Role X does not exist", so existence was never what the enum proved —
+ * it only proved membership of a hardcoded list that had stopped being true.
  */
-export const roleCodeSchema = z.enum(['EMPLOYEE', 'MANAGER', 'HR', 'FINANCE', 'ADMIN']);
+export const roleCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(20)
+  .regex(/^[A-Z][A-Z0-9_]*$/, 'Use capitals, digits and underscores, starting with a letter');
 export type RoleCodeInput = z.infer<typeof roleCodeSchema>;
 
 /*

@@ -1,4 +1,4 @@
-import { PERMISSIONS } from '@hrms/shared';
+import { PERMISSIONS, type RoleCreateInput, type RoleUpdateInput } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import {
   BadRequestException,
@@ -8,7 +8,13 @@ import {
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
 import { PrismaService } from '../../database/prisma.service';
-import { applyGuardrails, lockoutReason, type RoleGrants } from './rbac.guardrails';
+import {
+  applyGuardrails,
+  deleteBlockedReason,
+  editBlockedReason,
+  lockoutReason,
+  type RoleGrants,
+} from './rbac.guardrails';
 
 @Injectable()
 export class RbacService {
@@ -51,6 +57,28 @@ export class RbacService {
     return { roles, grants };
   }
 
+  /**
+   * The escalation ceiling: nobody may hand out what they do not hold.
+   *
+   * One implementation for both the roles editor and role creation on purpose.
+   * Two copies would be two chances to disagree, and creation is the more
+   * tempting back door of the pair — an unchecked `POST /roles` lets a caller
+   * mint a role holding the whole catalogue and then simply move somebody into
+   * it, reaching the same place the editor's ceiling refuses to go.
+   *
+   * Callers pass only the codes being **added**. Removals are unrestricted:
+   * this stops escalation, not sabotage, and the admin floor handles lockouts
+   * separately by restoring the permission rather than refusing the edit.
+   */
+  private assertMayGrant(claims: AccessTokenClaims, adding: string[]): void {
+    const escalating = [...new Set(adding.filter((code) => !claims.perms.includes(code)))].sort();
+    if (escalating.length > 0) {
+      throw new ForbiddenException(
+        `You cannot grant a permission you do not hold yourself: ${escalating.join(', ')}`,
+      );
+    }
+  }
+
   /** Roles of the caller's organization, with their grants and user counts. */
   async roles(claims: AccessTokenClaims) {
     const { roles, grants } = await this.orgRoles(claims.orgId);
@@ -80,6 +108,133 @@ export class RbacService {
         ),
       };
     });
+  }
+
+  /**
+   * Roles a person can be put into: code and name only.
+   *
+   * Separate from `roles()` because the two have different audiences. Assigning
+   * somebody a role needs `employee.manage`; seeing the permission matrix needs
+   * `role.manage`. Widening `roles()` to cover both would hand every HR user
+   * the full grant matrix to get at a dropdown's worth of names.
+   */
+  async assignableRoles(orgId: string) {
+    return this.prisma.role.findMany({
+      where: { organizationId: orgId },
+      select: { code: true, name: true, description: true, isSystem: true },
+      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  /**
+   * Composes a custom role — the thing docs/04 has described since foundation
+   * and the code never had.
+   */
+  async createRole(claims: AccessTokenClaims, input: RoleCreateInput) {
+    const unknown = input.permissions.filter((code) => !PERMISSIONS.includes(code as never));
+    if (unknown.length > 0) {
+      throw new BadRequestException(`Unknown permission: ${unknown.join(', ')}`);
+    }
+
+    // Every permission on a new role is an addition, so the whole list goes
+    // through the ceiling.
+    this.assertMayGrant(claims, input.permissions);
+
+    const clash = await this.prisma.role.findUnique({
+      where: { organizationId_code: { organizationId: claims.orgId, code: input.code } },
+      select: { id: true },
+    });
+    if (clash) {
+      throw new BadRequestException(`A role with the code ${input.code} already exists`);
+    }
+
+    const rows = await this.prisma.permission.findMany({
+      where: { code: { in: input.permissions } },
+      select: { id: true, code: true },
+    });
+
+    const role = await this.prisma.role.create({
+      data: {
+        organizationId: claims.orgId,
+        code: input.code,
+        name: input.name,
+        description: input.description ?? null,
+        // Never true from here. `isSystem` marks the seeded five, and it is
+        // what `editBlockedReason` keys on to protect them.
+        isSystem: false,
+        permissions: { create: rows.map((p) => ({ permissionId: p.id })) },
+      },
+      select: { id: true, code: true, name: true, description: true, isSystem: true },
+    });
+
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      'role.create',
+      'Role',
+      role.code,
+    );
+
+    // Shaped like a `roles()` row so the matrix can drop it straight in. A new
+    // role has nobody in it, so nothing is locked.
+    return { ...role, userCount: 0, permissions: rows.map((r) => r.code).sort(), locked: [] };
+  }
+
+  /** Renames a custom role. `code` is immutable — see `roleCodeShape`. */
+  async updateRole(claims: AccessTokenClaims, roleId: string, input: RoleUpdateInput) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, organizationId: claims.orgId },
+      select: { id: true, code: true, isSystem: true },
+    });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const blocked = editBlockedReason(role);
+    if (blocked) throw new BadRequestException(blocked);
+
+    const updated = await this.prisma.role.update({
+      where: { id: role.id },
+      data: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+      },
+      select: { id: true, code: true, name: true, description: true, isSystem: true },
+    });
+
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      'role.update',
+      'Role',
+      role.code,
+    );
+    return updated;
+  }
+
+  /** Deletes a custom role nobody holds. */
+  async deleteRole(claims: AccessTokenClaims, roleId: string) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, organizationId: claims.orgId },
+      // Every attached user, suspended included — see `deleteBlockedReason`.
+      select: { id: true, code: true, isSystem: true, _count: { select: { users: true } } },
+    });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const blocked = deleteBlockedReason(role, role._count.users);
+    if (blocked) throw new BadRequestException(blocked);
+
+    await this.prisma.$transaction([
+      this.prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
+      this.prisma.role.delete({ where: { id: role.id } }),
+    ]);
+
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      'role.delete',
+      'Role',
+      role.code,
+    );
+    return { id: role.id, code: role.code };
   }
 
   /**
@@ -149,14 +304,10 @@ export class RbacService {
      * undoing a lockout, not a grant this caller asked for, so a caller who
      * lacks `settings.manage` can still edit a role that must keep it.
      */
-    const escalating = [
-      ...new Set(next.filter((code) => !current.includes(code) && !claims.perms.includes(code))),
-    ].sort();
-    if (escalating.length > 0) {
-      throw new ForbiddenException(
-        `You cannot grant a permission you do not hold yourself: ${escalating.join(', ')}`,
-      );
-    }
+    this.assertMayGrant(
+      claims,
+      next.filter((code) => !current.includes(code)),
+    );
 
     const { permissions, blocked } = applyGuardrails(grants, roleId, next);
 

@@ -1,5 +1,6 @@
 import {
   applyGuardrails,
+  deleteBlockedReason,
   editBlockedReason,
   lockoutReason,
   type RoleGrants,
@@ -112,6 +113,26 @@ describe('editBlockedReason', () => {
 
   it('leaves custom roles editable', () => {
     expect(editBlockedReason({ code: 'PAYROLL', isSystem: false })).toBeNull();
+  });
+});
+
+describe('deleteBlockedReason', () => {
+  const custom = { code: 'OPS', isSystem: false };
+
+  it('allows deleting a custom role nobody holds', () => {
+    expect(deleteBlockedReason(custom, 0)).toBeNull();
+  });
+
+  it('refuses a system role before it even counts holders', () => {
+    expect(deleteBlockedReason({ code: 'ADMIN', isSystem: true }, 0)).toMatch(/System roles/);
+  });
+
+  it('refuses while anybody holds it, and says how many', () => {
+    expect(deleteBlockedReason(custom, 3)).toMatch(/3 people still hold/);
+  });
+
+  it('reads naturally for a single holder', () => {
+    expect(deleteBlockedReason(custom, 1)).toMatch(/1 person still holds/);
   });
 });
 

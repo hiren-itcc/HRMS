@@ -82,8 +82,22 @@ describe('employeeCreateSchema — sign-in defaults', () => {
     expect(employeeCreateSchema.parse({ ...base, createLogin: false }).createLogin).toBe(false);
   });
 
-  it('rejects a role that is not a system role', () => {
-    expect(employeeCreateSchema.safeParse({ ...base, loginRole: 'SUPERUSER' }).success).toBe(false);
+  /*
+   * The schema validates the *shape* of a role code, not membership of a fixed
+   * list. It used to be an enum of the five seeded codes, which meant a custom
+   * role composed in Settings → Roles could be created and then assigned to
+   * nobody. Existence is checked where it can actually be known — against the
+   * caller's organization in `EmployeesService.changeRole`, which answers
+   * "Role X does not exist".
+   */
+  it('accepts a custom role code, because custom roles exist now', () => {
+    expect(employeeCreateSchema.safeParse({ ...base, loginRole: 'IT_ADMIN' }).success).toBe(true);
+  });
+
+  it('still rejects a malformed code', () => {
+    for (const loginRole of ['lowercase', 'HAS SPACE', '1LEADING', 'THIS_CODE_IS_FAR_TOO_LONG']) {
+      expect(employeeCreateSchema.safeParse({ ...base, loginRole }).success).toBe(false);
+    }
   });
 });
 

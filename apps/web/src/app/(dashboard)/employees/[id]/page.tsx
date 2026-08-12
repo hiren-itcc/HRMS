@@ -48,7 +48,7 @@ import { LifecycleCard } from '@/features/employees/components/lifecycle-card';
 import { OffboardDialog } from '@/features/employees/components/offboard-dialog';
 import { ProbationBadge } from '@/features/employees/components/probation-badge';
 import { EmployeeStatusBadge } from '@/features/employees/components/status-badge';
-import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
+import { ROLE_OPTIONS, roleLabel } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
 import { LettersPanel } from '@/features/letters/components/letters-panel';
 import { InviteCard } from '@/features/onboarding/components/invite-card';
@@ -90,7 +90,7 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
     invalidate: [['employees']],
     error: 'Could not change role',
     onSuccess: (result) => {
-      toast.success(`Role changed to ${ROLE_LABEL[result.roleCode]}`, {
+      toast.success(`Role changed to ${roleLabel(result.roleCode)}`, {
         description: result.sessionsRevoked
           ? 'They have been signed out and pick up the new role next time they sign in.'
           : undefined,
@@ -109,7 +109,7 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
         value={
           employee.user ? (
             <span className="inline-flex items-center gap-2">
-              {current ? ROLE_LABEL[current] : '—'}
+              {roleLabel(current)}
               {canChange && (
                 <Button
                   variant="ghost"

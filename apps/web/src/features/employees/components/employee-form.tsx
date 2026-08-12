@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 import { FormCheckbox, FormDatePicker, FormInput, FormSelect } from '@/components/form';
 import { employeesApi } from '@/features/employees/api';
-import { ROLE_LABEL, ROLE_OPTIONS } from '@/features/employees/role-options';
+import { ROLE_OPTIONS, roleLabel } from '@/features/employees/role-options';
 import { fullName } from '@/features/employees/types';
 import {
   departmentsApi,
@@ -398,7 +398,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
             <>
               Will create a sign-in as{' '}
               <strong className="text-foreground">
-                {ROLE_LABEL[form.watch('loginRole') ?? 'EMPLOYEE']}
+                {roleLabel(form.watch('loginRole') ?? 'EMPLOYEE')}
               </strong>
               .
             </>
