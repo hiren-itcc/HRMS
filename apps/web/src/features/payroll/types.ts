@@ -11,6 +11,9 @@ export interface PayComponent {
   taxable: boolean;
   isStatutory: boolean;
   isSystem: boolean;
+  /** Sorts the catalogue only — not payslip line order. See the field's hint on the editor. */
+  order: number;
+  active: boolean;
 }
 
 export interface StructureLine {

@@ -1,5 +1,7 @@
 import type {
   EmployeeSalaryInput,
+  PayComponentCreateInput,
+  PayComponentUpdateInput,
   PaymentUpdateInput,
   PayrollAdjustmentInput,
   PayrollRunActionInput,
@@ -31,7 +33,26 @@ const qs = (params: Record<string, string | number | undefined>) => {
 };
 
 export const payrollApi = {
-  components: () => api<PayComponent[]>('/payroll/components'),
+  /**
+   * `includeInactive` is only honoured by the API for a caller holding
+   * `payroll.structure.manage` — everyone else gets the active-only list
+   * regardless of what is passed, so the two-tier read in
+   * `payroll/components/page.tsx` (and `expenses/categories/page.tsx`, which
+   * splits the same way) is a UI nicety, not the enforcement.
+   */
+  components: (includeInactive?: boolean) =>
+    api<PayComponent[]>(
+      `/payroll/components${qs({ includeInactive: includeInactive ? 'true' : undefined })}`,
+    ),
+  createComponent: (body: PayComponentCreateInput) =>
+    api<PayComponent>('/payroll/components', { method: 'POST', body: JSON.stringify(body) }),
+  updateComponent: (id: string, body: PayComponentUpdateInput) =>
+    api<PayComponent>(`/payroll/components/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteComponent: (id: string) =>
+    api<{ id: string }>(`/payroll/components/${id}`, { method: 'DELETE' }),
 
   /** One-off amounts for a month: bonuses, incentives, loan instalments. */
   adjustments: (month: string, employeeId?: string) =>
@@ -103,6 +124,8 @@ export const payrollApi = {
  */
 export const payrollKeys = {
   all: () => ['payroll'] as const,
+  components: () => ['payroll', 'components'] as const,
+  allComponents: () => ['payroll', 'components', 'all'] as const,
   structures: () => ['payroll', 'structures'] as const,
   structure: (id: string) => ['payroll', 'structures', id] as const,
   salaries: () => ['payroll', 'salaries'] as const,

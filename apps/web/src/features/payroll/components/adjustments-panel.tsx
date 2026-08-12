@@ -61,8 +61,8 @@ export function AdjustmentsPanel({
   });
 
   const components = useQuery({
-    queryKey: ['payroll', 'components'],
-    queryFn: payrollApi.components,
+    queryKey: payrollKeys.components(),
+    queryFn: () => payrollApi.components(),
     enabled: open,
   });
 
