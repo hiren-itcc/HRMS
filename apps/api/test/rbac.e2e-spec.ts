@@ -168,6 +168,74 @@ describe('RBAC across roles', () => {
     });
   });
 
+  describe('tds', () => {
+    it('lets HR and Finance read the challan register', async () => {
+      for (const role of ['admin', 'hr', 'finance']) {
+        const res = await get('/payroll/challans', role);
+        expect([res.status, role]).toEqual([200, role]);
+      }
+    });
+
+    it('refuses the register to a manager and an employee', async () => {
+      for (const role of ['manager', 'employee']) {
+        const res = await get('/payroll/challans', role);
+        expect([res.status, role]).toEqual([403, role]);
+      }
+    });
+
+    it('refuses recording a deposit to everybody without payroll.filing', async () => {
+      for (const role of ['manager', 'employee']) {
+        const res = await request(app.getHttpServer())
+          .post('/api/v1/payroll/challans')
+          .set(as(token[role] as string))
+          .send({
+            period: '2026-07',
+            bsrCode: '0510308',
+            challanSerial: '00123',
+            depositDate: '2026-08-07',
+            tds: 1,
+          });
+        expect([res.status, role]).toEqual([403, role]);
+      }
+    });
+
+    /*
+     * What only this layer can prove: that the seeded RolePermission rows
+     * really do grant `payroll.filing`, against the real guard rather than a
+     * mocked Prisma. Round-tripping a write through a read is the assertion —
+     * a 201 alone would pass even if the row never reached the register.
+     *
+     * Cross-tenant isolation is deliberately NOT tested here: the suite seeds
+     * one organization, so there is no second tenant to leak to and any test
+     * claiming otherwise would be theatre. That scoping is asserted in
+     * `tds-challans.service.spec.ts`, which checks the `where` clause itself.
+     */
+    it('round-trips a deposit HR records into the register', async () => {
+      const period = '2026-05';
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/payroll/challans')
+        .set(as(token.hr as string))
+        .send({
+          period,
+          bsrCode: '0510308',
+          challanSerial: '99001',
+          depositDate: '2026-06-07',
+          tds: 4242,
+        });
+      expect(created.status).toBe(201);
+
+      const listed = await get('/payroll/challans', 'hr');
+      expect(listed.status).toBe(200);
+      expect(listed.body).toEqual(
+        expect.arrayContaining([expect.objectContaining({ period, tds: 4242 })]),
+      );
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/payroll/challans/${created.body.id}`)
+        .set(as(token.hr as string));
+    });
+  });
+
   describe('payroll separation of duties', () => {
     /* HR configures and processes; Finance approves and pays. Nobody holds
        both by default, and that is the point rather than an accident. */
