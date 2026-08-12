@@ -12,11 +12,17 @@ import { round2 } from './payroll.statutory';
  * live salary data, because a return filed in June and regenerated in December
  * must be the same file.
  *
- * Deliberately not here: Form 24Q and Form 16. 24Q is a versioned NSDL format
- * validated by a Java desktop tool that cannot run in CI, and a wrong return is
- * *filed* and then needs a correction statement. Form 16 Part A is issued by
- * TRACES after the 24Q is processed and is not ours to produce at all; Part B
- * needs the annual tax engine that doc 11 deferred. See docs/15 §22b.
+ * Form 24Q now lives in `tds-files.ts`, not here — see ADR-001
+ * (`docs/16-adr-001-form-24q.md`), which reverses the refusal this comment
+ * used to record. The objection was sound and is answered rather than
+ * ignored: we emit the *input* to the NSDL File Validation Utility, so the
+ * Java tool that cannot run in CI is the operator's gate and the screen says
+ * so. It is a separate file because this one's builders are monthly and
+ * belong to a published run, while a 24Q is quarterly and spans three.
+ *
+ * Form 16 is still not here. Part A is issued by TRACES after the 24Q is
+ * processed and is not ours to produce at all; Part B needs the annual tax
+ * engine that doc 11 deferred. See docs/15 §22b.
  */
 
 export interface FilingRow {
