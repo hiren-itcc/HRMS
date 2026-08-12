@@ -154,19 +154,25 @@ export class TdsReturnsService {
     }
 
     const byMonth = new Map(runs.map((run) => [run.month, run.status]));
-    // A month with no run at all is not a refusal here — nothing has been
-    // typed in for it yet, so there is nothing for the reconciliation below
-    // to disagree about (it will report a genuine mismatch if one exists once
-    // there is data). Only a run that exists and is *not* PUBLISHED — still
-    // being edited — blocks, matching the same distinction
-    // `StatutoryFilingsService.rowsFor` draws between "no run" and "not
-    // published" for the monthly returns.
-    const notPublished = months.filter(
+    const missingRun = months.filter((month) => !byMonth.has(month));
+    const unpublished = months.filter(
       (month) => byMonth.has(month) && byMonth.get(month) !== 'PUBLISHED',
     );
-    if (notPublished.length) {
+    if (missingRun.length || unpublished.length) {
+      /*
+       * Both refuse, and they are reported apart because the fix differs: one
+       * wants a payroll run, the other wants the run published. This mirrors
+       * `StatutoryFilingsService.rowsFor`, which throws NotFound for the first
+       * and BadRequest for the second rather than letting either through.
+       */
+      const parts = [
+        missingRun.length > 0 &&
+          `${missingRun.join(', ')} ${missingRun.length === 1 ? 'has' : 'have'} no payroll run at all`,
+        unpublished.length > 0 &&
+          `${unpublished.join(', ')} ${unpublished.length === 1 ? 'is' : 'are'} still unpublished`,
+      ].filter(Boolean);
       return {
-        blocked: `${notPublished.join(', ')} ${notPublished.length === 1 ? 'has' : 'have'} no published payroll run. A return has to be filed against figures that cannot change afterwards.`,
+        blocked: `${parts.join('; ')}. Every month in the quarter has to be published before it can be filed — a return that omits a month is a short one, and the department has no way to know.`,
         layoutBlocked,
         warnings: [],
         months,

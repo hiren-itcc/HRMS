@@ -34,8 +34,17 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
 describe('TdsReturnsService readiness', () => {
   it('refuses while the record layout is untranscribed', async () => {
     // Task 13 lifts this. Until then the screen must say so rather than hand
-    // somebody a file whose field order we guessed.
+    // somebody a file whose field order we guessed. Needs three published
+    // runs so the layout check is what's exercised, not the "quarter is
+    // incomplete" refusal this test isn't about.
     const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue(
+      ['2026-07', '2026-08', '2026-09'].map((month, i) => ({
+        id: `r${i}`,
+        month,
+        status: 'PUBLISHED',
+      })),
+    );
     const service = new TdsReturnsService(prisma as never, settings as never);
 
     const result = await service.readiness(claims, '2026-27', 'Q2');
@@ -71,7 +80,9 @@ describe('TdsReturnsService readiness', () => {
 
   it('refuses when a month in the quarter has no published run', async () => {
     // The rule statutory-filings.service.ts already enforces monthly: a return
-    // filed against numbers that then change is worse than no return.
+    // filed against numbers that then change is worse than no return. 2026-09
+    // is absent from the mock entirely, so under the corrected logic this also
+    // reports a missing run alongside the unpublished one.
     const { prisma, settings } = makeDeps();
     prisma.payrollRun.findMany.mockResolvedValue([
       { id: 'r1', month: '2026-07', status: 'PUBLISHED' },
@@ -82,7 +93,26 @@ describe('TdsReturnsService readiness', () => {
     const result = await service.readiness(claims, '2026-27', 'Q2');
 
     expect(result.blocked).toMatch(/2026-08/);
-    expect(result.blocked).toMatch(/published/i);
+    expect(result.blocked).toMatch(/unpublished/i);
+    expect(result.blocked).toMatch(/2026-09/);
+    expect(result.blocked).toMatch(/no payroll run/i);
+  });
+
+  it('refuses a quarter with a month that was never run at all', async () => {
+    // Not the same as "not published": there is no run to publish. A 24Q
+    // covering Jul-Sep that silently omits September is a short return, and
+    // the department has no way to know a month is missing.
+    const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue([
+      { id: 'r0', month: '2026-07', status: 'PUBLISHED' },
+      { id: 'r1', month: '2026-08', status: 'PUBLISHED' },
+    ]);
+    const service = new TdsReturnsService(prisma as never, settings as never);
+
+    const result = await service.readiness(claims, '2026-27', 'Q2');
+
+    expect(result.blocked).toMatch(/2026-09/);
+    expect(result.blocked).toMatch(/no payroll run/i);
   });
 
   it('refuses when a month deducted TDS and has no challan', async () => {
