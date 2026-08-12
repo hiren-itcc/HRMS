@@ -9,9 +9,9 @@ import {
 } from '@hrms/ui/components/tooltip';
 import { cn } from '@hrms/ui/lib/utils';
 import { motion, useReducedMotion } from 'framer-motion';
-import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BrandMark } from '@/components/brand-mark';
 import { NAV_ITEMS } from '@/components/nav-items';
 import { useSession } from '@/components/session-provider';
 import { displayName } from '@/components/user-menu';
@@ -134,9 +134,7 @@ export function AppSidebar() {
         className={cn('flex h-16 items-center gap-2.5 px-5', collapsed && 'justify-center px-2')}
         aria-label="HRMS home"
       >
-        <span className="gradient-primary flex size-8 shrink-0 items-center justify-center rounded-lg text-white shadow-primary/30 shadow-lg">
-          <ShieldCheck className="size-4.5" aria-hidden />
-        </span>
+        <BrandMark className="shadow-primary/30 shadow-lg" />
         {!collapsed && (
           <span className="font-bold text-lg text-sidebar-accent-foreground tracking-tight">
             HRMS

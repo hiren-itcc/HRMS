@@ -195,6 +195,40 @@ all: there is no pointer on those screens to hover with.
 Never a native `title` alongside. Two hover labels on one button is one too
 many, and the native one is slower and cannot be styled.
 
+### The brand mark
+
+The one icon that is not Lucide. Three figures where the centre one's torso is
+a briefcase, drawn for this product rather than taken from a set — the stock
+icon it replaced carried a licence barring use "in any trademark, or part of
+the same", which is what a logo is.
+
+It lives in exactly one place, `apps/web/src/components/brand-mark.tsx`, and is
+drawn by `BrandMark` at two sizes: `sm` in the sidebar, the mobile navigation
+sheet and the careers header, `lg` in the two auth panels. Before that it was a
+`ShieldCheck` pasted inline into five components, and the fifth had already
+drifted — the public careers header rendered the literal text `HR` where every
+other place drew the icon. Five copies is four opportunities to miss one.
+
+Three rules the mark exists under, each of them settled by rendering at 16px
+rather than by argument:
+
+- **Filled shapes, never strokes.** A 2px stroke at 24 units is a third of a
+  pixel in a browser tab.
+- **Cut-outs are `fill-rule="evenodd"`, never overpainted in the background
+  colour.** The old favicon faked its tick that way, which is exactly why it
+  could not share geometry with a component sitting on a *CSS* gradient. Real
+  holes let one path serve both.
+- **Detail that cannot survive 16px does not ship.** The briefcase had a clasp;
+  it rendered as a muddy pixel and was cut.
+
+`app/icon.svg` is a hand-kept twin — Next serves it statically, so it cannot
+import `BRAND_PATH`. `brand-mark.test.tsx` fails if the two geometries stop
+matching, because the pair it replaced drifted apart under a comment claiming
+they agreed. The favicon also hardcodes the terracotta ramp: it reads no CSS
+variables, so unlike the in-app mark it cannot follow `--brand-ramp-*` through
+the five alternate themes. That is deliberate — a tab icon identifies the
+product, not the viewer's colour preference.
+
 ## Component library (`packages/ui`)
 
 Built **on coss UI** (Base UI, accessible by default), installed into

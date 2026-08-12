@@ -1,4 +1,5 @@
-import { CalendarCheck, ClipboardList, ShieldCheck, Users } from 'lucide-react';
+import { CalendarCheck, ClipboardList, Users } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
 import { AuthIllustration } from '@/features/auth/components/auth-illustration';
 
 const HIGHLIGHTS = [
@@ -37,9 +38,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         />
 
         <div className="relative flex items-center gap-2.5 p-10">
-          <span className="gradient-primary flex size-10 items-center justify-center rounded-xl text-white shadow-lg">
-            <ShieldCheck className="size-5" aria-hidden />
-          </span>
+          <BrandMark size="lg" className="shadow-lg" />
           <span className="font-bold text-sidebar-accent-foreground text-xl tracking-tight">
             HRMS
           </span>
@@ -93,9 +92,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Mobile brand — the panel carrying it is hidden at this width */}
         <div className="relative mb-8 flex items-center gap-2.5 lg:hidden">
-          <span className="gradient-primary flex size-10 items-center justify-center rounded-xl text-white shadow-lg">
-            <ShieldCheck className="size-5" aria-hidden />
-          </span>
+          <BrandMark size="lg" className="shadow-lg" />
           <span className="font-bold text-xl tracking-tight">HRMS</span>
         </div>
 

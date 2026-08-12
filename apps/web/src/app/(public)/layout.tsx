@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandMark } from '@/components/brand-mark';
 
 /**
  * The public shell.
@@ -13,9 +14,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <header className="border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
           <Link href="/careers" className="flex items-center gap-2.5 font-semibold">
-            <span className="gradient-primary flex size-8 items-center justify-center rounded-lg text-white text-xs">
-              HR
-            </span>
+            <BrandMark />
             Careers
           </Link>
           {/* The only way back in, for somebody who works here and landed on a

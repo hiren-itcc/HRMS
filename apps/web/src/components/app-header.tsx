@@ -9,10 +9,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@hrms/ui/components/sheet';
-import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { SidebarNav } from '@/components/app-sidebar';
+import { BrandMark } from '@/components/brand-mark';
 import { CommandPalette } from '@/components/command-palette';
 import { IconAction } from '@/components/icon-action';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -54,9 +55,7 @@ export function AppHeader() {
             >
               <SheetHeader className="px-5 pt-5 pb-2">
                 <SheetTitle className="flex items-center gap-2.5 text-sidebar-accent-foreground">
-                  <span className="gradient-primary flex size-8 items-center justify-center rounded-lg text-white">
-                    <ShieldCheck className="size-4.5" aria-hidden />
-                  </span>
+                  <BrandMark />
                   HRMS
                 </SheetTitle>
                 {/* Base UI warns without this on every open. */}
