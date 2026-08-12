@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { AppHeader } from '@/components/app-header';
 import { AppSidebar } from '@/components/app-sidebar';
+import { Favicon } from '@/components/favicon';
 import { useSession } from '@/components/session-provider';
 
 /**
@@ -45,6 +46,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh">
+      {/* Renders nothing — keeps the tab icon on the current colour theme. */}
+      <Favicon />
       {/* Without this, reaching page content by keyboard means tabbing the
           whole sidebar on every navigation. */}
       <a
