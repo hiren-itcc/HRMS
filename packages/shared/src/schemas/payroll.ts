@@ -60,8 +60,13 @@ export const payComponentCreateSchema = z.object({
    * Sorts the catalogue only — this is not payslip line order, which comes
    * from `StructureLine.order` plus hardcoded slots in the calculation
    * engine. Reordering this list does not reorder a payslip.
+   *
+   * Coerced, because a `type="number"` input posts a string — the same reason
+   * `optionalMoney` in `expense.ts` exists. It needs no empty-string guard the
+   * way a cap does: `''` coercing to 0 is the right reading for a sort key,
+   * whereas for a claim ceiling 0 would silently mean "nothing may be claimed".
    */
-  order: z.number().int().min(0).default(0),
+  order: z.coerce.number().int().min(0).default(0),
   active: z.boolean().default(true),
 });
 

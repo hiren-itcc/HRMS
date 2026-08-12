@@ -9,7 +9,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
-import { Input } from '@hrms/ui/components/input';
 import { SelectItem } from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, ShieldAlert } from 'lucide-react';
@@ -17,7 +16,7 @@ import { useState } from 'react';
 import { FormDialog } from '@/components/crud/form-dialog';
 import { RowActions } from '@/components/crud/row-actions';
 import { type Column, DataTable } from '@/components/data-table';
-import { FormCheckbox, FormField, FormInput, FormSelect } from '@/components/form';
+import { FormCheckbox, FormInput, FormSelect } from '@/components/form';
 import { useSession } from '@/components/session-provider';
 import { payrollApi, payrollKeys } from '@/features/payroll/api';
 import type { ComponentKind, PayComponent } from '@/features/payroll/types';
@@ -274,32 +273,15 @@ export default function PayComponentsPage() {
           label="Computed by the statutory engine, not a structure line"
           disabled={protectedComponent}
         />
-        {/*
-         * `FormInput`'s default `onChange` forwards `event.target.value`
-         * verbatim (a string), and `order` is `z.number()` — not coerced, so
-         * a plain `FormInput` would fail validation the moment it is
-         * touched. `FormField` is the escape hatch for exactly this: it
-         * wires the field's own `onChange` by hand so a real number lands in
-         * form state.
-         */}
-        <FormField
+        <FormInput
           control={form.control}
           name="order"
           label="Order"
+          type="number"
+          step="1"
+          min={0}
           hint="Sorts this catalogue only, not a payslip — payslip lines follow a salary structure's own order plus a few fixed slots, so reordering this list will not reorder a payslip."
-        >
-          {({ field, a11y }) => (
-            <Input
-              {...a11y}
-              type="number"
-              step="1"
-              min={0}
-              value={field.value ?? 0}
-              onBlur={field.onBlur}
-              onChange={(e) => field.onChange(e.target.value === '' ? 0 : Number(e.target.value))}
-            />
-          )}
-        </FormField>
+        />
         <FormCheckbox
           control={form.control}
           name="active"
