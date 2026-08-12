@@ -398,7 +398,7 @@ is what an Indian payroll buyer is actually purchasing:
 | Output | Status |
 |---|---|
 | **Form 16** (Part A + B) | ❌ — `11:89` scopes it as "a tax engine, not a payroll feature" |
-| **Form 24Q** quarterly TDS return | ❌ |
+| **Form 24Q** quarterly TDS return | ✅ built as the FVU's *input* file, not a filed return — but generation is currently refused at the readiness gate, because the record layout is deliberately not yet transcribed (`FVU_SPEC_VERSION === 'UNTRANSCRIBED'`); Q4 is only partly supported, since Annexure II (the annual salary annexure) is not produced |
 | **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
 | **ESIC** contribution challan | ✅ built — same caveat |
 | **Form 12BB** / investment declarations | ❌ |
@@ -595,15 +595,28 @@ which other documents were citing.
     so a resignation moving through approval reaches nobody who does not open
     the app.
 22. **Form 16, Form 24Q, ECR, ESIC challan** — half built. **ECR and the ESIC
-    contribution return ship**; Form 16 and Form 24Q do not, and are still
-    scoped out as a tax engine rather than a payroll feature (`11:89`).
+    contribution return ship**; a Returns tab under Payroll, a Statutory card
+    in Settings for the establishment codes, and a readiness gate that fires
+    *before* a month can be chosen — refusing at download time would be the
+    worst moment, once the operator has picked a period and believed the
+    totals. Exclusions render before the totals and never collapsed: somebody
+    left out for want of a UAN is a person whose contribution is not reaching
+    their account.
 
-    A Returns tab under Payroll, a Statutory card in Settings for the
-    establishment codes, and a readiness gate that fires *before* a month can
-    be chosen — refusing at download time would be the worst moment, once the
-    operator has picked a period and believed the totals. Exclusions render
-    before the totals and never collapsed: somebody left out for want of a UAN
-    is a person whose contribution is not reaching their account.
+    **24Q now ships too, but only as the FVU's input file.** A TDS challan
+    register (`/payroll/filings/challans`, one challan per payroll month) and
+    a quarterly generator (`/payroll/filings/24q`) reconcile the quarter's
+    challans against its payslips and refuse to generate on a mismatch; a
+    missing PAN warns instead of refusing, since filing without one is legal
+    and blocking would trade a data-quality problem for a missed deadline.
+    **Generation is currently refused at the readiness gate regardless** — the
+    record layout is deliberately not yet transcribed
+    (`FVU_SPEC_VERSION === 'UNTRANSCRIBED'` in `tds-files.ts`), so nobody is
+    handed a file whose field order was invented rather than sourced from the
+    spec. **Q4 is only partly supported**: the file covers Annexure I only,
+    and Annexure II (the annual salary annexure) is not produced. **Form 16
+    remains absent**, still scoped out as a tax engine rather than a payroll
+    feature (`11:89`).
 
     **No file here has been accepted by a portal.** The golden-file tests are
     the strongest check CI can offer and they are not the same thing as an
