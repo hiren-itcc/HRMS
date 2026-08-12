@@ -4,7 +4,7 @@ import type { OrgSettings } from '@hrms/shared';
 import { Alert, AlertDescription, AlertTitle } from '@hrms/ui/components/alert';
 import { Button } from '@hrms/ui/components/button';
 import { Input } from '@hrms/ui/components/input';
-import { ArrowDown, ArrowUp, Plus, TriangleAlert, X } from 'lucide-react';
+import { Plus, TriangleAlert, X } from 'lucide-react';
 import { IconAction } from '@/components/icon-action';
 
 type Slab = OrgSettings['payroll']['professionalTax']['slabs'][number];
@@ -60,15 +60,17 @@ export function PtSlabEditor({
   const patch = (index: number, values: Partial<Slab>) =>
     commit(sorted.map((slab, i) => (i === index ? { ...slab, ...values } : slab)));
 
-  const move = (index: number, by: number) => {
-    const to = index + by;
-    if (to < 0 || to >= sorted.length) return;
-    const next = [...sorted];
-    const [moved] = next.splice(index, 1);
-    if (moved) next.splice(to, 0, moved);
-    commit(next);
-  };
-
+  /*
+   * No reorder controls, deliberately — unlike `ExitChecklistEditor`, whose
+   * shape this otherwise follows.
+   *
+   * A band's position *is* its upper bound: change the bound and it moves.
+   * `commit` re-sorts on every write, so a move button could only ever break a
+   * tie between two slabs sharing an `upTo`, and `professionalTax()` in
+   * `payroll.statutory.ts` sorts again when reading — so a hand-ordered array
+   * would be an order the payroll engine ignores. Buttons that appear to do
+   * something and do not are worse than absent ones.
+   */
   const remove = (index: number) => onChange(sorted.filter((_, i) => i !== index));
 
   // Two soft, non-blocking checks. A state may legitimately have a slab table
@@ -126,20 +128,6 @@ export function PtSlabEditor({
               <span className="text-muted-foreground text-sm">per month</span>
 
               <div className="ml-auto flex shrink-0 gap-1">
-                <IconAction
-                  label={`Move slab ${index + 1} up`}
-                  icon={ArrowUp}
-                  size="icon"
-                  onClick={() => move(index, -1)}
-                  disabled={disabled || index === 0}
-                />
-                <IconAction
-                  label={`Move slab ${index + 1} down`}
-                  icon={ArrowDown}
-                  size="icon"
-                  onClick={() => move(index, 1)}
-                  disabled={disabled || index === sorted.length - 1}
-                />
                 <IconAction
                   label={`Remove slab ${index + 1}`}
                   icon={X}
