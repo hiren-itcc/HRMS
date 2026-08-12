@@ -105,10 +105,12 @@ export function formatTdsMoney(amount: number): string {
  * The financial year a month key falls in. `2027-01` -> `2026-27`.
  *
  * A second copy of `apps/api/src/modules/payroll/tds-period.ts`, which is the
- * authority — the API needs `monthsIn` and `quarterOf` too and they have no
- * business in the browser, while `packages/shared` has no home for a pure
- * helper (only `constants/` and `schemas/`). Four lines duplicated rather than
- * a folder invented.
+ * authority. It is not that the API needs this function elsewhere and the
+ * browser doesn't — `financialYearOf` and `quarterOf` are in fact called by
+ * nothing on the API side but their own spec today; only `monthsIn` has a
+ * real caller (`TdsReturnsService.gather`). The duplication is here because
+ * `packages/shared` has no home for a pure helper (only `constants/` and
+ * `schemas/`), and four lines did not seem worth inventing one for.
  *
  * `tds-api.test.ts` pins this against the same table the API's spec uses, so
  * the two cannot drift in silence. That guard is the whole justification for

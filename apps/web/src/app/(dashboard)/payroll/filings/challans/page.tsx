@@ -201,8 +201,31 @@ export default function TdsChallansPage() {
         />
         <FormInput
           control={form.control}
+          name="surcharge"
+          label="Surcharge"
+          type="number"
+          step="0.01"
+          hint="Usually already included in the TDS figure above. Enter it separately only if the bank challan itemises it."
+        />
+        <FormInput
+          control={form.control}
+          name="educationCess"
+          label="Education cess"
+          type="number"
+          step="0.01"
+          hint="Usually already included in the TDS figure above. Enter it separately only if the bank challan itemises it."
+        />
+        <FormInput
+          control={form.control}
           name="interest"
           label="Interest"
+          type="number"
+          step="0.01"
+        />
+        <FormInput
+          control={form.control}
+          name="penalty"
+          label="Penalty"
           type="number"
           step="0.01"
         />
@@ -213,6 +236,7 @@ export default function TdsChallansPage() {
           type="number"
           step="0.01"
         />
+        <FormInput control={form.control} name="others" label="Others" type="number" step="0.01" />
       </FormDialog>
     </div>
   );
