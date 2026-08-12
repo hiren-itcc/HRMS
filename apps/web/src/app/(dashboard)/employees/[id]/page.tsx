@@ -52,6 +52,7 @@ import { ROLE_OPTIONS, roleLabel } from '@/features/employees/role-options';
 import { type EmployeeDetail, fullName, initials } from '@/features/employees/types';
 import { LettersPanel } from '@/features/letters/components/letters-panel';
 import { InviteCard } from '@/features/onboarding/components/invite-card';
+import { rbacApi, rbacKeys } from '@/features/settings/rbac-api';
 import { useApiMutation } from '@/hooks/use-crud';
 import { useZodForm } from '@/hooks/use-zod-form';
 
@@ -84,6 +85,27 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
   const _queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const form = useZodForm<EmployeeRoleChangeInput>(employeeRoleChangeSchema);
+
+  /*
+   * The organization's roles, not a hardcoded five — otherwise a role composed
+   * in Settings → Roles could never be given to anybody who already exists.
+   * `ROLE_OPTIONS` stays as the fallback for its one-line explanations of the
+   * system roles, which the role record has no field for.
+   */
+  const assignable = useQuery({
+    queryKey: rbacKeys.assignable(),
+    queryFn: rbacApi.assignable,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const roleChoices = assignable.data?.length
+    ? assignable.data.map((role) => ({
+        value: role.code,
+        label:
+          ROLE_OPTIONS.find((o) => o.value === role.code)?.label ??
+          (role.description ? `${role.name} — ${role.description}` : role.name),
+      }))
+    : ROLE_OPTIONS;
 
   const save = useApiMutation({
     mutationFn: (input: EmployeeRoleChangeInput) => employeesApi.setRole(employee.id, input),
@@ -137,7 +159,7 @@ function RoleRow({ employee }: { employee: EmployeeDetail }) {
         submitLabel="Change role"
       >
         <FormSelect control={form.control} name="roleCode" label="Role">
-          {ROLE_OPTIONS.map(({ value, label }) => (
+          {roleChoices.map(({ value, label }) => (
             <SelectItem key={value} value={value}>
               {label}
             </SelectItem>

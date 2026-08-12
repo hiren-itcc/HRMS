@@ -2,6 +2,12 @@
 
 RBAC is **data, not code** (ADR §1.5): five seeded system roles, permissions as `resource.action` rows, grants editable from Settings → Roles (system roles have guardrails: ADMIN grants can't be reduced below a safe floor).
 
+**Composing roles.** `POST /roles` creates one, `PATCH /roles/:id` renames it, `DELETE /roles/:id` removes one nobody holds — all gated on `role.manage`. This page described composing a custom role from foundation onwards while no such route existed and `roleCodeSchema` was an enum of the five seeded codes, so a role made by hand could be assigned to nobody. Both are fixed; the claims below are now literally true. Three rules are worth knowing before reading them:
+
+- **You cannot grant what you do not hold.** The ceiling applies to creating a role as much as to editing one — otherwise minting a role holding the whole catalogue and stepping into it would walk straight around the editor's guard.
+- **You cannot edit your own role's permissions.** `perms` lives in an access token for up to fifteen minutes, so without this a holder could re-grant a permission that was stripped from them seconds earlier and have the ceiling wave it through on the stale claim.
+- **A role code is permanent.** The access token carries `roleCode`, not a role id; renaming a code would leave live sessions naming a role that no longer exists.
+
 ## Roles (Phase 1)
 
 | Role | Code | Who | Intent |

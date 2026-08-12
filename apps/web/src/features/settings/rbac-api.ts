@@ -1,3 +1,4 @@
+import type { RoleCreateInput, RoleUpdateInput } from '@hrms/shared';
 import { api } from '@/lib/api-client';
 
 export interface Role {
@@ -30,14 +31,33 @@ export interface SetPermissionsResult {
   sessionsRevoked: number;
 }
 
+/** Code and name only — what a role picker needs, without the grant matrix. */
+export interface AssignableRole {
+  code: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+}
+
 export const rbacApi = {
   roles: () => api<Role[]>('/roles'),
   permissions: () => api<PermissionGroup[]>('/permissions'),
+  assignable: () => api<AssignableRole[]>('/roles/assignable'),
   setPermissions: (roleId: string, permissions: string[]) =>
     api<SetPermissionsResult>(`/roles/${roleId}/permissions`, {
       method: 'PUT',
       body: JSON.stringify({ permissions }),
     }),
+  createRole: (input: RoleCreateInput) =>
+    api<Role>('/roles', { method: 'POST', body: JSON.stringify(input) }),
+  updateRole: (roleId: string, input: RoleUpdateInput) =>
+    api<Role>(`/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteRole: (roleId: string) => api<{ id: string }>(`/roles/${roleId}`, { method: 'DELETE' }),
+};
+
+export const rbacKeys = {
+  roles: () => ['rbac-roles'] as const,
+  assignable: () => ['rbac-assignable'] as const,
 };
 
 /** `read.own` → `Read own`; `all` stays `All`. */

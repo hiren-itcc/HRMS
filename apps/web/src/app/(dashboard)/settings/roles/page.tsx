@@ -1,5 +1,6 @@
 'use client';
 
+import { type RoleCreateInput, roleCreateSchema } from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
 import { Button } from '@hrms/ui/components/button';
 import { Checkbox } from '@hrms/ui/components/checkbox';
@@ -11,20 +12,24 @@ import {
   TooltipTrigger,
 } from '@hrms/ui/components/tooltip';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock3, Info, Loader2, Lock } from 'lucide-react';
+import { Clock3, Info, Loader2, Lock, Plus } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { FormDialog } from '@/components/crud/form-dialog';
+import { RowActions } from '@/components/crud/row-actions';
+import { FormInput } from '@/components/form';
 import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
-import { actionTitle, type Role, rbacApi } from '@/features/settings/rbac-api';
+import { actionTitle, type Role, rbacApi, rbacKeys } from '@/features/settings/rbac-api';
 import { useApiMutation } from '@/hooks/use-crud';
+import { useZodForm } from '@/hooks/use-zod-form';
 
-const ROLES_KEY = ['rbac-roles'] as const;
+const BLANK: RoleCreateInput = { code: '', name: '', description: null, permissions: [] };
 
 export default function RolesPage() {
   const _queryClient = useQueryClient();
   const { user } = useSession();
-  const roles = useQuery({ queryKey: ROLES_KEY, queryFn: rbacApi.roles });
+  const roles = useQuery({ queryKey: rbacKeys.roles(), queryFn: rbacApi.roles });
   const groups = useQuery({
     queryKey: ['rbac-permissions'],
     queryFn: rbacApi.permissions,
@@ -39,10 +44,39 @@ export default function RolesPage() {
     setDraft(Object.fromEntries(roles.data.map((r) => [r.id, new Set(r.permissions)])));
   }, [roles.data]);
 
+  /** `'new'` composes one; a Role renames it. `code` is immutable either way. */
+  const [editing, setEditing] = useState<Role | 'new' | null>(null);
+  const form = useZodForm<RoleCreateInput>(roleCreateSchema, { defaultValues: BLANK });
+  const renaming = editing !== 'new' ? editing : null;
+
+  const invalidate = [rbacKeys.roles(), rbacKeys.assignable()];
+
+  const compose = useApiMutation({
+    mutationFn: (input: RoleCreateInput) =>
+      renaming
+        ? // `code` and `permissions` are absent from the update schema: the code
+          // is permanent, and grants are edited in the matrix below rather than
+          // in a dialog that cannot show what they mean.
+          rbacApi.updateRole(renaming.id, { name: input.name, description: input.description })
+        : rbacApi.createRole(input),
+    invalidate,
+    success: 'Role saved',
+    onSuccess: () => setEditing(null),
+  });
+
+  // A refusal — a system role, or one people still hold — arrives as a ready
+  // -made sentence from the API, and `useApiMutation` renders an ApiError's
+  // message verbatim as the toast.
+  const remove = useApiMutation({
+    mutationFn: (roleId: string) => rbacApi.deleteRole(roleId),
+    invalidate,
+    success: 'Role deleted',
+  });
+
   const save = useApiMutation({
     mutationFn: ({ role, permissions }: { role: Role; permissions: string[] }) =>
       rbacApi.setPermissions(role.id, permissions),
-    invalidate: [ROLES_KEY],
+    invalidate,
     error: 'Could not save permissions. Try again.',
     onSuccess: (result, { role }) => {
       if (result.blocked.length > 0) {
@@ -106,6 +140,19 @@ export default function RolesPage() {
         )}
 
         <FadeInItem>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                form.reset(BLANK);
+                setEditing('new');
+              }}
+            >
+              <Plus className="size-4" aria-hidden /> Compose a role
+            </Button>
+          </div>
+        </FadeInItem>
+
+        <FadeInItem>
           <div className="overflow-x-auto rounded-2xl border bg-card shadow-xs">
             <table className="w-full min-w-4xl border-collapse text-sm">
               <thead>
@@ -126,6 +173,28 @@ export default function RolesPage() {
                         <Badge variant="outline" className="mt-1 font-normal">
                           Your role
                         </Badge>
+                      )}
+                      {/* Only custom roles. A system role's rename and delete
+                          are refused server-side by `editBlockedReason`, so
+                          offering the buttons would only produce a toast. */}
+                      {!role.isSystem && (
+                        <span className="mt-1 flex justify-center">
+                          <RowActions
+                            name={role.name}
+                            editPerm="role.manage"
+                            deleting={remove.isPending}
+                            onEdit={() => {
+                              form.reset({
+                                code: role.code,
+                                name: role.name,
+                                description: role.description,
+                                permissions: [],
+                              });
+                              setEditing(role);
+                            }}
+                            onDelete={() => remove.mutate(role.id)}
+                          />
+                        </span>
                       )}
                     </th>
                   ))}
@@ -242,6 +311,47 @@ export default function RolesPage() {
             </div>
           </div>
         )}
+        <FormDialog
+          open={editing !== null}
+          onOpenChange={(open) => !open && setEditing(null)}
+          title={renaming ? 'Rename the role' : 'Compose a role'}
+          submitting={compose.isPending}
+          submitLabel="Save"
+          onSubmit={form.handleSubmit((values) => compose.mutate(values))}
+        >
+          <FormInput
+            control={form.control}
+            name="name"
+            label="Name"
+            placeholder="IT Admin"
+            required
+          />
+          <FormInput
+            control={form.control}
+            name="code"
+            label="Code"
+            placeholder="IT_ADMIN"
+            disabled={renaming !== null}
+            hint={
+              renaming
+                ? 'Locked. A sign-in token carries the role code, so changing it would leave everyone already signed in naming a role that no longer exists.'
+                : 'Capitals, digits and underscores. Permanent once saved, for the same reason.'
+            }
+            required
+          />
+          <FormInput
+            control={form.control}
+            name="description"
+            label="Description"
+            placeholder="Manages devices and access, no people data"
+          />
+          {!renaming && (
+            <p className="text-muted-foreground text-xs">
+              The role is created with no permissions. Grant them in the matrix once it appears —
+              you can only grant what you hold yourself.
+            </p>
+          )}
+        </FormDialog>
       </Stagger>
     </TooltipProvider>
   );

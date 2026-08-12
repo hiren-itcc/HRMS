@@ -172,9 +172,10 @@ export const lifecycleSchema = z.object({
  *
  * `IT_ADMIN` has no matching system role — the seeded five are Admin, HR,
  * Finance, Manager and Employee. Those items fall to `employee.offboard`
- * holders until somebody composes an IT role in Settings → Roles, which the
- * RBAC editor already allows. Naming the owner anyway is what makes the list
- * useful to a human, and what lets an IT role start working the day it exists.
+ * holders until somebody composes an IT role in Settings → Roles, which
+ * `POST /roles` and the roles editor now genuinely allow. Naming the owner
+ * anyway is what makes the list useful to a human, and what lets an IT role
+ * start working the day it exists.
  */
 export const CLEARANCE_OWNERS = ['MANAGER', 'HR', 'FINANCE', 'IT_ADMIN'] as const;
 export const clearanceOwnerSchema = z.enum(CLEARANCE_OWNERS);

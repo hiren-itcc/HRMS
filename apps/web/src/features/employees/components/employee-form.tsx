@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@hrms/ui/components/card';
 import { SelectItem } from '@hrms/ui/components/select';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -28,6 +28,7 @@ import {
   locationsApi,
   shiftsApi,
 } from '@/features/organization/api';
+import { rbacApi, rbacKeys } from '@/features/settings/rbac-api';
 import { errorMessage, type Option, useOptions } from '@/hooks/use-crud';
 import { useZodForm } from '@/hooks/use-zod-form';
 
@@ -113,6 +114,29 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
    */
   const queryClient = useQueryClient();
   const invalidateEmployees = () => queryClient.invalidateQueries({ queryKey: ['employees'] });
+
+  /*
+   * Roles come from the organization, not from a hardcoded list — a role
+   * composed in Settings → Roles has to be offerable here or it can be created
+   * and assigned to nobody. `ROLE_OPTIONS` remains the fallback: it carries the
+   * one-line explanations of the five system roles ("Manager — plus direct
+   * reports"), which the role record has no field for, and it keeps the picker
+   * populated if this request fails.
+   */
+  const assignable = useQuery({
+    queryKey: rbacKeys.assignable(),
+    queryFn: rbacApi.assignable,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const roleChoices = assignable.data?.length
+    ? assignable.data.map((role) => ({
+        value: role.code,
+        label:
+          ROLE_OPTIONS.find((o) => o.value === role.code)?.label ??
+          (role.description ? `${role.name} — ${role.description}` : role.name),
+      }))
+    : ROLE_OPTIONS;
 
   const submit = form.handleSubmit(async (raw) => {
     const input = employeeCreateSchema.parse(raw);
@@ -366,7 +390,7 @@ export function EmployeeForm({ initial, employeeId, onSaved }: EmployeeFormProps
                   label="Role"
                   hint="Anything beyond self-service is a decision"
                 >
-                  {ROLE_OPTIONS.map(({ value, label }) => (
+                  {roleChoices.map(({ value, label }) => (
                     <SelectItem key={value} value={value}>
                       {label}
                     </SelectItem>
