@@ -41,6 +41,47 @@ export const CALC_TYPES = [
   'BALANCE',
 ] as const;
 
+// ── Pay components ────────────────────────────────────────────────────
+
+export const PAY_COMPONENT_KINDS = ['EARNING', 'DEDUCTION', 'EMPLOYER_CONTRIBUTION'] as const;
+
+export const payComponentCreateSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, 'Code is required')
+    .max(20)
+    .regex(/^[A-Z0-9_]+$/, 'Use capitals, digits and underscores'),
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  kind: z.enum(PAY_COMPONENT_KINDS),
+  taxable: z.boolean().default(true),
+  isStatutory: z.boolean().default(false),
+  /**
+   * Sorts the catalogue only — this is not payslip line order, which comes
+   * from `StructureLine.order` plus hardcoded slots in the calculation
+   * engine. Reordering this list does not reorder a payslip.
+   */
+  order: z.number().int().min(0).default(0),
+  active: z.boolean().default(true),
+});
+
+/**
+ * `code` is deliberately absent — it is immutable after creation everywhere,
+ * because the calculation engine looks components up by it (see
+ * `COMPONENT_CODES`). A stale client that still sends one is silently
+ * dropped rather than rejected: the field is disabled in the editor, so its
+ * arrival means a stale client, not a user trying to change it.
+ */
+export const payComponentUpdateSchema = payComponentCreateSchema.omit({ code: true }).partial();
+
+export const payComponentQuerySchema = z.object({
+  includeInactive: z.coerce.boolean().optional(),
+});
+
+export type PayComponentCreateInput = z.infer<typeof payComponentCreateSchema>;
+export type PayComponentUpdateInput = z.infer<typeof payComponentUpdateSchema>;
+export type PayComponentQuery = z.infer<typeof payComponentQuerySchema>;
+
 // ── Salary structures ─────────────────────────────────────────────────
 
 export const structureLineSchema = z.object({

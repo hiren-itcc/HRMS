@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SettingsModule } from '../settings/settings.module';
 import { EmployeeSalariesService } from './employee-salaries.service';
+import { PayComponentsController } from './pay-components.controller';
+import { PayComponentsService } from './pay-components.service';
 import { PayrollController } from './payroll.controller';
 import { PayrollAdjustmentsService } from './payroll-adjustments.service';
 import { PayrollReportsService } from './payroll-reports.service';
@@ -17,7 +19,7 @@ import { TdsReturnsService } from './tds-returns.service';
   // Settings supplies the statutory rules and the working week the
   // calculation prorates against.
   imports: [SettingsModule],
-  controllers: [PayrollController, TdsController],
+  controllers: [PayrollController, TdsController, PayComponentsController],
   providers: [
     SalaryStructuresService,
     EmployeeSalariesService,
@@ -28,6 +30,7 @@ import { TdsReturnsService } from './tds-returns.service';
     StatutoryFilingsService,
     TdsChallansService,
     TdsReturnsService,
+    PayComponentsService,
   ],
   /*
    * Expenses turns an approved claim into a payslip line through this service

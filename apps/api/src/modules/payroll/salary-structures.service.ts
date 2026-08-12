@@ -88,22 +88,6 @@ export class SalaryStructuresService {
     return rows.map(mapStructure);
   }
 
-  async components(orgId: string) {
-    const rows = await this.prisma.payComponent.findMany({
-      where: { organizationId: orgId, active: true },
-      orderBy: { order: 'asc' },
-    });
-    return rows.map((row) => ({
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      kind: row.kind,
-      taxable: row.taxable,
-      isStatutory: row.isStatutory,
-      isSystem: row.isSystem,
-    }));
-  }
-
   async get(orgId: string, id: string) {
     const row = await this.prisma.salaryStructure.findFirst({
       where: { id, organizationId: orgId },

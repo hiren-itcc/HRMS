@@ -59,14 +59,10 @@ export class PayrollController {
     private readonly filings: StatutoryFilingsService,
   ) {}
 
-  // ── pay components & structures ───────────────────────────────────────
-
-  @Get('components')
-  @RequirePermissions('payroll.structure.manage', 'payroll.read')
-  @ApiOperation({ summary: 'Pay component catalogue' })
-  components(@CurrentUser() user: AccessTokenClaims) {
-    return this.structures.components(user.orgId);
-  }
+  // ── structures ─────────────────────────────────────────────────────────
+  // `GET components` and all pay-component writes live on
+  // `PayComponentsController` now — same `payroll` prefix, same path, so no
+  // client change.
 
   @Get('structures')
   @RequirePermissions('payroll.read', 'payroll.structure.manage')
