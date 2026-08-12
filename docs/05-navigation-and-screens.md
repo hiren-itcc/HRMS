@@ -328,7 +328,7 @@ one such opening so the case is always on screen.
 ### Reports (1 hub + 4 views)
 | 35 | Reports hub | `/reports` | Four tabs: Employees · Attendance · Leave · **Departments**. Each has date-range presets, a department filter, KPIs, chart, paged table and CSV/Excel export behind `report.export`. **Attrition** was specified as the fourth and is folded into the employees report rather than standing alone; the departments rollup took its place |
 
-### Payroll (11)
+### Payroll (13)
 | # | Screen | Route | Notes |
 |---|---|---|---|
 | 36 | Runs | `/payroll` | KPI tiles + one row per month; open a month from here |
@@ -343,6 +343,8 @@ one such opening so the case is always on screen.
 | 44 | Payroll preferences | `/settings/preferences` | Currency, pay day, LOP basis, PF/ESI/PT rules, and the settlement basis, gratuity rate and ceiling (part of the settings screen) |
 | 45 | Settlements | `/payroll/settlements` | Finance’s queue: employee, last working day, earnings, deductions, net payable, status. Defaults to Draft — the only state anybody is waiting on |
 | 46 | Settlement statement | `/payroll/settlements/[id]` | The document — earnings vs deductions with the working printed under each figure, editable while draft, approve/pay/recompute, print to PDF |
+| 47 | TDS challans | `/payroll/filings/challans` | Register of deposits, one per payroll month; sits inside the Returns tab (`/payroll/filings`) alongside Monthly and Form 24Q rather than as a top-level entry |
+| 48 | Form 24Q | `/payroll/filings/24q` | Financial-year and quarter pickers, readiness/reconciliation warnings, and a download of the FVU input file once generated and frozen; also inside the Returns tab |
 
 The run detail screen is the one worth describing precisely: it renders only
 the actions legal from the current state **and** permitted to the signed-in

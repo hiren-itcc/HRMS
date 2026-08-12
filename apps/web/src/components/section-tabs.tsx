@@ -10,6 +10,13 @@ export interface SectionTab {
   label: string;
   /** Omit for always-visible tabs; pass a permission check result to gate one. */
   show?: boolean;
+  /**
+   * How the current route is recognised. `exact` is the default and what every
+   * tab wants that has no children — `/payroll` must not light up on
+   * `/payroll/salaries`. `prefix` is for a tab whose section owns child
+   * routes, so it stays lit while you are inside one.
+   */
+  match?: 'exact' | 'prefix';
 }
 
 /**
@@ -44,7 +51,10 @@ export function SectionTabs({
     >
       <div className="flex w-max gap-1 rounded-xl bg-muted p-1">
         {visible.map((tab) => {
-          const active = pathname === tab.href;
+          const active =
+            tab.match === 'prefix'
+              ? pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+              : pathname === tab.href;
           return (
             <Link
               key={tab.href}

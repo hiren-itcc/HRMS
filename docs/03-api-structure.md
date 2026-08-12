@@ -737,6 +737,29 @@ payslip it summarises can never disagree. The bank-transfer report excludes
 payslips with no account rather than emitting blank rows, and reports how many
 it dropped.
 
+### TDS returns
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/challans?fy=` | `payroll.read` |
+| POST | `/payroll/challans` | `payroll.filing` |
+| PATCH | `/payroll/challans/:id` | `payroll.filing` |
+| DELETE | `/payroll/challans/:id` | `payroll.filing` |
+| GET | `/payroll/returns?fy=` | `payroll.read` |
+| GET | `/payroll/returns/preview?fy=&quarter=` | `payroll.read` |
+| POST | `/payroll/returns?fy=&quarter=` | `payroll.filing` |
+| GET | `/payroll/returns/:id/file` | `payroll.filing` |
+| DELETE | `/payroll/returns/:id` | `payroll.filing` |
+
+One challan per payroll month, enforced by a unique constraint: a 24Q names the
+challan each deductee was paid under, so one per month makes that mapping
+derivable rather than an allocation screen.
+
+Generation refuses on a reconciliation difference between the challans and the
+payslips. A missing PAN warns instead — a return can be filed for a deductee
+whose PAN is unavailable, and refusing would stop a statutory deadline being
+met over a data-quality problem.
+
 ### Settlements (`/payroll/settlements`)
 
 | Method | Path | Permission |
