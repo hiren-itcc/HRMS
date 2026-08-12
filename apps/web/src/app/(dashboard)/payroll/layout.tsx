@@ -34,7 +34,12 @@ export default function PayrollLayout({ children }: { children: React.ReactNode 
           },
           { href: '/payroll/settlements', label: 'Settlements', show: can('payroll.read') },
           { href: '/payroll/reports', label: 'Reports', show: can('payroll.read') },
-          { href: '/payroll/filings', label: 'Returns', show: can('payroll.read') },
+          {
+            href: '/payroll/filings',
+            label: 'Returns',
+            show: can('payroll.read'),
+            match: 'prefix',
+          },
           { href: '/payroll/me', label: 'My salary', show: can('payroll.read.own') },
         ]}
       />
