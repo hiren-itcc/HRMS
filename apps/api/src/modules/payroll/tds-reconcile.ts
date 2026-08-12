@@ -50,6 +50,28 @@ export function reconcile(months: MonthTds[]): Reconciliation {
   const missingChallans: string[] = [];
 
   for (const entry of months) {
+    /*
+     * `NaN > TOLERANCE` and `Math.abs(NaN) > TOLERANCE` are both false, so a
+     * non-finite amount would fall through every check below unreported and
+     * this function would hand back `balanced: true` — the exact failure
+     * this reconciliation exists to prevent. A NaN here is not a money
+     * disagreement to describe through `differences` or `missingChallans`;
+     * it means an upstream Decimal-to-number conversion already broke, so
+     * this is a bug to surface immediately, not a reconciliation outcome to
+     * report on. Throwing (rather than returning `balanced: false`) makes
+     * that distinction impossible to miss: every caller already treats a
+     * non-balanced result as "the numbers disagree, tell the operator",
+     * which would misdescribe a corrupt input as a mere deposit mismatch.
+     */
+    if (
+      !Number.isFinite(entry.payslipTds) ||
+      (entry.challanTds !== null && !Number.isFinite(entry.challanTds))
+    ) {
+      throw new Error(
+        `tds-reconcile: non-finite TDS amount for month ${entry.month} (payslipTds=${entry.payslipTds}, challanTds=${entry.challanTds}) — this is an upstream data bug, not a reconciliation result`,
+      );
+    }
+
     const payslipTds = round2(entry.payslipTds);
 
     if (entry.challanTds === null) {

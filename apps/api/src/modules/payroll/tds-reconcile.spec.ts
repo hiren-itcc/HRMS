@@ -67,6 +67,26 @@ describe('reconcile', () => {
       false,
     );
   });
+
+  // A NaN payslip figure means an upstream Decimal-to-number conversion broke,
+  // not that payroll deducted "not a number". `NaN > TOLERANCE` and
+  // `Math.abs(NaN) > TOLERANCE` are both false, so this can slip past every
+  // check silently and come out the other end reported as balanced — the one
+  // outcome that must never happen for a bad input. It must not be reported
+  // as balanced.
+  it('refuses to call it balanced when payslipTds is NaN', () => {
+    expect(() =>
+      reconcile([{ month: '2026-07', payslipTds: Number.NaN, challanTds: 12_500 }]),
+    ).toThrow();
+  });
+
+  // Same failure mode on the other input: a challan amount that failed to
+  // parse into a number must not be silently treated as a matching deposit.
+  it('refuses to call it balanced when challanTds is NaN', () => {
+    expect(() =>
+      reconcile([{ month: '2026-07', payslipTds: 12_500, challanTds: Number.NaN }]),
+    ).toThrow();
+  });
 });
 
 describe('purity', () => {
