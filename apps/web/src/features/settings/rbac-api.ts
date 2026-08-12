@@ -22,6 +22,12 @@ export interface SetPermissionsResult {
   revoked: string[];
   blocked: string[];
   permissions: string[];
+  /**
+   * Refresh sessions ended because their holder's grants changed. A removed
+   * permission otherwise keeps working until the holder's access token expires,
+   * so the API caps that window; this is reported rather than shown.
+   */
+  sessionsRevoked: number;
 }
 
 export const rbacApi = {

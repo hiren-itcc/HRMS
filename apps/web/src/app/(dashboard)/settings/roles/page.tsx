@@ -15,6 +15,7 @@ import { Clock3, Info, Loader2, Lock } from 'lucide-react';
 import { Fragment, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FadeInItem, Stagger } from '@/components/motion';
+import { useSession } from '@/components/session-provider';
 import { actionTitle, type Role, rbacApi } from '@/features/settings/rbac-api';
 import { useApiMutation } from '@/hooks/use-crud';
 
@@ -22,6 +23,7 @@ const ROLES_KEY = ['rbac-roles'] as const;
 
 export default function RolesPage() {
   const _queryClient = useQueryClient();
+  const { user } = useSession();
   const roles = useQuery({ queryKey: ROLES_KEY, queryFn: rbacApi.roles });
   const groups = useQuery({
     queryKey: ['rbac-permissions'],
@@ -89,6 +91,20 @@ export default function RolesPage() {
           </p>
         </FadeInItem>
 
+        {list.some((role) => role.code === user?.roleCode) && (
+          <FadeInItem>
+            <p className="flex items-start gap-2 rounded-2xl border bg-muted/40 p-4 text-muted-foreground text-xs">
+              <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Your own role is read-only here. Rewriting the permissions that authorise you is
+                never a legitimate edit — it is how a stripped permission gets handed straight back
+                before the removal has reached your session. Ask another administrator, or grant{' '}
+                <span className="font-mono">role.manage</span> to a second role first.
+              </span>
+            </p>
+          </FadeInItem>
+        )}
+
         <FadeInItem>
           <div className="overflow-x-auto rounded-2xl border bg-card shadow-xs">
             <table className="w-full min-w-4xl border-collapse text-sm">
@@ -106,6 +122,11 @@ export default function RolesPage() {
                       <span className="block text-muted-foreground text-xs">
                         {role.userCount} {role.userCount === 1 ? 'person' : 'people'}
                       </span>
+                      {role.code === user?.roleCode && (
+                        <Badge variant="outline" className="mt-1 font-normal">
+                          Your role
+                        </Badge>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -134,12 +155,13 @@ export default function RolesPage() {
                           </span>
                         </th>
                         {list.map((role) => {
+                          const mine = role.code === user?.roleCode;
                           const locked = role.locked.includes(perm.code);
                           const checked = draft[role.id]?.has(perm.code) ?? false;
                           const cell = (
                             <Checkbox
                               checked={checked}
-                              disabled={locked}
+                              disabled={locked || mine}
                               aria-label={`${perm.code} for ${role.name}`}
                               onCheckedChange={() => toggle(role.id, perm.code)}
                             />
@@ -147,7 +169,7 @@ export default function RolesPage() {
                           return (
                             <td key={role.id} className="px-3 py-2 text-center">
                               <span className="inline-flex items-center justify-center gap-1">
-                                {locked ? (
+                                {locked || mine ? (
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={<span className="inline-flex items-center gap-1" />}
@@ -156,8 +178,9 @@ export default function RolesPage() {
                                       <Lock className="size-3 text-muted-foreground" aria-hidden />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-56">
-                                      Admin must keep this — removing it would lock everyone out of
-                                      settings.
+                                      {mine
+                                        ? 'This is your own role. The server refuses the edit, so the cells are disabled rather than failing on save.'
+                                        : 'Admin must keep this — removing it would lock everyone out of settings.'}
                                     </TooltipContent>
                                   </Tooltip>
                                 ) : (
