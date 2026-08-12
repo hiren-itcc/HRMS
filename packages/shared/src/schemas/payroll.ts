@@ -8,6 +8,31 @@ const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY
 
 const money = z.number().min(0, 'Cannot be negative').max(99_999_999);
 
+/**
+ * A TDS challan as deposited.
+ *
+ * `period` is the payroll month whose TDS this pays, not the month it was paid
+ * in — a July deduction deposited on 7 August is `2026-07`. Getting that
+ * backwards files the deductees under the wrong challan.
+ */
+export const tdsChallanCreateSchema = z.object({
+  period: z.string().regex(/^\d{4}-\d{2}$/, 'Pick the payroll month this deposits'),
+  bsrCode: z.string().regex(/^\d{7}$/, 'A BSR code is seven digits'),
+  challanSerial: z.string().regex(/^\d{1,5}$/, 'A challan serial is up to five digits'),
+  depositDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick the date it was deposited'),
+  sectionCode: z.string().trim().min(1).default('92B'),
+  minorHead: z.string().trim().min(1).default('200'),
+  tds: money,
+  surcharge: money.default(0),
+  educationCess: money.default(0),
+  interest: money.default(0),
+  fee: money.default(0),
+  penalty: money.default(0),
+  others: money.default(0),
+});
+
+export type TdsChallanCreateInput = z.infer<typeof tdsChallanCreateSchema>;
+
 export const CALC_TYPES = [
   'FLAT',
   'PERCENT_OF_BASIC',
