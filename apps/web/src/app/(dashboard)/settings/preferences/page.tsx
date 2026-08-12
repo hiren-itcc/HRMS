@@ -42,7 +42,13 @@ import { FadeInItem, Stagger } from '@/components/motion';
 import { useSession } from '@/components/session-provider';
 import { ExitChecklistEditor } from '@/features/lifecycle/components/exit-checklist-editor';
 import { LifecycleRunPanel } from '@/features/lifecycle/components/lifecycle-run-panel';
+import { PtSlabEditor } from '@/features/payroll/components/pt-slab-editor';
 import { SETTINGS_KEY, settingsApi, useOrgSettings } from '@/features/settings/api';
+
+const LOP_BASIS_LABELS: Record<OrgSettings['payroll']['lopBasis'], string> = {
+  CALENDAR_DAYS: 'Calendar days',
+  WORKING_DAYS: 'Working days',
+};
 
 const MONTHS = [
   'January',
@@ -98,6 +104,18 @@ function clamp(raw: string, min: number, max: number): number {
   return Math.min(max, Math.max(min, parsed));
 }
 
+/**
+ * Same problem as `clamp`, for payroll rates and ceilings: `parseInt` would
+ * truncate 12.5% to 12. There is no shared upper bound to clamp to here — a
+ * wage ceiling and a percentage rate share nothing but "not negative" — so an
+ * empty or unparseable value falls back to zero and the schema's own bounds
+ * catch the rest on save.
+ */
+function numeric(raw: string): number {
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export default function PreferencesPage() {
   const { can } = useSession();
   const canManage = can('settings.manage');
@@ -109,6 +127,10 @@ export default function PreferencesPage() {
   // harder than just tracking the object.
   const [draft, setDraft] = useState<OrgSettings | null>(null);
   const [confirmWeek, setConfirmWeek] = useState(false);
+  // Separate from confirmWeek rather than folding both into one dialog: the
+  // two warnings say genuinely different things, and generalising the
+  // working-week dialog risked changing copy or behaviour it already has.
+  const [confirmPayroll, setConfirmPayroll] = useState(false);
 
   useEffect(() => {
     if (query.data) setDraft(query.data);
@@ -141,6 +163,21 @@ export default function PreferencesPage() {
   const set = <K extends keyof OrgSettings>(group: K, value: Partial<OrgSettings[K]>) =>
     setDraft((d) => (d ? { ...d, [group]: { ...d[group], ...value } } : d));
 
+  /**
+   * `payroll` holds nested groups (`pf`, `esi`, `professionalTax`), and `set`
+   * only merges one level deep. `set('payroll', { pf: { employeeRate: 12 } })`
+   * would replace the whole `pf` object and silently drop `wageCeiling`,
+   * `applyCeiling`, `epsRate` and `epsWageCeiling` — so every nested write
+   * routes through here instead of spreading at the call site by hand.
+   */
+  const setPay = <K extends 'pf' | 'esi' | 'professionalTax'>(
+    key: K,
+    value: Partial<OrgSettings['payroll'][K]>,
+  ) =>
+    set('payroll', {
+      [key]: { ...draft.payroll[key], ...value },
+    } as Partial<OrgSettings['payroll']>);
+
   const toggleDay = (day: number) => {
     const current = draft.workingWeek.weekOffDays;
     const next = current.includes(day) ? current.filter((d) => d !== day) : [...current, day];
@@ -162,6 +199,7 @@ export default function PreferencesPage() {
           disabled={!dirty(group) || save.isPending}
           onClick={() => {
             if (group === 'workingWeek') setConfirmWeek(true);
+            else if (group === 'payroll') setConfirmPayroll(true);
             else save.mutate({ [group]: draft[group] } as OrgSettingsPatch);
           }}
         >
@@ -224,6 +262,9 @@ export default function PreferencesPage() {
           </TabsTab>
           <TabsTab value="settlement" className="max-sm:data-[orientation=vertical]:w-auto">
             {tabLabel('settlement', 'Full & final settlement')}
+          </TabsTab>
+          <TabsTab value="payroll" className="max-sm:data-[orientation=vertical]:w-auto">
+            {tabLabel('payroll', 'Payroll rates')}
           </TabsTab>
           <TabsTab value="statutory" className="max-sm:data-[orientation=vertical]:w-auto">
             {tabLabel('statutory', 'Statutory')}
@@ -795,6 +836,328 @@ export default function PreferencesPage() {
           </FadeInItem>
         </TabsPanel>
 
+        {/* ── Payroll rates ────────────────────────────────────────────── */}
+        <TabsPanel value="payroll">
+          <FadeInItem className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Provident fund</CardTitle>
+                <CardDescription>
+                  Deducted from basic pay and matched by the employer, subject to the wage ceiling
+                  below.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="pf-enabled"
+                    checked={draft.payroll.pf.enabled}
+                    disabled={!canManage}
+                    onCheckedChange={(v) => setPay('pf', { enabled: v === true })}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pf-enabled">Deduct provident fund</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off skips PF on every payslip going forward. Past payslips are unaffected.
+                    </p>
+                  </div>
+                </div>
+
+                {draft.payroll.pf.enabled && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Employee rate (%)" hint="Deducted from the employee's basic pay">
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.pf.employeeRate}
+                          onChange={(e) => setPay('pf', { employeeRate: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <Field label="Employer rate (%)" hint="The employer's matching share">
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.pf.employerRate}
+                          onChange={(e) => setPay('pf', { employerRate: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <Field
+                      label="Wage ceiling (₹)"
+                      hint="PF is statutorily capped at this monthly wage"
+                    >
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="1"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.pf.wageCeiling}
+                          onChange={(e) => setPay('pf', { wageCeiling: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <div className="flex items-start gap-2.5">
+                      <Checkbox
+                        id="pf-apply-ceiling"
+                        checked={draft.payroll.pf.applyCeiling}
+                        disabled={!canManage}
+                        onCheckedChange={(v) => setPay('pf', { applyCeiling: v === true })}
+                      />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="pf-apply-ceiling">Apply the wage ceiling</Label>
+                        <p className="text-muted-foreground text-xs">
+                          Off contributes on full basic instead of the capped wage.
+                        </p>
+                      </div>
+                    </div>
+
+                    <Field
+                      label="EPS rate (%)"
+                      hint="The pension share of the employer's contribution"
+                    >
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.pf.epsRate}
+                          onChange={(e) => setPay('pf', { epsRate: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <Field
+                      label="EPS wage ceiling (₹)"
+                      hint="Its own ceiling — deliberately independent of 'Apply the wage ceiling' above. An employer contributing PF on full basic still cannot put more than this into the pension scheme; that ceiling is the government's, not theirs."
+                    >
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="1"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.pf.epsWageCeiling}
+                          onChange={(e) =>
+                            setPay('pf', { epsWageCeiling: numeric(e.target.value) })
+                          }
+                        />
+                      )}
+                    </Field>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>ESI</CardTitle>
+                <CardDescription>
+                  Employees' State Insurance — stops applying once monthly gross exceeds the
+                  threshold.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="esi-enabled"
+                    checked={draft.payroll.esi.enabled}
+                    disabled={!canManage}
+                    onCheckedChange={(v) => setPay('esi', { enabled: v === true })}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="esi-enabled">Deduct ESI</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off skips ESI on every payslip going forward.
+                    </p>
+                  </div>
+                </div>
+
+                {draft.payroll.esi.enabled && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Employee rate (%)">
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.esi.employeeRate}
+                          onChange={(e) => setPay('esi', { employeeRate: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <Field label="Employer rate (%)">
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.esi.employerRate}
+                          onChange={(e) => setPay('esi', { employerRate: numeric(e.target.value) })}
+                        />
+                      )}
+                    </Field>
+
+                    <Field
+                      label="Wage threshold (₹)"
+                      hint="ESI stops applying once monthly gross exceeds this"
+                    >
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          type="number"
+                          step="1"
+                          min={0}
+                          className="w-32"
+                          disabled={!canManage}
+                          value={draft.payroll.esi.wageThreshold}
+                          onChange={(e) =>
+                            setPay('esi', { wageThreshold: numeric(e.target.value) })
+                          }
+                        />
+                      )}
+                    </Field>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Professional tax</CardTitle>
+                <CardDescription>
+                  A flat monthly amount from the first slab the gross fits in. PT is a state tax —
+                  the slabs below are this organization's own, not a code default.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-2.5">
+                  <Checkbox
+                    id="pt-enabled"
+                    checked={draft.payroll.professionalTax.enabled}
+                    disabled={!canManage}
+                    onCheckedChange={(v) => setPay('professionalTax', { enabled: v === true })}
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pt-enabled">Deduct professional tax</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Off skips PT on every payslip going forward.
+                    </p>
+                  </div>
+                </div>
+
+                {draft.payroll.professionalTax.enabled && (
+                  <PtSlabEditor
+                    items={draft.payroll.professionalTax.slabs}
+                    disabled={!canManage}
+                    onChange={(slabs) => setPay('professionalTax', { slabs })}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Payroll basics</CardTitle>
+                <CardDescription>
+                  Currency, pay day and how a partial month is prorated.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Currency" hint="ISO 4217. Display only — nothing is converted.">
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        maxLength={3}
+                        className="w-24 uppercase"
+                        disabled={!canManage}
+                        value={draft.payroll.currency}
+                        onChange={(e) => set('payroll', { currency: e.target.value.toUpperCase() })}
+                      />
+                    )}
+                  </Field>
+
+                  <Field label="Pay day" hint="Day of the following month salaries are paid on">
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        type="number"
+                        min={1}
+                        max={31}
+                        className="w-24"
+                        disabled={!canManage}
+                        value={draft.payroll.payDay}
+                        onChange={(e) => set('payroll', { payDay: clamp(e.target.value, 1, 31) })}
+                      />
+                    )}
+                  </Field>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lop-basis">A partial month prorates by</Label>
+                    <Select
+                      value={draft.payroll.lopBasis}
+                      disabled={!canManage}
+                      onValueChange={(v) =>
+                        set('payroll', { lopBasis: v as OrgSettings['payroll']['lopBasis'] })
+                      }
+                    >
+                      <SelectTrigger id="lop-basis">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          Object.keys(LOP_BASIS_LABELS) as OrgSettings['payroll']['lopBasis'][]
+                        ).map((basis) => (
+                          <SelectItem key={basis} value={basis}>
+                            {LOP_BASIS_LABELS[basis]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-muted-foreground text-xs">
+                      Calendar days is the common Indian practice; working days suits organizations
+                      that pay by the shift.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* One save covers all four sections above — they are one
+                settings group (`payroll`) and save as a single PATCH. */}
+            {saveBar('payroll', 'Save rates')}
+          </FadeInItem>
+        </TabsPanel>
+
         {/* ── Statutory ────────────────────────────────────────────────── */}
         <TabsPanel value="statutory">
           <FadeInItem>
@@ -895,6 +1258,31 @@ export default function PreferencesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => save.mutate({ workingWeek: draft.workingWeek })}>
               Change working week
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payslips already run are frozen — this only warns about the blast
+          radius forward: every future run, and any DRAFT or IN_REVIEW run
+          recalculated after the save. */}
+      <AlertDialog open={confirmPayroll} onOpenChange={setConfirmPayroll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="size-5 text-amber-500" aria-hidden />
+              This changes future payroll runs
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Recalculating an unpublished run — anything still DRAFT or IN_REVIEW — will use these
+              new rates the moment it is recalculated. Published payslips keep the rates they were
+              run with; nothing already paid is rewritten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => save.mutate({ payroll: draft.payroll })}>
+              Save rates
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
