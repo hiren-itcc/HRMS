@@ -1,4 +1,4 @@
-import { COMPONENT_CODES } from '@hrms/shared';
+import { COMPONENT_CODES, type OrgSettings } from '@hrms/shared';
 import type { AccessTokenClaims } from '@hrms/types';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
@@ -123,11 +123,20 @@ export class TdsReturnsService {
     quarter: TdsQuarterCode,
   ): Promise<TdsReadiness> {
     const statutory = (await this.settings.get(claims.orgId)).statutory;
-    const { months, runs, deductees, challanByMonth } = await this.gather(
-      claims.orgId,
-      financialYear,
-      quarter,
-    );
+    const gathered = await this.gather(claims.orgId, financialYear, quarter);
+    return this.evaluate(statutory, gathered);
+  }
+
+  /**
+   * The decision half of `readiness()`, split out so `generate()` can gather
+   * once and evaluate that single snapshot instead of re-querying. Contains
+   * no queries — everything it needs arrives as arguments.
+   */
+  private evaluate(
+    statutory: OrgSettings['statutory'],
+    gathered: Awaited<ReturnType<TdsReturnsService['gather']>>,
+  ): TdsReadiness {
+    const { months, runs, deductees, challanByMonth } = gathered;
 
     /*
      * Computed, not returned early. Producing a *file* needs the layout;
@@ -153,11 +162,22 @@ export class TdsReturnsService {
       };
     }
 
-    const byMonth = new Map(runs.map((run) => [run.month, run.status]));
-    const missingRun = months.filter((month) => !byMonth.has(month));
-    const unpublished = months.filter(
-      (month) => byMonth.has(month) && byMonth.get(month) !== 'PUBLISHED',
-    );
+    /*
+     * Grouped by month rather than `new Map(runs.map((run) => [run.month,
+     * run.status]))`, which keeps whichever row the query happened to return
+     * last — a month holding both a DRAFT and a PUBLISHED run would then
+     * report one status arbitrarily. A month counts as published only if
+     * every run recorded against it is PUBLISHED.
+     */
+    const statusesByMonth = new Map<string, string[]>();
+    for (const run of runs) {
+      statusesByMonth.set(run.month, [...(statusesByMonth.get(run.month) ?? []), run.status]);
+    }
+    const missingRun = months.filter((month) => !statusesByMonth.has(month));
+    const unpublished = months.filter((month) => {
+      const statuses = statusesByMonth.get(month);
+      return statuses !== undefined && !statuses.every((status) => status === 'PUBLISHED');
+    });
     if (missingRun.length || unpublished.length) {
       /*
        * Both refuse, and they are reported apart because the fix differs: one
@@ -244,13 +264,24 @@ export class TdsReturnsService {
     };
   }
 
-  private async built(claims: AccessTokenClaims, financialYear: string, quarter: TdsQuarterCode) {
-    const statutory = (await this.settings.get(claims.orgId)).statutory;
+  /**
+   * Takes the gathered snapshot as an argument rather than fetching its own,
+   * so a caller that already gathered once (`generate()`) builds from
+   * exactly what it evaluated, instead of re-querying and risking a file
+   * that disagrees with the readiness that approved it.
+   */
+  private async built(
+    claims: AccessTokenClaims,
+    financialYear: string,
+    quarter: TdsQuarterCode,
+    statutory: OrgSettings['statutory'],
+    gathered: Awaited<ReturnType<TdsReturnsService['gather']>>,
+  ) {
     const org = await this.prisma.organization.findUnique({
       where: { id: claims.orgId },
       select: { name: true },
     });
-    const { entries, deductees } = await this.gather(claims.orgId, financialYear, quarter);
+    const { entries, deductees } = gathered;
 
     return build24Q({
       tan: statutory.tan,
@@ -269,7 +300,9 @@ export class TdsReturnsService {
     if (readiness.blocked || readiness.layoutBlocked) {
       return { ...readiness, rowCount: 0, noPan: [], totals: {}, preview: [] };
     }
-    const result = await this.built(claims, financialYear, quarter);
+    const statutory = (await this.settings.get(claims.orgId)).statutory;
+    const gathered = await this.gather(claims.orgId, financialYear, quarter);
+    const result = await this.built(claims, financialYear, quarter, statutory, gathered);
     return {
       ...readiness,
       rowCount: result.rowCount,
@@ -285,18 +318,32 @@ export class TdsReturnsService {
     });
     if (existing) {
       throw new BadRequestException(
-        `A 24Q for ${financialYear} ${quarter} was already generated on ${toDateKey(existing.generatedAt)}. Download that one, or delete it first if the payroll has genuinely changed.`,
+        `A 24Q for ${financialYear} ${quarter} was already generated on ${toDateKey(existing.generatedAt) ?? 'an earlier date'}. Download that one, or delete it first if the payroll has genuinely changed.`,
       );
     }
 
-    const readiness = await this.readiness(claims, financialYear, quarter);
+    /*
+     * Settings and the payroll/challan snapshot are fetched exactly once,
+     * here, and reused for both the readiness decision below and the file
+     * `built()` produces afterwards. Calling the public `readiness()` and
+     * then `built()` — as this used to — each does its own fetch, and a
+     * payroll run can be unpublished, a payslip corrected, or a challan
+     * edited between the two reads. The written file could then disagree
+     * with the readiness that approved it, including silently omitting a
+     * month whose run stopped being PUBLISHED between the two queries —
+     * exactly the short-return harm the `missingRun` check exists to
+     * prevent. Do not reintroduce a second gather here.
+     */
+    const statutory = (await this.settings.get(claims.orgId)).statutory;
+    const gathered = await this.gather(claims.orgId, financialYear, quarter);
+    const readiness = this.evaluate(statutory, gathered);
     // Either refusal stops a file being written: bad data, or a layout nobody
     // has transcribed. The screen shows them separately; generation does not
     // care which one it is.
     if (readiness.blocked) throw new BadRequestException(readiness.blocked);
     if (readiness.layoutBlocked) throw new BadRequestException(readiness.layoutBlocked);
 
-    const result = await this.built(claims, financialYear, quarter);
+    const result = await this.built(claims, financialYear, quarter, statutory, gathered);
 
     const row = await this.prisma.tdsReturn.create({
       data: {

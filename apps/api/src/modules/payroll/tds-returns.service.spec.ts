@@ -182,6 +182,26 @@ describe('TdsReturnsService readiness', () => {
     expect(result.blocked).toMatch(/100/);
   });
 
+  it('refuses when a month has two runs and one of them is not PUBLISHED', async () => {
+    // new Map(runs.map(...)) keeps whichever row the query returned last, so
+    // a month holding both a DRAFT and a PUBLISHED run could arbitrarily read
+    // as published. A month must count as published only if every run for it
+    // is PUBLISHED.
+    const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue([
+      { id: 'r0', month: '2026-07', status: 'DRAFT' },
+      { id: 'r0b', month: '2026-07', status: 'PUBLISHED' },
+      { id: 'r1', month: '2026-08', status: 'PUBLISHED' },
+      { id: 'r2', month: '2026-09', status: 'PUBLISHED' },
+    ]);
+    const service = new TdsReturnsService(prisma as never, settings as never);
+
+    const result = await service.readiness(claims, '2026-27', 'Q2');
+
+    expect(result.blocked).toMatch(/2026-07/);
+    expect(result.blocked).toMatch(/unpublished/i);
+  });
+
   it('warns about a missing PAN without blocking', async () => {
     // A 24Q can legitimately be filed for a deductee whose PAN is unavailable.
     // Refusing would stop the company meeting a statutory deadline over a data
@@ -249,6 +269,80 @@ describe('TdsReturnsService generate', () => {
       BadRequestException,
     );
     expect(prisma.tdsReturn.create).not.toHaveBeenCalled();
+  });
+
+  it('never reports a duplicate as "generated on null"', async () => {
+    // toDateKey returns string | null. A row with no generatedAt must not
+    // produce a message that literally reads "was already generated on null".
+    const { prisma, settings } = makeDeps();
+    prisma.tdsReturn.findFirst.mockResolvedValue({ id: 'existing', generatedAt: null });
+    const service = new TdsReturnsService(prisma as never, settings as never);
+
+    await expect(service.generate(claims, '2026-27', 'Q2')).rejects.toMatchObject({
+      message: expect.not.stringContaining('null'),
+    });
+  });
+
+  it('gathers payroll data exactly once, even though readiness passes and a file gets built', async () => {
+    // Task 13's LAYOUT_TRANSCRIBED flip is what makes generate() actually
+    // reach built() today, so it is mocked true just for this test — this is
+    // the finding: readiness() and built() each used to call gather() and
+    // settings.get() for themselves, so a run could be unpublished between
+    // the two reads and the written file would disagree with the readiness
+    // that approved it.
+    const { prisma, settings } = makeDeps();
+    prisma.payrollRun.findMany.mockResolvedValue(
+      ['2026-07', '2026-08', '2026-09'].map((month, i) => ({
+        id: `r${i}`,
+        month,
+        status: 'PUBLISHED',
+      })),
+    );
+    prisma.payslip.findMany.mockResolvedValue([
+      {
+        runId: 'r0',
+        employeeCode: 'EMP-1',
+        employeeName: 'A',
+        grossEarnings: '50000',
+        lines: [{ componentCode: 'TDS', amount: '500' }],
+        employee: { pan: 'ABCPD1234E' },
+      },
+    ]);
+    prisma.tdsChallan.findMany.mockResolvedValue([
+      {
+        period: '2026-07',
+        bsrCode: '0510308',
+        challanSerial: '1',
+        depositDate: new Date('2026-08-07'),
+        tds: '500',
+        surcharge: '0',
+        educationCess: '0',
+        interest: '0',
+        fee: '0',
+        penalty: '0',
+        others: '0',
+      },
+    ]);
+    prisma.tdsReturn.create.mockResolvedValue({ id: 'new-return' });
+
+    let service!: InstanceType<typeof TdsReturnsService>;
+    jest.isolateModules(() => {
+      jest.doMock('./tds-files', () => ({
+        ...jest.requireActual('./tds-files'),
+        LAYOUT_TRANSCRIBED: true,
+      }));
+      // biome-ignore lint/suspicious/noExplicitAny: fresh isolated-registry import, untyped by construction
+      const Isolated = require('./tds-returns.service').TdsReturnsService as any;
+      service = new Isolated(prisma, settings);
+    });
+
+    await service.generate(claims, '2026-27', 'Q2');
+
+    expect(prisma.payrollRun.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.payslip.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.tdsChallan.findMany).toHaveBeenCalledTimes(1);
+    expect(settings.get).toHaveBeenCalledTimes(1);
+    expect(prisma.tdsReturn.create).toHaveBeenCalledTimes(1);
   });
 });
 
