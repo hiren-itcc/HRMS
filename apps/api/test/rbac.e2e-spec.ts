@@ -211,7 +211,19 @@ describe('RBAC across roles', () => {
      * `tds-challans.service.spec.ts`, which checks the `where` clause itself.
      */
     it('round-trips a deposit HR records into the register', async () => {
-      const period = '2026-05';
+      /*
+       * Deliberately far outside any month the seed can produce.
+       *
+       * `seedTds` derives a challan from every PUBLISHED payroll run, and the
+       * payroll seed walks back from today — so any recent-looking month is
+       * already taken, and `@@unique([organizationId, period])` turns this
+       * POST into a 409. It did: a hardcoded 2026-05 passed on the branch,
+       * where no seeder existed yet, and failed the moment one did.
+       *
+       * A year no payroll run will ever cover cannot collide however the seed
+       * window or today's date move.
+       */
+      const period = '2099-12';
       const created = await request(app.getHttpServer())
         .post('/api/v1/payroll/challans')
         .set(as(token.hr as string))
@@ -219,7 +231,7 @@ describe('RBAC across roles', () => {
           period,
           bsrCode: '0510308',
           challanSerial: '99001',
-          depositDate: '2026-06-07',
+          depositDate: '2100-01-07',
           tds: 4242,
         });
       expect(created.status).toBe(201);
