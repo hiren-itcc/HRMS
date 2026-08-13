@@ -169,7 +169,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | `WEB_ORIGIN` | `http://localhost:5173` | **Must be your real site URL.** This is the CORS allow-list; leaving it wrong blocks the browser. |
 | `JWT_ACCESS_TTL` | `15m` | How long a sign-in lasts before silent refresh |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | How long "stay signed in" lasts |
-| `TRUST_PROXY` | `0` | Number of proxies in front of the API — **`2` on Render**, not 1; see below. Not optional in any hosted deployment: left at `0`, `req.ip` is the proxy, so the audit log records infrastructure instead of people *and* every rate limit becomes a handful of buckets shared by all users rather than a per-client control. Found unset on 2026-08-11; every address in the audit log was a private `10.x`. |
+| `TRUST_PROXY` | `0` | Number of proxies in front of the API — **`3` on Render**, not 1 or 2; see below. Not optional in any hosted deployment: left at `0`, `req.ip` is the proxy, so the audit log records infrastructure instead of people *and* every rate limit becomes a handful of buckets shared by all users rather than a per-client control. Found unset on 2026-08-11; every address in the audit log was a private `10.x`. |
 | `UPLOAD_DIR` | `./uploads` | **Must be persistent storage.** A container's local disk is wiped on redeploy, taking every uploaded document with it. |
 | `MAX_UPLOAD_MB` | `10` | |
 | `DEFAULT_USER_PASSWORD` | `Welcome@2026` | Starting password for staff created through the app. **Change it** — the default is public. |
@@ -298,7 +298,7 @@ docker compose run api npx prisma migrate deploy
 - [ ] `DEFAULT_USER_PASSWORD` changed from `Welcome@2026`
 - [ ] `UPLOAD_DIR` on persistent storage that survives redeploys
 - [ ] Database credentials changed from `hrms`/`hrms`
-- [ ] `TRUST_PROXY` matches the actual proxy count — **`2` on Render**. Verify by
+- [x] `TRUST_PROXY` matches the actual proxy count — **`3` on Render**. Verify by
       reading `AuditLog.ip`: public addresses mean it is right, `10.x` means it
       is not. **Do not guess this number — count it**, from a real request:
 
@@ -307,16 +307,25 @@ docker compose run api npx prisma migrate deploy
 
       Render fronts services with Cloudflare (`cdn-loop: cloudflare`,
       `cf-connecting-ip`), so there are **three** hops and the socket peer is
-      `::1`. Express with `trust proxy = n` takes the *(n+1)th address from the
-      right*, so `1` lands on the Render internal address and `2` lands on the
-      client. Set to `1` on 2026-08-11 and it changed nothing observable: the
-      audit log kept recording `10.x`, which reads exactly like "the variable
-      never took effect" and is not what was happening.
+      `::1`. Express with `trust proxy = n` counts `n` addresses leftward from
+      the socket, so against the chain above: `1` is the Render internal
+      address, `2` is **Cloudflare**, and `3` is the client. Set to `1` on
+      2026-08-11 and it changed nothing observable — the audit log kept
+      recording `10.x`.
 
-      `2` is still not forgeable. A caller who sends their own
-      `X-Forwarded-For` only prepends to the chain — Cloudflare appends the
-      real address after it — so counting from the right cannot be pushed past
-      the true client.
+      This entry previously said `2` reached the client. It does not, and the
+      chain printed above was always the evidence against it — an off-by-one
+      read of the doc's own data. Measured on 2026-08-13 against the live
+      service: at `2` every sign-in recorded a Cloudflare POP
+      (`172.69.87.181`, `172.71.124.179`); at `3` it records the caller.
+
+      `3` is not forgeable, and that was tested rather than argued. A caller
+      who sends their own `X-Forwarded-For` only prepends to the chain —
+      Cloudflare appends the real address after it — so counting from the right
+      cannot be pushed past the true client. One forged hop and three forged
+      hops both left the recorded address unchanged at the caller's real one. A
+      forged `CF-Connecting-IP` never arrived at all; Cloudflare rejected it at
+      its own edge with error 1000.
 
       The count is a property of the hosting, not of this app: behind a single
       nginx it is `1`, and behind nothing at all it must stay `0`, because

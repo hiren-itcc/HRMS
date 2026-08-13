@@ -94,7 +94,7 @@ This is a property of the token design, not a scheduled piece of work. **The mob
       end-to-end job raises it; `auth.e2e-spec.ts` proves the limit refuses at
       whatever it is set to, and runs at the default. It had no test at all
       until the browser suite ran into it.
-- [x] **`TRUST_PROXY=2` is set on the API service.** `main.ts` only calls
+- [x] **`TRUST_PROXY=3` is set on the API service.** `main.ts` only calls
       `set('trust proxy')` when the value is above zero, and it defaults to `0`
       — deliberately, because `X-Forwarded-For` is forgeable and trusting it
       while directly exposed hands an attacker control of the value the
@@ -108,14 +108,37 @@ This is a property of the token design, not a scheduled piece of work. **The mob
       sign-in rows and the session list Render's infrastructure rather than who
       did what.
 
-      The value is `2`, not `1`, matching
-      [14-production-setup.md](./14-production-setup.md) — Render's edge puts
-      two hops in front of the app, and a count set too high is worse than one
-      set too low, because it starts believing a header the client can write.
+      **The value is `3`, and it was measured rather than reasoned.** Doc 14
+      said `2`, on the basis that Render puts two hops in front of the app.
+      That is one short: Render's edge sits behind **Cloudflare**, so at `2`
+      every recorded address was a Cloudflare POP — `172.69.87.181`,
+      `172.71.124.179` — which is better than a private `10.x` and still not
+      the person who did the thing.
 
-      Worth re-reading the live table to confirm real addresses now arrive; the
-      count is the sort of thing that is right in the docs and wrong in the
-      deployment.
+      How it was checked, against the live service, because a hop count is
+      exactly the sort of thing that is right in the docs and wrong in the
+      deployment:
+
+      | request | recorded address |
+      |---|---|
+      | plain sign-in | `110.226.115.230` — the caller's real address |
+      | `X-Forwarded-For: 1.2.3.4` | `110.226.115.230` — forgery ignored |
+      | `X-Forwarded-For` with three forged hops | `110.226.115.230` — still ignored |
+
+      The forgery cases are the ones that matter. A count set too high is worse
+      than one set too low: it starts believing a header the caller writes, and
+      a spoofable address in an audit trail is worse than a missing one because
+      it looks authoritative. At `3` the forged entries sit outside the trusted
+      window, which is what makes the value safe as well as correct.
+
+      A fourth case — a forged `CF-Connecting-IP` — never reached the
+      application at all: Cloudflare rejected it at its own edge with error
+      1000. So that header is not a spoofing route either, though nothing in
+      this codebase relies on it.
+
+      If the topology in front of the service ever changes, this number changes
+      with it, and the only honest way to find the new one is to run the table
+      above again.
 - [x] Validation on every DTO (`ValidationPipe` whitelist+transform → unknown fields rejected)
 - [x] Audit log on: login success/fail, refresh reuse, password change, role/permission change, employee delete, balance adjust
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env
