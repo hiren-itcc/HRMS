@@ -3,11 +3,12 @@ import { round2 } from './payroll.statutory';
 /**
  * Do the challans deposited agree with the TDS payroll actually deducted?
  *
- * No Prisma and no clock. This exists because `EmployeeSalary.monthlyTds` is
- * typed in per employee — see `packages/shared/src/schemas/settings.ts:60` for
- * why there is no engine behind it — so the figure deducted and the figure
- * deposited are two independent human acts that nothing has ever compared.
- * Once a quarter, this compares them.
+ * No Prisma and no clock. The deducted side is now computed — `tax.engine.ts`
+ * puts projected income through the year's slabs and `calculate` writes the
+ * result as the payslip's TDS line — but the deposited side is still a human
+ * act: somebody pays a challan and types its number in. Those two numbers have
+ * nothing in common but the intent that they match. Once a quarter, this
+ * checks whether they do.
  *
  * A mismatch refuses generation rather than warning on it. A 24Q reports
  * deductee-wise TDS against a named challan; if those two numbers disagree the

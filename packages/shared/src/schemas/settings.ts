@@ -57,8 +57,11 @@ export const leavePolicySchema = z.object({
  * an input rather than a constant so a rate change is a settings edit and
  * not a release.
  *
- * TDS is deliberately absent: real TDS needs annual projection, a regime
- * choice and investment proofs. It is entered per employee instead.
+ * TDS is absent from here on purpose, and no longer for want of an engine.
+ * Income tax needs annual projection, a per-employee regime choice, declared
+ * investments and slabs that change every financial year — none of which fits
+ * a single settings blob. It has its own tables and its own screens; see
+ * `apps/api/src/modules/payroll/tax.engine.ts`.
  */
 export const payrollSchema = z.object({
   /** ISO 4217. Display only — no conversion happens anywhere. */

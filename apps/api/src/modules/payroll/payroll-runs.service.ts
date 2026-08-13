@@ -403,7 +403,12 @@ export class PayrollRunsService {
      * An unconfigured financial year must not stop payroll — people still have
      * to be paid — but it must not pass unmentioned either, because every
      * payslip in the run then carries no tax line and looks like a year with no
-     * tax due. The review screen shows this before anybody approves.
+     * tax due.
+     *
+     * The run screen raises it as a warning on the response to this call, which
+     * is why it is returned rather than only audited: the approver sees it in
+     * the state they are about to approve. It is not stored on the run — it
+     * describes what this calculation did, and a recalculation supersedes it.
      */
     return { ...result, taxUnconfigured: unconfigured.length };
   }

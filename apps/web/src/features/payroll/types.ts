@@ -107,6 +107,12 @@ export interface PayrollRun {
   lockedAt: string | null;
   publishedAt: string | null;
   createdAt: string;
+  /**
+   * How many employees the run could not tax, because their financial year has
+   * no confirmed rules. Present only on the response to `calculate` — it
+   * describes what that calculation did, not a stored property of the run.
+   */
+  taxUnconfigured?: number;
 }
 
 export interface Preflight {

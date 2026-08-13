@@ -91,6 +91,7 @@ export default function PayrollRunPage() {
   const { can } = useSession();
   const params = useListParams('employeeName');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [taxUnconfigured, setTaxUnconfigured] = useState<number | null>(null);
 
   const run = useQuery({ queryKey: payrollKeys.run(runId), queryFn: () => payrollApi.run(runId) });
 
@@ -126,7 +127,12 @@ export default function PayrollRunPage() {
       payrollApi.actOnRun(runId, { action }),
     error: 'Could not run that step',
     success: (updated) => `Payroll is now ${updated.status.toLowerCase().replace('_', ' ')}`,
-    onSuccess: (_updated) => {
+    onSuccess: (updated) => {
+      // Only `calculate` reports this, and only in its own response — it is a
+      // fact about that calculation, not a column on the run. Holding it here
+      // is what puts it in front of the approver, which is the whole point of
+      // the API returning it.
+      setTaxUnconfigured(updated.taxUnconfigured ?? null);
       refresh();
     },
   });
@@ -341,6 +347,24 @@ export default function PayrollRunPage() {
           <AlertDescription>
             {preflight.data.warnings.noBank.map((e) => e.name).join(', ')} will be calculated but
             cannot be included in a bank transfer file.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/*
+        A run that deducted no tax from some people looks exactly like a year
+        with no tax due — the payslips simply carry no TDS line. This is the
+        only thing that tells the difference apart, and it has to be said
+        before the run is approved rather than found in an audit row later.
+      */}
+      {taxUnconfigured !== null && taxUnconfigured > 0 && (
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>No income tax deducted for {taxUnconfigured} employee(s)</AlertTitle>
+          <AlertDescription>
+            Their financial year has no confirmed tax rules, so this run skipped them rather than
+            deducting zero. Confirm the year&apos;s slabs under Income tax → Tax rules, then
+            recalculate.
           </AlertDescription>
         </Alert>
       )}
