@@ -6,6 +6,7 @@ import {
   Contact,
   DoorOpen,
   FileText,
+  FolderKanban,
   LayoutDashboard,
   LifeBuoy,
   type LucideIcon,
@@ -102,6 +103,15 @@ export const NAV_ITEMS: NavItem[] = [
     // and categories tabs gate themselves.
     perms: ['helpdesk.read', 'helpdesk.respond', 'helpdesk.read.own'],
     module: 'helpdesk',
+  },
+  {
+    href: '/projects',
+    label: 'Projects',
+    icon: FolderKanban,
+    // read.own is enough to get in: the register shows what you are on, and the
+    // timesheet, approvals and utilisation tabs gate themselves.
+    perms: ['project.read', 'project.read.own'],
+    module: 'projects',
   },
   { href: '/announcements', label: 'Announcements', icon: Megaphone, module: 'announcements' },
   {

@@ -74,6 +74,7 @@ export const config = {
     '/assets/:path*',
     '/expenses/:path*',
     '/performance/:path*',
+    '/projects/:path*',
     '/login',
     '/forgot-password',
     '/reset-password',

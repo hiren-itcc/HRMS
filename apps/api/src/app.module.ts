@@ -32,6 +32,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { PerformanceModule } from './modules/performance/performance.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -67,6 +68,7 @@ import { WfhModule } from './modules/wfh/wfh.module';
     ExpensesModule,
     PerformanceModule,
     HelpdeskModule,
+    ProjectsModule,
     LifecycleJobsModule,
     DashboardModule,
     AttendanceModule,

@@ -23,6 +23,7 @@ import {
   transitionError,
 } from './payroll.workflow';
 import { PayrollAdjustmentsService } from './payroll-adjustments.service';
+import { TaxService } from './tax.service';
 
 const SORTABLE = ['month', 'createdAt', 'netPayable'] as const;
 
@@ -70,6 +71,7 @@ export class PayrollRunsService {
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly adjustments: PayrollAdjustmentsService,
+    private readonly tax: TaxService,
   ) {}
 
   async list(orgId: string, query: PayrollRunQuery) {
@@ -239,6 +241,25 @@ export class PayrollRunsService {
     // regardless of headcount.
     const adjustmentsByEmployee = await this.adjustments.forMonth(claims.orgId, run.month);
 
+    /*
+     * Income tax, computed rather than typed in.
+     *
+     * One batched call for the whole run — projecting per employee would be
+     * five queries each, which is the N+1 the WFH module had to have removed
+     * after it shipped. `EmployeeSalary.monthlyTds` is no longer read here; it
+     * survives only as historical data on old revisions.
+     *
+     * An employee whose financial year has no confirmed configuration is
+     * **skipped, not zeroed**: a zero on the payslip reads as "no tax due",
+     * which is a different claim from "nobody has entered this year's slabs".
+     * The run reports them and everybody else still calculates.
+     */
+    const { tds: tdsByEmployee, unconfigured } = await this.tax.tdsForRun(
+      claims.orgId,
+      run.month,
+      employees.map((e) => e.id),
+    );
+
     const payslips = employees
       .map((employee) => {
         const salary = employee.salaries[0];
@@ -259,7 +280,7 @@ export class PayrollRunsService {
         const calc = calculatePayslip({
           month: run.month,
           monthlyCtc: Number(salary.monthlyCtc),
-          monthlyTds: Number(salary.monthlyTds),
+          monthlyTds: tdsByEmployee.get(employee.id) ?? 0,
           lines,
           lopDays: lopByEmployee.get(employee.id) ?? 0,
           // Only pass the boundary when it falls inside the month; otherwise
@@ -366,9 +387,25 @@ export class PayrollRunsService {
 
     await auditMutation(this.prisma, ctx, 'payroll.run.calculate', 'PayrollRun', id, {
       before: { status: run.status },
-      after: { status: 'IN_REVIEW', employeeCount: payslips.length },
+      after: {
+        status: 'IN_REVIEW',
+        employeeCount: payslips.length,
+        // Recorded on the run, not just returned: "why did nobody have TDS in
+        // April" is a question asked months later, and the audit row is the
+        // only place that still answers it.
+        taxUnconfigured: unconfigured.length,
+      },
     });
-    return this.get(claims.orgId, id);
+    const result = await this.get(claims.orgId, id);
+    /*
+     * Reported alongside the run rather than thrown.
+     *
+     * An unconfigured financial year must not stop payroll — people still have
+     * to be paid — but it must not pass unmentioned either, because every
+     * payslip in the run then carries no tax line and looks like a year with no
+     * tax due. The review screen shows this before anybody approves.
+     */
+    return { ...result, taxUnconfigured: unconfigured.length };
   }
 
   /** Approve, reopen, lock, publish or cancel. */

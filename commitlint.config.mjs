@@ -45,6 +45,12 @@ export default {
         'notifications',
         // Tickets, threads, and the desks they route to.
         'helpdesk',
+        // The project register, staffing, and the weekly timesheets logged
+        // against it.
+        'projects',
+        // Regime, declaration, annual projection and monthly TDS. Routed under
+        // /payroll, but its own concern — payroll deducts what this decides.
+        'tax',
         'wfh',
         'mail',
         'reports',

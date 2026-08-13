@@ -26,9 +26,25 @@ import type { TdsQuarterCode } from './tds-period';
  *
  * No Prisma, no clock, no settings lookup — the rule `statutory-files.ts`
  * follows, and it matters more here because this output is validated by a tool
- * CI cannot run. Per ADR-001 what we emit is the *input* to the NSDL File
- * Validation Utility, not a filed return: the FVU is the operator's gate and
- * the screen says so.
+ * CI cannot run.
+ *
+ * ## The decision this file rests on
+ *
+ * What we emit is the **input to the FVU**, not a filed return. The real
+ * workflow is: text file → Protean/NSDL File Validation Utility → `.fvu` →
+ * upload. The Java tool is the operator's gate, the screen states that it must
+ * be run before filing, and no claim is made that this output has been
+ * validated.
+ *
+ * That answers both objections `statutory-files.ts` used to refuse on. The tool
+ * that cannot run in CI does not need to — it runs on the operator's machine,
+ * as it does for every other payroll product. And the asymmetry that a wrong
+ * return is *filed* and then needs a correction statement is met by the FVU
+ * catching format errors before anything is filed, plus a reconciliation gate
+ * that refuses to generate at all when challans and payslips disagree.
+ *
+ * Form 16 stays out of scope: Part A is issued by TRACES and is not ours to
+ * produce.
  *
  * Built from frozen payslips of published runs, so a return regenerated in
  * December is the same file it was in October.

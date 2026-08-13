@@ -255,6 +255,37 @@ export const PERMISSIONS = [
   'helpdesk.respond',
   'helpdesk.manage',
 
+  /*
+   * Projects and the weekly timesheets logged against them. The own / team /
+   * all triad once more, because filling a week and having a manager agree it
+   * is the same shape as leave, WFH and expenses.
+   *
+   * There is no `project.read.team`. `project.read.own` means "projects I am a
+   * member of, or manage", which already covers everything a manager needs to
+   * see — a project their report is on is a project somebody manages, and if
+   * that is not them, it is not theirs to read. The scope that does matter for
+   * a manager is over *timesheets*, and that is `timesheet.read.team`.
+   *
+   * `project.manage` is org-wide: create, edit, close and delete any project,
+   * and staff any project. A project's own manager may add and remove its
+   * members **without** holding it — that is an ownership grant checked in the
+   * service, the same call the helpdesk makes for a desk's assignee. The
+   * alternative is every staffing change routing through HR.
+   *
+   * Finance holds nothing here, deliberately. This module records hours, not
+   * money: there is no cost rate and no billing rate, so there is no finance
+   * decision in it. If cost rates ever land, they are salary data and this
+   * comment is where that argument starts.
+   */
+  'project.read.own',
+  'project.read',
+  'project.manage',
+  'timesheet.read.own',
+  'timesheet.submit.own',
+  'timesheet.read.team',
+  'timesheet.approve.team',
+  'timesheet.read',
+
   'announcement.read',
   'announcement.manage',
 
@@ -289,6 +320,28 @@ export const PERMISSIONS = [
    * whichever of them files is a question this product should not answer.
    */
   'payroll.filing',
+  /*
+   * Income tax: the regime, the declaration, and the TDS that falls out of
+   * them.
+   *
+   * There is no `payroll.tax.view.own`. Everybody may see their own tax page,
+   * gated by `payroll.read.own`, which everybody already holds — a code granted
+   * to all five roles is a code that answers no question.
+   *
+   * There is deliberately **no `.team` scope**, and a manager holds nothing
+   * here. What somebody declared under 80D is a medical-insurance premium for
+   * their parents; what they claim under 80U is a disability. A reporting line
+   * is not a reason to read either, so the own/team/all triad every other
+   * module uses is the wrong shape for this one — the same call the helpdesk
+   * made above.
+   *
+   * `payroll.tax.declaration.approve` is separate from `payroll.tax.view`
+   * because reading a declaration and agreeing it are different acts: the
+   * second asserts that proofs were seen.
+   */
+  'payroll.tax.view',
+  'payroll.tax.manage',
+  'payroll.tax.declaration.approve',
 
   /*
    * Recruitment. `recruitment.hire` is separate from `recruitment.offer.manage`
@@ -350,6 +403,12 @@ const EMPLOYEE_PERMS: Permission[] = [
   // is somebody's inbox instead.
   'helpdesk.read.own',
   'helpdesk.raise.own',
+  // Their own projects, and their own week. Logging what you worked on is not
+  // a privilege either — an employee who cannot fill a timesheet is an
+  // employee whose hours somebody else invents.
+  'project.read.own',
+  'timesheet.read.own',
+  'timesheet.submit.own',
   'announcement.read',
   'org.read',
   'payroll.read.own',
@@ -370,6 +429,8 @@ const MANAGER_PERMS: Permission[] = [
   'wfh.approve.team',
   'expense.read.team',
   'expense.approve.team',
+  'timesheet.read.team',
+  'timesheet.approve.team',
   // The manager half of a review is the whole manager workflow here — there is
   // no step a manager takes that is not about somebody who reports to them.
   'performance.read.team',
@@ -444,6 +505,14 @@ const HR_PERMS: Permission[] = [
   'helpdesk.read',
   'helpdesk.respond',
   'helpdesk.manage',
+  /*
+   * HR owns the project register and reads every timesheet, and approves none
+   * of them — the same split it has with expenses. Whether a week is right is
+   * a question for the manager who watched it happen.
+   */
+  'project.read',
+  'project.manage',
+  'timesheet.read',
   'announcement.manage',
   'org.manage',
   'report.view',
@@ -454,6 +523,14 @@ const HR_PERMS: Permission[] = [
   'payroll.salary.manage',
   'payroll.process',
   'payroll.filing',
+  /*
+   * HR owns the tax module: it maintains the year's slabs, reads everybody's
+   * projection, and agrees declarations — because collecting an investment
+   * proof is a people job, and the proof is what an approval asserts.
+   */
+  'payroll.tax.view',
+  'payroll.tax.manage',
+  'payroll.tax.declaration.approve',
   // HR runs hiring end to end, and already holds `employee.invite` — which is
   // what a hire actually spends when it creates the new starter's login.
   'recruitment.read',
@@ -476,6 +553,12 @@ const FINANCE_PERMS: Permission[] = [
   'payroll.approve',
   'payroll.pay',
   'payroll.filing',
+  /*
+   * Finance reads the tax projection and agrees no declaration. It has to
+   * answer for the TDS it deposits, which means seeing how each figure was
+   * arrived at; whether somebody's 80C proof is genuine is not its call.
+   */
+  'payroll.tax.view',
   'report.view',
   'report.export',
   // Finance clears outstanding dues on the way out.

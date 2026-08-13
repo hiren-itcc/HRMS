@@ -358,6 +358,7 @@ export const modulesSchema = z.object({
   expenses: z.boolean().default(true),
   performance: z.boolean().default(true),
   helpdesk: z.boolean().default(true),
+  projects: z.boolean().default(true),
 });
 
 // ── Work from home ────────────────────────────────────────────────────

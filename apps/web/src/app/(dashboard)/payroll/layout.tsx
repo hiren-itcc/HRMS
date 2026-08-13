@@ -45,6 +45,15 @@ export default function PayrollLayout({ children }: { children: React.ReactNode 
             show: can('payroll.read'),
             match: 'prefix',
           },
+          {
+            href: '/payroll/tax',
+            label: 'Income tax',
+            // Everybody with a salary page has a tax page: your own regime and
+            // projection are not a privilege HR grants. The employee list and
+            // approvals tabs inside gate themselves.
+            show: can('payroll.read.own'),
+            match: 'prefix',
+          },
           { href: '/payroll/me', label: 'My salary', show: can('payroll.read.own') },
         ]}
       />

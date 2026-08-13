@@ -64,6 +64,23 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.ticket.deleteMany({ where: { organizationId: orgId } }),
       prisma.ticketCategory.deleteMany({ where: { organizationId: orgId } }),
 
+      // Income tax: declaration items and the three rule tables all cascade
+      // from their parents, but the profile, the declaration and the override
+      // each point at Employee — so all three go before it.
+      prisma.tdsOverride.deleteMany({ where: { organizationId: orgId } }),
+      prisma.employeeTaxDeclaration.deleteMany({ where: { organizationId: orgId } }),
+      prisma.employeeTaxProfile.deleteMany({ where: { organizationId: orgId } }),
+      prisma.taxConfiguration.deleteMany({ where: { organizationId: orgId } }),
+
+      // Projects: an entry points at both its timesheet and its project, and
+      // the project side is RESTRICT — so entries go first or the projects
+      // cannot be deleted. Project and Timesheet both point at Employee, so
+      // all four go before it.
+      prisma.timesheetEntry.deleteMany({ where: { timesheet: { organizationId: orgId } } }),
+      prisma.timesheet.deleteMany({ where: { organizationId: orgId } }),
+      prisma.projectMember.deleteMany({ where: { project: { organizationId: orgId } } }),
+      prisma.project.deleteMany({ where: { organizationId: orgId } }),
+
       // Expenses: an item points at a claim and a category, and a category
       // points at a PayComponent — so all three go before payroll's tables.
       prisma.expenseItem.deleteMany({ where: { claim: { organizationId: orgId } } }),

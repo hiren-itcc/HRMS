@@ -12,9 +12,8 @@ import { round2 } from './payroll.statutory';
  * live salary data, because a return filed in June and regenerated in December
  * must be the same file.
  *
- * Form 24Q now lives in `tds-files.ts`, not here — see ADR-001
- * (`docs/16-adr-001-form-24q.md`), which reverses the refusal this comment
- * used to record. The objection was sound and is answered rather than
+ * Form 24Q now lives in `tds-files.ts`, not here, which reverses the refusal
+ * this comment used to record. The objection was sound and is answered rather than
  * ignored: we emit the *input* to the NSDL File Validation Utility, so the
  * Java tool that cannot run in CI is the operator's gate and the screen says
  * so. It is a separate file because this one's builders are monthly and

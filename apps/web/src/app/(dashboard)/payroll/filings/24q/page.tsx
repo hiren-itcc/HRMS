@@ -101,7 +101,7 @@ export default function Form24QPage() {
   return (
     <div className="max-w-4xl space-y-5">
       {/*
-        This file is the FVU's input, not a filed return — ADR-001. Saying so
+        This file is the FVU's input, not a filed return. Saying so
         here is the whole basis on which the module was built, so it is
         unconditional and sits above the pickers rather than beside the button.
       */}

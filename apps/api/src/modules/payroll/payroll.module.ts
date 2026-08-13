@@ -10,6 +10,8 @@ import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsService } from './payslips.service';
 import { SalaryStructuresService } from './salary-structures.service';
 import { StatutoryFilingsService } from './statutory-filings.service';
+import { TaxController } from './tax.controller';
+import { TaxService } from './tax.service';
 import { TdsController } from './tds.controller';
 import { TdsChallansService } from './tds-challans.service';
 import { TdsReturnsService } from './tds-returns.service';
@@ -19,7 +21,7 @@ import { TdsReturnsService } from './tds-returns.service';
   // Settings supplies the statutory rules and the working week the
   // calculation prorates against.
   imports: [SettingsModule],
-  controllers: [PayrollController, TdsController, PayComponentsController],
+  controllers: [PayrollController, TdsController, PayComponentsController, TaxController],
   providers: [
     SalaryStructuresService,
     EmployeeSalariesService,
@@ -31,6 +33,7 @@ import { TdsReturnsService } from './tds-returns.service';
     TdsChallansService,
     TdsReturnsService,
     PayComponentsService,
+    TaxService,
   ],
   /*
    * Expenses turns an approved claim into a payslip line through this service

@@ -17,8 +17,10 @@ import { seedOrg } from './org';
 import { seedPayroll } from './payroll';
 import { seedPeople } from './people';
 import { seedPerformance } from './performance';
+import { seedProjects } from './projects';
 import { makeRandom } from './random';
 import { seedRecruitment } from './recruitment';
+import { seedTaxConfiguration } from './tax';
 import { seedTds } from './tds';
 import { seedWfh } from './wfh';
 import { census, wipe } from './wipe';
@@ -160,6 +162,9 @@ async function main() {
   console.log('Payroll…');
   await seedPayroll(prisma, org.id, fixtures, people, random, todayKey);
 
+  console.log('Income tax configuration…');
+  await seedTaxConfiguration(prisma, org.id, people);
+
   console.log('TDS challans…');
   await seedTds(prisma, org.id);
 
@@ -168,6 +173,9 @@ async function main() {
 
   console.log('Expense claims…');
   await seedExpenses(prisma, org.id, people, random, todayKey);
+
+  console.log('Projects and timesheets…');
+  await seedProjects(prisma, org.id, people, random, todayKey);
 
   console.log('Exits and settlements…');
   await seedExit(prisma, org.id, people, random, todayKey);

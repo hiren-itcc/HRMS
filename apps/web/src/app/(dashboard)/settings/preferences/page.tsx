@@ -88,6 +88,11 @@ const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: s
   { key: 'assets', label: 'Assets', hint: 'The register of equipment issued to people' },
   { key: 'performance', label: 'Performance', hint: 'Goals, review cycles and ratings' },
   { key: 'helpdesk', label: 'Helpdesk', hint: 'Tickets, the desk queue and its categories' },
+  {
+    key: 'projects',
+    label: 'Projects',
+    hint: 'The project register, staffing and weekly timesheets',
+  },
   { key: 'announcements', label: 'Announcements', hint: 'Company-wide posts' },
   { key: 'reports', label: 'Reports', hint: 'Analytics and exports' },
 ];
