@@ -65,7 +65,7 @@ describe('audit rows record where the change came from', () => {
        */
       const [row] = rows;
       expect({ action: row?.action, hasIp: row?.ip !== null && row?.ip !== undefined }).toEqual({
-        action: 'department.create',
+        action: 'org.department.create',
         hasIp: true,
       });
 
