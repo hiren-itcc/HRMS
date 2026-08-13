@@ -34,8 +34,15 @@ interface RunRow {
   status: string;
 }
 
+/**
+ * A line as the API returns it, which is not how the database stores it:
+ * `payslips.service.ts` renames `componentCode` to `code` and splits the rows
+ * into `earnings` / `deductions` / `employerContributions` rather than
+ * returning one `lines` array. TDS is written as a deduction —
+ * `payroll.calc.ts:256`.
+ */
 interface PayslipLine {
-  componentCode: string;
+  code: string;
   amount: number;
 }
 
@@ -53,12 +60,14 @@ describe('payroll calculates tax', () => {
       .set(as(hr))
       .expect(200);
 
-    // DRAFT or IN_REVIEW — the only states `calculate` is legal from
-    // (`payroll.workflow.ts`). A published month cannot be recalculated, which
-    // is the invariant the last test in this file depends on.
-    const open = (runs.body.data as RunRow[]).find(
-      (row) => row.status === 'DRAFT' || row.status === 'IN_REVIEW',
-    );
+    // DRAFT or IN_REVIEW are the only states `calculate` is legal from, but
+    // prefer DRAFT deliberately: the seed leaves *both* — the empty current
+    // month and one historical month mid-review — and a bare `find` would pick
+    // whichever the default sort happened to put first. This file's premise is
+    // the current month, so say so rather than letting ordering decide.
+    const rows = runs.body.data as RunRow[];
+    const open =
+      rows.find((row) => row.status === 'DRAFT') ?? rows.find((row) => row.status === 'IN_REVIEW');
     if (!open) throw new Error('The seed should leave an open run; none found.');
     run = open;
   });
@@ -67,12 +76,15 @@ describe('payroll calculates tax', () => {
     await app?.close();
   });
 
+  // 201, not 200: `actOnRun` is a plain `@Post` with no `@HttpCode`, so Nest's
+  // default for POST applies. Asserting the status at all is the point — it is
+  // part of the contract the web client already depends on.
   async function calculate() {
     return request(app.getHttpServer())
       .post(`/api/v1/payroll/runs/${run.id}/actions`)
       .set(as(hr))
       .send({ action: 'calculate' })
-      .expect(200);
+      .expect(201);
   }
 
   async function payslipsFor(runId: string) {
@@ -83,16 +95,18 @@ describe('payroll calculates tax', () => {
     return res.body.data as { id: string; employeeId: string; employeeName: string }[];
   }
 
-  async function linesOf(payslipId: string): Promise<PayslipLine[]> {
+  async function deductionsOf(payslipId: string): Promise<PayslipLine[]> {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/payroll/payslips/${payslipId}`)
       .set(as(hr))
       .expect(200);
-    return res.body.lines as PayslipLine[];
+    const lines = res.body.deductions as PayslipLine[] | undefined;
+    if (!lines) throw new Error('A payslip should carry a deductions array; it did not.');
+    return lines;
   }
 
   const tdsOf = (lines: PayslipLine[]) =>
-    Number(lines.find((line) => line.componentCode === 'TDS')?.amount ?? 0);
+    Number(lines.find((line) => line.code === 'TDS')?.amount ?? 0);
 
   it('produces payslips at all', async () => {
     const res = await calculate();
@@ -118,7 +132,7 @@ describe('payroll calculates tax', () => {
     // proves nothing, since 0 === 0 for the wrong reasons.
     let checked = 0;
     for (const slip of slips) {
-      const deducted = tdsOf(await linesOf(slip.id));
+      const deducted = tdsOf(await deductionsOf(slip.id));
       if (deducted <= 0) continue;
 
       const projection = await request(app.getHttpServer())
@@ -147,11 +161,11 @@ describe('payroll calculates tax', () => {
   it('is idempotent', async () => {
     await calculate();
     const first = await payslipsFor(run.id);
-    const firstTds = await Promise.all(first.map(async (s) => tdsOf(await linesOf(s.id))));
+    const firstTds = await Promise.all(first.map(async (s) => tdsOf(await deductionsOf(s.id))));
 
     await calculate();
     const second = await payslipsFor(run.id);
-    const secondTds = await Promise.all(second.map(async (s) => tdsOf(await linesOf(s.id))));
+    const secondTds = await Promise.all(second.map(async (s) => tdsOf(await deductionsOf(s.id))));
 
     // Numerically — the default comparator sorts 100 before 20, which would
     // still compare equal here but for a reason that has nothing to do with
@@ -161,8 +175,8 @@ describe('payroll calculates tax', () => {
     expect(ascending(secondTds)).toEqual(ascending(firstTds));
 
     // One TDS line per payslip, not one per recalculation.
-    const lines = await linesOf(second[0]?.id as string);
-    expect(lines.filter((line) => line.componentCode === 'TDS').length).toBeLessThanOrEqual(1);
+    const lines = await deductionsOf(second[0]?.id as string);
+    expect(lines.filter((line) => line.code === 'TDS').length).toBeLessThanOrEqual(1);
   });
 
   /**
@@ -182,12 +196,12 @@ describe('payroll calculates tax', () => {
     if (!published) throw new Error('The seed should leave a published run; none found.');
 
     const before = await payslipsFor(published.id);
-    const beforeTds = await Promise.all(before.map(async (s) => tdsOf(await linesOf(s.id))));
+    const beforeTds = await Promise.all(before.map(async (s) => tdsOf(await deductionsOf(s.id))));
 
     await calculate();
 
     const after = await payslipsFor(published.id);
-    const afterTds = await Promise.all(after.map(async (s) => tdsOf(await linesOf(s.id))));
+    const afterTds = await Promise.all(after.map(async (s) => tdsOf(await deductionsOf(s.id))));
 
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id));
     expect(afterTds).toEqual(beforeTds);
