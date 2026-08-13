@@ -8,7 +8,9 @@ import {
 } from '@hrms/shared';
 import { Button } from '@hrms/ui/components/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@hrms/ui/components/card';
+import { Checkbox } from '@hrms/ui/components/checkbox';
 import { Input } from '@hrms/ui/components/input';
+import { Radio, RadioGroup } from '@hrms/ui/components/radio-group';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -166,29 +168,35 @@ export default function MyTaxPage() {
           <CardTitle>Income tax regime · FY {financialYear}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {(['NEW', 'OLD'] as const).map((option) => (
-            <label
-              key={option}
-              className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-checked:border-primary"
-            >
-              <input
-                type="radio"
-                name="regime"
-                className="mt-1"
-                checked={regime === option}
-                disabled={busy}
-                onChange={() => setRegime.mutate(option)}
-              />
-              <span>
-                <span className="block font-medium">{TAX_REGIME_LABELS[option]}</span>
-                <span className="block text-muted-foreground text-sm">
-                  {option === 'NEW'
-                    ? 'Default. No declaration needed — your tax is worked out from your salary.'
-                    : 'I want to claim eligible deductions and exemptions.'}
+          {/* Design-system RadioGroup, not bare inputs — it carries the focus
+              ring, the checked indicator and the roving-tabindex keyboard
+              behaviour that a raw radio does not. */}
+          <RadioGroup
+            value={regime}
+            onValueChange={(next) => setRegime.mutate(next as TaxRegimeCode)}
+            aria-label="Income tax regime"
+          >
+            {(['NEW', 'OLD'] as const).map((option) => (
+              <label
+                key={option}
+                htmlFor={`regime-${option}`}
+                className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-data-checked:border-primary"
+              >
+                {/* Explicit htmlFor rather than wrapping: Base UI renders a
+                    button with role=radio, not an <input>, so an implicit
+                    label associates with nothing. */}
+                <Radio id={`regime-${option}`} value={option} disabled={busy} className="mt-0.5" />
+                <span>
+                  <span className="block font-medium">{TAX_REGIME_LABELS[option]}</span>
+                  <span className="block text-muted-foreground text-sm">
+                    {option === 'NEW'
+                      ? 'Default. No declaration needed — your tax is worked out from your salary.'
+                      : 'I want to claim eligible deductions and exemptions.'}
+                  </span>
                 </span>
-              </span>
-            </label>
-          ))}
+              </label>
+            ))}
+          </RadioGroup>
           <p className="text-muted-foreground text-xs">
             Each financial year is chosen fresh. Last year’s choice does not carry over.
           </p>
@@ -313,12 +321,15 @@ export default function MyTaxPage() {
                   value={rent}
                   onChange={(event) => setRent(event.target.value)}
                 />
-                <label className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <input
-                    type="checkbox"
+                <label
+                  htmlFor="metro-city"
+                  className="flex items-center gap-2 text-muted-foreground text-xs"
+                >
+                  <Checkbox
+                    id="metro-city"
                     checked={metro}
                     disabled={!editable || busy}
-                    onChange={(event) => setMetro(event.target.checked)}
+                    onCheckedChange={(next) => setMetro(next === true)}
                   />
                   I live in a metro city (Delhi, Mumbai, Kolkata or Chennai)
                 </label>

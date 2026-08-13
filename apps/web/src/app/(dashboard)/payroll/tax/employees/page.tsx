@@ -1,9 +1,22 @@
 'use client';
 
-import { TAX_DECLARATION_STATUSES, TAX_REGIME_LABELS, TAX_REGIMES } from '@hrms/shared';
+import {
+  TAX_DECLARATION_STATUS_LABELS,
+  TAX_DECLARATION_STATUSES,
+  TAX_REGIME_LABELS,
+  TAX_REGIMES,
+} from '@hrms/shared';
 import { Badge } from '@hrms/ui/components/badge';
-import { Input } from '@hrms/ui/components/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@hrms/ui/components/input-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@hrms/ui/components/select';
 import { useQuery } from '@tanstack/react-query';
+import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { type Column, DataTable } from '@/components/data-table';
@@ -27,13 +40,15 @@ import { DeclarationStatusBadge } from '@/features/tax/components/tax-summary-ca
 export default function TaxEmployeesPage() {
   const month = currentMonth();
   const [financialYear, setFinancialYear] = useState(() => financialYearOf(month));
-  const [regime, setRegime] = useState('');
-  const [status, setStatus] = useState('');
+  const [regime, setRegime] = useState('ALL');
+  const [status, setStatus] = useState('ALL');
   const [search, setSearch] = useState('');
 
   const filters = {
-    ...(regime ? { regime } : {}),
-    ...(status ? { status } : {}),
+    // 'ALL' is a sentinel: Base UI's Select cannot hold an empty string, so the
+    // "no filter" choice needs a value and the query strips it here.
+    ...(regime !== 'ALL' ? { regime } : {}),
+    ...(status !== 'ALL' ? { status } : {}),
     ...(search.trim() ? { search: search.trim() } : {}),
   };
 
@@ -134,71 +149,61 @@ export default function TaxEmployeesPage() {
         </p>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label htmlFor="fy" className="font-medium text-sm">
-            Financial year
-          </label>
-          <select
-            id="fy"
-            className="h-9 rounded-md border bg-background px-3 text-sm"
-            value={financialYear}
-            onChange={(event) => setFinancialYear(event.target.value)}
-          >
-            {(years.length > 0 ? years : [financialYear]).map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="regime" className="font-medium text-sm">
-            Regime
-          </label>
-          <select
-            id="regime"
-            className="h-9 rounded-md border bg-background px-3 text-sm"
-            value={regime}
-            onChange={(event) => setRegime(event.target.value)}
-          >
-            <option value="">All</option>
-            {TAX_REGIMES.map((option) => (
-              <option key={option} value={option}>
-                {TAX_REGIME_LABELS[option]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="status" className="font-medium text-sm">
-            Declaration
-          </label>
-          <select
-            id="status"
-            className="h-9 rounded-md border bg-background px-3 text-sm"
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option value="">All</option>
-            {TAX_DECLARATION_STATUSES.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="search" className="font-medium text-sm">
-            Search
-          </label>
-          <Input
-            id="search"
-            placeholder="Name or code"
+      <div className="flex flex-wrap items-center gap-2">
+        {/* The same filter bar every other list uses — design-system Select and
+            the InputGroup search, not bare HTML controls. */}
+        <InputGroup className="w-full sm:w-64">
+          <InputGroupAddon>
+            <Search className="size-4" aria-hidden />
+          </InputGroupAddon>
+          <InputGroupInput
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            placeholder="Name or code"
+            aria-label="Search employees"
           />
-        </div>
+        </InputGroup>
+
+        <Select value={financialYear} onValueChange={setFinancialYear}>
+          <SelectTrigger className="w-36" aria-label="Financial year">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(years.length > 0 ? years : [financialYear]).map((year) => (
+              <SelectItem key={year} value={year}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={regime} onValueChange={setRegime}>
+          <SelectTrigger className="w-44" aria-label="Filter by regime">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Any regime</SelectItem>
+            {TAX_REGIMES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {TAX_REGIME_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-44" aria-label="Filter by declaration status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Any declaration</SelectItem>
+            {TAX_DECLARATION_STATUSES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {TAX_DECLARATION_STATUS_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <DataTable
