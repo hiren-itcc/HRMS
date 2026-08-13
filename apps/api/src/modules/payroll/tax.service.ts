@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
 import { PrismaService } from '../../database/prisma.service';
@@ -459,9 +460,14 @@ export class TaxService {
     month: string,
   ): Promise<TaxSummary> {
     const regime = await this.regimeFor(employeeId, financialYear);
-    const config = await this.configFor(orgId, financialYear, regime);
-    const context = await this.gather(orgId, [employeeId], financialYear, month);
-    return this.summarise(employeeId, financialYear, month, regime, config, context);
+    // Both the missing-row case (`configFor`) and the present-but-unconfirmed
+    // case (`calculateAnnualTax`, inside `summarise`) raise the same error, so
+    // the whole read is wrapped rather than just the lookup.
+    return this.unprocessableIfUnconfigured(async () => {
+      const config = await this.configFor(orgId, financialYear, regime);
+      const context = await this.gather(orgId, [employeeId], financialYear, month);
+      return this.summarise(employeeId, financialYear, month, regime, config, context);
+    });
   }
 
   /**
@@ -940,6 +946,33 @@ export class TaxService {
         employeeCode: row.employee.employeeCode,
       },
     }));
+  }
+
+  /**
+   * Turn "this year has no slabs" into a 422 rather than a 500.
+   *
+   * `TaxConfigurationMissing` is a plain `Error` because the engine is pure and
+   * must not import Nest. Left unmapped, Nest's filter reads any plain Error as
+   * an internal fault: the caller gets a 500 and the line lands in the logs at
+   * error level, which is where real faults are supposed to stand out.
+   *
+   * An unconfirmed financial year is neither. The request was well-formed and
+   * the server understood it; there is simply a piece of configuration nobody
+   * has entered yet, and the message says which and what to do. That is 422.
+   *
+   * Found by reading the deployed logs after the first release, not by a test —
+   * every unit test asserts the thrown type, and none of them go through the
+   * HTTP layer where the status is decided.
+   */
+  private async unprocessableIfUnconfigured<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (error instanceof TaxConfigurationMissing) {
+        throw new UnprocessableEntityException(error.message);
+      }
+      throw error;
+    }
   }
 
   private requireEmployee(claims: AccessTokenClaims): string {
