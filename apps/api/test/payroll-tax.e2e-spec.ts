@@ -87,9 +87,16 @@ describe('payroll calculates tax', () => {
       .expect(201);
   }
 
+  /**
+   * Highest paid first. `netPay` is one of three sortable columns
+   * (`payslips.service.ts:22`), and sorting by it puts the people the engine
+   * actually taxes at the top — so the cross-check below finds a taxed
+   * employee in its first few requests instead of walking the whole org to
+   * reach one, which the 100-per-minute throttler would not forgive.
+   */
   async function payslipsFor(runId: string) {
     const res = await request(app.getHttpServer())
-      .get(`/api/v1/payroll/payslips?runId=${runId}&limit=100`)
+      .get(`/api/v1/payroll/payslips?runId=${runId}&limit=100&sort=netPay&order=desc`)
       .set(as(hr))
       .expect(200);
     return res.body.data as { id: string; employeeId: string; employeeName: string }[];
@@ -107,6 +114,32 @@ describe('payroll calculates tax', () => {
 
   const tdsOf = (lines: PayslipLine[]) =>
     Number(lines.find((line) => line.code === 'TDS')?.amount ?? 0);
+
+  /**
+   * How many payslips a comparison reads. The seed staffs the org with dozens
+   * of people and the first version of this file fanned out over all of them
+   * with `Promise.all` — dozens of concurrent supertest connections, which CI
+   * answered with ECONNRESET. Sequential and bounded, then, which also keeps
+   * the whole file inside the 100-per-minute global throttle
+   * (`app.module.ts:55`); every assertion below says out loud that it looked at
+   * a sample rather than the whole run.
+   */
+  const SAMPLE = 8;
+
+  /**
+   * TDS keyed by employee, read one request at a time.
+   *
+   * Keyed rather than a list: comparing sorted arrays would call two runs equal
+   * when the same set of figures landed on different people, which is exactly
+   * the bug a recalculation could introduce.
+   */
+  async function tdsByEmployee(slips: { id: string; employeeId: string }[]) {
+    const figures = new Map<string, number>();
+    for (const slip of slips.slice(0, SAMPLE)) {
+      figures.set(slip.employeeId, tdsOf(await deductionsOf(slip.id)));
+    }
+    return figures;
+  }
 
   it('produces payslips at all', async () => {
     const res = await calculate();
@@ -129,9 +162,12 @@ describe('payroll calculates tax', () => {
     const slips = await payslipsFor(run.id);
 
     // Somebody the engine actually taxed — an employee under the threshold
-    // proves nothing, since 0 === 0 for the wrong reasons.
+    // proves nothing, since 0 === 0 for the wrong reasons. The list arrives
+    // highest-paid first, so the top SAMPLE is where the taxed people are; the
+    // scan stops there rather than running the org's full headcount past a
+    // throttler.
     let checked = 0;
-    for (const slip of slips) {
+    for (const slip of slips.slice(0, SAMPLE)) {
       const deducted = tdsOf(await deductionsOf(slip.id));
       if (deducted <= 0) continue;
 
@@ -149,7 +185,9 @@ describe('payroll calculates tax', () => {
     }
 
     // A vacuous pass is not a pass. If nobody was taxed the assertion above
-    // never ran, and this test would be green while proving nothing.
+    // never ran, and this test would be green while proving nothing. The seed
+    // pays several people well over the threshold, so zero here means the
+    // engine stopped deducting — not that the sample was unlucky.
     expect(checked).toBeGreaterThan(0);
   });
 
@@ -160,22 +198,21 @@ describe('payroll calculates tax', () => {
    */
   it('is idempotent', async () => {
     await calculate();
-    const first = await payslipsFor(run.id);
-    const firstTds = await Promise.all(first.map(async (s) => tdsOf(await deductionsOf(s.id))));
+    const firstSlips = await payslipsFor(run.id);
+    const before = await tdsByEmployee(firstSlips);
 
     await calculate();
-    const second = await payslipsFor(run.id);
-    const secondTds = await Promise.all(second.map(async (s) => tdsOf(await deductionsOf(s.id))));
+    const secondSlips = await payslipsFor(run.id);
+    const after = await tdsByEmployee(secondSlips);
 
-    // Numerically — the default comparator sorts 100 before 20, which would
-    // still compare equal here but for a reason that has nothing to do with
-    // the figures being the same.
-    const ascending = (values: number[]) => [...values].sort((a, b) => a - b);
-    expect(second.length).toBe(first.length);
-    expect(ascending(secondTds)).toEqual(ascending(firstTds));
+    // The count is checked across the whole run — a rebuild that dropped or
+    // duplicated people would show up here. The figures are checked across the
+    // first SAMPLE of it.
+    expect(secondSlips.length).toBe(firstSlips.length);
+    expect(Object.fromEntries(after)).toEqual(Object.fromEntries(before));
 
     // One TDS line per payslip, not one per recalculation.
-    const lines = await deductionsOf(second[0]?.id as string);
+    const lines = await deductionsOf(secondSlips[0]?.id as string);
     expect(lines.filter((line) => line.code === 'TDS').length).toBeLessThanOrEqual(1);
   });
 
@@ -196,15 +233,16 @@ describe('payroll calculates tax', () => {
     if (!published) throw new Error('The seed should leave a published run; none found.');
 
     const before = await payslipsFor(published.id);
-    const beforeTds = await Promise.all(before.map(async (s) => tdsOf(await deductionsOf(s.id))));
+    const beforeTds = await tdsByEmployee(before);
 
     await calculate();
 
     const after = await payslipsFor(published.id);
-    const afterTds = await Promise.all(after.map(async (s) => tdsOf(await deductionsOf(s.id))));
+    const afterTds = await tdsByEmployee(after);
 
+    // Identity across the whole published run, figures across the first SAMPLE.
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id));
-    expect(afterTds).toEqual(beforeTds);
+    expect(Object.fromEntries(afterTds)).toEqual(Object.fromEntries(beforeTds));
 
     // And it refuses outright if somebody tries.
     await request(app.getHttpServer())
