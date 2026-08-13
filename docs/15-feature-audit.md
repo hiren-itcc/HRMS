@@ -495,8 +495,9 @@ which other documents were citing.
     the actual production URL as one of its test cases; and `dependabot.yml`.
 
     **Not done**: the coverage gate. A global 80% threshold would fail on the
-    commit that adds it — organization, audit and all five payroll services have
-    no spec at all — and a gate disabled the day it lands teaches everyone to
+    commit that adds it — organization, audit and six of the eleven payroll
+    services have no spec at all — and a gate disabled the day it lands teaches
+    everyone to
     disable gates. Lighthouse is deferred for the same reason it always is: its
     own flake profile.
 16. ~~**`leave_approved` / `leave_rejected` emails**~~ ✅ **built** —

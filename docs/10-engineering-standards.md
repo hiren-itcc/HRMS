@@ -117,8 +117,9 @@ All of this matters here specifically because the checked-in `.env` says
 environment check protects nothing.
 
 **No coverage gate yet, deliberately.** A global 80% threshold fails on the
-commit that introduces it — organization, audit and the payroll services have no
-specs — and a gate that must be disabled the day it lands teaches everyone to
+commit that introduces it — organization, audit and six of the eleven payroll
+services have no specs — and a gate that must be disabled the day it lands
+teaches everyone to
 disable gates. Ratchet per-path thresholds up instead.
 
 ### `deploy.yml` — on tag `v*` (staging auto; production behind GitHub Environment approval)

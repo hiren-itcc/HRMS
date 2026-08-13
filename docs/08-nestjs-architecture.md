@@ -163,7 +163,7 @@ path, or reintroduce staleness the current design does not have.
 
 | Layer | Tool | Status |
 |---|---|---|
-| Unit | Jest (Nest default) | **Built.** 36 suites, 509 tests — balance math, rotation/reuse, scope filters, payroll calculation, geofencing, offboarding, the org tree. The web app has its own Vitest layer (doc 09); `pnpm turbo run test` runs both. |
+| Unit | Jest (Nest default) | **Built.** 88 suites, 1,696 tests — balance math, rotation/reuse, scope filters, payroll calculation, income-tax projection and slabs, geofencing, offboarding, the org tree. The web app has its own Vitest layer (doc 09), 34 files and 225 tests; `pnpm turbo run test` runs both. |
 | Integration | Jest + Supertest against a real Postgres | ✅ **Built** — `apps/api/test/*.e2e-spec.ts`, run by the `integration` CI job after `migrate deploy` and a seed. **Testcontainers is deliberately not used**: with a service container in CI it buys only local convenience and costs a Docker requirement on every machine, and `docker/compose.yaml` already provides local Postgres. |
 | E2E (API) | Supertest | ✅ **Built.** It was installed and imported by no spec for months, which is how the password-reset enumeration bug reached production — the failure needed an injected transport, so no mocked-Prisma unit test and no browser flow could see it. |
 
@@ -171,8 +171,14 @@ Coverage gate: **not enforced.** `ci.yml` runs `turbo run test` with no coverage
 threshold, so "services ≥ 80%" is an intention rather than a gate.
 
 The unit layer is genuinely strong where the risk is — the pure business rules
-in `payroll.calc.ts`, `attendance.util.ts` and the leave math all have dense
-suites. The weak spot is the opposite corner: the services that touch Prisma.
-`organization` (7 controllers, 7 services), `audit`, and all five payroll
-services have **no spec at all**, which is exactly where an integration layer
-would have paid. See [15-feature-audit.md](./15-feature-audit.md).
+in `payroll.calc.ts`, `tax.engine.ts`, `attendance.util.ts` and the leave math
+all have dense suites. The weak spot is the opposite corner: the services that
+touch Prisma. `organization` (7 controllers, 7 services), `audit`, and six of
+the eleven payroll services — `employee-salaries`, `payroll-reports`,
+`payroll-runs`, `payslips`, `salary-structures` and `statutory-filings` — have
+**no spec at all**, which is exactly where an integration layer pays.
+
+`payroll-runs` is the sharpest of those: `calculate` is what actually writes a
+payslip, and it is reached only from `payroll-tax.e2e-spec.ts`, over HTTP,
+against a real seeded database — so it is covered in CI and not covered at all
+on a developer's machine. See [15-feature-audit.md](./15-feature-audit.md).
