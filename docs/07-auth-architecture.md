@@ -94,21 +94,28 @@ This is a property of the token design, not a scheduled piece of work. **The mob
       end-to-end job raises it; `auth.e2e-spec.ts` proves the limit refuses at
       whatever it is set to, and runs at the default. It had no test at all
       until the browser suite ran into it.
-- [ ] **`TRUST_PROXY` is unset in production, and every limit above is weaker
-      than it reads.** `main.ts` only calls `set('trust proxy')` when the value
-      is above zero, and it defaults to `0`. Render terminates TLS at its edge,
-      so `req.ip` is Render's proxy — confirmed from the live audit log, where
-      every recorded address is a private `10.x` and there are three distinct
-      values across all rows.
+- [x] **`TRUST_PROXY=2` is set on the API service.** `main.ts` only calls
+      `set('trust proxy')` when the value is above zero, and it defaults to `0`
+      — deliberately, because `X-Forwarded-For` is forgeable and trusting it
+      while directly exposed hands an attacker control of the value the
+      throttle keys on. It is a deployment fact, so it comes from configuration.
 
-      Two consequences. The throttler keys on `req.ip`, so these are not
-      per-client limits at all: they are a handful of buckets shared by every
-      user in the world, and one noisy client can lock everyone out. And
-      `AuditLog.ip` and the session list record Render's infrastructure rather
-      than who did what, which is the one thing an audit trail is for.
+      Before it was set, Render terminated TLS at its edge and `req.ip` was
+      Render's proxy — confirmed from the live audit log, where every recorded
+      address was a private `10.x` with three distinct values across all rows.
+      That made the rate limits a handful of buckets shared by every user in
+      the world rather than per-client limits, and made the addresses on
+      sign-in rows and the session list Render's infrastructure rather than who
+      did what.
 
-      Fix is one variable — `TRUST_PROXY=1` on the API service — and it should
-      land before anybody relies on either the limits or the audit addresses.
+      The value is `2`, not `1`, matching
+      [14-production-setup.md](./14-production-setup.md) — Render's edge puts
+      two hops in front of the app, and a count set too high is worse than one
+      set too low, because it starts believing a header the client can write.
+
+      Worth re-reading the live table to confirm real addresses now arrive; the
+      count is the sort of thing that is right in the docs and wrong in the
+      deployment.
 - [x] Validation on every DTO (`ValidationPipe` whitelist+transform → unknown fields rejected)
 - [x] Audit log on: login success/fail, refresh reuse, password change, role/permission change, employee delete, balance adjust
 - [x] No secrets in code — env validated at boot with Zod (`config/` module); app refuses to start on missing/invalid env
