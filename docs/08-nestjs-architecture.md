@@ -77,7 +77,7 @@ modules/leave/
 ## Cross-cutting pipeline (request lifecycle)
 
 ```
-helmet/CORS → pino http log
+helmet/CORS → pino http log → requestContextMiddleware
   → ThrottlerGuard → JwtAuthGuard → PasswordChangeGuard → OnboardingGuard → PermissionsGuard
   → ZodValidationPipe → Controller → Service (tx, scope)
   → HttpExceptionFilter (RFC-7807 shape, maps Prisma known errors → 404/409)
@@ -89,6 +89,14 @@ two in the middle are easy to miss and both are refusals rather than checks:
 `User.mustChangePassword` is set, and `OnboardingGuard` does the same for a
 starter who has not finished intake — with `@AllowDuringOnboarding` as the
 escape hatch on the handful of routes they legitimately need.
+
+**There is exactly one middleware**, and it is the only reason `AppModule`
+implements `NestModule`. `requestContextMiddleware` opens an
+`AsyncLocalStorage` store holding the client address so `auditMutation` can
+record it without a `Request` being threaded through 164 call sites. It lives on
+the module rather than in `main.ts` on purpose: the integration harness builds
+the app straight from `AppModule`, and an audit trail that depends on which
+entrypoint started the process is not one worth having.
 
 **There are no interceptors.** `app.module.ts` registers zero `APP_INTERCEPTOR`.
 Auditing is an explicit `auditMutation` call in each service, which is the

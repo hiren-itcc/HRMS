@@ -373,22 +373,36 @@ document in the company to solve a receipt.
 
 It is also why the helpdesk defers attachments rather than copying this shape.
 
-### Open — `AuditLog.ip` is only ever written by the auth path
+### Fixed — `AuditLog.ip` was only ever written by the auth path
 
 Found while checking whether `TRUST_PROXY` had taken effect, by reading the live
-table rather than the code. Sign-ins carry an address; **every other mutation
-carries `NULL`** — 18 of the last 200 rows, including
+table rather than the code. Sign-ins carried an address; **every other mutation
+carried `NULL`** — 18 of the last 200 rows, including
 `payroll.filing.generate`, `employee.update` and `settings.update`.
 
-The cause is that `auditMutation` (`common/utils/audit.ts`) takes
-`{ orgId, userId }` and has no `ip` parameter at all. That context is the
+The cause was that `auditMutation` (`common/utils/audit.ts`) takes
+`{ orgId, userId }` and had no `ip` parameter at all. That context is the
 decoded JWT, which is the right thing for *who* and the wrong place for *where
 from* — a token payload cannot know the request's address.
 
-Not fixed here, because it is a signature change across **126 call sites in 41
-files** and wants its own change rather than a rider on a test fix. It also
-narrows what `TRUST_PROXY` bought: correct client addresses now reach rate
-limiting and sign-in rows, but the mutation trail records no address either way.
+**Resolved without touching the 164 call sites.** A `requestContextMiddleware`
+registered on `AppModule` opens an `AsyncLocalStorage` store holding the
+client address for the life of each request, and `auditMutation` reads it.
+`ctx.ip` still wins when a caller passes one, so it is a default rather than a
+hijack, and outside a request — seeder, CLI, lifecycle tick — the value is
+`null`, which is the truth.
+
+Two things came out of the fix worth recording. `auditOrgMutation`
+(`organization/services/audit.helper.ts`) kept a **second copy of the same
+insert**, so every department, designation, location, shift and holiday change
+would have carried on writing `NULL`; it now delegates. And the auth path keeps
+a **third** insert of its own, deliberately: a sign-in event holds the request
+already and its `entityId` is nullable in a way the shared signature is not.
+
+The ambient-state trade is real and is argued in the header of
+`common/request-context.ts`. It is bounded by what the store may hold — facts
+about the request, never capabilities — so nothing can grant itself permissions
+through it.
 
 ### Statutory filing — the sharpest commercial gap
 

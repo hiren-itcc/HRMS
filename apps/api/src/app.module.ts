@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { OnboardingGuard } from './common/guards/onboarding.guard';
 import { PasswordChangeGuard } from './common/guards/password-change.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { requestContextMiddleware } from './common/middleware/request-context.middleware';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
@@ -102,4 +103,18 @@ import { WfhModule } from './modules/wfh/wfh.module';
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /**
+   * The only middleware in the application. Middleware runs ahead of the five
+   * guards, so the store is open for the whole of every request that reaches a
+   * handler at all.
+   *
+   * `'*'` rather than a list: the routes worth knowing the origin of are
+   * exactly the ones nobody remembered to annotate. Checked against the
+   * installed stack — Nest 11 on Express 5, where `path-to-regexp` v8 rejects a
+   * bare `*` in a *route* path — and `forRoutes('*')` still resolves and runs.
+   */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(requestContextMiddleware).forRoutes('*');
+  }
+}
