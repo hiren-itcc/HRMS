@@ -4,34 +4,59 @@ Modular monolith. One deployable, strict module boundaries — the "microservice
 
 ## Module map
 
+Thirty first-party modules, registered in `apps/api/src/app.module.ts`.
+
 ```
 AppModule
-├── ConfigModule        (global) Zod-validated env, typed accessor
-├── DatabaseModule      (global) PrismaService (+ tx helper)
-├── LoggerModule        (global) nestjs-pino — request-scoped, redacts auth headers/cookies
-├── StorageModule       (global) StorageAdapter port (SupabaseStorage | LocalDiskStorage)
-├── AuthModule          strategies/jwt, guards, token + invite services
-├── RbacModule          PermissionsGuard, @RequirePermissions, role/permission reads
-├── OrganizationModule  org, departments, designations, employment types, locations, shifts, holidays
-├── EmployeesModule     employee CRUD, directory, "me" profile
-├── OnboardingModule    invite a hire, self-serve intake, HR review queue
-├── AttendanceModule    check-in/out, sessions, records, correction requests
-├── LeaveModule         types, balances, requests
-├── DocumentsModule     per-employee upload/download, folders
-├── LettersModule       templates, issue, void
-├── AnnouncementsModule feed, audience resolution, read receipts, attachments
-├── PayrollModule       structures, salaries, runs, payslips, six reports
-├── ReportsModule       read-only aggregate queries + CSV/Excel serializer
-├── SettingsModule      typed settings registry over key-value rows, email templates
-├── AuditModule         audit query + facets (writes go through auditMutation)
-├── MailModule          MailService over a MailTransport port (Resend | logging)
-└── HealthController    liveness + readiness (no module of its own)
+├── ConfigModule          (global) Zod-validated env, typed accessor
+├── PrismaModule          (global) PrismaService (+ tx helper)
+├── LoggerModule          (global) nestjs-pino — request-scoped, redacts auth headers/cookies
+├── StorageModule         (global) StorageAdapter port (SupabaseStorage | LocalDiskStorage)
+├── NotificationsModule   (global) in-app + email notify, per-user preference
+├── ThrottlerModule       (framework) rate limiting, guard registered below
+│
+├── AuthModule            strategies/jwt, guards, token + invite services
+├── RbacModule            PermissionsGuard, @RequirePermissions, role CRUD, custom roles
+├── OrganizationModule    org, departments, designations, employment types, locations, shifts, holidays
+├── EmployeesModule       employee CRUD, directory, "me" profile, offboard action
+├── EmployeeImportModule  CSV template, preview, commit
+├── OnboardingModule      invite a hire, self-serve intake, HR review queue
+├── AttendanceModule      check-in/out, sessions, records, correction requests
+├── LeaveModule           types, balances, requests
+├── WfhModule             remote-work requests and the weekly cap
+├── DocumentsModule       per-employee upload/stream, folders
+├── LettersModule         templates, issue, void
+├── AnnouncementsModule   feed, audience resolution, read receipts, attachments
+├── PayrollModule         structures, salaries, runs, payslips, reports, statutory filings,
+│                         TDS challans and 24Q, pay components, income tax
+├── SettlementsModule     full-and-final settlement on exit
+├── ResignationsModule    resignation request and approval
+├── OffboardingModule     exit checklist, clearance, exit interview
+├── AssetsModule          register, assignment, exit clearance feed
+├── ExpensesModule        categories, claims, approval → payslip line
+├── PerformanceModule     goals, review cycles, ratings
+├── HelpdeskModule        tickets, threads, desks and the queue
+├── ProjectsModule        project register, staffing, weekly timesheets, utilisation
+├── RecruitmentModule     openings, candidates, interviews, offers, public careers page
+├── ReportsModule         read-only aggregate queries + CSV/Excel serializer
+├── DashboardModule       the landing summary
+├── LifecycleJobsModule   POST /lifecycle/run — the seam where a scheduler would sit
+├── SettingsModule        typed settings registry over key-value rows, email templates
+├── AuditModule           audit query + facets (writes go through auditMutation)
+└── HealthController      liveness + readiness (no module of its own)
 ```
 
-Two entries this map used to carry are **not built**: `UsersModule` — user
-lifecycle lives inside Auth and Employees — and `NotificationsModule`, which is
-covered below. `EmployeesModule` also used to claim offboarding and an org-chart
-query; neither exists (`docs/15-feature-audit.md` §2).
+**`MailModule` is deliberately not in that list.** It is not an `AppModule`
+child — it is imported by the four modules that actually send mail (Auth, Leave,
+Notifications, Onboarding), which keeps "who can send email" answerable from the
+import graph rather than from grep.
+
+**`PrismaModule` and `NotificationsModule` are `@Global`**, which is why several
+modules — Performance, Helpdesk, Projects — have a genuinely empty `imports`
+array. A module with nothing to import is the goal, not an oversight.
+
+One entry this map used to carry is still **not built**: `UsersModule` — user
+lifecycle lives inside Auth and Employees.
 
 ## Internal module layout (uniform)
 
@@ -52,11 +77,23 @@ modules/leave/
 ## Cross-cutting pipeline (request lifecycle)
 
 ```
-helmet/CORS → pino http log → ThrottlerGuard → JwtAuthGuard → PermissionsGuard
-  → ZodValidationPipe → Controller → Service (tx, scope) 
-  → interceptors: Audit (mutations) · ClassSerializer (strips passwordHash etc.)
+helmet/CORS → pino http log
+  → ThrottlerGuard → JwtAuthGuard → PasswordChangeGuard → OnboardingGuard → PermissionsGuard
+  → ZodValidationPipe → Controller → Service (tx, scope)
   → HttpExceptionFilter (RFC-7807 shape, maps Prisma known errors → 404/409)
 ```
+
+Five guards, in that order, registered as `APP_GUARD` in `app.module.ts`. The
+two in the middle are easy to miss and both are refusals rather than checks:
+`PasswordChangeGuard` blocks everything except the change-password route while
+`User.mustChangePassword` is set, and `OnboardingGuard` does the same for a
+starter who has not finished intake — with `@AllowDuringOnboarding` as the
+escape hatch on the handful of routes they legitimately need.
+
+**There are no interceptors.** `app.module.ts` registers zero `APP_INTERCEPTOR`.
+Auditing is an explicit `auditMutation` call in each service, which is the
+decision recorded above; nothing strips fields on the way out, because the
+services select what they return rather than returning rows.
 
 ## Domain events — designed, not built
 
@@ -68,10 +105,15 @@ The original design put `EventEmitter2` with typed contracts in each module —
 fan-out, and so on — as the seam where BullMQ + Redis would later take over.
 
 It was never needed, because the two things it existed to carry both went
-elsewhere. Notifications were not built at all (below), and mail is sent by a
-direct call after the transaction commits, where a failed send can be *returned
-to the caller* rather than swallowed by a listener. For an invite, that is the
-better shape: HR finds out immediately and can resend.
+elsewhere. **Notifications shipped without it** — `NotificationsModule` is
+`@Global` and senders call `notify()` or `notifyPermission()` directly, so a
+fan-out is a function call rather than a listener nobody can find. And mail is
+sent by a direct call after the transaction commits, where a failed send can be
+*returned to the caller* rather than swallowed by a listener. For an invite,
+that is the better shape: HR finds out immediately and can resend.
+
+What is genuinely still absent is what an emitter would have bought on top:
+digests, batching, and retry of a failed fan-out.
 
 The seam is still the right one if durable background work ever arrives. It is
 recorded here as a design note, not as something the code does.

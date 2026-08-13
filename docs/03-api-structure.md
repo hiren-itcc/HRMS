@@ -13,6 +13,24 @@ Base URL: `/api/v1` (versioned from day one). OpenAPI served at `/api/docs` (Swa
 
 ## Endpoints by module
 
+> **A note on the permission column.** Some sections below use a two-column
+> `| Method | Path |` table and name the permission only in prose, or not at
+> all. Roughly 120 routes are gated in code by a `@RequirePermissions` that this
+> document does not state. The gate is real either way — `permissions.guard.ts`
+> enforces it — but the authority is `docs/04-rbac.md` and the decorator, not
+> this table. Widening every table is outstanding work.
+
+
+### Health (`/health`) — public, no token
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness. Answers without touching the database, so a wedged query cannot make the process look dead |
+| GET | `/health/ready` | Readiness. Pings the database; this is the one a load balancer should watch |
+
+Both are `@Public`. Note the global prefix still applies — the paths are
+`/api/v1/health` and `/api/v1/health/ready`, not `/health`.
+
 ### Auth (`/auth`) — public unless noted
 | Method | Path | Purpose |
 |---|---|---|
@@ -38,9 +56,12 @@ allowed and clears the cookie with it.
 | Method | Path |
 |---|---|
 | GET / PATCH | `/organization` — profile, timezone, logo |
-| GET / POST | `/organization/departments` · GET/PATCH/DELETE `/organization/departments/:id` |
+| GET / POST | `/organization/departments` · PATCH/DELETE `/organization/departments/:id` |
+| GET | `/organization/departments/options` · `/designations/options` · `/locations/options` · `/employment-types/options` · `/shifts/options` — id+label pickers; `org.read` |
 | GET / POST | `/organization/designations` · PATCH/DELETE `/organization/designations/:id` |
 | GET / POST | `/organization/locations` · PATCH/DELETE `/organization/locations/:id` |
+| GET / POST | `/organization/employment-types` · PATCH/DELETE `/organization/employment-types/:id` |
+| GET / POST | `/organization/shifts` · PATCH/DELETE `/organization/shifts/:id` |
 | GET / POST | `/organization/holidays` · PATCH/DELETE `/organization/holidays/:id` |
 | GET | `/organization/chart` — reporting tree, work contact facts only; `org.read` |
 
@@ -63,6 +84,11 @@ allowed and clears the cookie with it.
 | POST | `/employees/:id/confirm` — off probation; `employee.confirm` |
 | POST | `/employees/:id/extend-probation` — push the end date back, with a reason; `employee.confirm` |
 | GET | `/employees/:id/activity` — employment history, from the audit trail |
+| GET | `/employees/export` — the list as CSV/Excel; `employee.read` \| `report.export` |
+| GET | `/employees/import/template` — the column headers to fill in; `employee.import` |
+| POST | `/employees/import/preview` — upload, parse, report what would happen; `employee.import` |
+| POST | `/employees/import/:id/commit` — apply a previewed import; `employee.import` |
+| GET | `/employees/import/:id` — one import and its row-level results; `employee.import` |
 
 **Neither avatar write carries `@RequirePermissions`, and that is deliberate.**
 Whether setting a photo costs `employee.update.own` or `employee.update`
@@ -116,7 +142,6 @@ the lifecycle tick hangs off a request: there is no scheduler.
 | PATCH | `/offboardings/tasks/:taskId` — sign a clearance item off, waive it, reopen it; `offboarding.clearance` |
 | GET / PUT | `/offboardings/:id/interview` — the exit conversation; `employee.offboard` only |
 | GET | `/offboardings/:id/activity` — the trail for this exit |
-| GET | `/lifecycle/stats` — dashboard counts, each null when the caller may not see it |
 | GET / POST | `/lifecycle/status` · `/lifecycle/run`; `settings.manage` |
 
 **Completion is gated on clearance.** `complete` refuses while any *required*
@@ -214,31 +239,38 @@ the table later cannot be published to the company by accident.
 | POST | `/attendance/check-in` — self; opens a session. Body `{ latitude, longitude, accuracyMeters }` **or** `{ locationUnavailable: true }` — one or the other is required, and the work mode is derived from the position, never sent |
 | POST | `/attendance/check-out` — self; closes it. Same body rules |
 | GET | `/attendance/today` — self, current day state |
-| GET | `/me/attendance?from=&to=` — self history |
+| GET | `/attendance/me?from=&to=` — self history |
 | GET | `/attendance?date=&departmentId=` — team/org view (permission-scoped: manager sees reports, HR sees all) |
 | POST | `/attendance/requests` — regularization request (self) |
 | GET | `/attendance/requests?status=` — inbox (approver) / own (employee) |
 | POST | `/attendance/requests/:id/approve` · `/reject` · `/cancel` |
-| GET / POST | `/attendance/shifts` · PATCH/DELETE `/attendance/shifts/:id` |
+| GET | `/attendance/summary?month=` — org/team roll-up; `attendance.read` \| `attendance.read.team` |
+| GET | `/attendance/employees/:employeeId?from=&to=` — one person's history; `attendance.read` \| `attendance.read.team` |
+
+**Shifts are not here.** They live under `/organization/shifts` — a shift is a
+piece of company structure, not an attendance record.
 
 ### Leave (`/leave`)
 | Method | Path |
 |---|---|
 | GET / POST | `/leave/types` · PATCH/DELETE `/leave/types/:id` |
-| GET | `/me/leave/balances` — self balances for current year |
+| GET | `/leave/balances/me` — self balances for current year |
 | GET | `/leave/balances?employeeId=&year=` — HR view; POST `/leave/balances/adjust` (manual adjustment, audited) |
 | POST | `/leave/requests` — apply (validates balance + overlaps + holidays) |
 | GET | `/leave/requests?status=&employeeId=` — own / inbox / HR-all by permission |
 | POST | `/leave/requests/:id/approve` · `/reject` · `/cancel` |
 | GET | `/leave/calendar?month=` — who's out (team/org scoped) |
+| GET | `/leave/types/options` — id+label picker |
+| GET | `/leave/requests/preview?from=&to=&half=` — working days and balance impact before applying |
 
 ### Documents (`/documents`)
 | Method | Path |
 |---|---|
 | GET / POST | `/documents/categories` · PATCH/DELETE `/documents/categories/:id` |
-| POST | `/documents` — multipart upload (max size from settings) |
+| POST | `/employees/:employeeId/documents` — multipart upload (max size from settings); allowed during onboarding |
 | GET | `/documents?employeeId=&categoryId=&search=` — **org-wide, `document.read`.** The HR list across every employee, paginated. Per-employee reads stay on `/employees/:id/documents`, where the scope depends on *which* employee and so has to be settled in the service |
-| GET | `/documents/:id/download` — permission check → 302 to signed URL |
+| GET | `/documents/:id/file` — permission check, then **streams** the bytes (`StreamableFile`). No redirect and no signed URL: the bucket is private and stays private, so the API is the only reader |
+| PATCH | `/documents/:id` — move to another folder |
 | DELETE | `/documents/:id` — soft delete |
 
 ### Letters (`/letters`)
@@ -462,6 +494,60 @@ would be two payslip lines with the same code.
 There is no "mark paid" route. Whether the money arrived is whether the payroll
 run for the claim's month was published, and that is derived on read.
 
+### Projects (`/projects`) and timesheets (`/timesheets`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/projects` — register; `scope=own\|all`, filter status, search code/name | `project.read.own` |
+| POST | `/projects` — open one | `project.manage` |
+| GET | `/projects/reports/utilisation` — hours per person per project, `from`/`to` | `project.read` |
+| GET | `/projects/:id` — one project with its members | `project.read.own` |
+| PATCH | `/projects/:id` — edit | `project.read.own` **+ manage or be its manager** |
+| DELETE | `/projects/:id` — delete; refused once anything is logged | `project.manage` |
+| POST | `/projects/:id/members` — staff somebody | `project.read.own` **+ manage or be its manager** |
+| PATCH | `/projects/members/:memberId` — role, allocation, dates | `project.read.own` **+ manage or be its manager** |
+| DELETE | `/projects/members/:memberId` — refused once they have logged hours | `project.read.own` **+ manage or be its manager** |
+| GET | `/timesheets` — weeks; `scope=own\|team\|all`, status, `from`/`to` | `timesheet.read.own` |
+| GET | `/timesheets/week?weekStart=` — my week and the projects I may log against | `timesheet.read.own` |
+| PUT | `/timesheets/week` — save the week; **entries are replaced wholesale** | `timesheet.submit.own` |
+| GET | `/timesheets/:id` — one week | `timesheet.read.own` |
+| POST | `/timesheets/:id/submit` — send it to my manager | `timesheet.submit.own` |
+| POST | `/timesheets/:id/withdraw` — pull it back to draft | `timesheet.submit.own` |
+| POST | `/timesheets/:id/approve` | `timesheet.approve.team` |
+| POST | `/timesheets/:id/reject` — **note required** | `timesheet.approve.team` |
+
+**Timesheets are not nested under a project.** A week spans projects, so
+`/projects/:id/timesheets` would make the resource lie about what it is. The web
+app still shows them behind the Projects nav entry — the path and the screen do
+not have to agree.
+
+**`GET /timesheets/week` writes nothing.** It answers `timesheet: null` when the
+week has never been touched. A GET that lazily created the row would leave an
+empty draft for everybody who ever opened the screen, and `PUT` has to handle
+the not-yet-existing case anyway — it upserts on `(employeeId, weekStart)`,
+which is also what makes two requests racing to open one week collide instead of
+producing two half-filled sheets.
+
+**Saving is deliberately more permissive than submitting.** `PUT` refuses only
+what would corrupt the row: a non-Monday `weekStart`, a day outside the week,
+the same project twice on one day, a project from another organization.
+Membership windows, closed projects and a 30-hour Tuesday are `submit`'s
+question — a draft is a scratchpad, and being blocked mid-thought is how people
+stop filling one in. `submit` then reports **every** problem at once.
+
+**The staffing routes carry `project.read.own` and check the rest in the
+service**, because a project's own manager may staff it without
+`project.manage` — see docs/04-rbac.md §ownership-as-a-grant. Read routes carry
+the weakest code that could reach them and the service narrows from the token's
+scope; an unreadable project or week answers **404, not 403**.
+
+**Deleting counts first.** `TimesheetEntry.projectId` is RESTRICT, so without a
+`_count` pre-flight the database refuses as a raw Prisma error and the caller
+gets a 500. Both delete routes answer with a sentence naming the count and the
+way out — mark the project completed, or set a leaving date on the member.
+
+There is no cost or billing rate anywhere in this module, and no client entity.
+
 ### Helpdesk (`/helpdesk`)
 
 | Method | Path | Permission |
@@ -631,6 +717,9 @@ than becoming `0`.
 | POST | `/announcements` · PATCH/DELETE `/announcements/:id` |
 | POST | `/announcements/:id/read` — mark read |
 | GET | `/announcements/:id/reads` — read receipts (author/HR) |
+| POST | `/announcements/:id/attachments` — multipart; `announcement.manage` |
+| GET | `/announcements/attachments/:attachmentId/file` — streams the bytes; `announcement.read` |
+| DELETE | `/announcements/attachments/:attachmentId` — `announcement.manage` |
 
 ### Notifications (`/notifications`)
 
@@ -689,7 +778,10 @@ endpoint — it is the same query surface.
 
 | Method | Path | Permission |
 |---|---|---|
-| GET | `/payroll/components` — pay component catalogue | `payroll.structure.manage` \| `payroll.read` |
+| GET | `/payroll/components` — pay component catalogue; `includeInactive` needs the manage code | `payroll.structure.manage` \| `payroll.read` |
+| POST | `/payroll/components` — add an allowance or deduction | `payroll.structure.manage` |
+| PATCH | `/payroll/components/:id` — rename, reorder, retire | `payroll.structure.manage` |
+| DELETE | `/payroll/components/:id` — refused if anything references it | `payroll.structure.manage` |
 | GET / POST | `/payroll/structures` · GET/PATCH/DELETE `/payroll/structures/:id` | `payroll.read` / `payroll.structure.manage` |
 | GET | `/payroll/structures/options` — active structures for the assignment form | `payroll.salary.manage` \| `payroll.read` |
 | POST | `/payroll/structures/:id/clone` — copy, starts inactive | `payroll.structure.manage` |
@@ -736,6 +828,77 @@ built from the payslips of a run rather than recalculated, so a report and the
 payslip it summarises can never disagree. The bank-transfer report excludes
 payslips with no account rather than emitting blank rows, and reports how many
 it dropped.
+
+### Statutory filings (`/payroll/filings`) — PF ECR and ESIC
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/filings?kind=&month=` — what has been generated | `payroll.read` |
+| GET | `/payroll/filings/readiness?kind=&month=` — can this month be filed at all | `payroll.read` |
+| GET | `/payroll/filings/preview?kind=&month=` — the first lines, plus exclusions | `payroll.read` |
+| POST | `/payroll/filings?kind=&month=` — generate and freeze | `payroll.filing` |
+| GET | `/payroll/filings/:id/file` — the stored bytes, never rebuilt | `payroll.filing` |
+| DELETE | `/payroll/filings/:id` | `payroll.filing` |
+
+**Readiness fires before a month can be chosen**, not at download time. Refusing
+after somebody has picked a period and believed the totals is the worst possible
+moment. Exclusions render *before* the totals and are never collapsed: somebody
+left out for want of a UAN is a person whose contribution is not reaching their
+account.
+
+The establishment codes these need — EPFO code, ESIC employer code, TAN, PAN,
+signatory — live in the `statutory` settings group. A file without them is not a
+short file, it is an unusable one, so their absence is a refusal.
+
+**No file here has been accepted by a portal in this deployment.** Golden-file
+tests prove the builder is stable; that is not the same as an upload succeeding,
+and the screen says so.
+
+### Income tax (`/payroll/tax`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/payroll/tax/me?financialYear=&month=` — my regime, projection and this month's TDS | `payroll.read.own` |
+| PUT | `/payroll/tax/me/regime` — choose a regime for a year | `payroll.read.own` |
+| GET | `/payroll/tax/me/declaration?financialYear=` | `payroll.read.own` |
+| PUT | `/payroll/tax/me/declaration` — **items are replaced wholesale** | `payroll.read.own` |
+| POST | `/payroll/tax/me/declaration/submit` | `payroll.read.own` |
+| GET | `/payroll/tax/configuration?financialYear=` — the year's slabs and limits | `payroll.tax.view` |
+| GET | `/payroll/tax/pending?financialYear=` — declarations waiting on HR | `payroll.tax.declaration.approve` |
+| GET | `/payroll/tax/employees?financialYear=&month=&regime=&status=&departmentId=&search=` | `payroll.tax.view` |
+| GET | `/payroll/tax/employees/:employeeId` — one projection, slab by slab | `payroll.tax.view` |
+| GET | `/payroll/tax/employees/:employeeId/declaration` | `payroll.tax.view` |
+| POST | `/payroll/tax/employees/:employeeId/declaration/approve` | `payroll.tax.declaration.approve` |
+| POST | `/payroll/tax/employees/:employeeId/declaration/reject` — **note required** | `payroll.tax.declaration.approve` |
+| PUT | `/payroll/tax/employees/:employeeId/override` — one month, with a reason | `payroll.tax.manage` |
+| DELETE | `/payroll/tax/employees/:employeeId/override?month=` | `payroll.tax.manage` |
+
+**`month` is a parameter, never "now".** The remaining-months divisor has to be
+reproducible: asking about April in December must still say twelve. Every read
+takes the payroll month it is answering as of, and defaults to the current one
+only when the caller omits it.
+
+**Monthly TDS is `remaining tax ÷ remaining payroll months`** — twelve in April,
+six in October, one in March, and six for somebody who joined in October
+whatever month it is now. Not annual ÷ 12, and not a fixed six-month rule: both
+under-deduct a mid-year joiner and dump the shortfall on them in March.
+
+**An unconfirmed financial year refuses rather than guessing.** A
+`TaxConfiguration` ships `UNCONFIRMED` until somebody enters that year's Finance
+Act numbers, and payroll skips those employees rather than deducting zero — a
+zero on a payslip reads as "no tax due", which is a different claim. The run
+reports how many were skipped. This is the same device
+`FVU_SPEC_VERSION = 'UNTRANSCRIBED'` uses for the 24Q layout.
+
+**Saving a declaration is more permissive than submitting it**, and **approval
+is where `approvedAmount` is written** — capped again against the statutory
+limit, because HR trimming a figure is a reason to lower it and never to exceed
+the cap. Declaring above a section limit is allowed and capped on the way
+through; refusing the number would only teach people to under-report it.
+
+**Nothing here touches Form 24Q.** The return reads actual `PayslipLine` rows
+with code `TDS`, exactly as before. This module
+decides what goes into that line and stops there.
 
 ### TDS returns
 
@@ -798,8 +961,9 @@ lines and **keeps manual ones** — a negotiated bonus cannot be derived twice.
 per month, prorates by working days, and computes statutory deductions on gross;
 a settlement lands weeks after the last working day and its amounts must stay
 outside that base, because ESI is a cliff rather than a taper and a payout added
-to monthly gross would switch it off for the month. Tax is entered by hand, as
-monthly TDS already is.
+to monthly gross would switch it off for the month. Settlement tax is entered by
+hand — regular monthly TDS is computed (§income-tax), but a settlement sits
+outside the monthly projection on purpose.
 
 **Completion is not gated on settlement.** It routinely lands weeks late, and
 blocking would keep somebody's access open until Finance pays. A company that
@@ -815,15 +979,38 @@ item, which is on the default checklist.
 | PUT / DELETE | `/settings/email-templates/:key` — edit / reset to default | `settings.manage` |
 | GET | `/roles` · GET `/permissions` — matrix data | `role.manage` |
 | PUT | `/roles/:id/permissions` — replace grants (guardrails applied) | `role.manage` |
+| GET | `/roles/assignable` — roles that may be given to an employee | `employee.create` \| `role.manage` |
+| POST | `/roles` — compose a custom role | `role.manage` |
+| PATCH | `/roles/:id` — rename or re-describe; the code is immutable | `role.manage` |
+| DELETE | `/roles/:id` — refused while anybody holds it | `role.manage` |
+
+**A custom role's `code` cannot change after creation.** The access token
+carries `roleCode`, so renaming one would leave every live token asserting a
+role that no longer exists. System roles cannot be renamed or deleted at all.
+
+**Nobody may grant a permission they do not hold themselves**, and nobody may
+edit the permissions of the role they are signed in under — the second is not
+redundant, because `claims.perms` is up to fifteen minutes stale and would
+otherwise let somebody restore a permission that was just taken from them.
 | GET | `/audit?resource=&entity=&actorId=&action=&from=&to=` | `audit.read` |
 | GET | `/audit/facets` — distinct actions and entities for the filters | `audit.read` |
 
 `GET /settings` is deliberately ungated: every user needs `workingWeek` to
-render the attendance calendar and `modules` to render navigation. The three
-groups are `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
+render the attendance calendar, `localization` to format dates, and `modules` to
+render navigation.
+
+There are **nine** groups, each stored as one `Setting` row so patching one
+never rewrites another: `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
 (`yearStartMonth`, `allowNegativeBalance`), `payroll` (currency, pay day, LOP
-basis, and the PF / ESI / professional-tax rules) and `modules`; each is stored
-as one `Setting` row so patching one never rewrites another.
+basis, and the PF / ESI / professional-tax rules), `lifecycle`, `exitChecklist`,
+`settlement`, `wfh`, `statutory` (TAN, PAN, establishment codes, signatory) and
+`modules`.
+
+`modules` has twelve keys — `attendance`, `leave`, `documents`, `announcements`,
+`reports`, `payroll`, `assets`, `wfh`, `expenses`, `performance`, `helpdesk`,
+`projects` — and is **presentation only, never authorization**: turning a module
+off hides its navigation entry and leaves its API reachable by anyone holding
+the permissions.
 
 The patch schema strips defaults **recursively**, because the payroll group
 nests: without that, a PATCH of `payroll.pf.employeeRate` would materialise its

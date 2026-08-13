@@ -38,6 +38,7 @@ employee.read.team
 employee.read          employee.create      employee.update      employee.delete
 employee.invite        employee.offboard    employee.onboarding.approve
  employee.confirm       (confirm off probation, extend probation)
+employee.import        (bulk CSV: template, preview, commit)
 
 resignation.request.own   resignation.read.own
 resignation.read.team     resignation.approve.team
@@ -84,6 +85,21 @@ performance.read.own   performance.goal.own
 performance.read.team  performance.goal.team    performance.review.team   (write the manager half, for their own reports)
 performance.read       performance.manage       (cycles, and reassigning a reviewer)
 
+helpdesk.read.own      helpdesk.raise.own
+helpdesk.read          (every ticket in the organization)
+helpdesk.respond       (the queue: assigned to me, plus unassigned)
+helpdesk.manage        (desks and their routing)
+
+payroll.tax.view       (anybody's regime, projection and declaration)
+payroll.tax.manage     (the year's slabs, and a monthly TDS override)
+payroll.tax.declaration.approve                  (agree a declaration — asserts proofs were seen)
+
+project.read.own       (projects I am on, or run)
+timesheet.read.own     timesheet.submit.own     (fill, send, pull back my own week)
+timesheet.read.team    timesheet.approve.team   (a manager, for their own reports)
+project.read           project.manage           (the register: open, edit, close, delete, staff)
+timesheet.read         (every week in the organization)
+
 recruitment.read.team  (a hiring manager's own openings)
 recruitment.read       recruitment.opening.manage
 recruitment.candidate.manage                     (add a candidate, put them forward, move a stage)
@@ -104,6 +120,7 @@ payroll.salary.manage                            (assign and revise salaries)
 payroll.process        (open a run, calculate, publish; prepare a settlement)
 payroll.approve        (approve, reopen, lock; approve or cancel a settlement)
 payroll.pay            (record payment against payslips and settlements)
+payroll.filing         (generate a statutory return: ECR, ESIC, Form 24Q)
 
 settings.manage        role.manage              audit.read
 ```
@@ -118,6 +135,7 @@ settings.manage        role.manage              audit.read
 | `employee.create` / `update` / `invite` / `offboard` | ✅ | ✅ | — | — | — |
 | `employee.onboarding.approve` | ✅ | ✅ | — | — | — |
 | `employee.confirm` (off probation) | ✅ | ✅ | — | — | — |
+| `employee.import` (bulk CSV) | ✅ | ✅ | — | — | — |
 | `employee.delete` | ✅ | — | — | — | — |
 | `directory.read` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -142,6 +160,11 @@ settings.manage        role.manage              audit.read
 | `performance.read.own` / `performance.goal.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `performance.read.team` / `performance.goal.team` / `performance.review.team` | ✅ | ✅ | — | ✅ | — |
 | `performance.read` / `performance.manage` | ✅ | ✅ | — | — | — |
+| `payroll.tax.view` (anybody's tax) | ✅ | ✅ | ✅ | — | — |
+| `payroll.tax.manage` / `payroll.tax.declaration.approve` | ✅ | ✅ | — | — | — |
+| `project.read.own` / `timesheet.read.own` / `timesheet.submit.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `timesheet.read.team` / `timesheet.approve.team` | ✅ | ✅ | — | ✅ | — |
+| `project.read` / `project.manage` / `timesheet.read` | ✅ | ✅ | — | — | — |
 | `recruitment.read.team` (own openings) / `recruitment.interview.submit` | ✅ | ✅ | — | ✅ | — |
 | `recruitment.read` / `opening.manage` / `candidate.manage` / `offer.manage` / `hire` | ✅ | ✅ | — | — | — |
 | `wfh.read.own` / `wfh.request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -168,6 +191,9 @@ settings.manage        role.manage              audit.read
 | `payroll.process` (open, calculate, publish; prepare a settlement) | ✅ | ✅ | — | — | — |
 | `payroll.approve` (approve, reopen, lock; approve a settlement) | ✅ | — | ✅ | — | — |
 | `payroll.pay` (record payment, incl. settlements) | ✅ | — | ✅ | — | — |
+| `payroll.filing` (ECR, ESIC, Form 24Q) | ✅ | ✅ | ✅ | — | — |
+| `helpdesk.read.own` / `helpdesk.raise.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `helpdesk.read` (every ticket) / `helpdesk.respond` / `helpdesk.manage` | ✅ | ✅ | — | — | — |
 
 ## Enforcement (single path, no exceptions)
 
@@ -243,6 +269,79 @@ therefore demands the caller actually be that employee's manager — without it
 every manager in the organization could sign off every handover.
 `employee.offboard` holders may sign off anything, which is also what covers
 `IT_ADMIN` items until somebody composes an IT role in Settings → Roles.
+
+### Why the helpdesk has no team scope either
+
+`helpdesk.read.team` does not exist, and a manager holds nothing here beyond
+the two codes everybody has.
+
+A ticket is bilateral — one person and a desk. It may be a payslip query, a
+request to correct a date of birth, or a grievance about a manager, and in the
+last case the manager a team scope would hand it to is exactly who must not
+read it by default. Adding the scope later is one code; removing it after
+tenants have granted it is a breaking change to their access model.
+
+`helpdesk.respond` grants **the queue** — tickets assigned to you plus
+unassigned ones — and not org-wide reading, which is `helpdesk.read`.
+Collapsing the two would make "may work the desk" and "may read every grievance
+in the company" the same grant, and they are not the same grant.
+
+`helpdesk.raise.own` exists rather than being implied by `read.own`, the same
+call `expense.submit.own` and `resignation.request.own` make. Raising a ticket
+is not really a privilege HR withholds — switching it off only means the
+question arrives as a direct message instead — but the code lets an organization
+turn it off for a population without touching the module.
+
+An organization that wants team leads answering tickets composes a role in
+Settings → Roles and grants `helpdesk.respond`. No code change is needed.
+
+### Why income tax has no team scope
+
+Every other module here uses the own/team/all triad. Income tax deliberately
+does not, and a **manager holds nothing in it**.
+
+What somebody declared under 80D is a medical-insurance premium for their
+parents. What they claim under 80U is a disability. What their HRA exemption
+implies is where they live and what they pay for it. A reporting line is a
+reason to approve their leave; it is not a reason to read any of that.
+
+So there are three codes and no `.team`: `payroll.tax.view` reads anybody's
+position, `payroll.tax.declaration.approve` agrees a declaration, and
+`payroll.tax.manage` maintains the year's slabs and can override a month. HR
+holds all three, Finance holds only the first — it answers for the TDS it
+deposits, so it must see how a figure was reached, but whether somebody's 80C
+proof is genuine is not its call.
+
+Your own tax page needs no code of its own. It is gated by `payroll.read.own`,
+which everybody already holds: a permission granted to all five roles answers no
+question.
+
+### Ownership as a grant, not a permission
+
+Projects add one more of these, and it is the only place in the product where
+a *row* confers a right no code does.
+
+`project.manage` is org-wide and lands on HR. But a project's own `managerId`
+may add, edit and remove its members **without holding it** — the service
+accepts `project.managerId === claims.employeeId` as an alternative
+(`assertMayManage`). The controller therefore carries only `project.read.own`
+on the staffing routes: the guard is the floor, and the service is the rule.
+
+The alternative was every staffing change routing through HR, which is how a
+register stops matching reality — and a new permission for "may staff the
+projects I run" would have to be granted per person to mean anything, which is
+not a permission, it is a row.
+
+The grant deliberately stops short of `DELETE /projects/:id`. Deleting is a
+register-level act rather than a staffing one, so the owner is refused there
+and HR is not. There is no `project.read.team`: `project.read.own` already
+means "on it, or running it", and a project somebody's report is on that they
+neither run nor work on is not theirs to read.
+
+Finance holds nothing in this module at all. It records hours, not money —
+there is no cost rate and no billing rate, so there is no finance decision in
+it. If cost rates ever land they are salary data, and that argument starts in
+`permissions.ts`, not here.
 
 ## Beyond the guard: state as a second gate
 

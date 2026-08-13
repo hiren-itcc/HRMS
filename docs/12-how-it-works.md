@@ -472,9 +472,11 @@ Pay is reduced proportionally for people who joined or left mid-month, and for
 unpaid leave and unexplained absences.
 
 Statutory rates are **configurable in settings**, not fixed in the software, so
-they can be updated when the law changes. Income tax deducted at source is
-entered by hand per employee — calculating it properly needs annual projections
-and investment declarations the system does not hold.
+they can be updated when the law changes. Income tax is now computed rather
+than typed in: each person picks a regime for the financial year, declares
+their investments if they picked the old one, and payroll works out the annual
+liability and spreads what is left of it across the payroll months still to
+come. Nobody enters a monthly TDS figure per employee any more.
 
 ### Paying
 
@@ -608,9 +610,11 @@ access stays open until finance pays. A company that wants the two coupled can
 add a finance-owned "clear outstanding dues" item to the clearance checklist,
 which is on the default list already.
 
-Tax is not withheld on a settlement. The system does not project tax anywhere —
-monthly TDS is entered per employee, not computed — and a settlement is not
-where a tax engine should first appear. HR adds a deduction line for it.
+Tax is not withheld on a settlement. Monthly TDS *is* now projected and
+computed for regular payroll, but a settlement lands outside the monthly base
+on purpose — its amounts must stay out of the statutory gross, so folding them
+into the annual projection is a separate decision. HR adds a deduction line for
+settlement tax.
 
 ---
 
@@ -811,8 +815,9 @@ Being straight about this is more useful than a feature list:
 - **Nothing is emailed when a resignation moves.** Approvals, clearance
   sign-offs and settlement approvals all raise an in-app notification and
   nothing else, so somebody who does not open the app does not hear about it.
-- **Tax is not computed on a settlement**, or projected anywhere else. Monthly
-  TDS is entered per employee, and settlement tax is a line HR adds by hand.
+- **Tax is not computed on a settlement.** Monthly TDS is projected and
+  deducted automatically for regular payroll, but settlement tax is still a
+  line HR adds by hand.
 - **The asset register does not do depreciation, purchasing or vendors.** It
   records what exists and who has it. What a laptop is worth after three years
   is an accounting question this does not answer.

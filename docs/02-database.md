@@ -76,7 +76,7 @@ writes it — see the model below.
 **The diagram stops at Payroll.** Exits, assets, remote work and recruitment
 are not on it — twenty-odd tables added after it was drawn. It is kept as a map
 of the core rather than being grown into an unreadable one; the model list
-below is complete and is what to read for anything later than Payroll.
+below is what to read for anything later than Payroll.
 
 ## Prisma models
 
@@ -138,14 +138,17 @@ model User {
 enum UserStatus { INVITED ACTIVE SUSPENDED }
 
 model Role {
-  id          String  @id @default(cuid())
-  code        String  @unique            // ADMIN, HR, MANAGER, EMPLOYEE (seeded)
-  name        String
-  description String?
-  isSystem    Boolean @default(false)    // system roles are not deletable
+  id             String  @id @default(cuid())
+  organizationId String                     // roles are per-tenant, not global
+  code           String                     // ADMIN, HR, FINANCE, MANAGER, EMPLOYEE (seeded)
+  name           String
+  description    String?
+  isSystem       Boolean @default(false)    // seeded roles: not deletable, code not editable
 
   users       User[]
   permissions RolePermission[]
+
+  @@unique([organizationId, code])          // one ADMIN per org, not one in the world
 }
 
 model Permission {
@@ -1098,6 +1101,73 @@ model ExpenseItem {
   receiptId   String?  @unique
 }
 
+// ─── Projects & timesheets ────────────────────────────────────────────
+// A named piece of work with an owner, who is staffed on it, and the week
+// each of them logs against it. Internal only: there is no Client here, and
+// no money — no cost rate and no billing rate anywhere.
+
+enum ProjectStatus  { PLANNED ACTIVE ON_HOLD COMPLETED CANCELLED }
+enum TimesheetStatus { DRAFT SUBMITTED APPROVED REJECTED }
+
+model Project {
+  id             String        @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  description    String?
+  status         ProjectStatus @default(PLANNED)
+  startsOn       DateTime      @db.Date
+  /// Open-ended until somebody closes it.
+  endsOn         DateTime?     @db.Date
+  managerId      String
+
+  @@unique([organizationId, code])
+}
+
+model ProjectMember {
+  id         String    @id @default(cuid())
+  projectId  String
+  employeeId String
+  /// What they do here — free text, because a job title does not fit.
+  role       String?
+  /// Percent of one person's time. Planning data, deliberately never compared
+  /// against logged hours: the gap between the two is what a utilisation
+  /// report exists to show, not something to refuse.
+  allocation Int       @default(100)
+  joinedOn   DateTime  @db.Date
+  /// Set when somebody rolls off. Their logged hours stay.
+  leftOn     DateTime? @db.Date
+
+  @@unique([projectId, employeeId])
+}
+
+model Timesheet {
+  id             String          @id @default(cuid())
+  organizationId String
+  employeeId     String
+  /// Always a Monday, which Postgres cannot express — the rules file refuses
+  /// anything else on the way in.
+  weekStart      DateTime        @db.Date
+  status         TimesheetStatus @default(DRAFT)
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+
+  @@unique([employeeId, weekStart])
+}
+
+model TimesheetEntry {
+  id          String   @id @default(cuid())
+  timesheetId String
+  projectId   String
+  workedOn    DateTime @db.Date
+  hours       Decimal  @db.Decimal(4, 2)
+  note        String?
+
+  @@unique([timesheetId, projectId, workedOn])
+}
+
 // ─── Recruitment ──────────────────────────────────────────────────────
 // The front of the lifecycle. A Candidate is a person the organization is
 // talking to, not a member of staff — see "Notable design calls" for why the
@@ -1291,7 +1361,7 @@ model EmployeeSalary {
   structureId   String
   effectiveFrom DateTime           @db.Date
   monthlyCtc    Decimal            @db.Decimal(14, 2)
-  monthlyTds    Decimal            @default(0) @db.Decimal(14, 2)  // entered, not projected
+  monthlyTds    Decimal            @default(0) @db.Decimal(14, 2)  // legacy: superseded by the tax engine
   revisionType  SalaryRevisionType @default(JOINING)
   reason        String?
   paymentMethod PaymentMethod      @default(BANK_TRANSFER)
@@ -1412,6 +1482,510 @@ model AuditLog {
 }
 ```
 
+### Everything after Recruitment
+
+These eighteen models and thirteen enums shipped between 11 and 13 August 2026
+and were absent from this document until the sweep on the 13th. They are grouped
+by module rather than threaded into the list above, because that list is roughly
+chronological and inserting them would scatter each module's tables.
+
+
+#### Performance
+
+```prisma
+enum ReviewCycleStatus { DRAFT OPEN CLOSED }
+enum GoalStatus { ACTIVE ACHIEVED MISSED CANCELLED }
+enum ReviewStatus { PENDING_SELF PENDING_MANAGER SHARED ACKNOWLEDGED CANCELLED }
+
+model ReviewCycle {
+  id             String            @id @default(cuid())
+  organizationId String
+  /// "H1 2026". Unique per org, because the same name twice is always a mistake.
+  name           String
+  periodStart    DateTime          @db.Date
+  periodEnd      DateTime          @db.Date
+  /// When assessments are expected. Nullable — nothing enforces it, and
+  /// "overdue" is derived rather than flagged by a job that does not exist.
+  dueOn          DateTime?         @db.Date
+  /// Service before periodEnd needed to be enrolled. On the cycle rather than
+  /// in Setting because it is a per-cycle decision: a mid-year catch-up cycle
+  /// wants a different answer from the annual one. It is also why this module
+  /// needs no settings group at all.
+  minServiceDays Int               @default(90)
+  status         ReviewCycleStatus @default(DRAFT)
+  openedAt       DateTime?
+  closedAt       DateTime?
+  /// Bare id, not a relation — the same call ExpenseClaim.decidedById makes.
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  goals        PerformanceGoal[]
+  reviews      PerformanceReview[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@index([organizationId, periodStart, periodEnd])
+}
+
+model PerformanceGoal {
+  id             String     @id @default(cuid())
+  organizationId String
+  cycleId        String
+  employeeId     String
+  title          String
+  description    String?
+  /// What "done" looks like, in words. A number with a unit would be a metric
+  /// engine, which is OKR territory and deliberately not built.
+  target         String?
+  /// Percent, 0-100. Int rather than Decimal: three equal goals become 34/33/33
+  /// rather than 33.33 each, which nobody has ever minded, and it keeps this
+  /// whole module free of Decimal — which serialises to JSON as a string and has
+  /// already put NaN on one screen in this product.
+  progress       Int        @default(0)
+  /// Percent of the review. 0 means unweighted, which is a legitimate choice.
+  weight         Int        @default(0)
+  status         GoalStatus @default(ACTIVE)
+  dueOn          DateTime?  @db.Date
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, employeeId])
+  @@index([employeeId, status])
+  @@index([organizationId, cycleId])
+}
+
+model PerformanceReview {
+  id                 String       @id @default(cuid())
+  organizationId     String
+  cycleId            String
+  employeeId         String
+  /// A **snapshot** of the employee's manager taken when the cycle opened, not
+  /// a live join. A reorg in April must not hand a half-written H1 review to
+  /// somebody who has never met the person, and "who reviewed me in H1 2026"
+  /// has to stay answerable in 2028. The same freezing Offer and Payslip do.
+  ///
+  /// Nullable, because whoever is at the top of the chart has no manager. That
+  /// review is enrolled anyway and HR assigns a reviewer, rather than the CEO
+  /// being silently absent from every cycle the company runs.
+  reviewerId         String?
+  status             ReviewStatus @default(PENDING_SELF)
+  selfRating         Int?
+  selfComment        String?
+  selfSubmittedAt    DateTime?
+  managerRating      Int?
+  managerComment     String?
+  /// The part the employee is meant to act on, and the next cycle reads back.
+  /// Merged into the comment it becomes the last paragraph nobody re-reads.
+  managerActions     String?
+  managerSubmittedAt DateTime?
+  sharedAt           DateTime?
+  acknowledgedAt     DateTime?
+  acknowledgeNote    String?
+  reopenNote         String?
+  cancelNote         String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  cycle        ReviewCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     Employee?    @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+
+  /// What the whole module leans on: it makes opening a cycle idempotent
+  /// (createMany + skipDuplicates) and two reviews for one half-year
+  /// unrepresentable.
+  @@unique([cycleId, employeeId])
+  /// The manager's inbox, HR's coverage view, and one person's history.
+  @@index([reviewerId, status])
+  @@index([cycleId, status])
+  @@index([employeeId, createdAt])
+  @@index([organizationId, status])
+}
+
+```
+
+#### Helpdesk
+
+```prisma
+enum TicketStatus { OPEN IN_PROGRESS WAITING_ON_REQUESTER RESOLVED CLOSED CANCELLED }
+enum TicketPriority { LOW NORMAL HIGH URGENT }
+enum TicketCommentKind { PUBLIC INTERNAL SYSTEM }
+
+model TicketCategory {
+  id                String   @id @default(cuid())
+  organizationId    String
+  name              String
+  description       String?
+  /// Validated at save time to actually hold `helpdesk.respond`. A category
+  /// routing to somebody who cannot act on it produces a queue of silently
+  /// dead tickets that nobody notices for a week.
+  defaultAssigneeId String?
+  /// Deactivated rather than deleted, like ExpenseCategory: a category with
+  /// tickets against it must not vanish out from under them.
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  defaultAssignee Employee?    @relation("TicketCategoriesOwned", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  tickets         Ticket[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model Ticket {
+  id             String         @id @default(cuid())
+  organizationId String
+  categoryId     String
+  requesterId    String
+  assigneeId     String?
+  subject        String
+  description    String
+  status         TicketStatus   @default(OPEN)
+  /// Set by whoever works the desk, never by the person asking: a priority the
+  /// requester controls is one that is always URGENT.
+  priority       TicketPriority @default(NORMAL)
+  /// What was actually done. Required at resolve — "resolved" without it is
+  /// not a resolution.
+  resolution     String?
+  assignedAt     DateTime?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  /// RESTRICT rather than CASCADE, so the database agrees with the service:
+  /// a category holding tickets is deactivated, not removed.
+  category     TicketCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  requester    Employee        @relation("TicketsRaised", fields: [requesterId], references: [id], onDelete: Cascade)
+  /// SET NULL: an agent leaving returns their tickets to the queue rather than
+  /// taking them with her.
+  assignee     Employee?       @relation("TicketsAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments     TicketComment[]
+
+  @@index([organizationId, status])
+  /// The queue: assigned to me, or unassigned.
+  @@index([organizationId, assigneeId, status])
+  @@index([requesterId, createdAt])
+  @@index([categoryId, status])
+}
+
+model TicketComment {
+  id        String            @id @default(cuid())
+  ticketId  String
+  /// A User, not an Employee — see User.ticketComments. SET NULL so a reply
+  /// survives the account that wrote it.
+  authorId  String?
+  kind      TicketCommentKind @default(PUBLIC)
+  body      String
+  createdAt DateTime          @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+}
+
+```
+
+#### Statutory filings and TDS returns
+
+```prisma
+enum StatutoryFilingKind { ECR ESIC_RETURN }
+enum TdsQuarter { Q1 Q2 Q3 Q4 }
+
+model StatutoryFiling {
+  id             String              @id @default(cuid())
+  organizationId String
+  kind           StatutoryFilingKind
+  /// `YYYY-MM`, matching PayrollRun.month.
+  period         String
+  runId          String
+  /// The file exactly as downloaded — not regenerated, ever.
+  content        String
+  rowCount       Int
+  /// How many people were left out for want of an identifier. Surfaced on the
+  /// screen, because a short file nobody noticed is the failure this whole
+  /// design is arranged to prevent.
+  excludedCount  Int                 @default(0)
+  /// The exclusions themselves, and the column totals the portal will check.
+  detail         Json
+  generatedAt    DateTime            @default(now())
+  generatedById  String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, kind, period])
+  @@index([organizationId, period])
+}
+
+model TdsChallan {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// `YYYY-MM`, the payroll month whose TDS this deposits. Same contract as
+  /// StatutoryFiling.period.
+  period         String
+  /// Bank branch code, seven digits.
+  bsrCode        String
+  /// Serial number the bank assigned, five digits.
+  challanSerial  String
+  depositDate    DateTime
+  /// 92B — non-government salary. Stored rather than assumed so a government
+  /// deductor is a data change, not a release.
+  sectionCode    String   @default("92B")
+  /// 200 — regular payment, as opposed to 400 raised by the department.
+  minorHead      String   @default("200")
+  tds            Decimal  @default(0) @db.Decimal(14, 2)
+  surcharge      Decimal  @default(0) @db.Decimal(14, 2)
+  educationCess  Decimal  @default(0) @db.Decimal(14, 2)
+  interest       Decimal  @default(0) @db.Decimal(14, 2)
+  /// The s.234E late-filing fee.
+  fee            Decimal  @default(0) @db.Decimal(14, 2)
+  penalty        Decimal  @default(0) @db.Decimal(14, 2)
+  others         Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, period])
+  @@index([organizationId, period])
+}
+
+model TdsReturn {
+  id             String     @id @default(cuid())
+  organizationId String
+  /// `YYYY-YY`, e.g. 2026-27.
+  financialYear  String
+  quarter        TdsQuarter
+  /// The file exactly as downloaded — not regenerated, ever.
+  content        String
+  rowCount       Int
+  /// Deductees reported without a PAN. Surfaced on the screen: a missing PAN
+  /// is what forces deduction at 20% and what the portal rejects on.
+  excludedCount  Int        @default(0)
+  /// The exclusions themselves, the reconciliation, and the challan totals.
+  detail         Json
+  generatedAt    DateTime   @default(now())
+  generatedById  String?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, financialYear, quarter])
+  @@index([organizationId, financialYear])
+}
+
+```
+
+#### Bulk employee import
+
+```prisma
+enum EmployeeImportMode { RECORDS INVITE }
+enum EmployeeImportStatus { PREVIEW COMMITTED PARTIAL FAILED }
+
+model EmployeeImport {
+  id             String               @id @default(cuid())
+  organizationId String
+  uploadedById   String?
+  fileName       String
+  rowCount       Int
+  mode           EmployeeImportMode   @default(RECORDS)
+  status         EmployeeImportStatus @default(PREVIEW)
+  /// The parsed rows while previewing; **pruned at commit** to just the
+  /// outcome per row. This column holds names, emails and dates of birth, and
+  /// keeping it afterwards would be a second copy of everybody's personal data
+  /// with no retention story and no access control of its own.
+  rows           Json
+  createdCount   Int                  @default(0)
+  failedCount    Int                  @default(0)
+  invitedCount   Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  committedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+```
+
+#### Income tax
+
+```prisma
+enum TaxRegime { NEW OLD }
+enum TaxConfigStatus { UNCONFIRMED CONFIRMED }
+enum TaxDeclarationStatus { DRAFT SUBMITTED APPROVED REJECTED }
+
+model TaxConfiguration {
+  id                String          @id @default(cuid())
+  organizationId    String
+  /// YYYY-YY, e.g. 2026-27. Matches TdsReturn.financialYear.
+  financialYear     String
+  regime            TaxRegime
+  status            TaxConfigStatus @default(UNCONFIRMED)
+  /// Where these numbers came from — a Finance Act, a circular, a CA's note.
+  /// Recorded because the first question anybody asks of a slab table is who
+  /// said so, and the second is when.
+  source            String?
+  /// Flat deduction from salary income before the slabs apply.
+  standardDeduction Decimal         @default(0) @db.Decimal(14, 2)
+  /// s.87A: the taxable-income ceiling below which the rebate applies, and the
+  /// most it can be worth. Null means this regime has no rebate configured.
+  rebateIncomeLimit Decimal?        @db.Decimal(14, 2)
+  rebateMaxAmount   Decimal?        @db.Decimal(14, 2)
+  /// Health and Education Cess, as a percentage of tax plus surcharge.
+  cessRate          Decimal         @default(0) @db.Decimal(5, 2)
+  /// Whether surcharge marginal relief applies. A flag rather than an
+  /// assumption, because it is a rule that can change and not a fact.
+  marginalRelief    Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  slabs          TaxSlab[]
+  deductionRules TaxDeductionRule[]
+  surchargeBands TaxSurchargeBand[]
+
+  @@unique([organizationId, financialYear, regime])
+  @@index([organizationId, financialYear])
+}
+
+model TaxSlab {
+  id              String   @id @default(cuid())
+  configurationId String
+  fromAmount      Decimal  @db.Decimal(14, 2)
+  /// Null is the open-ended top band.
+  toAmount        Decimal? @db.Decimal(14, 2)
+  rate            Decimal  @db.Decimal(5, 2)
+  order           Int      @default(0)
+
+  configuration TaxConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, order])
+}
+
+model TaxDeductionRule {
+  id              String   @id @default(cuid())
+  configurationId String
+  /// 80C, 80CCD1B, 80D_SELF, 80D_PARENTS, 80E, 80G, 80TTA, 80U, 80DD,
+  /// HOME_LOAN_INTEREST. A stable key, not a display string.
+  section         String
+  label           String
+  hint            String?
+  /// Null means the section has no ceiling of its own.
+  maxAmount       Decimal? @db.Decimal(14, 2)
+  order           Int      @default(0)
+
+  configuration TaxConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@unique([configurationId, section])
+}
+
+model TaxSurchargeBand {
+  id              String  @id @default(cuid())
+  configurationId String
+  /// Applies once total income exceeds this.
+  aboveIncome     Decimal @db.Decimal(14, 2)
+  rate            Decimal @db.Decimal(5, 2)
+  order           Int     @default(0)
+
+  configuration TaxConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, order])
+}
+
+model EmployeeTaxProfile {
+  id             String    @id @default(cuid())
+  organizationId String
+  employeeId     String
+  financialYear  String
+  regime         TaxRegime @default(NEW)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, financialYear])
+  @@index([organizationId, financialYear])
+}
+
+model EmployeeTaxDeclaration {
+  id             String               @id @default(cuid())
+  organizationId String
+  employeeId     String
+  financialYear  String
+  status         TaxDeclarationStatus @default(DRAFT)
+  /// HRA exemption inputs. The exemption itself is computed from these plus
+  /// the salary structure and never typed in — the least of three formulas is
+  /// not a number an employee can be asked to work out.
+  annualRentPaid Decimal?             @db.Decimal(14, 2)
+  metroCity      Boolean              @default(false)
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  /// Bumped on every edit after an approval. Historical payslips are never
+  /// touched, so the revision is how "why did December differ from November"
+  /// stays answerable.
+  revision       Int                  @default(1)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization                 @relation(fields: [organizationId], references: [id])
+  employee     Employee                     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  items        EmployeeTaxDeclarationItem[]
+
+  @@unique([employeeId, financialYear])
+  @@index([organizationId, financialYear, status])
+}
+
+model EmployeeTaxDeclarationItem {
+  id             String   @id @default(cuid())
+  declarationId  String
+  section        String
+  declaredAmount Decimal  @default(0) @db.Decimal(14, 2)
+  statutoryLimit Decimal? @db.Decimal(14, 2)
+  eligibleAmount Decimal  @default(0) @db.Decimal(14, 2)
+  approvedAmount Decimal  @default(0) @db.Decimal(14, 2)
+
+  declaration EmployeeTaxDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+
+  @@unique([declarationId, section])
+}
+
+model TdsOverride {
+  id             String   @id @default(cuid())
+  organizationId String
+  employeeId     String
+  /// yyyy-MM, matching PayrollRun.month.
+  month          String
+  calculatedTds  Decimal  @db.Decimal(14, 2)
+  overrideTds    Decimal  @db.Decimal(14, 2)
+  reason         String
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month])
+  @@index([organizationId, month])
+}
+
+```
+
 ## Notable design calls
 
 - **`RefreshSession.replacedById`** implements rotation chains: presenting an already-rotated token revokes the whole chain (doc 07).
@@ -1443,7 +2017,9 @@ model AuditLog {
   `payroll.calc.ts` adds earning adjustments to gross and passes that gross to
   `computeStatutory`, where ESI is a cliff rather than a taper — ₹18,000 of
   encashment on a ₹20,000 salary would switch ESI off for the month. Tax on a
-  settlement is a line HR enters, exactly as monthly TDS already is. *This is a
+  settlement is a line HR enters. Monthly TDS is no longer entered — it is
+  projected and computed — but a settlement stays outside that projection for
+  the same reason it stays outside the statutory base. *This is a
   modelling choice rather than a law being asserted.*
 - **`SettlementLine` carries its own id** rather than keying on a component
   code. Two encashable leave types produce two lines that mean different
@@ -1588,6 +2164,84 @@ model AuditLog {
 - **Nothing was added to any existing table.** `PayComponent.taxable` already
   carried the note "Reimbursements and employer contributions do not", so the
   payslip end of this module predated the module by several releases.
+
+### Income tax
+
+- **Slabs are rows, not constants.** `TaxConfiguration` + `TaxSlab` +
+  `TaxDeductionRule` + `TaxSurchargeBand` hold one financial year's rules for
+  one regime, so a Finance Act change is a configuration edit rather than a
+  release — the same bargain `payrollSchema` already makes for PF, ESI and
+  professional tax.
+
+- **`TaxConfigStatus.UNCONFIRMED` is the whole safety story.** A year ships with
+  no slabs and payroll **refuses** on it, naming the year, rather than falling
+  back to last year's rates. A plausible-looking wrong slab is much harder to
+  notice than an empty one, and this table computes real deductions. It is the
+  same device `FVU_SPEC_VERSION = 'UNTRANSCRIBED'` uses for the 24Q layout.
+
+- **`EmployeeTaxDeclarationItem` keeps four figures apart** — `declaredAmount`,
+  `statutoryLimit`, `eligibleAmount`, `approvedAmount`. Tax is computed from the
+  approved figure and never from what somebody typed, and the limit is
+  *snapshotted* at approval so the row still explains itself after the rules are
+  edited.
+
+- **One profile per person per year, and no carry-forward.** `@@unique([employeeId,
+  financialYear])` on `EmployeeTaxProfile`; an absent row *is* the New regime,
+  which is what makes "we never asked them" and "they chose New" the same
+  outcome without writing on every read. Last year's choice is not this year's.
+
+- **`TdsOverride` stores the calculated figure beside the overridden one.** An
+  override whose original is lost is an override nobody can audit.
+
+- **No previous-employer income, no perquisites, no house-property engine.**
+  This projects what *this* employer will pay and applies the deductions an
+  employer may consider for TDS. It is not an income-tax return.
+
+- **Nothing was added to any existing table.** `EmployeeSalary.monthlyTds`
+  survives untouched as historical data on old revisions; payroll no longer
+  reads it. `Organization` and `Employee` gain relation arrays, which emit no
+  DDL.
+
+### Projects and timesheets
+
+- **`@@unique([employeeId, weekStart])` is the whole concurrency story.** A week
+  is opened lazily — nothing exists until somebody types an hour — so two
+  requests can race to create the same one. The constraint makes them collide,
+  and the service upserts on it, rather than producing two sheets each holding
+  half the hours.
+
+- **`weekStart` is always a Monday, and the database cannot say so.** There is no
+  check constraint for "is this a Monday"; `isWeekStart` in
+  `projects.rules.ts` refuses anything else on the way in, and the error names
+  the Monday the caller probably meant. The invariant is real, its enforcement is
+  in one function, and that is worth knowing before somebody writes directly to
+  the table.
+
+- **`TimesheetEntry` cascades from `Timesheet` and RESTRICTs against `Project`.**
+  The asymmetry is the design: deleting a week should take its hours with it,
+  and deleting a project should not. It is what lets the service refuse to
+  delete a project with hours logged against it instead of silently erasing the
+  record of work somebody did — and the same reasoning makes removing a member
+  who has logged hours a refusal, with a leaving date as the remedy.
+
+- **A week's states are its own enum, not `ApprovalStatus`** — the same call
+  `ExpenseClaimStatus` made, for the same reason: a week needs a DRAFT before
+  anybody sees it. There is no CANCELLED either, because withdrawing returns it
+  to DRAFT. A claim can simply not exist; a week somebody worked cannot.
+
+- **A week's total is derived on every read, never stored.** A stored total is
+  the one that goes stale the moment an entry is edited, and a header that
+  disagrees with its own grid is worse than no header.
+
+- **Nothing reconciles against attendance, deliberately.** Attendance answers
+  "was this person at work"; a timesheet answers "what did they work on".
+  Coupling them joins two modules that today share nothing, and the failure
+  mode — a week rejected because somebody forgot to clock out — is worse than
+  the gap.
+
+- **Nothing was added to any existing table.** `Organization` and `Employee`
+  gain relation arrays, which emit no DDL; the migration has zero `ALTER TABLE`
+  against anything that already existed.
 
 ### Recruitment
 

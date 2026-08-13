@@ -1,6 +1,6 @@
 # ADR-000 — Architecture Decisions & Challenges
 
-Status: **Proposed — awaiting approval.** Nothing below is implemented yet.
+Status: **Accepted, and largely built.** This began as a proposal; almost every decision below is now in the code. Where one was settled the other way, or reversed after contact, the entry says so — that is the point of keeping it.
 
 This document records where the requested stack was accepted, where it was challenged, and the assumptions the whole design rests on. Read this first.
 

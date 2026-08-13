@@ -37,13 +37,16 @@ switched on in Settings.
 | Attendance | `/attendance` | module on — includes the Remote work tab |
 | Leave | `/leave` | module on |
 | Documents | `/documents` | module on |
-| Payroll | `/payroll` | any payroll read, incl. `.own` — every employee has a salary page |
+| Payroll | `/payroll` | any payroll read, incl. `.own` — module on; every employee has a salary page |
 | Assets | `/assets` | `asset.read` — module on |
 | Expenses | `/expenses` | any expense read, incl. `.own` — module on |
 | Performance | `/performance` | any performance read, incl. `.own` — module on |
+| Projects | `/projects` | `project.read` \| `project.read.own` — module on |
 | Recruitment | `/recruitment` | `recruitment.read` \| `recruitment.read.team` |
+| Exits | `/resignations` | any resignation read, incl. `.own` — no module flag |
+| Helpdesk | `/helpdesk` | any helpdesk read, incl. `.own` — module on |
 | Announcements | `/announcements` | module on |
-| Reports | `/reports` | `report.view` \| `report.view.team` |
+| Reports | `/reports` | `report.view` \| `report.view.team` — module on |
 | Settings | `/settings` | `settings.manage` \| `role.manage` \| `audit.read` \| `org.manage` |
 
 Team and admin views are reached as **tabs inside their section**, not as
@@ -55,7 +58,7 @@ This differs from the original design in three ways worth recording, because the
 routes in it were cited elsewhere:
 
 - **No collapsible groups.** *My Space ▾ / My Team ▾ / People ▾* were specified;
-  the list is flat. With 11 items and permission filtering already cutting it to
+  the list is flat. With 18 items and permission filtering already cutting it to
   4–6 for most roles, the groups earned nothing.
 - **No `/team/*` routes.** They are `/attendance/team` and
   `/attendance/approvals`, which keeps every attendance screen under one prefix.
@@ -70,7 +73,7 @@ Avatar menu: My profile · Active sessions · Theme (light/dark/system) · Logou
 
 Numbered as originally specified, so references from other docs still resolve.
 Rows struck through or marked **not built** are the gap between this list and
-`apps/web/src/app` — 57 page files exist, but they are not the same 57.
+`apps/web/src/app` — 104 page files exist, and they are not the same set.
 [15-feature-audit.md](./15-feature-audit.md) is the reconciled view.
 
 ### Auth (4)
@@ -292,6 +295,53 @@ screen list underneath.
 | 49k | The desk | `/helpdesk/queue` | Oldest first, which is why this module has no SLA: a queue is worked from the bottom. Yours plus unassigned; **Everyone's tickets** appears only with `helpdesk.read`, because working the desk and reading every grievance in the company are different grants |
 | 49l | Categories | `/helpdesk/categories` | `helpdesk.manage`. A desk with tickets against it is deactivated, not deleted. The default assignee must hold `helpdesk.respond` — the API refuses otherwise, because a desk routing to somebody who cannot answer goes quiet without anybody noticing |
 
+### Screens the tables above missed
+
+Eleven pages existed without a row anywhere in this document. Recorded here
+rather than threaded into the numbered sections, because the numbering is
+historical and renumbering it would break every citation.
+
+| Screen | Route | Notes |
+|---|---|---|
+| Root redirect | `/` | Sends an unauthenticated visitor to `/login`. Not a screen, but it is a page file |
+| Careers | `/careers` | **Public, no token.** Published openings only |
+| One opening | `/careers/[slug]` | Public. Apply form accepting a CV. 404 for closed and unpublished alike, and the same success is reported to a repeat applicant |
+| Announcement permalink | `/announcements/[id]` | A single post, linkable. Composing is still a dialog on the feed, and `/announcements/new` still does not exist |
+| Bulk employee import | `/employees/import` | `employee.import`. Download a template, upload, preview what would happen, then commit |
+| Employment types | `/organization/employment-types` | `org.manage`. A tab beside Shifts |
+| Pay components | `/payroll/components` | `payroll.structure.manage`. The catalogue every salary structure line points at |
+| Attendance report | `/reports/attendance` | A tab of the Reports hub, and its own page file |
+| Leave report | `/reports/leave` | idem |
+| Department report | `/reports/departments` | idem. Its "Head" column is permanently `—` until `Department.headId` becomes writable |
+| Email templates | `/settings/email` | `settings.manage`. Per-template subject and body, plus the switch that turns a notification email off |
+
+### Income tax (4)
+
+Inside the Payroll tab bar at `/payroll/tax`, not a top-level entry — it is a
+payroll surface, and the employee half belongs beside "My salary".
+
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 49r | My income tax | `/payroll/tax` | Regime radio, then the six figures that answer "why is this much coming out of my pay" — projected income, taxable income, annual tax, deducted, remaining, this month. The remaining-months divisor is **stated**, because a monthly figure without it reads as arbitrary. New regime shows "no declaration required" and stops there |
+| 49s | Everyone's tax | `/payroll/tax/employees` | `payroll.tax.view`. Filters by year, regime, declaration status and department. A **dash rather than a zero** wherever the year has no confirmed slabs: "no rules entered" and "no tax due" must not render the same |
+| 49t | One person's tax | `/payroll/tax/employees/[id]` | The working, slab by slab, plus the declaration with declared/eligible/approved side by side and the month-by-month TDS history. `payroll.tax.manage` also gets the override panel, which says in words that it is an exception rather than the workflow |
+| 49u | Declarations to review | `/payroll/tax/approvals` | `payroll.tax.declaration.approve`. Declared beside eligible on every line, because the gap is what HR is agreeing. **Send back is disabled until a note is typed** — the API refuses it anyway |
+
+### Projects and timesheets (5)
+
+One nav entry rather than two, with the tabs gating themselves. The paths do
+not mirror the API — timesheets live at `/timesheets` there, because a week
+spans projects and must not be nested under one, but they belong behind the
+Projects entry on screen.
+
+| # | Screen | Route | Notes |
+|---|---|---|---|
+| 49m | Projects | `/projects` | The register. `project.read` sees every project; everybody else sees the ones they are on or run — the API decides that, and asking for `all` without the permission quietly returns `own` rather than failing |
+| 49n | One project | `/projects/[id]` | Dates, status, owner, and the member table. The staffing buttons appear for HR **and** for the project's own manager, because the API grants the second without `project.manage` — hiding them from somebody the API would let through is the mismatch this screen has to avoid |
+| 49o | My timesheet | `/projects/timesheet` | Projects down, days across. A cell outside the membership window is **disabled rather than merely refused on submit**, which explains the window without a paragraph about it, and a day totalling over 24 turns red in the footer before anybody presses Submit. An empty cell is not zero: zero hours is a claim that somebody worked none, and the API refuses it |
+| 49p | Approvals | `/projects/approvals` | Submitted weeks from my reports. Reviewing opens a panel below the table rather than navigating. **Send back is disabled until a note is typed** — the API refuses it anyway, and a refusal you could have been shown first is a wasted round trip |
+| 49q | Utilisation | `/projects/utilisation` | `project.read`. Hours per person and per project over a range, against a 40-hour week. Drafts and sent-back weeks are excluded and the page says so — a figure built from hours nobody has stood behind changes the moment somebody opens their timesheet. Over 100% is shown rather than capped, because over-allocation is the thing worth seeing |
+
 ### Recruitment (5)
 | # | Screen | Route | Notes |
 |---|---|---|---|
@@ -323,7 +373,7 @@ one such opening so the case is always on screen.
 
 ### Announcements (2)
 | 33 | Feed | `/announcements` | Pinned first; unread markers; audience chips |
-| 34 | Compose/edit | (dialog on the feed) | Markdown editor, audience picker, schedule, read receipts view. No `/announcements/new` route and no permalink for a single post |
+| 34 | Compose/edit | (dialog on the feed) | Markdown editor, audience picker, schedule, read receipts view. No `/announcements/new` route — composing is a dialog on the feed. A permalink **does** exist, at `/announcements/[id]` (screen 34a) |
 
 ### Reports (1 hub + 4 views)
 | 35 | Reports hub | `/reports` | Four tabs: Employees · Attendance · Leave · **Departments**. Each has date-range presets, a department filter, KPIs, chart, paged table and CSV/Excel export behind `report.export`. **Attrition** was specified as the fourth and is folded into the employees report rather than standing alone; the departments rollup took its place |

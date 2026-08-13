@@ -1,7 +1,8 @@
 # 15 — Feature audit: what is missing, and where the docs disagree with the code
 
-Reviewed 4 August 2026 against commit `de67af1`. Covers all 18 API modules, 57
-web pages, the 54-permission catalogue and docs 00–14.
+Reviewed 4 August 2026 against commit `de67af1`, and re-swept 13 August 2026.
+Covers all 30 API modules, 104 web pages, the 111-permission catalogue and
+docs 00–15.
 
 > **Status:** every **P0** and every **P1** item is done — session pruning,
 > session management, the four orphaned endpoints, structure deactivation,
@@ -296,13 +297,13 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | Announcements | ✅ | ✅ |
 | Reports | ✅ 4 + dashboard | ✅ + custom report builder |
 | Onboarding | ✅ invite → self-serve → HR review | ✅ |
-| ~~**Recruitment / ATS**~~ ✅ built, internal · **public careers page** still ❌ | ⚠️ | ✅ all four |
+| ~~**Recruitment / ATS**~~ ✅ built, internal · ~~**public careers page**~~ ✅ **also built** — `/careers` and `/careers/:slug`, the product's first unauthenticated write surface | ⚠️ | ✅ all four |
 | ~~**Performance / goals / OKR**~~ ✅ built — weighted goals, review cycles that enrol, self then manager assessment, shared and signed off · **no 360°, calibration, competency frameworks or nine-box, and a rating feeds no increment** | ⚠️ | ✅ all four |
 | ~~**Expense & reimbursement**~~ ✅ built — categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line · **no mileage rates, per-diems, corporate cards or multi-currency** | ⚠️ | ✅ all four |
 | ~~**Asset management**~~ ✅ built — per-item register, issue/return history, exit clearance computed from it · **no depreciation, procurement or vendors** | ⚠️ | ✅ Keka, Darwinbox |
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
 | ~~**Helpdesk / ticketing**~~ ✅ built — tickets, a two-sided thread with internal notes, a queue and per-desk routing · **no attachments, SLAs, ticket numbers or email-in** | ⚠️ | ✅ Zoho, Darwinbox |
-| **LMS / training** | ❌ | ✅ Zoho, Darwinbox |
+| ~~**Projects & timesheets**~~ ✅ built — a project register, staffing with allocation and membership windows, a weekly grid, manager approval, and utilisation · **no cost or billing rates, no client, no tasks or board, no capacity forecasting, and no reconciliation against attendance** | ⚠️ | ✅ Keka, Zoho |
 | **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
@@ -401,8 +402,8 @@ is what an Indian payroll buyer is actually purchasing:
 | **Form 24Q** quarterly TDS return | ✅ built as the FVU's *input* file, not a filed return — but generation is currently refused at the readiness gate, because the record layout is deliberately not yet transcribed (`FVU_SPEC_VERSION === 'UNTRANSCRIBED'`); Q4 is only partly supported, since Annexure II (the annual salary annexure) is not produced |
 | **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
 | **ESIC** contribution challan | ✅ built — same caveat |
-| **Form 12BB** / investment declarations | ❌ |
-| **Old vs new regime** TDS projection | ❌ — monthly TDS is typed in per employee |
+| **Form 12BB** / investment declarations | ⚠️ — an investment *declaration* ships (regime choice, 80C/80D/80CCD(1B)/HRA and the rest, HR approval, and it drives real TDS). The **Form 12BB artefact itself is not produced**, and no proof is uploaded or stored against a line |
+| ~~**Old vs new regime** TDS projection~~ | ✅ built — per-employee regime per financial year, progressive slabs, s.87A rebate, surcharge with marginal relief and configurable cess, projected off the salary structure rather than CTC. Monthly TDS is **remaining tax ÷ remaining payroll months**, so a mid-year joiner or a December approval re-spreads correctly instead of dumping a shortfall in March |
 | **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
 | **Bonus** (Payment of Bonus Act) | ❌ |
 | **LWF** | ❌ |
@@ -660,8 +661,28 @@ which other documents were citing.
     is a `TicketAttachment` table with its own upload and stream routes gated
     on the ticket's own readability, **not** a reuse of `Document` — see the
     Finance/receipt defect below, which is what reusing it would reproduce.
-25. LMS, engagement surveys
-26. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
+25. ~~Projects and timesheets~~ ✅ **built** — four tables, eight permission
+    codes, seventeen routes and five screens. Two decisions worth keeping
+    visible.
+
+    The first is an **ownership grant**, which nothing else in the product has:
+    a project's own manager may staff it without `project.manage`, checked in
+    the service against `project.managerId` rather than by the guard. A
+    permission for "may staff the projects I run" would have to be granted per
+    person to mean anything, which is not a permission — it is a row. The grant
+    stops at delete, because deleting the register entry is not staffing.
+
+    The second is that **saving a week and submitting it enforce different
+    rules**. `PUT` refuses only what would corrupt the row; membership windows,
+    closed projects and a 30-hour Tuesday are `submit`'s question. A draft is a
+    scratchpad, and being blocked mid-thought is how people stop filling one in.
+
+    **Not built**: cost rates, billing rates, billable-vs-non-billable, a client
+    entity, tasks or a board, capacity forecasting, and any reconciliation
+    against attendance — the last deliberately, since a week rejected because
+    somebody forgot to clock out is worse than the gap.
+26. Engagement surveys
+27. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
 
 ---
 
