@@ -1,3 +1,4 @@
+import { SEEDED_TAX_SOURCE_MARKER } from '../../src/common/utils/seed-guard';
 import type { PrismaClient } from '../../src/generated/prisma/client';
 import type { People } from './people';
 
@@ -28,7 +29,7 @@ interface SlabSpec {
   rate: number;
 }
 
-const FA2025 = 'Finance Act 2025 · seeded 2026-08-13';
+const FA2025 = `Finance Act 2025 · seeded 2026-08-13 ${SEEDED_TAX_SOURCE_MARKER}`;
 
 /**
  * Said in the loudest place the data model has.
@@ -37,7 +38,8 @@ const FA2025 = 'Finance Act 2025 · seeded 2026-08-13';
  * placeholder nobody can see is a placeholder everybody is taxed by.
  */
 const PLACEHOLDER_2026 =
-  'PLACEHOLDER — not from the Finance Act. Copied from FY 2025-26 so the demo computes. Replace before any real payroll.';
+  'PLACEHOLDER — not from the Finance Act. Copied from FY 2025-26 so the demo computes. ' +
+  `Replace before any real payroll. ${SEEDED_TAX_SOURCE_MARKER}`;
 
 const NEW_SLABS_2025: SlabSpec[] = [
   { fromAmount: 0, toAmount: 4_00_000, rate: 0 },

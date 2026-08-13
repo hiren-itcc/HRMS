@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { refusalFor, SEEDED_TAX_SOURCE_MARKER } from '../../src/common/utils/seed-guard';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { LocalDiskStorage } from '../../src/modules/storage/local-disk.storage';
 import type { StorageAdapter } from '../../src/modules/storage/storage.adapter';
@@ -64,6 +65,43 @@ async function main() {
   if (!employee) throw new Error(`No employee has the work email ${email}.`);
 
   const name = `${employee.firstName} ${employee.lastName}`;
+
+  /*
+   * The same guard the seeder uses, before anything is deleted.
+   *
+   * This script had none, and of everything in the repo it is the one that
+   * reaches furthest: past the database and into the storage bucket, where the
+   * deletes are not transactional and not recoverable.
+   *
+   * `singleTenant: false` and an identity check that passes trivially — the
+   * operator named a person, not a tenant. What still bites is the
+   * acknowledgement on a remote host, and the refusal when the database holds
+   * tax rules confirmed from the Finance Act, which is the strongest available
+   * signal that this is a real company's payroll rather than a demo.
+   */
+  const [organizationCount, org, realTaxConfigurations] = await Promise.all([
+    prisma.organization.count(),
+    prisma.organization.findUnique({
+      where: { id: employee.organizationId },
+      select: { name: true, slug: true },
+    }),
+    prisma.taxConfiguration.count({
+      where: { status: 'CONFIRMED', NOT: { source: { contains: SEEDED_TAX_SOURCE_MARKER } } },
+    }),
+  ]);
+  const refusal = refusalFor({
+    databaseUrl: process.env.DATABASE_URL,
+    allowReset: process.env.SEED_ALLOW_RESET === 'true',
+    organizationCount,
+    singleTenant: false,
+    organization: org,
+    expected: org ?? { name: '', slug: '' },
+    realTaxConfigurations,
+    allowRealTaxRules: process.env.SEED_ALLOW_REAL_TAX_RULES === 'true',
+    action: `remove ${name} and their documents`,
+  });
+  if (refusal) throw new Error(refusal);
+
   console.log(`Removing ${name} (${employee.employeeCode}, ${email})`);
 
   // Read the storage keys before anything is deleted — once the rows are gone

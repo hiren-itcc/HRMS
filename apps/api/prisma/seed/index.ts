@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import { dateKeyOf } from '../../src/common/utils/calendar';
 import { hostOf, isLocal } from '../../src/common/utils/database-target';
+import { refusalFor, SEEDED_TAX_SOURCE_MARKER } from '../../src/common/utils/seed-guard';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { seedAssets } from './assets';
 import { seedAttendance } from './attendance';
@@ -54,50 +55,80 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: DATABASE_URL }),
 });
 
+const ORG_NAME = process.env.SEED_EXPECT_ORG_NAME ?? 'Acme Industries';
+
 /**
- * The guard used to be `NODE_ENV === 'production'`, which protected nothing:
- * the checked-in `.env` says `development` while `DATABASE_URL` points at a
- * hosted database, so the one configuration that most needed stopping was the
- * one that sailed through. What matters is *where it is connecting*, not what
- * the process calls itself.
+ * Whether this run may destroy what is on the other end of DATABASE_URL.
+ *
+ * The decision itself is `src/common/utils/seed-guard.ts` — pure, and tested
+ * there against every branch. What is here is the gathering: read the tenant,
+ * count the tax rules that were confirmed rather than seeded, print what would
+ * be lost, and refuse with whatever sentence the guard returns.
+ *
+ * **This runs before anything is written.** It used to run *after* the
+ * organization upsert, which meant a refused run had already renamed that
+ * company's organization row to "Acme Industries" and set its timezone — the
+ * rename surviving the refusal. A guard that has already done damage by the
+ * time it fires is not a guard.
  */
-async function confirmTarget(orgId: string, orgName: string): Promise<void> {
+async function confirmTarget(): Promise<void> {
+  const [organizationCount, organization, realTaxConfigurations] = await Promise.all([
+    prisma.organization.count(),
+    prisma.organization.findUnique({
+      where: { slug: ORG_SLUG },
+      select: { id: true, name: true, slug: true },
+    }),
+    // CONFIRMED without the seeder's own marker: a human entered these, so
+    // real TDS is being computed against them.
+    prisma.taxConfiguration.count({
+      where: { status: 'CONFIRMED', NOT: { source: { contains: SEEDED_TAX_SOURCE_MARKER } } },
+    }),
+  ]);
+
   const host = hostOf(DATABASE_URL);
-  if (isLocal(host)) return;
+  if (!isLocal(host) && organization) {
+    const counts = await census(prisma, organization.id);
+    const summary = [
+      `${counts.employees} employees`,
+      `${counts.users} user accounts`,
+      `${counts.attendance} attendance records`,
+      `${counts.leave} leave requests`,
+      `${counts.payslips} payslips`,
+      `${counts.assets} assets`,
+      `${counts.candidates} candidates`,
+    ].join(', ');
 
-  const counts = await census(prisma, orgId);
-  const summary = [
-    `${counts.employees} employees`,
-    `${counts.users} user accounts`,
-    `${counts.attendance} attendance records`,
-    `${counts.leave} leave requests`,
-    `${counts.payslips} payslips`,
-    `${counts.assets} assets`,
-    `${counts.candidates} candidates`,
-  ].join(', ');
-
-  console.log(`\n  Target:  ${host}`);
-  console.log(`  Company: ${orgName} (${ORG_SLUG})`);
-  console.log(`  Deletes: ${summary}\n`);
-
-  if (process.env.SEED_ALLOW_RESET !== 'true') {
-    throw new Error(
-      `Refusing to wipe ${orgName} on ${host}: it is not a local database.\n` +
-        '  Every row listed above would be deleted, including the accounts people sign in with.\n' +
-        '  Set SEED_ALLOW_RESET=true if that is genuinely what you want.',
-    );
+    console.log(`\n  Target:  ${host}`);
+    console.log(`  Company: ${organization.name} (${organization.slug})`);
+    console.log(`  Deletes: ${summary}\n`);
   }
-  console.log('  SEED_ALLOW_RESET=true — proceeding.\n');
+
+  const refusal = refusalFor({
+    databaseUrl: DATABASE_URL,
+    allowReset: process.env.SEED_ALLOW_RESET === 'true',
+    organizationCount,
+    singleTenant: true,
+    organization: organization && { name: organization.name, slug: organization.slug },
+    expected: { name: ORG_NAME, slug: ORG_SLUG },
+    realTaxConfigurations,
+    allowRealTaxRules: process.env.SEED_ALLOW_REAL_TAX_RULES === 'true',
+    action: 'wipe the demo workspace',
+  });
+  if (refusal) throw new Error(refusal);
+
+  if (!isLocal(host)) console.log('  Guard cleared — proceeding.\n');
 }
 
 async function main() {
+  // Guard first, and only then write. Nothing above this line touches the
+  // database in a way that survives a refusal.
+  await confirmTarget();
+
   const org = await prisma.organization.upsert({
     where: { slug: ORG_SLUG },
-    update: { name: 'Acme Industries', timezone: 'Asia/Kolkata' },
-    create: { name: 'Acme Industries', slug: ORG_SLUG, timezone: 'Asia/Kolkata' },
+    update: { name: ORG_NAME, timezone: 'Asia/Kolkata' },
+    create: { name: ORG_NAME, slug: ORG_SLUG, timezone: 'Asia/Kolkata' },
   });
-
-  await confirmTarget(org.id, org.name);
 
   console.log('Resetting the demo workspace…');
   await wipe(prisma, org.id);

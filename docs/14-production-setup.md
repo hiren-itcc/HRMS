@@ -30,9 +30,21 @@ It used to refuse on `NODE_ENV === 'production'`, which protected nothing: the
 checked-in `.env` says `development` while `DATABASE_URL` points at a hosted
 database, so the one configuration that most needed stopping sailed through.
 
-It now looks at **where it is connecting**. A local host runs without ceremony;
-anything else prints the target, the company and the row counts it is about to
-delete, then refuses unless `SEED_ALLOW_RESET=true` is set.
+It now looks at **where it is connecting, and at whose data is there**. A local
+host runs without ceremony; anything else prints the target, the company and the
+row counts it is about to delete, then works through four layers
+(`src/common/utils/seed-guard.ts`, and docs/10 §destructive):
+
+| Variable | Satisfies | Refuses when |
+|---|---|---|
+| `SEED_ALLOW_RESET=true` | the host is not local | it is unset on a remote host |
+| `SEED_EXPECT_ORG_NAME` | the tenant is not the demo one | the organization is not `Acme Industries` / `default`, or there is more than one |
+| `SEED_ALLOW_REAL_TAX_RULES=true` | the tax rules were entered by hand | any CONFIRMED income-tax configuration lacks the seeder's own marker |
+
+**`SEED_ALLOW_RESET` is not a master key.** It answers only the first row; the
+identity and evidence checks run whatever else is set. And the whole guard runs
+**before the first write** — it used to run after the organization upsert, so a
+refused run had already renamed that company's organization row.
 
 **It was run against production once, deliberately, on 6 August 2026**, to
 replace a nearly-empty workspace with one that exercises every module. Two

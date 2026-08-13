@@ -179,10 +179,16 @@ Seven accounts, all sharing the password `Passw0rd!2026` unless you set
 | `zara@hrms.local` | Employee | Zara Khan | Self service on a contract |
 
 > **`db:seed` is destructive.** It resets the demo organization so repeated runs
-> give an identical workspace, and it refuses to run against a non-local
-> database unless `SEED_ALLOW_RESET=true`. On anything you care about, run
-> `db:bootstrap` instead — migrations create tables but no data, so a migrated
-> database has no roles and nobody who can sign in.
+> give an identical workspace. Against a non-local database it refuses unless
+> `SEED_ALLOW_RESET=true` — and then still refuses if the organization there is
+> not the expected demo tenant, or if the database holds income-tax rules a
+> human confirmed rather than the seeder writing them. Those last two are not
+> overridden by `SEED_ALLOW_RESET`; they take `SEED_EXPECT_ORG_NAME` and
+> `SEED_ALLOW_REAL_TAX_RULES=true`, which nobody sets by accident.
+>
+> On anything you care about, run `db:bootstrap` instead — migrations create
+> tables but no data, so a migrated database has no roles and nobody who can
+> sign in.
 
 ## Scripts
 

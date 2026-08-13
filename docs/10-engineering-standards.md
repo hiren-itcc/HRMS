@@ -76,11 +76,43 @@ injected failure**, not the success of one. A browser test aimed straight at
 that endpoint would have passed, because without a mail key the transport is
 `LogTransport` and never throws.
 
-**Anything destructive asserts its target first.** `assertDisposable` in
-`apps/api/src/common/utils/database-target.ts` is a positive check — "is this
-the throwaway I am allowed to destroy" — rather than a denylist, which rots the
-moment another environment appears. Both the seed and the E2E setup go through
-it. It matters here specifically because the checked-in `.env` says
+**Anything destructive asserts its target first**, and there are two guards
+because there are two situations.
+
+`assertDisposable` in `apps/api/src/common/utils/database-target.ts` is a
+positive check — "is this the throwaway I am allowed to destroy" — rather than a
+denylist, which rots the moment another environment appears. It refuses any
+managed host outright. The **integration and E2E setups** go through it
+(`apps/api/test/global-setup.ts`, `apps/e2e/global-setup.ts`); both only ever
+run against a container, so refusing everything else costs nothing.
+
+The **seed and the destructive scripts** cannot use it, because this project's
+development database *is* hosted — a guard they had to bypass every time is a
+guard that gets bypassed. They go through `seed-guard.ts` instead, which asks a
+different question: not *which host* but **which tenant, and does its data look
+like somebody's real payroll**. Four layers, of which the last two run whatever
+else is set:
+
+1. **Target** — a local or CI host is a throwaway; nothing further is asked.
+2. **Acknowledgement** — anywhere else needs `SEED_ALLOW_RESET=true`.
+3. **Identity** — is this the demo tenant? More than one organization, or an
+   organization that is not the expected name and slug, is a refusal.
+   `SEED_EXPECT_ORG_NAME` names a different one deliberately.
+4. **Evidence** — are there income-tax configurations a *human* confirmed rather
+   than the seeder writing them? That means real TDS is being computed, which
+   means real payroll. `SEED_ALLOW_REAL_TAX_RULES=true` overrides it.
+
+`SEED_ALLOW_RESET` used to satisfy all four. It now satisfies only the second,
+which is the point: acknowledging a remote host is not the same as having
+checked whose data is on it.
+
+**The guard runs before anything is written.** It used to run *after* the
+organization upsert, so a refused run had already renamed that company's
+organization row — the rename surviving the refusal. A guard that has done
+damage by the time it fires is not a guard, and nothing tested it. The decision
+logic is pure and now has 26 cases in `seed-guard.spec.ts`.
+
+All of this matters here specifically because the checked-in `.env` says
 `NODE_ENV=development` while `DATABASE_URL` points at a hosted database, so an
 environment check protects nothing.
 
