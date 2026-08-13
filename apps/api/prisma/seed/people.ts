@@ -531,3 +531,46 @@ export async function seedPeople(
     usr: (email: string) => byEmail(email).userId,
   };
 }
+
+/**
+ * One completed bulk import, so the history screen has something to show.
+ *
+ * `rows` holds the **outcome per row and nothing else**. The column carries
+ * names, emails and dates of birth while a preview is open and is pruned at
+ * commit, because keeping it would be a second copy of everybody's personal
+ * data with no retention story of its own (schema.prisma, EmployeeImport.rows).
+ * A seeded import that skipped the pruning would model the exact thing the
+ * pruning exists to prevent, so this row is stored in its committed shape.
+ *
+ * One row rather than several: the screen is a history, and a history with one
+ * entry reads correctly. Seeding a FAILED one too would be inventing a failure
+ * nobody had.
+ */
+export async function seedImportHistory(prisma: PrismaClient, orgId: string, people: People) {
+  const uploader = people.byEmail('hr@hrms.local');
+
+  await prisma.employeeImport.create({
+    data: {
+      organizationId: orgId,
+      uploadedById: uploader?.userId ?? null,
+      fileName: 'new-joiners-april.csv',
+      rowCount: 6,
+      mode: 'RECORDS',
+      status: 'PARTIAL',
+      // PARTIAL rather than COMMITTED, because that is the state worth being
+      // able to look at: a clean import tells you nothing the count does not.
+      rows: [
+        { row: 2, outcome: 'created', employeeCode: 'EMP-0029' },
+        { row: 3, outcome: 'created', employeeCode: 'EMP-0030' },
+        { row: 4, outcome: 'created', employeeCode: 'EMP-0031' },
+        { row: 5, outcome: 'created', employeeCode: 'EMP-0032' },
+        { row: 6, outcome: 'failed', error: 'A person with that work email already exists' },
+        { row: 7, outcome: 'failed', error: 'Joining date is not a date' },
+      ],
+      createdCount: 4,
+      failedCount: 2,
+      invitedCount: 0,
+      committedAt: new Date('2026-04-08T06:30:00Z'),
+    },
+  });
+}

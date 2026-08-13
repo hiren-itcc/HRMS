@@ -15,7 +15,7 @@ import { seedLeave } from './leave';
 import { seedOnboarding } from './onboarding';
 import { seedOrg } from './org';
 import { seedPayroll } from './payroll';
-import { seedPeople } from './people';
+import { seedImportHistory, seedPeople } from './people';
 import { seedPerformance } from './performance';
 import { seedProjects } from './projects';
 import { makeRandom } from './random';
@@ -161,6 +161,9 @@ async function main() {
 
   console.log('Payroll…');
   await seedPayroll(prisma, org.id, fixtures, people, random, todayKey);
+
+  console.log('Bulk import history…');
+  await seedImportHistory(prisma, org.id, people);
 
   console.log('Income tax configuration…');
   await seedTaxConfiguration(prisma, org.id, people);

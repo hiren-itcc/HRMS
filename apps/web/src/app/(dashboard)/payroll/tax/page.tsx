@@ -58,6 +58,17 @@ export default function MyTaxPage() {
   });
 
   const regime = summary.data?.regime ?? 'NEW';
+  /*
+   * A configuration whose slabs were not taken from the Finance Act says so in
+   * its `source`, and this is where that reaches a human. A placeholder nobody
+   * can see is a placeholder everybody is taxed by — the seed leans on this
+   * banner as its only safety mechanism, so it renders above everything else
+   * and is not dismissible.
+   */
+  const activeConfig = config.data?.find((row) => row.regime === regime);
+  const placeholderSource = activeConfig?.source?.startsWith('PLACEHOLDER')
+    ? activeConfig.source
+    : null;
   const oldConfig = config.data?.find((row) => row.regime === 'OLD');
   const rules: DeductionRule[] = oldConfig?.deductionRules ?? [];
 
@@ -142,6 +153,12 @@ export default function MyTaxPage() {
             </Link>
           )}
         </div>
+      )}
+
+      {placeholderSource && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+          <span className="font-medium">These tax rates are placeholders.</span> {placeholderSource}
+        </p>
       )}
 
       <Card>

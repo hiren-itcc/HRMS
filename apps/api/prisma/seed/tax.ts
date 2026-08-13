@@ -30,6 +30,15 @@ interface SlabSpec {
 
 const FA2025 = 'Finance Act 2025 · seeded 2026-08-13';
 
+/**
+ * Said in the loudest place the data model has.
+ *
+ * It renders on the configuration screen beside the slabs it labels, because a
+ * placeholder nobody can see is a placeholder everybody is taxed by.
+ */
+const PLACEHOLDER_2026 =
+  'PLACEHOLDER — not from the Finance Act. Copied from FY 2025-26 so the demo computes. Replace before any real payroll.';
+
 const NEW_SLABS_2025: SlabSpec[] = [
   { fromAmount: 0, toAmount: 4_00_000, rate: 0 },
   { fromAmount: 4_00_000, toAmount: 8_00_000, rate: 5 },
@@ -139,26 +148,38 @@ export async function seedTaxConfiguration(prisma: PrismaClient, orgId: string, 
     },
   });
 
-  // ── FY 2026-27, deliberately unconfirmed ───────────────────────────
+  // ── FY 2026-27, PLACEHOLDER ────────────────────────────────────────
   //
-  // No slabs, no rebate, no surcharge. Payroll refuses on this year and says
-  // which year and where to fix it. Filling it in is a human act that requires
-  // reading the Act.
+  // These slabs are **not the Finance Act**. They are a copy of FY 2025-26's
+  // shape, seeded so a demo database can show the module working end to end —
+  // projection, slab breakdown, declaration, approval, monthly TDS.
+  //
+  // The `source` field says so in words, and the settings screen shows it. That
+  // is the whole safety mechanism, and it is a weaker one than leaving the year
+  // empty: an UNCONFIRMED year makes payroll refuse, whereas this computes and
+  // deducts. Anybody pointing this codebase at real payroll has to replace
+  // these rows first, and `assertDisposable` is the guard that should stop the
+  // seeder ever reaching a production database in the first place.
   for (const regime of ['NEW', 'OLD'] as const) {
     await prisma.taxConfiguration.create({
       data: {
         organizationId: orgId,
         financialYear: '2026-27',
         regime,
-        status: 'UNCONFIRMED',
-        source: null,
-        standardDeduction: 0,
-        cessRate: 0,
+        status: 'CONFIRMED',
+        source: PLACEHOLDER_2026,
+        standardDeduction: regime === 'NEW' ? 75_000 : 50_000,
+        rebateIncomeLimit: regime === 'NEW' ? 12_00_000 : 5_00_000,
+        rebateMaxAmount: regime === 'NEW' ? 60_000 : 12_500,
+        cessRate: 4,
         marginalRelief: true,
-        // The Old regime still lists its sections, so the declaration form
-        // works and people can record what they have invested before the
-        // slabs land. Nothing is computed from them until the year is
-        // confirmed.
+        slabs: {
+          create: (regime === 'NEW' ? NEW_SLABS_2025 : OLD_SLABS_2025).map((slab, order) => ({
+            ...slab,
+            order,
+          })),
+        },
+        surchargeBands: { create: SURCHARGE_2025.map((band, order) => ({ ...band, order })) },
         deductionRules:
           regime === 'OLD'
             ? { create: OLD_DEDUCTIONS.map((rule, order) => ({ ...rule, order })) }

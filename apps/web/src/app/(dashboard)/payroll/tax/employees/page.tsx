@@ -42,11 +42,17 @@ export default function TaxEmployeesPage() {
     queryFn: () => taxApi.employees(financialYear, month, filters),
   });
 
-  const years = useQuery({
+  const configs = useQuery({
     queryKey: taxKeys.configuration(),
     queryFn: () => taxApi.configuration(),
-    select: (rows) => [...new Set(rows.map((row) => row.financialYear))].sort().reverse(),
   });
+  const years = [...new Set((configs.data ?? []).map((row) => row.financialYear))].sort().reverse();
+  // Same banner as the employee page, for the same reason: HR is the one who
+  // would otherwise quote these figures to somebody.
+  const placeholderSource =
+    (configs.data ?? []).find(
+      (row) => row.financialYear === financialYear && row.source?.startsWith('PLACEHOLDER'),
+    )?.source ?? null;
 
   const money = (value: number | null) =>
     value === null ? <span className="text-muted-foreground">—</span> : formatMoney(value);
@@ -122,6 +128,12 @@ export default function TaxEmployeesPage() {
 
   return (
     <div className="space-y-4">
+      {placeholderSource && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+          <span className="font-medium">These tax rates are placeholders.</span> {placeholderSource}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label htmlFor="fy" className="font-medium text-sm">
@@ -133,7 +145,7 @@ export default function TaxEmployeesPage() {
             value={financialYear}
             onChange={(event) => setFinancialYear(event.target.value)}
           >
-            {(years.data ?? [financialYear]).map((year) => (
+            {(years.length > 0 ? years : [financialYear]).map((year) => (
               <option key={year} value={year}>
                 {year}
               </option>
