@@ -403,7 +403,7 @@ is what an Indian payroll buyer is actually purchasing:
 | **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
 | **ESIC** contribution challan | ✅ built — same caveat |
 | **Form 12BB** / investment declarations | ⚠️ — an investment *declaration* ships (regime choice, 80C/80D/80CCD(1B)/HRA and the rest, HR approval, and it drives real TDS). The **Form 12BB artefact itself is not produced**, and no proof is uploaded or stored against a line |
-| ~~**Old vs new regime** TDS projection~~ | ✅ built — per-employee regime per financial year, progressive slabs, s.87A rebate, surcharge with marginal relief and configurable cess, projected off the salary structure rather than CTC. Monthly TDS is **remaining tax ÷ remaining payroll months**, so a mid-year joiner or a December approval re-spreads correctly instead of dumping a shortfall in March |
+| ~~**Old vs new regime** TDS projection~~ | ✅ built — per-employee regime per financial year, progressive slabs, s.87A rebate, surcharge with marginal relief and configurable cess, projected off the salary structure rather than CTC. Monthly TDS is **remaining tax ÷ remaining payroll months**, so a mid-year joiner or a December approval re-spreads correctly instead of dumping a shortfall in March | Since 13 August the year's bands are also **editable in the app** (`/payroll/tax/rules`, `payroll.tax.manage`) rather than seed-only — with contiguity refused on save, because a gap between two bands silently under-taxes.
 | **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
 | **Bonus** (Payment of Bonus Act) | ❌ |
 | **LWF** | ❌ |

@@ -12,9 +12,7 @@ import { Checkbox } from '@hrms/ui/components/checkbox';
 import { Input } from '@hrms/ui/components/input';
 import { Radio, RadioGroup } from '@hrms/ui/components/radio-group';
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useSession } from '@/components/session-provider';
 import { formatMoney } from '@/features/payroll/api';
 import {
   currentMonth,
@@ -39,7 +37,6 @@ import { useApiMutation } from '@/hooks/use-crud';
  * rather than asked for.
  */
 export default function MyTaxPage() {
-  const { can } = useSession();
   const month = currentMonth();
   const financialYear = financialYearOf(month);
 
@@ -138,25 +135,6 @@ export default function MyTaxPage() {
 
   return (
     <div className="space-y-4">
-      {can('payroll.tax.view') && (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Link
-            href="/payroll/tax/employees"
-            className="inline-flex h-9 items-center rounded-md border px-3 text-sm hover:bg-accent"
-          >
-            Everyone’s tax
-          </Link>
-          {can('payroll.tax.declaration.approve') && (
-            <Link
-              href="/payroll/tax/approvals"
-              className="inline-flex h-9 items-center rounded-md border px-3 text-sm hover:bg-accent"
-            >
-              Declarations to review
-            </Link>
-          )}
-        </div>
-      )}
-
       {placeholderSource && (
         <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
           <span className="font-medium">These tax rates are placeholders.</span> {placeholderSource}

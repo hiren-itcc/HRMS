@@ -91,7 +91,7 @@ helpdesk.respond       (the queue: assigned to me, plus unassigned)
 helpdesk.manage        (desks and their routing)
 
 payroll.tax.view       (anybody's regime, projection and declaration)
-payroll.tax.manage     (the year's slabs, and a monthly TDS override)
+payroll.tax.manage     (the year's slabs, limits and source; and a monthly TDS override)
 payroll.tax.declaration.approve                  (agree a declaration — asserts proofs were seen)
 
 project.read.own       (projects I am on, or run)

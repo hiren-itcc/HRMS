@@ -142,3 +142,73 @@ export const taxEmployeeQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
 });
 export type TaxEmployeeQuery = z.infer<typeof taxEmployeeQuerySchema>;
+
+// ── Configuring a financial year ──────────────────────────────────────
+
+export const TAX_CONFIG_STATUSES = ['UNCONFIRMED', 'CONFIRMED'] as const;
+export const taxConfigStatusSchema = z.enum(TAX_CONFIG_STATUSES);
+export type TaxConfigStatusCode = (typeof TAX_CONFIG_STATUSES)[number];
+
+/** A percentage, to two places — rates move in quarters and halves. */
+const rate = z
+  .number()
+  .min(0, 'A rate cannot be negative')
+  .max(100, 'A rate cannot exceed 100%')
+  .multipleOf(0.01, 'Rates go to two decimal places');
+
+export const taxSlabInputSchema = z.object({
+  fromAmount: z.coerce.number().min(0).max(99_999_999),
+  /** Null is the open-ended top band. Exactly one table may have it. */
+  toAmount: z.coerce.number().min(0).max(99_999_999).nullish(),
+  rate: z.coerce.number().pipe(rate),
+});
+export type TaxSlabInput = z.infer<typeof taxSlabInputSchema>;
+
+export const taxSurchargeBandInputSchema = z.object({
+  aboveIncome: z.coerce.number().min(0).max(999_999_999),
+  rate: z.coerce.number().pipe(rate),
+});
+export type TaxSurchargeBandInput = z.infer<typeof taxSurchargeBandInputSchema>;
+
+export const taxDeductionRuleInputSchema = z.object({
+  section: taxSectionSchema,
+  label: z.string().trim().min(1, 'Give the section a label').max(120),
+  hint: z.string().trim().max(300).nullish(),
+  /** Null means the section has no ceiling of its own. */
+  maxAmount: optionalMoney,
+});
+export type TaxDeductionRuleInput = z.infer<typeof taxDeductionRuleInputSchema>;
+
+/**
+ * A whole year's rules for one regime, sent as one thing.
+ *
+ * Replace-all rather than a patch: slabs and surcharge bands have no natural
+ * key — position is their identity — so there is nothing to address an
+ * individual row by. The same call the timesheet grid, expense claim lines and
+ * salary structure lines all make.
+ */
+export const taxConfigurationSaveSchema = z.object({
+  financialYear: financialYearSchema,
+  regime: taxRegimeSchema,
+  status: taxConfigStatusSchema,
+  /**
+   * Where the numbers came from. Required to confirm a year — enforced in the
+   * service, because saving an unconfirmed draft without one is legitimate.
+   */
+  source: z.string().trim().max(300).nullish(),
+  standardDeduction: z.coerce.number().pipe(money),
+  rebateIncomeLimit: optionalMoney,
+  rebateMaxAmount: optionalMoney,
+  cessRate: z.coerce.number().pipe(rate),
+  marginalRelief: z.boolean().default(true),
+  slabs: z.array(taxSlabInputSchema).max(15, 'That is more bands than any regime has'),
+  surchargeBands: z.array(taxSurchargeBandInputSchema).max(10),
+  deductionRules: z.array(taxDeductionRuleInputSchema).max(TAX_SECTIONS.length),
+});
+export type TaxConfigurationSaveInput = z.infer<typeof taxConfigurationSaveSchema>;
+
+export const taxConfigurationCopySchema = z.object({
+  fromFinancialYear: financialYearSchema,
+  toFinancialYear: financialYearSchema,
+});
+export type TaxConfigurationCopyInput = z.infer<typeof taxConfigurationCopySchema>;

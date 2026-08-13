@@ -1,5 +1,7 @@
 import {
   COMPONENT_CODES,
+  type TaxConfigurationCopyInput,
+  type TaxConfigurationSaveInput,
   type TaxDeclarationDecisionInput,
   type TaxDeclarationInput,
   type TaxDeclarationStatusCode,
@@ -34,6 +36,11 @@ import {
   toPaise,
   toRupees,
 } from './tax.engine';
+import {
+  confirmBlockedReason,
+  surchargeProblems,
+  unconfirmBlockedReason,
+} from './tax-config.guardrails';
 import { financialYearOf } from './tds-period';
 
 /**
@@ -174,6 +181,230 @@ export class TaxService {
         maxAmount: rule.maxAmount === null ? null : Number(rule.maxAmount),
       })),
     }));
+  }
+
+  /**
+   * What changing this year's rules would disturb.
+   *
+   * Named rather than warned about in the abstract: "4 published runs, ₹3,42,000
+   * already deducted" is a sentence somebody can weigh. "Are you sure?" is not.
+   */
+  async impactOf(orgId: string, financialYear: string) {
+    const months = payrollMonthsRemaining(`${financialYear.slice(0, 4)}-04`);
+    const runs = await this.prisma.payrollRun.findMany({
+      where: { organizationId: orgId, month: { in: months }, status: 'PUBLISHED' },
+      select: { id: true, month: true },
+    });
+    if (runs.length === 0) {
+      return { financialYear, publishedRuns: 0, months: [] as string[], deductedSoFar: 0 };
+    }
+
+    const lines = await this.prisma.payslipLine.findMany({
+      where: {
+        componentCode: COMPONENT_CODES.TDS,
+        payslip: { runId: { in: runs.map((run) => run.id) } },
+      },
+      select: { amount: true },
+    });
+    return {
+      financialYear,
+      publishedRuns: runs.length,
+      months: runs.map((run) => run.month).sort(),
+      deductedSoFar: toRupees(lines.reduce((sum, l) => sum + toPaise(Number(l.amount)), 0)),
+    };
+  }
+
+  /**
+   * Save a financial year's rules, replacing its bands wholesale.
+   *
+   * Replace-all because slabs and surcharge bands have no natural key —
+   * position is their identity — so there is nothing to address a row by. The
+   * children are deleted and recreated inside one transaction with the parent,
+   * so a half-written rate table is a state that cannot happen.
+   *
+   * **This is the first thing that has ever audited these tables.** Every other
+   * payroll write records who changed what; tax configuration, the
+   * highest-consequence configuration in the product, did not.
+   */
+  async saveConfiguration(claims: AccessTokenClaims, input: TaxConfigurationSaveInput) {
+    const slabs = input.slabs.map((slab) => ({
+      fromAmount: slab.fromAmount,
+      toAmount: slab.toAmount ?? null,
+      rate: slab.rate,
+    }));
+
+    // A draft may be malformed — that is what a draft is for. Confirming is the
+    // act that lets payroll deduct against these numbers, so the bar sits there.
+    if (input.status === 'CONFIRMED') {
+      const blocked = confirmBlockedReason({ slabs, source: input.source });
+      if (blocked) throw new BadRequestException(blocked);
+      const surcharge = surchargeProblems(input.surchargeBands);
+      if (surcharge.length > 0) throw new BadRequestException(surcharge.join(' · '));
+    }
+
+    const existing = await this.prisma.taxConfiguration.findUnique({
+      where: {
+        organizationId_financialYear_regime: {
+          organizationId: claims.orgId,
+          financialYear: input.financialYear,
+          regime: input.regime,
+        },
+      },
+      select: { id: true, status: true, source: true },
+    });
+
+    if (existing?.status === 'CONFIRMED' && input.status === 'UNCONFIRMED') {
+      const { deductedSoFar } = await this.impactOf(claims.orgId, input.financialYear);
+      const blocked = unconfirmBlockedReason(deductedSoFar);
+      if (blocked) throw new BadRequestException(blocked);
+    }
+
+    const scalars = {
+      status: input.status,
+      source: input.source ?? null,
+      standardDeduction: input.standardDeduction,
+      rebateIncomeLimit: input.rebateIncomeLimit ?? null,
+      rebateMaxAmount: input.rebateMaxAmount ?? null,
+      cessRate: input.cessRate,
+      marginalRelief: input.marginalRelief,
+    };
+    const children = {
+      slabs: { create: slabs.map((slab, order) => ({ ...slab, order })) },
+      surchargeBands: {
+        create: input.surchargeBands.map((band, order) => ({ ...band, order })),
+      },
+      deductionRules: {
+        create: input.deductionRules.map((rule, order) => ({
+          section: rule.section,
+          label: rule.label,
+          hint: rule.hint ?? null,
+          maxAmount: rule.maxAmount ?? null,
+          order,
+        })),
+      },
+    };
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.taxSlab.deleteMany({ where: { configurationId: existing.id } });
+        await tx.taxSurchargeBand.deleteMany({ where: { configurationId: existing.id } });
+        await tx.taxDeductionRule.deleteMany({ where: { configurationId: existing.id } });
+        return tx.taxConfiguration.update({
+          where: { id: existing.id },
+          data: { ...scalars, ...children },
+        });
+      }
+      return tx.taxConfiguration.create({
+        data: {
+          organizationId: claims.orgId,
+          financialYear: input.financialYear,
+          regime: input.regime,
+          ...scalars,
+          ...children,
+        },
+      });
+    });
+
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      existing ? 'tax.configuration.update' : 'tax.configuration.create',
+      'TaxConfiguration',
+      row.id,
+      {
+        before: existing ? { status: existing.status, source: existing.source } : undefined,
+        after: {
+          financialYear: input.financialYear,
+          regime: input.regime,
+          status: input.status,
+          source: input.source ?? null,
+          slabs: slabs.length,
+        },
+      },
+    );
+    const saved = await this.configurations(claims.orgId, input.financialYear);
+    return saved.find((config) => config.regime === input.regime);
+  }
+
+  /**
+   * Copy one year's rules into another, both regimes at once.
+   *
+   * Lands UNCONFIRMED whatever the source was, and records in `source` what it
+   * came from. Setting up next April is the common case, and retyping seven
+   * bands is how a digit gets fat-fingered — but a copy is a starting point,
+   * not an assertion about the new year's law, so it cannot arrive confirmed.
+   * The same call `salary-structures.service.ts` makes by cloning inactive.
+   */
+  async copyConfiguration(claims: AccessTokenClaims, input: TaxConfigurationCopyInput) {
+    if (input.fromFinancialYear === input.toFinancialYear) {
+      throw new BadRequestException('Choose a different year to copy into');
+    }
+    const sources = await this.prisma.taxConfiguration.findMany({
+      where: { organizationId: claims.orgId, financialYear: input.fromFinancialYear },
+      include: { slabs: true, surchargeBands: true, deductionRules: true },
+    });
+    if (sources.length === 0) {
+      throw new NotFoundException(`There are no rules recorded for ${input.fromFinancialYear}`);
+    }
+    const clash = await this.prisma.taxConfiguration.count({
+      where: { organizationId: claims.orgId, financialYear: input.toFinancialYear },
+    });
+    if (clash > 0) {
+      throw new BadRequestException(
+        `${input.toFinancialYear} already has rules — edit them rather than copying over them.`,
+      );
+    }
+
+    for (const source of sources) {
+      await this.prisma.taxConfiguration.create({
+        data: {
+          organizationId: claims.orgId,
+          financialYear: input.toFinancialYear,
+          regime: source.regime,
+          status: 'UNCONFIRMED',
+          source: `Copied from ${input.fromFinancialYear} — not yet checked against the Finance Act`,
+          standardDeduction: source.standardDeduction,
+          rebateIncomeLimit: source.rebateIncomeLimit,
+          rebateMaxAmount: source.rebateMaxAmount,
+          cessRate: source.cessRate,
+          marginalRelief: source.marginalRelief,
+          slabs: {
+            create: source.slabs.map((slab) => ({
+              fromAmount: slab.fromAmount,
+              toAmount: slab.toAmount,
+              rate: slab.rate,
+              order: slab.order,
+            })),
+          },
+          surchargeBands: {
+            create: source.surchargeBands.map((band) => ({
+              aboveIncome: band.aboveIncome,
+              rate: band.rate,
+              order: band.order,
+            })),
+          },
+          deductionRules: {
+            create: source.deductionRules.map((rule) => ({
+              section: rule.section,
+              label: rule.label,
+              hint: rule.hint,
+              maxAmount: rule.maxAmount,
+              order: rule.order,
+            })),
+          },
+        },
+      });
+    }
+
+    await auditMutation(
+      this.prisma,
+      { orgId: claims.orgId, userId: claims.sub },
+      'tax.configuration.copy',
+      'TaxConfiguration',
+      input.toFinancialYear,
+      { after: { from: input.fromFinancialYear, to: input.toFinancialYear } },
+    );
+    return this.configurations(claims.orgId, input.toFinancialYear);
   }
 
   // ── Regime ──────────────────────────────────────────────────────────

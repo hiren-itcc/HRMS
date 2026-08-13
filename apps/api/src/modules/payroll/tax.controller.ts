@@ -1,5 +1,7 @@
 import {
   financialYearSchema,
+  taxConfigurationCopySchema,
+  taxConfigurationSaveSchema,
   taxDeclarationDecisionSchema,
   taxDeclarationSchema,
   taxRegimeSelectionSchema,
@@ -30,6 +32,8 @@ export class TaxRegimeSelectionDto extends createZodDto(taxRegimeSelectionSchema
 export class TaxDeclarationDto extends createZodDto(taxDeclarationSchema) {}
 export class TaxDeclarationDecisionDto extends createZodDto(taxDeclarationDecisionSchema) {}
 export class TdsOverrideDto extends createZodDto(tdsOverrideSchema) {}
+export class TaxConfigurationSaveDto extends createZodDto(taxConfigurationSaveSchema) {}
+export class TaxConfigurationCopyDto extends createZodDto(taxConfigurationCopySchema) {}
 
 /**
  * Income tax (docs/03-api-structure.md §income-tax).
@@ -139,6 +143,32 @@ export class TaxController {
   @ApiOperation({ summary: 'The configured tax rules, by year and regime' })
   configuration(@CurrentUser() user: AccessTokenClaims, @Query('financialYear') fy?: string) {
     return this.tax.configurations(user.orgId, fy);
+  }
+
+  @Put('configuration')
+  @RequirePermissions('payroll.tax.manage')
+  @ApiOperation({ summary: 'Save a financial year’s rules, replacing its bands' })
+  saveConfiguration(@CurrentUser() user: AccessTokenClaims, @Body() dto: TaxConfigurationSaveDto) {
+    return this.tax.saveConfiguration(user, dto);
+  }
+
+  @Post('configuration/copy')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('payroll.tax.manage')
+  @ApiOperation({ summary: 'Copy one year’s rules into another, unconfirmed' })
+  copyConfiguration(@CurrentUser() user: AccessTokenClaims, @Body() dto: TaxConfigurationCopyDto) {
+    return this.tax.copyConfiguration(user, dto);
+  }
+
+  /* Declared before ':employeeId' so 'configuration' is not read as an id. */
+  @Get('configuration/:financialYear/impact')
+  @RequirePermissions('payroll.tax.manage')
+  @ApiOperation({ summary: 'What editing this year would disturb' })
+  configurationImpact(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('financialYear') financialYear: string,
+  ) {
+    return this.tax.impactOf(user.orgId, this.year(financialYear, this.month(undefined)));
   }
 
   @Get('pending')

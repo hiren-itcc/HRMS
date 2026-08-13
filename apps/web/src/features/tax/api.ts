@@ -1,4 +1,6 @@
 import type {
+  TaxConfigurationCopyInput,
+  TaxConfigurationSaveInput,
   TaxDeclarationDecisionInput,
   TaxDeclarationInput,
   TaxDeclarationStatusCode,
@@ -109,6 +111,14 @@ export interface TaxConfiguration {
   deductionRules: DeductionRule[];
 }
 
+/** What editing a year's rules would disturb — named, not warned about vaguely. */
+export interface ConfigurationImpact {
+  financialYear: string;
+  publishedRuns: number;
+  months: string[];
+  deductedSoFar: number;
+}
+
 export interface EmployeeTaxRow {
   employeeId: string;
   firstName: string;
@@ -132,6 +142,7 @@ export const taxKeys = {
   me: (fy: string, month: string) => ['tax', 'me', fy, month] as const,
   myDeclaration: (fy: string) => ['tax', 'me', 'declaration', fy] as const,
   configuration: (fy?: string) => ['tax', 'configuration', fy ?? null] as const,
+  impact: (fy: string) => ['tax', 'configuration', fy, 'impact'] as const,
   employees: (fy: string, month: string, filters: Record<string, string | undefined>) =>
     ['tax', 'employees', fy, month, filters] as const,
   employee: (id: string, fy: string, month: string) => ['tax', 'employees', id, fy, month] as const,
@@ -160,6 +171,18 @@ export const taxApi = {
 
   configuration: (financialYear?: string) =>
     api<TaxConfiguration[]>(`/payroll/tax/configuration${qs({ financialYear })}`),
+  saveConfiguration: (input: TaxConfigurationSaveInput) =>
+    api<TaxConfiguration>('/payroll/tax/configuration', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  copyConfiguration: (input: TaxConfigurationCopyInput) =>
+    api<TaxConfiguration[]>('/payroll/tax/configuration/copy', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  configurationImpact: (financialYear: string) =>
+    api<ConfigurationImpact>(`/payroll/tax/configuration/${financialYear}/impact`),
   employees: (
     financialYear: string,
     month: string,

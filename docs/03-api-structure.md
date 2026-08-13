@@ -864,6 +864,9 @@ and the screen says so.
 | PUT | `/payroll/tax/me/declaration` — **items are replaced wholesale** | `payroll.read.own` |
 | POST | `/payroll/tax/me/declaration/submit` | `payroll.read.own` |
 | GET | `/payroll/tax/configuration?financialYear=` — the year's slabs and limits | `payroll.tax.view` |
+| PUT | `/payroll/tax/configuration` — save a year's rules; **bands are replaced wholesale** | `payroll.tax.manage` |
+| POST | `/payroll/tax/configuration/copy` — clone one year into another, unconfirmed | `payroll.tax.manage` |
+| GET | `/payroll/tax/configuration/:financialYear/impact` — published runs and TDS already deducted | `payroll.tax.manage` |
 | GET | `/payroll/tax/pending?financialYear=` — declarations waiting on HR | `payroll.tax.declaration.approve` |
 | GET | `/payroll/tax/employees?financialYear=&month=&regime=&status=&departmentId=&search=` | `payroll.tax.view` |
 | GET | `/payroll/tax/employees/:employeeId` — one projection, slab by slab | `payroll.tax.view` |
@@ -895,6 +898,31 @@ is where `approvedAmount` is written** — capped again against the statutory
 limit, because HR trimming a figure is a reason to lower it and never to exceed
 the cap. Declaring above a section limit is allowed and capped on the way
 through; refusing the number would only teach people to under-report it.
+
+**Saving a year's rules is replace-all**, because slabs and surcharge bands have
+no natural key — position is their identity, so there is nothing to address a
+row by. The whole table goes in one transaction with its parent; a half-written
+rate table is a state that cannot happen.
+
+**Confirming is where the bar sits.** A draft may be malformed, which is what a
+draft is for. `CONFIRMED` is the act that lets payroll deduct, so it refuses a
+table with a gap, an overlap, no open-ended top band, a rate that falls as
+income rises, or **no `source`** — an unsourced rate table is one nobody can
+check. A gap is the one that matters: income falling between two bands is taxed
+by no band at all, producing a smaller number on a payslip and no error anywhere.
+
+**Un-confirming a year that has already deducted is refused.** `tdsForRun`
+*skips* an employee whose year is unconfirmed rather than deducting zero, so
+reverting mid-year would quietly stop TDS for the whole workforce and land the
+shortfall on people in March. Correcting the figures is always the better move,
+and the remaining months adjust for what was already taken.
+
+**Editing a live year is allowed, and safe.** Published payslips cannot be
+recalculated (`payroll.workflow.ts` only permits it from DRAFT or IN_REVIEW),
+and `alreadyDeducted` is read from those frozen payslips — so the divisor
+self-corrects and only the remaining months move. The same bargain PF, ESI and
+professional tax already make. `impact` exists so the confirmation can name what
+it disturbs rather than warning in the abstract.
 
 **Nothing here touches Form 24Q.** The return reads actual `PayslipLine` rows
 with code `TDS`, exactly as before. This module
