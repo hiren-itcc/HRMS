@@ -53,7 +53,7 @@ export const TAX_SECTIONS = [
 export const taxSectionSchema = z.enum(TAX_SECTIONS);
 export type TaxSectionCode = (typeof TAX_SECTIONS)[number];
 
-/** `YYYY-YY`, the same shape `TdsReturn.financialYear` and `tds-period.ts` use. */
+/** `YYYY-YY`, the same shape `tds-period.ts`'s `financialYearOf` produces. */
 export const financialYearSchema = z
   .string()
   .regex(/^\d{4}-\d{2}$/, 'Use a financial year like 2026-27')

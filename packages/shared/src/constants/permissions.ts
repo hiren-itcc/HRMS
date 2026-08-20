@@ -310,17 +310,6 @@ export const PERMISSIONS = [
   'payroll.approve',
   'payroll.pay',
   /*
-   * Generating a statutory return. Separate from `payroll.read`, which is
-   * reading numbers, because this puts an establishment code on a file with
-   * legal consequences and uploads it under the company's name.
-   *
-   * Not folded into `payroll.process` either: a return is produced *after* a
-   * run is published, not as part of processing it, so the two are different
-   * moments as well as different decisions. HR and Finance both hold it —
-   * whichever of them files is a question this product should not answer.
-   */
-  'payroll.filing',
-  /*
    * Income tax: the regime, the declaration, and the TDS that falls out of
    * them.
    *
@@ -522,7 +511,6 @@ const HR_PERMS: Permission[] = [
   'payroll.structure.manage',
   'payroll.salary.manage',
   'payroll.process',
-  'payroll.filing',
   /*
    * HR owns the tax module: it maintains the year's slabs, reads everybody's
    * projection, and agrees declarations — because collecting an investment
@@ -552,7 +540,6 @@ const FINANCE_PERMS: Permission[] = [
   'payroll.read',
   'payroll.approve',
   'payroll.pay',
-  'payroll.filing',
   /*
    * Finance reads the tax projection and agrees no declaration. It has to
    * answer for the TDS it deposits, which means seeing how each figure was
