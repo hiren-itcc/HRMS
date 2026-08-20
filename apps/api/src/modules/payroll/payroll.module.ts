@@ -9,19 +9,15 @@ import { PayrollReportsService } from './payroll-reports.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsService } from './payslips.service';
 import { SalaryStructuresService } from './salary-structures.service';
-import { StatutoryFilingsService } from './statutory-filings.service';
 import { TaxController } from './tax.controller';
 import { TaxService } from './tax.service';
-import { TdsController } from './tds.controller';
-import { TdsChallansService } from './tds-challans.service';
-import { TdsReturnsService } from './tds-returns.service';
 
 /** Payroll (docs/03-api-structure.md §payroll). */
 @Module({
   // Settings supplies the statutory rules and the working week the
   // calculation prorates against.
   imports: [SettingsModule],
-  controllers: [PayrollController, TdsController, PayComponentsController, TaxController],
+  controllers: [PayrollController, PayComponentsController, TaxController],
   providers: [
     SalaryStructuresService,
     EmployeeSalariesService,
@@ -29,9 +25,6 @@ import { TdsReturnsService } from './tds-returns.service';
     PayrollRunsService,
     PayslipsService,
     PayrollReportsService,
-    StatutoryFilingsService,
-    TdsChallansService,
-    TdsReturnsService,
     PayComponentsService,
     TaxService,
   ],

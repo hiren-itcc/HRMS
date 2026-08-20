@@ -1,7 +1,7 @@
 /**
  * The income-tax engine.
  *
- * Pure, like `payroll.calc.ts`, `tds-period.ts` and `tds-reconcile.ts` — no
+ * Pure, like `payroll.calc.ts` and `tds-period.ts` — no
  * Prisma, no clock, no settings lookup, no HTTP. Everything it needs arrives as
  * an argument, and the same input always produces the same answer. That is what
  * makes "why was ₹15,000 deducted in December" a question with an answer.

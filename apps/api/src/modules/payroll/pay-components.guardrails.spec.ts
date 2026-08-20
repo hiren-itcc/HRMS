@@ -17,8 +17,8 @@ describe('isProtected', () => {
 
   it('protects TDS specifically — the case an isStatutory guard would miss', () => {
     // TDS is isStatutory: false (deliberately — entered per employee rather
-    // than projected) yet payroll.calc.ts and tds-returns.service.ts
-    // hardcode it by code. A guard keyed on isStatutory would leave it
+    // than projected) yet payroll.calc.ts hardcodes it by code. A guard
+    // keyed on isStatutory would leave it
     // editable and deletable; this one is keyed on COMPONENT_CODES instead.
     expect(PROTECTED_CODES.has(COMPONENT_CODES.TDS)).toBe(true);
     expect(isProtected('TDS')).toBe(true);

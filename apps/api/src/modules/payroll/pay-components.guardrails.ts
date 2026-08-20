@@ -14,8 +14,7 @@ import { COMPONENT_CODES } from '@hrms/shared';
  *
  * `isStatutory` looks like the right flag to guard on and is not: `TDS` is
  * `isStatutory: false` (deliberately — entered per employee rather than
- * projected) yet `payroll.calc.ts` and `tds-returns.service.ts` hardcode it
- * by code regardless. `COMPONENT_CODES` is the set the engine actually looks
+ * projected) yet `payroll.calc.ts` hardcodes it by code regardless. `COMPONENT_CODES` is the set the engine actually looks
  * up, so it is the only authority this module trusts.
  */
 

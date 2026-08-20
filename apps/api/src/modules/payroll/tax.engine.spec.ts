@@ -853,7 +853,7 @@ describe('a year, month by month', () => {
 
 describe('purity', () => {
   /*
-   * The same guard `tds-period.ts` and `tds-reconcile.ts` carry. A clock or a
+   * The same guard `tds-period.ts` carries. A clock or a
    * Prisma call in here would make a December recalculation of April disagree
    * with the payslip April was paid on.
    */

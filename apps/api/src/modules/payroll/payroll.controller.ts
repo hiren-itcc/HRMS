@@ -42,7 +42,6 @@ import { PayrollReportsService } from './payroll-reports.service';
 import { PayrollRunsService } from './payroll-runs.service';
 import { PayslipsService } from './payslips.service';
 import { SalaryStructuresService } from './salary-structures.service';
-import { StatutoryFilingsService } from './statutory-filings.service';
 
 @ApiTags('payroll')
 @ApiBearerAuth()
@@ -56,7 +55,6 @@ export class PayrollController {
     private readonly reports: PayrollReportsService,
     private readonly adjustmentsService: PayrollAdjustmentsService,
     private readonly prisma: PrismaService,
-    private readonly filings: StatutoryFilingsService,
   ) {}
 
   // ── structures ─────────────────────────────────────────────────────────
@@ -255,75 +253,6 @@ export class PayrollController {
   @ApiOperation({ summary: 'Record payment against one or more payslips' })
   updatePayment(@CurrentUser() user: AccessTokenClaims, @Body() dto: PaymentUpdateDto) {
     return this.payslips.updatePayment(user, dto);
-  }
-
-  // ── statutory filings ─────────────────────────────────────────────────
-
-  /*
-   * Declared before `reports/:kind` so "filings" is never read as a report
-   * kind — the same ordering trap `employees/export` had to step around.
-   */
-  @Get('filings')
-  @RequirePermissions('payroll.read')
-  @ApiOperation({ summary: 'Returns generated so far' })
-  listFilings(@CurrentUser() user: AccessTokenClaims, @Query('period') period?: string) {
-    return this.filings.list(user, period);
-  }
-
-  @Get('filings/readiness')
-  @RequirePermissions('payroll.read')
-  @ApiOperation({ summary: 'Whether this company can file at all, before a month is chosen' })
-  filingReadiness(@CurrentUser() user: AccessTokenClaims) {
-    return this.filings.readiness(user.orgId);
-  }
-
-  @Get('filings/preview')
-  @RequirePermissions('payroll.read')
-  @ApiOperation({ summary: 'What a return would contain, and who is excluded from it' })
-  previewFiling(
-    @CurrentUser() user: AccessTokenClaims,
-    @Query('kind') kind: 'ECR' | 'ESIC_RETURN',
-    @Query('month') month: string,
-  ) {
-    if (kind !== 'ECR' && kind !== 'ESIC_RETURN') {
-      throw new BadRequestException('Choose either ECR or ESIC_RETURN');
-    }
-    return this.filings.preview(user, kind, month);
-  }
-
-  @Post('filings')
-  @RequirePermissions('payroll.filing')
-  @ApiOperation({ summary: 'Generate and freeze a return' })
-  generateFiling(
-    @CurrentUser() user: AccessTokenClaims,
-    @Query('kind') kind: 'ECR' | 'ESIC_RETURN',
-    @Query('month') month: string,
-  ) {
-    if (kind !== 'ECR' && kind !== 'ESIC_RETURN') {
-      throw new BadRequestException('Choose either ECR or ESIC_RETURN');
-    }
-    return this.filings.generate(user, kind, month);
-  }
-
-  @Get('filings/:id/file')
-  @RequirePermissions('payroll.filing')
-  @ApiOperation({ summary: 'The frozen bytes, exactly as generated' })
-  async filingFile(
-    @CurrentUser() user: AccessTokenClaims,
-    @Param('id') id: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { content, filename, contentType } = await this.filings.file(user, id);
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return content;
-  }
-
-  @Delete('filings/:id')
-  @RequirePermissions('payroll.filing')
-  @ApiOperation({ summary: 'Discard one, so the month can be generated again' })
-  removeFiling(@CurrentUser() user: AccessTokenClaims, @Param('id') id: string) {
-    return this.filings.remove(user, id);
   }
 
   // ── reports ───────────────────────────────────────────────────────────

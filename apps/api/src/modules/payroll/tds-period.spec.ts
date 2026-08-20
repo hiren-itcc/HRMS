@@ -1,17 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  financialYearOf,
-  isFinancialYear,
-  monthsIn,
-  quarterOf,
-  type TdsQuarterCode,
-} from './tds-period';
+import { financialYearOf } from './tds-period';
 
 describe('financialYearOf', () => {
   // The Indian financial year runs April to March, so January belongs to the
-  // year that started the previous April. Getting this wrong files a return
-  // against the wrong year, which is a correction statement.
+  // year that started the previous April. Getting this wrong projects tax
+  // against the wrong year's slabs.
   it.each([
     ['2026-04', '2026-27'],
     ['2026-12', '2026-27'],
@@ -21,55 +15,10 @@ describe('financialYearOf', () => {
   ])('maps %s to %s', (month, expected) => {
     expect(financialYearOf(month)).toBe(expected);
   });
-});
 
-describe('quarterOf', () => {
-  it.each([
-    ['2026-04', 'Q1'],
-    ['2026-06', 'Q1'],
-    ['2026-07', 'Q2'],
-    ['2026-09', 'Q2'],
-    ['2026-10', 'Q3'],
-    ['2026-12', 'Q3'],
-    ['2027-01', 'Q4'],
-    ['2027-03', 'Q4'],
-  ])('puts %s in %s', (month, expected) => {
-    expect(quarterOf(month)).toBe(expected);
-  });
-});
-
-describe('monthsIn', () => {
-  it.each([
-    ['Q1', ['2026-04', '2026-05', '2026-06']],
-    ['Q2', ['2026-07', '2026-08', '2026-09']],
-    ['Q3', ['2026-10', '2026-11', '2026-12']],
-    ['Q4', ['2027-01', '2027-02', '2027-03']],
-  ])('expands 2026-27 %s', (quarter, expected) => {
-    expect(monthsIn('2026-27', quarter as TdsQuarterCode)).toEqual(expected);
-  });
-
-  it('round-trips against quarterOf and financialYearOf', () => {
-    for (const quarter of ['Q1', 'Q2', 'Q3', 'Q4'] as TdsQuarterCode[]) {
-      for (const month of monthsIn('2026-27', quarter)) {
-        expect(quarterOf(month)).toBe(quarter);
-        expect(financialYearOf(month)).toBe('2026-27');
-      }
-    }
-  });
-
-  it('refuses a financial year it cannot parse', () => {
-    expect(() => monthsIn('2026', 'Q1')).toThrow(/financial year/i);
-  });
-});
-
-describe('isFinancialYear', () => {
-  it.each([
-    ['2026-27', true],
-    ['2026-28', false], // not consecutive
-    ['2026', false],
-    ['26-27', false],
-  ])('%s -> %s', (value, expected) => {
-    expect(isFinancialYear(value)).toBe(expected);
+  it('refuses a month key it cannot parse', () => {
+    expect(() => financialYearOf('2026')).toThrow(/month key/i);
+    expect(() => financialYearOf('2026-13')).toThrow(/calendar month/i);
   });
 });
 

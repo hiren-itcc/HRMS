@@ -13,9 +13,8 @@ import { as, createTestApp, login } from './app';
  *
  * The load-bearing assertion is the cross-check in "the projection and the
  * payslip agree". Both figures come from `summarise`, so they must — and
- * nothing anywhere compares them. `tds-reconcile.ts` compares a different pair
- * (payslip against challan), and `summarise` returns the projection beside the
- * history in one object without ever looking at both.
+ * nothing anywhere compares them: `summarise` returns the projection beside
+ * the history in one object without ever looking at both.
  *
  * ## Which run this uses
  *
