@@ -120,7 +120,6 @@ payroll.salary.manage                            (assign and revise salaries)
 payroll.process        (open a run, calculate, publish; prepare a settlement)
 payroll.approve        (approve, reopen, lock; approve or cancel a settlement)
 payroll.pay            (record payment against payslips and settlements)
-payroll.filing         (generate a statutory return: ECR, ESIC, Form 24Q)
 
 settings.manage        role.manage              audit.read
 ```
@@ -191,7 +190,6 @@ settings.manage        role.manage              audit.read
 | `payroll.process` (open, calculate, publish; prepare a settlement) | ✅ | ✅ | — | — | — |
 | `payroll.approve` (approve, reopen, lock; approve a settlement) | ✅ | — | ✅ | — | — |
 | `payroll.pay` (record payment, incl. settlements) | ✅ | — | ✅ | — | — |
-| `payroll.filing` (ECR, ESIC, Form 24Q) | ✅ | ✅ | ✅ | — | — |
 | `helpdesk.read.own` / `helpdesk.raise.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `helpdesk.read` (every ticket) / `helpdesk.respond` / `helpdesk.manage` | ✅ | ✅ | — | — | — |
 

@@ -42,7 +42,7 @@ Twenty modules ship — hire to exit, including payroll with statutory returns.
 | Module | Highlights |
 |---|---|
 | Payroll | Salary structures, effective-dated revisions, the Draft → Published run workflow with locking, adjustments, payslips, bulk payment recording, and six payroll reports |
-| Statutory returns | **ECR** for the EPFO portal and the **ESIC** contribution return, generated from a published run and frozen once filed, with a readiness gate that refuses before a period can even be chosen |
+| Income tax | Per-employee regime per financial year, investment declarations with HR approval, editable slab tables, and monthly TDS projected as remaining tax ÷ remaining months |
 | Expenses | Categories, multi-line claims, receipts, approval, and an approved claim becoming a payslip line |
 | Settlements | Full-and-final on exit — encashment, notice recovery, gratuity |
 

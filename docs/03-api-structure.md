@@ -829,30 +829,14 @@ payslip it summarises can never disagree. The bank-transfer report excludes
 payslips with no account rather than emitting blank rows, and reports how many
 it dropped.
 
-### Statutory filings (`/payroll/filings`) — PF ECR and ESIC
+### Statutory filings and TDS returns — removed
 
-| Method | Path | Permission |
-|---|---|---|
-| GET | `/payroll/filings?kind=&month=` — what has been generated | `payroll.read` |
-| GET | `/payroll/filings/readiness?kind=&month=` — can this month be filed at all | `payroll.read` |
-| GET | `/payroll/filings/preview?kind=&month=` — the first lines, plus exclusions | `payroll.read` |
-| POST | `/payroll/filings?kind=&month=` — generate and freeze | `payroll.filing` |
-| GET | `/payroll/filings/:id/file` — the stored bytes, never rebuilt | `payroll.filing` |
-| DELETE | `/payroll/filings/:id` | `payroll.filing` |
-
-**Readiness fires before a month can be chosen**, not at download time. Refusing
-after somebody has picked a period and believed the totals is the worst possible
-moment. Exclusions render *before* the totals and are never collapsed: somebody
-left out for want of a UAN is a person whose contribution is not reaching their
-account.
-
-The establishment codes these need — EPFO code, ESIC employer code, TAN, PAN,
-signatory — live in the `statutory` settings group. A file without them is not a
-short file, it is an unusable one, so their absence is a refusal.
-
-**No file here has been accepted by a portal in this deployment.** Golden-file
-tests prove the builder is stable; that is not the same as an upload succeeding,
-and the screen says so.
+`/payroll/filings`, `/payroll/challans` and `/payroll/returns` were removed on
+2026-08-20, together with the `payroll.filing` permission and the `statutory`
+settings group. The scope decision: this product calculates the year's TDS and
+deducts it monthly (the Income tax module below); it does not generate
+government return files — EPFO ECR, ESIC returns or Form 24Q. The 24Q builder
+was gated behind an untranscribed FVU layout and never produced a usable file.
 
 ### Income tax (`/payroll/tax`)
 
@@ -890,8 +874,7 @@ under-deduct a mid-year joiner and dump the shortfall on them in March.
 `TaxConfiguration` ships `UNCONFIRMED` until somebody enters that year's Finance
 Act numbers, and payroll skips those employees rather than deducting zero — a
 zero on a payslip reads as "no tax due", which is a different claim. The run
-reports how many were skipped. This is the same device
-`FVU_SPEC_VERSION = 'UNTRANSCRIBED'` uses for the 24Q layout.
+reports how many were skipped.
 
 **Saving a declaration is more permissive than submitting it**, and **approval
 is where `approvedAmount` is written** — capped again against the statutory
@@ -924,32 +907,9 @@ self-corrects and only the remaining months move. The same bargain PF, ESI and
 professional tax already make. `impact` exists so the confirmation can name what
 it disturbs rather than warning in the abstract.
 
-**Nothing here touches Form 24Q.** The return reads actual `PayslipLine` rows
-with code `TDS`, exactly as before. This module
-decides what goes into that line and stops there.
-
-### TDS returns
-
-| Method | Path | Permission |
-|---|---|---|
-| GET | `/payroll/challans?fy=` | `payroll.read` |
-| POST | `/payroll/challans` | `payroll.filing` |
-| PATCH | `/payroll/challans/:id` | `payroll.filing` |
-| DELETE | `/payroll/challans/:id` | `payroll.filing` |
-| GET | `/payroll/returns?fy=` | `payroll.read` |
-| GET | `/payroll/returns/preview?fy=&quarter=` | `payroll.read` |
-| POST | `/payroll/returns?fy=&quarter=` | `payroll.filing` |
-| GET | `/payroll/returns/:id/file` | `payroll.filing` |
-| DELETE | `/payroll/returns/:id` | `payroll.filing` |
-
-One challan per payroll month, enforced by a unique constraint: a 24Q names the
-challan each deductee was paid under, so one per month makes that mapping
-derivable rather than an allocation screen.
-
-Generation refuses on a reconciliation difference between the challans and the
-payslips. A missing PAN warns instead — a return can be filed for a deductee
-whose PAN is unavailable, and refusing would stop a statutory deadline being
-met over a data-quality problem.
+**This module ends at the payslip line.** It decides what goes into the `TDS`
+`PayslipLine` and stops there — downstream consumers read that frozen line,
+never the engine.
 
 ### Settlements (`/payroll/settlements`)
 
@@ -1031,8 +991,7 @@ There are **nine** groups, each stored as one `Setting` row so patching one
 never rewrites another: `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
 (`yearStartMonth`, `allowNegativeBalance`), `payroll` (currency, pay day, LOP
 basis, and the PF / ESI / professional-tax rules), `lifecycle`, `exitChecklist`,
-`settlement`, `wfh`, `statutory` (TAN, PAN, establishment codes, signatory) and
-`modules`.
+`settlement`, `wfh` and `modules`.
 
 `modules` has twelve keys — `attendance`, `leave`, `documents`, `announcements`,
 `reports`, `payroll`, `assets`, `wfh`, `expenses`, `performance`, `helpdesk`,

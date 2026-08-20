@@ -394,8 +394,7 @@ one such opening so the case is always on screen.
 | 44 | Payroll preferences | `/settings/preferences` | Currency, pay day, LOP basis, PF/ESI/PT rules, and the settlement basis, gratuity rate and ceiling (part of the settings screen) |
 | 45 | Settlements | `/payroll/settlements` | Finance’s queue: employee, last working day, earnings, deductions, net payable, status. Defaults to Draft — the only state anybody is waiting on |
 | 46 | Settlement statement | `/payroll/settlements/[id]` | The document — earnings vs deductions with the working printed under each figure, editable while draft, approve/pay/recompute, print to PDF |
-| 47 | TDS challans | `/payroll/filings/challans` | Register of deposits, one per payroll month; sits inside the Returns tab (`/payroll/filings`) alongside Monthly and Form 24Q rather than as a top-level entry |
-| 48 | Form 24Q | `/payroll/filings/24q` | Financial-year and quarter pickers, readiness/reconciliation warnings, and a download of the FVU input file once generated and frozen; also inside the Returns tab |
+| 47–48 | *(removed)* | — | The Returns tab (`/payroll/filings` — monthly ECR/ESIC, TDS challans, Form 24Q) was removed on 2026-08-20; the product deducts monthly TDS but does not generate government return files |
 
 The run detail screen is the one worth describing precisely: it renders only
 the actions legal from the current state **and** permitted to the signed-in

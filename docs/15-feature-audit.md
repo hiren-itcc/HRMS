@@ -378,7 +378,7 @@ It is also why the helpdesk defers attachments rather than copying this shape.
 Found while checking whether `TRUST_PROXY` had taken effect, by reading the live
 table rather than the code. Sign-ins carried an address; **every other mutation
 carried `NULL`** — 18 of the last 200 rows, including
-`payroll.filing.generate`, `employee.update` and `settings.update`.
+`payroll.filing.generate` (an action that existed at the time), `employee.update` and `settings.update`.
 
 The cause was that `auditMutation` (`common/utils/audit.ts`) takes
 `{ orgId, userId }` and had no `ip` parameter at all. That context is the
@@ -404,31 +404,20 @@ The ambient-state trade is real and is argued in the header of
 about the request, never capabilities — so nothing can grant itself permissions
 through it.
 
-### Statutory filing — the sharpest commercial gap
+### Statutory filing — removed from scope (2026-08-20)
 
 The engine computes PF, ESI and PT correctly, and the rates come from settings
-rather than constants. What it cannot produce is the **filing artefacts**, which
-is what an Indian payroll buyer is actually purchasing:
+rather than constants. **Producing filing artefacts is no longer this product's
+job**: the Returns feature — EPFO ECR, ESIC return, the TDS challan register
+and Form 24Q — was removed on 2026-08-20, along with the `payroll.filing`
+permission, the `statutory` settings group and the three tables behind it. The
+24Q generator had never produced a usable file (its FVU layout was never
+transcribed). What stays: the six payroll reports (PF / ESI / PT / register /
+bank-transfer / tax), and the full monthly TDS pipeline — regime choice,
+declarations, slab editing, projection and the payslip deduction.
 
-| Output | Status |
-|---|---|
-| **Form 16** (Part A + B) | ❌ — `11:89` scopes it as "a tax engine, not a payroll feature" |
-| **Form 24Q** quarterly TDS return | ✅ built as the FVU's *input* file, not a filed return — but generation is currently refused at the readiness gate, because the record layout is deliberately not yet transcribed (`FVU_SPEC_VERSION === 'UNTRANSCRIBED'`); Q4 is only partly supported, since Annexure II (the annual salary annexure) is not produced |
-| **ECR** text file for the EPFO portal | ✅ built — never accepted by the portal in this deployment |
-| **ESIC** contribution challan | ✅ built — same caveat |
-| **Form 12BB** / investment declarations | ⚠️ — an investment *declaration* ships (regime choice, 80C/80D/80CCD(1B)/HRA and the rest, HR approval, and it drives real TDS). The **Form 12BB artefact itself is not produced**, and no proof is uploaded or stored against a line |
-| ~~**Old vs new regime** TDS projection~~ | ✅ built — per-employee regime per financial year, progressive slabs, s.87A rebate, surcharge with marginal relief and configurable cess, projected off the salary structure rather than CTC. Monthly TDS is **remaining tax ÷ remaining payroll months**, so a mid-year joiner or a December approval re-spreads correctly instead of dumping a shortfall in March | Since 13 August the year's bands are also **editable in the app** (`/payroll/tax/rules`, `payroll.tax.manage`) rather than seed-only — with contiguity refused on save, because a gap between two bands silently under-taxes.
-| **Gratuity** | ❌ as a filing — it *is* computed on an exit settlement, but there is no statutory register behind it |
-| **Bonus** (Payment of Bonus Act) | ❌ |
-| **LWF** | ❌ |
-| PF / ESI / PT / register / bank-transfer reports | ✅ six reports ship |
-
-greytHR's whole market position is that these are one click. Any pitch against
-it has to answer this.
-
----
-
-## 6. Prioritised TODO
+Still absent, and now explicitly out of scope unless the decision is revisited:
+Form 16, Form 12BB artefact, gratuity register, Payment of Bonus Act, LWF.
 
 ### P0 — the docs actively mislead — ✅ **all done**
 
@@ -610,34 +599,12 @@ which other documents were citing.
     resolved toward building after all. **Email notifications remain absent**,
     so a resignation moving through approval reaches nobody who does not open
     the app.
-22. **Form 16, Form 24Q, ECR, ESIC challan** — half built. **ECR and the ESIC
-    contribution return ship**; a Returns tab under Payroll, a Statutory card
-    in Settings for the establishment codes, and a readiness gate that fires
-    *before* a month can be chosen — refusing at download time would be the
-    worst moment, once the operator has picked a period and believed the
-    totals. Exclusions render before the totals and never collapsed: somebody
-    left out for want of a UAN is a person whose contribution is not reaching
-    their account.
-
-    **24Q now ships too, but only as the FVU's input file.** A TDS challan
-    register (`/payroll/filings/challans`, one challan per payroll month) and
-    a quarterly generator (`/payroll/filings/24q`) reconcile the quarter's
-    challans against its payslips and refuse to generate on a mismatch; a
-    missing PAN warns instead of refusing, since filing without one is legal
-    and blocking would trade a data-quality problem for a missed deadline.
-    **Generation is currently refused at the readiness gate regardless** — the
-    record layout is deliberately not yet transcribed
-    (`FVU_SPEC_VERSION === 'UNTRANSCRIBED'` in `tds-files.ts`), so nobody is
-    handed a file whose field order was invented rather than sourced from the
-    spec. **Q4 is only partly supported**: the file covers Annexure I only,
-    and Annexure II (the annual salary annexure) is not produced. **Form 16
-    remains absent**, still scoped out as a tax engine rather than a payroll
-    feature (`11:89`).
-
-    **No file here has been accepted by a portal.** The golden-file tests are
-    the strongest check CI can offer and they are not the same thing as an
-    upload succeeding, so the screen says so rather than letting somebody find
-    out by filing.
+22. **Form 16, Form 24Q, ECR, ESIC challan** — ~~half built~~ **removed on
+    2026-08-20**. The Returns tab, the TDS challan register, the 24Q generator
+    and the ECR/ESIC builders were deleted by the scope decision recorded
+    above: this product deducts monthly TDS and reports payroll figures; it
+    does not generate government return files. Form 16 remains absent, now by
+    the same decision rather than by omission.
 
 ### P3 — differentiators, once the above is settled
 

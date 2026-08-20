@@ -1697,95 +1697,15 @@ model TicketComment {
 
 ```
 
-#### Statutory filings and TDS returns
+#### Statutory filings and TDS returns — removed
 
-```prisma
-enum StatutoryFilingKind { ECR ESIC_RETURN }
-enum TdsQuarter { Q1 Q2 Q3 Q4 }
-
-model StatutoryFiling {
-  id             String              @id @default(cuid())
-  organizationId String
-  kind           StatutoryFilingKind
-  /// `YYYY-MM`, matching PayrollRun.month.
-  period         String
-  runId          String
-  /// The file exactly as downloaded — not regenerated, ever.
-  content        String
-  rowCount       Int
-  /// How many people were left out for want of an identifier. Surfaced on the
-  /// screen, because a short file nobody noticed is the failure this whole
-  /// design is arranged to prevent.
-  excludedCount  Int                 @default(0)
-  /// The exclusions themselves, and the column totals the portal will check.
-  detail         Json
-  generatedAt    DateTime            @default(now())
-  generatedById  String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, kind, period])
-  @@index([organizationId, period])
-}
-
-model TdsChallan {
-  id             String   @id @default(cuid())
-  organizationId String
-  /// `YYYY-MM`, the payroll month whose TDS this deposits. Same contract as
-  /// StatutoryFiling.period.
-  period         String
-  /// Bank branch code, seven digits.
-  bsrCode        String
-  /// Serial number the bank assigned, five digits.
-  challanSerial  String
-  depositDate    DateTime
-  /// 92B — non-government salary. Stored rather than assumed so a government
-  /// deductor is a data change, not a release.
-  sectionCode    String   @default("92B")
-  /// 200 — regular payment, as opposed to 400 raised by the department.
-  minorHead      String   @default("200")
-  tds            Decimal  @default(0) @db.Decimal(14, 2)
-  surcharge      Decimal  @default(0) @db.Decimal(14, 2)
-  educationCess  Decimal  @default(0) @db.Decimal(14, 2)
-  interest       Decimal  @default(0) @db.Decimal(14, 2)
-  /// The s.234E late-filing fee.
-  fee            Decimal  @default(0) @db.Decimal(14, 2)
-  penalty        Decimal  @default(0) @db.Decimal(14, 2)
-  others         Decimal  @default(0) @db.Decimal(14, 2)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdById    String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, period])
-  @@index([organizationId, period])
-}
-
-model TdsReturn {
-  id             String     @id @default(cuid())
-  organizationId String
-  /// `YYYY-YY`, e.g. 2026-27.
-  financialYear  String
-  quarter        TdsQuarter
-  /// The file exactly as downloaded — not regenerated, ever.
-  content        String
-  rowCount       Int
-  /// Deductees reported without a PAN. Surfaced on the screen: a missing PAN
-  /// is what forces deduction at 20% and what the portal rejects on.
-  excludedCount  Int        @default(0)
-  /// The exclusions themselves, the reconciliation, and the challan totals.
-  detail         Json
-  generatedAt    DateTime   @default(now())
-  generatedById  String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, financialYear, quarter])
-  @@index([organizationId, financialYear])
-}
-
-```
+The `StatutoryFiling`, `TdsChallan` and `TdsReturn` tables (with enums
+`StatutoryFilingKind` and `TdsQuarter`) were dropped on 2026-08-20 by
+`20260820060000_drop_returns`. The product's scope decision: the monthly TDS
+calculation (the tax tables below) stays; generating government return files —
+EPFO ECR, ESIC returns, Form 24Q — does not. The Form 24Q generator was in any
+case gated behind an untranscribed FVU layout and had never produced a usable
+file.
 
 #### Bulk employee import
 
@@ -1829,7 +1749,7 @@ enum TaxDeclarationStatus { DRAFT SUBMITTED APPROVED REJECTED }
 model TaxConfiguration {
   id                String          @id @default(cuid())
   organizationId    String
-  /// YYYY-YY, e.g. 2026-27. Matches TdsReturn.financialYear.
+  /// YYYY-YY, e.g. 2026-27, as produced by `financialYearOf`.
   financialYear     String
   regime            TaxRegime
   status            TaxConfigStatus @default(UNCONFIRMED)
@@ -2176,8 +2096,7 @@ model TdsOverride {
 - **`TaxConfigStatus.UNCONFIRMED` is the whole safety story.** A year ships with
   no slabs and payroll **refuses** on it, naming the year, rather than falling
   back to last year's rates. A plausible-looking wrong slab is much harder to
-  notice than an empty one, and this table computes real deductions. It is the
-  same device `FVU_SPEC_VERSION = 'UNTRANSCRIBED'` uses for the 24Q layout.
+  notice than an empty one, and this table computes real deductions.
 
 - **`EmployeeTaxDeclarationItem` keeps four figures apart** — `declaredAmount`,
   `statutoryLimit`, `eligibleAmount`, `approvedAmount`. Tax is computed from the

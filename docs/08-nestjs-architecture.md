@@ -27,8 +27,8 @@ AppModule
 ├── DocumentsModule       per-employee upload/stream, folders
 ├── LettersModule         templates, issue, void
 ├── AnnouncementsModule   feed, audience resolution, read receipts, attachments
-├── PayrollModule         structures, salaries, runs, payslips, reports, statutory filings,
-│                         TDS challans and 24Q, pay components, income tax
+├── PayrollModule         structures, salaries, runs, payslips, reports,
+│                         pay components, income tax
 ├── SettlementsModule     full-and-final settlement on exit
 ├── ResignationsModule    resignation request and approval
 ├── OffboardingModule     exit checklist, clearance, exit interview
@@ -181,9 +181,9 @@ threshold, so "services ≥ 80%" is an intention rather than a gate.
 The unit layer is genuinely strong where the risk is — the pure business rules
 in `payroll.calc.ts`, `tax.engine.ts`, `attendance.util.ts` and the leave math
 all have dense suites. The weak spot is the opposite corner: the services that
-touch Prisma. `organization` (7 controllers, 7 services), `audit`, and six of
-the eleven payroll services — `employee-salaries`, `payroll-reports`,
-`payroll-runs`, `payslips`, `salary-structures` and `statutory-filings` — have
+touch Prisma. `organization` (7 controllers, 7 services), `audit`, and five of
+the payroll services — `employee-salaries`, `payroll-reports`,
+`payroll-runs`, `payslips` and `salary-structures` — have
 **no spec at all**, which is exactly where an integration layer pays.
 
 `payroll-runs` is the sharpest of those: `calculate` is what actually writes a
