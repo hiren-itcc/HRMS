@@ -3,7 +3,6 @@ import {
   emailTemplateDefault,
   exitChecklistSchema,
   letterTemplateDefault,
-  statutorySchema,
 } from '@hrms/shared';
 import { addDays, toDate } from '../../src/common/utils/calendar';
 import type { PrismaClient } from '../../src/generated/prisma/client';
@@ -295,25 +294,6 @@ export async function seedComms(
       // rather than sit on the MANUAL fallback kept for older tenants.
       { key: 'exitChecklist', value: exitChecklistSchema.parse({}) as object },
       { key: 'settlement', value: defaults.settlement as object },
-      // Fictional but shaped like the real thing, and specific to this
-      // deployment: Ahmedabad-style TAN, since the professional tax slab a few
-      // lines above is already Gujarat's. Without this group the Returns
-      // section refuses before a month can even be chosen — see
-      // `TdsReturnsService.evaluate`'s `missing` check — so a fresh demo org
-      // could never get past "no TAN on record".
-      {
-        key: 'statutory',
-        value: statutorySchema.parse({
-          tan: 'AHMA12345B',
-          pan: 'AAACA1234A',
-          pfEstablishmentCode: 'GJAHM1234567000',
-          esiEmployerCode: '31000112340000999',
-          // Finance, who already approves and pays payroll — the natural
-          // person named as responsible for a statutory return.
-          signatoryName: 'Vikram Rao',
-          signatoryDesignation: 'Finance Manager',
-        }) as object,
-      },
     ].map((s) => ({ organizationId: orgId, ...s })),
   });
 

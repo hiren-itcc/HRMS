@@ -22,7 +22,6 @@ import { seedProjects } from './projects';
 import { makeRandom } from './random';
 import { seedRecruitment } from './recruitment';
 import { seedTaxConfiguration } from './tax';
-import { seedTds } from './tds';
 import { seedWfh } from './wfh';
 import { census, wipe } from './wipe';
 
@@ -199,9 +198,6 @@ async function main() {
   console.log('Income tax configuration…');
   await seedTaxConfiguration(prisma, org.id, people);
 
-  console.log('TDS challans…');
-  await seedTds(prisma, org.id);
-
   console.log('Assets…');
   await seedAssets(prisma, org.id, fixtures, people, random, todayKey);
 
@@ -243,7 +239,6 @@ async function main() {
     cycles: await prisma.reviewCycle.count({ where: { organizationId: org.id } }),
     reviews: await prisma.performanceReview.count({ where: { organizationId: org.id } }),
     tickets: await prisma.ticket.count({ where: { organizationId: org.id } }),
-    tdsChallans: await prisma.tdsChallan.count({ where: { organizationId: org.id } }),
   };
 
   console.log(`
@@ -254,7 +249,7 @@ Seed complete — ${org.name}
   ${counts.settlements} settlements · ${counts.letters} letters
   ${counts.openings} job openings · ${counts.candidates} candidates
   ${counts.cycles} review cycles · ${counts.reviews} reviews
-  ${counts.tickets} helpdesk tickets · ${counts.tdsChallans} TDS challans
+  ${counts.tickets} helpdesk tickets
 
   Password for every account: ${PASSWORD}
 

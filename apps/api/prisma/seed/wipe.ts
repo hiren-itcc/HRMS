@@ -92,15 +92,6 @@ export async function wipe(prisma: PrismaClient, orgId: string): Promise<void> {
       prisma.asset.deleteMany({ where: { organizationId: orgId } }),
       prisma.assetCategory.deleteMany({ where: { organizationId: orgId } }),
 
-      // TDS: neither table carries a real foreign key to payroll — a challan
-      // and a return are both linked to a month only by the `period` /
-      // `financialYear`+`quarter` string — but both carry
-      // `@@unique([organizationId, period])` / `@@unique([organizationId,
-      // financialYear, quarter])`, so leaving either behind makes a second
-      // seed run fail on that constraint rather than on a foreign key.
-      prisma.tdsReturn.deleteMany({ where: { organizationId: orgId } }),
-      prisma.tdsChallan.deleteMany({ where: { organizationId: orgId } }),
-
       // Payroll: lines off payslips, payslips off runs, salaries off structures.
       prisma.payslipLine.deleteMany({ where: { payslip: { organizationId: orgId } } }),
       prisma.payslip.deleteMany({ where: { organizationId: orgId } }),

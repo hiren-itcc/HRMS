@@ -51,10 +51,7 @@ model Organization {
   performanceGoals   PerformanceGoal[]
   performanceReviews PerformanceReview[]
 
-  employeeImports  EmployeeImport[]
-  statutoryFilings StatutoryFiling[]
-  tdsChallans      TdsChallan[]
-  tdsReturns       TdsReturn[]
+  employeeImports EmployeeImport[]
 
   ticketCategories TicketCategory[]
   tickets          Ticket[]
@@ -2192,124 +2189,6 @@ model ExpenseItem {
   @@index([claimId])
 }
 
-enum StatutoryFilingKind {
-  ECR
-  ESIC_RETURN
-}
-
-/// A generated statutory return, frozen at the moment it was produced.
-///
-/// The content is stored rather than rebuilt on demand, and that is the whole
-/// point of the table. Correcting somebody's UAN and regenerating produces a
-/// *new* filing; it does not silently change the one already uploaded to a
-/// government portal. `Letter.bodyHtml` and `Payslip`'s snapshot columns make
-/// the same bargain for the same reason.
-///
-/// The unique constraint turns "generate it again" into a decision somebody has
-/// to make rather than an accident that leaves two files for one month.
-model StatutoryFiling {
-  id             String              @id @default(cuid())
-  organizationId String
-  kind           StatutoryFilingKind
-  /// `YYYY-MM`, matching PayrollRun.month.
-  period         String
-  runId          String
-  /// The file exactly as downloaded — not regenerated, ever.
-  content        String
-  rowCount       Int
-  /// How many people were left out for want of an identifier. Surfaced on the
-  /// screen, because a short file nobody noticed is the failure this whole
-  /// design is arranged to prevent.
-  excludedCount  Int                 @default(0)
-  /// The exclusions themselves, and the column totals the portal will check.
-  detail         Json
-  generatedAt    DateTime            @default(now())
-  generatedById  String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, kind, period])
-  @@index([organizationId, period])
-}
-
-enum TdsQuarter {
-  Q1
-  Q2
-  Q3
-  Q4
-}
-
-/// A TDS challan, as deposited. The register a Form 24Q cannot be written
-/// without — nothing else in this schema records a BSR code, a challan serial
-/// or a deposit date.
-///
-/// One per month, which is the load-bearing simplification: Form 24Q requires
-/// every deductee row to name its challan, and with one challan per month that
-/// mapping is derivable rather than an allocation screen. A month deposited in
-/// two tranches is a stated v1 limit.
-model TdsChallan {
-  id             String   @id @default(cuid())
-  organizationId String
-  /// `YYYY-MM`, the payroll month whose TDS this deposits. Same contract as
-  /// StatutoryFiling.period.
-  period         String
-  /// Bank branch code, seven digits.
-  bsrCode        String
-  /// Serial number the bank assigned, five digits.
-  challanSerial  String
-  depositDate    DateTime
-  /// 92B — non-government salary. Stored rather than assumed so a government
-  /// deductor is a data change, not a release.
-  sectionCode    String   @default("92B")
-  /// 200 — regular payment, as opposed to 400 raised by the department.
-  minorHead      String   @default("200")
-  tds            Decimal  @default(0) @db.Decimal(14, 2)
-  surcharge      Decimal  @default(0) @db.Decimal(14, 2)
-  educationCess  Decimal  @default(0) @db.Decimal(14, 2)
-  interest       Decimal  @default(0) @db.Decimal(14, 2)
-  /// The s.234E late-filing fee.
-  fee            Decimal  @default(0) @db.Decimal(14, 2)
-  penalty        Decimal  @default(0) @db.Decimal(14, 2)
-  others         Decimal  @default(0) @db.Decimal(14, 2)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdById    String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, period])
-  @@index([organizationId, period])
-}
-
-/// A generated Form 24Q, frozen at the moment it was produced.
-///
-/// Not a StatutoryFilingKind: that table's period is `YYYY-MM` "matching
-/// PayrollRun.month" and its runId is required, while a 24Q is quarterly and
-/// spans three runs. Widening it would make runId nullable for ECR and ESIC
-/// too. Settlement set the precedent for a separate entity.
-model TdsReturn {
-  id             String     @id @default(cuid())
-  organizationId String
-  /// `YYYY-YY`, e.g. 2026-27.
-  financialYear  String
-  quarter        TdsQuarter
-  /// The file exactly as downloaded — not regenerated, ever.
-  content        String
-  rowCount       Int
-  /// Deductees reported without a PAN. Surfaced on the screen: a missing PAN
-  /// is what forces deduction at 20% and what the portal rejects on.
-  excludedCount  Int        @default(0)
-  /// The exclusions themselves, the reconciliation, and the challan totals.
-  detail         Json
-  generatedAt    DateTime   @default(now())
-  generatedById  String?
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, financialYear, quarter])
-  @@index([organizationId, financialYear])
-}
-
 enum EmployeeImportMode {
   RECORDS
   INVITE
@@ -2819,7 +2698,7 @@ enum TaxDeclarationStatus {
 model TaxConfiguration {
   id                String          @id @default(cuid())
   organizationId    String
-  /// YYYY-YY, e.g. 2026-27. Matches TdsReturn.financialYear.
+  /// YYYY-YY, e.g. 2026-27, as produced by `financialYearOf`.
   financialYear     String
   regime            TaxRegime
   status            TaxConfigStatus @default(UNCONFIRMED)
