@@ -181,12 +181,16 @@ threshold, so "services ≥ 80%" is an intention rather than a gate.
 The unit layer is genuinely strong where the risk is — the pure business rules
 in `payroll.calc.ts`, `tax.engine.ts`, `attendance.util.ts` and the leave math
 all have dense suites. The weak spot is the opposite corner: the services that
-touch Prisma. `organization` (7 controllers, 7 services), `audit`, and five of
-the payroll services — `employee-salaries`, `payroll-reports`,
-`payroll-runs`, `payslips` and `salary-structures` — have
-**no spec at all**, which is exactly where an integration layer pays.
+touch Prisma. `organization` (7 controllers, 7 services), `audit`, and three
+of the payroll services — `employee-salaries`, `payroll-reports` and
+`salary-structures` — have **no spec at all**, which is exactly where an integration layer pays.
 
-`payroll-runs` is the sharpest of those: `calculate` is what actually writes a
-payslip, and it is reached only from `payroll-tax.e2e-spec.ts`, over HTTP,
-against a real seeded database — so it is covered in CI and not covered at all
-on a developer's machine. See [15-feature-audit.md](./15-feature-audit.md).
+`payroll-runs` and `payslips` came off that list on 2026-08-20:
+`payroll-runs.service.spec.ts` pins eligibility, the destructive rebuild, the
+LOP union rule and the state machine against hand-computed figures (statutory
+toggles off, so gross/TDS/net are arithmetic), and `payslips.service.spec.ts`
+pins the visibility scoping — including that `mine()` restricts even a
+`payroll.read` holder — the payment state machine's all-or-nothing batches,
+and the earnings/deductions response shape the e2e depends on. `calculate` is
+still also covered end-to-end by `payroll-tax.e2e-spec.ts` in CI.
+See [15-feature-audit.md](./15-feature-audit.md).
