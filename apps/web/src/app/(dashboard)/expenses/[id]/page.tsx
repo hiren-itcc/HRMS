@@ -10,8 +10,10 @@ import { ArrowLeft, Paperclip, Pencil, Send, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { ErrorState } from '@/components/error-state';
 import { useSession } from '@/components/session-provider';
+import { documentsApi } from '@/features/documents/api';
 import { expenseKeys, expensesApi } from '@/features/expenses/api';
 import { ClaimFormDialog } from '@/features/expenses/components/claim-form';
 import {
@@ -28,6 +30,18 @@ export default function ExpenseClaimPage() {
   const [editing, setEditing] = useState(false);
 
   const query = useQuery({ queryKey: expenseKeys.one(id), queryFn: () => expensesApi.get(id) });
+
+  const viewReceipt = async (receiptId: string) => {
+    try {
+      const blob = await documentsApi.fileBlob(receiptId);
+      const href = URL.createObjectURL(blob);
+      window.open(href, '_blank', 'noopener');
+      // Long enough for the tab to load; object URLs die with the page anyway.
+      setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    } catch {
+      toast.error('Could not open the receipt');
+    }
+  };
 
   const submit = useApiMutation({
     mutationFn: () => expensesApi.submit(id),
@@ -112,12 +126,19 @@ export default function ExpenseClaimPage() {
                   {item.receiptId && (
                     <>
                       {' · '}
-                      <Link
-                        href={`/documents?highlight=${item.receiptId}`}
+                      {/*
+                       * Fetched with the api client rather than linked to the
+                       * documents screen: an approver (Finance, a manager) can
+                       * open the receipt through the claim, but has no access
+                       * to the claimant's documents page.
+                       */}
+                      <button
+                        type="button"
+                        onClick={() => viewReceipt(item.receiptId as string)}
                         className="inline-flex items-center gap-1 hover:underline"
                       >
                         <Paperclip className="size-3" aria-hidden /> Receipt
-                      </Link>
+                      </button>
                     </>
                   )}
                 </p>

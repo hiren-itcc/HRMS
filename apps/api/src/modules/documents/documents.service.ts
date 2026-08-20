@@ -158,10 +158,45 @@ export class DocumentsService {
       where: { id, organizationId: claims.orgId, deletedAt: null },
     });
     if (!doc?.employeeId) throw new NotFoundException('Document not found');
-    await this.ensureEmployeeAccess(claims, doc.employeeId, 'read');
+    if (!(await this.readableAsReceipt(claims, id))) {
+      await this.ensureEmployeeAccess(claims, doc.employeeId, 'read');
+    }
     // Awaited now that reading may be a network call; the controller still
     // just hands this to StreamableFile.
     return { doc, stream: await this.storage.stream(doc.fileKey) };
+  }
+
+  /**
+   * A receipt is part of the claim it evidences, so whoever may read the claim
+   * may open the file. The rule is `ExpensesService.readable`'s, mirrored:
+   * the claimant, `expense.read`, or a team scope over the claimant.
+   *
+   * Without this, Finance — who approves every claim in the organization but
+   * holds only `document.read.own` — got a 403 on the very receipt it was
+   * being asked to approve, because the file belongs to the claimant and the
+   * employee-record gate below knows nothing about claims. Widening Finance to
+   * `document.read` instead would have opened the whole HR record (ID proofs,
+   * bank details) to a role whose question is only "was this spent".
+   */
+  private async readableAsReceipt(claims: AccessTokenClaims, documentId: string) {
+    const item = await this.prisma.expenseItem.findFirst({
+      where: { receiptId: documentId, claim: { organizationId: claims.orgId } },
+      select: { claim: { select: { employeeId: true } } },
+    });
+    if (!item) return false;
+
+    const perms = new Set(claims.perms);
+    if (item.claim.employeeId === claims.employeeId) return true;
+    if (perms.has('expense.read')) return true;
+
+    if (perms.has('expense.read.team') || perms.has('expense.approve.team')) {
+      const managed = await this.prisma.employee.findFirst({
+        where: { id: item.claim.employeeId, managerId: claims.employeeId ?? '__none__' },
+        select: { id: true },
+      });
+      if (managed) return true;
+    }
+    return false;
   }
 
   /** Refiles a document into another folder (or out of all folders). */

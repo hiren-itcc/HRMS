@@ -314,6 +314,31 @@ Your own tax page needs no code of its own. It is gated by `payroll.read.own`,
 which everybody already holds: a permission granted to all five roles answers no
 question.
 
+### A receipt follows its claim, not its folder (decided 2026-08-20)
+
+An expense receipt is an ordinary `Document` in the claimant's folder, gated
+by the document scopes above — which left Finance, who approves every claim
+in the organization while holding only `document.read.own`, with a **403 on
+the very file it was being asked to approve**.
+
+The decision: **whoever may read the claim may open its receipt.** When a
+requested file is an `ExpenseItem.receiptId`, `DocumentsService.openFile`
+first applies `ExpensesService.readable`'s rule — the claimant, `expense.read`,
+or a team scope over the claimant — and only falls back to the document
+scopes when that says no (`readableAsReceipt`, `documents.service.ts`).
+
+Two alternatives were refused. Granting Finance `document.read` would have
+opened the whole HR record — ID proofs, bank details — to a role whose
+question is only "was this spent". Streaming the receipt from an expense
+endpoint instead would have been a second file-serving path with its own
+bugs. The rule reaches exactly the receipts, exactly as far as claim
+visibility already reached, and nothing else: opening a non-receipt document
+answers precisely as before, which is asserted in
+`documents.service.spec.ts`.
+
+This is also the pattern helpdesk attachments should copy when they land:
+the attachment follows the ticket's visibility, not the uploader's folder.
+
 ### Ownership as a grant, not a permission
 
 Projects add one more of these, and it is the only place in the product where

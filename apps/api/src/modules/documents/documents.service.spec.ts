@@ -17,6 +17,9 @@ function makeService() {
       count: jest.fn().mockResolvedValue(0),
     },
     auditLog: { create: jest.fn() },
+    // Null = the document is not an expense receipt, which is every test's
+    // default; the receipt describe block below overrides it.
+    expenseItem: { findFirst: jest.fn().mockResolvedValue(null) },
     // The real client runs both halves of a list in one transaction; the
     // double just resolves whatever the service handed it.
     $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -199,6 +202,72 @@ describe('DocumentsService.remove', () => {
     (prisma.document.findFirst as Mock).mockResolvedValue({ ...row, uploadedById: 'someone' });
     await expect(
       service.remove(claims({ perms: [], employeeId: 'e2' }), 'd1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('DocumentsService.openFile on an expense receipt', () => {
+  const receiptDoc = { id: 'd1', employeeId: 'e2', fileKey: 'k' };
+
+  function makeReceiptCase() {
+    const made = makeService();
+    (made.prisma.document.findFirst as Mock).mockResolvedValue(receiptDoc);
+    (made.prisma.expenseItem.findFirst as Mock).mockResolvedValue({
+      claim: { employeeId: 'e2' },
+    });
+    (made.storage.stream as Mock).mockResolvedValue('stream');
+    return made;
+  }
+
+  /*
+   * The case this rule exists for: Finance approves every claim in the
+   * organization but holds only document.read.own, so without the receipt
+   * rule it was refused the very file it was being asked to approve.
+   */
+  it('lets an org-wide expense reader (Finance) open it', async () => {
+    const { service } = makeReceiptCase();
+    await expect(
+      service.openFile(claims({ perms: ['expense.read', 'document.read.own'] }), 'd1'),
+    ).resolves.toMatchObject({ doc: receiptDoc });
+  });
+
+  it("lets a manager with expense.approve.team open a report's receipt", async () => {
+    const { service, prisma } = makeReceiptCase();
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ id: 'e2' });
+    await expect(
+      service.openFile(claims({ perms: ['expense.approve.team'], employeeId: 'e-mgr' }), 'd1'),
+    ).resolves.toMatchObject({ doc: receiptDoc });
+  });
+
+  it('refuses that manager for a non-report', async () => {
+    const { service, prisma } = makeReceiptCase();
+    (prisma.employee.findFirst as Mock)
+      .mockResolvedValueOnce(null) // the managed-claimant lookup
+      .mockResolvedValueOnce({ managerId: 'someone-else' }); // ensureEmployeeAccess
+    await expect(
+      service.openFile(claims({ perms: ['expense.approve.team'], employeeId: 'e-mgr' }), 'd1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('refuses a holder of no expense permission at all', async () => {
+    const { service, prisma } = makeReceiptCase();
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ managerId: 'someone-else' });
+    await expect(
+      service.openFile(claims({ perms: ['document.read.own'], employeeId: 'e9' }), 'd1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  /*
+   * The boundary that keeps this from being a general widening: expense.read
+   * opens receipts, not the rest of the HR record. A document that is not a
+   * receipt answers exactly as it did before the rule existed.
+   */
+  it('does not let expense.read open a non-receipt document', async () => {
+    const { service, prisma } = makeReceiptCase();
+    (prisma.expenseItem.findFirst as Mock).mockResolvedValue(null);
+    (prisma.employee.findFirst as Mock).mockResolvedValue({ managerId: 'someone-else' });
+    await expect(
+      service.openFile(claims({ perms: ['expense.read'], employeeId: 'e9' }), 'd1'),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

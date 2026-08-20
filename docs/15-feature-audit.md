@@ -347,31 +347,23 @@ appeared **later** in the file (`EMP-0029` → `EMP-0030`), codes allocated
 sequentially, `joinDate` landed on IST midnight, and both refusals fired — a
 second commit and a commit with unresolved rows.
 
-### Open — Finance cannot open the receipt on a claim it is approving
+### Fixed — Finance can now open the receipt on a claim it is approving
 
-Found while designing the helpdesk, by looking for a pattern to copy for
-attachments and finding one that does not work.
+Found while designing the helpdesk; fixed 2026-08-20 with the ADR the entry
+asked for (doc 04 §a-receipt-follows-its-claim). An expense receipt is an
+ordinary `Document` on the claimant, and `ensureEmployeeAccess` knows nothing
+about claims — so Finance, holding `expense.approve` but only
+`document.read.own`, got a 403 on the one document its role exists to look at.
 
-An expense receipt is an ordinary `Document` on the claimant, and reading one
-goes through `DocumentsService.openFile` → `ensureEmployeeAccess`
-(`documents.service.ts:238`), which allows `document.read`, self with
-`document.read.own`, or a direct report with `document.read.team`.
-
-`FINANCE_PERMS` spreads `EMPLOYEE_PERMS` — which carries only
-`document.read.own` — plus `expense.read`, `expense.approve` and
-`expense.manage`. A receipt belongs to the claimant, so `isSelf` is false and
-Finance gets a **403 on the one document its role exists to look at**.
-
-Verified by reading both files rather than by running it, so the failing call
-has not been executed — but the three inputs are not ambiguous.
-
-Not fixed here: it means editing `DocumentsService`, and `docs/11-roadmap.md:70`
-says a design that needs to reach into another module's internals wants an ADR
-first. The fix is a decision about whose permission governs an attachment, not
-a one-line grant — adding `document.read` to Finance would hand it every
-document in the company to solve a receipt.
-
-It is also why the helpdesk defers attachments rather than copying this shape.
+The decision was about whose permission governs an attachment, and the answer
+is the claim's: `DocumentsService.openFile` now allows a caller who may read
+the claim (`readableAsReceipt`, mirroring `ExpensesService.readable`) before
+falling back to the document scopes. Finance was *not* given `document.read` —
+that would have opened every document in the company to solve a receipt. The
+boundary is unit-tested: `expense.read` opens receipts and cannot open a
+non-receipt document. The web claim screen now fetches the receipt through
+the api client instead of deep-linking into the claimant's documents page,
+which an approver cannot see.
 
 ### Fixed — `AuditLog.ip` was only ever written by the auth path
 
@@ -639,10 +631,10 @@ which other documents were citing.
     email-in, per-category custom fields, routing rules, tags, watchers, merge,
     CSAT, and a knowledge base.
 
-    Attachments are the one people will ask for first. The shape when it lands
-    is a `TicketAttachment` table with its own upload and stream routes gated
-    on the ticket's own readability, **not** a reuse of `Document` — see the
-    Finance/receipt defect below, which is what reusing it would reproduce.
+    Attachments are the one people will ask for first. The shape when it
+    lands should follow doc 04 §a-receipt-follows-its-claim: the attachment is
+    gated on the ticket's own readability, the way an expense receipt now
+    follows its claim, rather than on whose folder the file sits in.
 25. ~~Projects and timesheets~~ ✅ **built** — four tables, eight permission
     codes, seventeen routes and five screens. Two decisions worth keeping
     visible.

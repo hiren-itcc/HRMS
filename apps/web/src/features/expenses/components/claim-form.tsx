@@ -34,7 +34,10 @@ const BLANK_LINE = {
  * claimant's own folder and inherit its permission checks. That does mean
  * anybody with `document.read` over that person can see a receipt, which is the
  * right default — it is their document — but it is a decision rather than an
- * accident.
+ * accident. The one addition on top of those checks: whoever may read the
+ * claim may open its receipt (`readableAsReceipt` in the documents service),
+ * because Finance approves claims while holding no document scope beyond its
+ * own.
  */
 export function ClaimFormDialog({
   claimId,
