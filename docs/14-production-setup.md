@@ -460,18 +460,36 @@ The remaining constraint is the sender. `MAIL_FROM` defaults to
 address that owns the Resend account**. An invite to anyone else is refused by
 Resend with a 403 — nothing arrives.
 
-**This is still true, and it is now the single thing standing between the
-product and working email.** Notification email shipped since: approvals,
-resignations, exits and expense decisions all send. On the sandbox sender they
-all reach exactly one address. Verify a domain in Resend and set `MAIL_FROM` to
-an address on it. Without the key entirely, the transport logs the message
-instead, which is what keeps local development and CI working offline.
+**As of 2026-08-20 there is a second way out: SMTP.** `transport.ts` now
+carries an `SmtpTransport` (nodemailer), selected whenever `SMTP_HOST` is set —
+it wins over Resend, so switching does not require unsetting `RESEND_API_KEY`.
+For Gmail:
 
-The API now says which it is, once, at boot — `Mail: Resend` with the `from`
-address, or a warning that messages are only being logged, plus a second
-warning when `MAIL_FROM` is still a `resend.dev` address. Before that line
-existed the only way to find out was to send something and read the failure,
-which is exactly how the 403 above was rediscovered.
+| Var | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `465` (default; `587` also works) |
+| `SMTP_USER` | the full Gmail address |
+| `SMTP_PASS` | a 16-character **App Password** — never the login password |
+| `MAIL_FROM` | `HRMS <the-same-gmail@gmail.com>` |
+
+An App Password requires 2-Step Verification on the Google account, then
+myaccount.google.com/apppasswords. Two limits worth knowing: Gmail caps free
+accounts around 500 recipients/day, and it rewrites the From header to the
+authenticated account — which is why `MAIL_FROM` should name that address.
+The long-term answer is still a verified domain (in Resend or any provider);
+this unblocks invites and resets today.
+
+Otherwise the Resend constraint stands: verify a domain in Resend and set
+`MAIL_FROM` to an address on it. Without any of it, the transport logs the
+message instead, which is what keeps local development and CI working offline.
+
+The API says which transport it is, once, at boot — `Mail: SMTP` with host and
+`from`, or `Mail: Resend` with the `from` address, or a warning that messages
+are only being logged, plus a second warning when `MAIL_FROM` is still a
+`resend.dev` address. Before that line existed the only way to find out was to
+send something and read the failure, which is exactly how the 403 above was
+rediscovered.
 
 **Correction to what this section used to say.** It claimed "the API surfaces
 the reason in the response rather than reporting success". That was true of the

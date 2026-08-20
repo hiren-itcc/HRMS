@@ -35,6 +35,18 @@ export const envSchema = z.object({
    */
   RESEND_API_KEY: z.string().optional(),
   /**
+   * SMTP server, e.g. `smtp.gmail.com`. Setting it selects the SMTP transport
+   * over Resend, so a Gmail App Password can carry mail without unsetting
+   * `RESEND_API_KEY`. Gmail rewrites the From header to the authenticated
+   * account, so `MAIL_FROM` should name the same address.
+   */
+  SMTP_HOST: z.string().optional(),
+  /** 465 is implicit TLS; 587 negotiates STARTTLS. */
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
+  SMTP_USER: z.string().optional(),
+  /** For Gmail this is a 16-character App Password, never the login password. */
+  SMTP_PASS: z.string().optional(),
+  /**
    * The From header. The default is Resend's sandbox sender, which only
    * delivers to the address that owns the Resend account — real sending needs
    * a verified domain and a From address on it.

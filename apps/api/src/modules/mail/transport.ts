@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
+import { createTransport, type Transporter } from 'nodemailer';
 import { Resend } from 'resend';
 import type { Env } from '../../config/env';
 
@@ -79,6 +80,49 @@ export class ResendTransport implements MailTransport {
   }
 }
 
+@Injectable()
+export class SmtpTransport implements MailTransport {
+  private readonly transporter: Transporter;
+  private readonly from: string;
+
+  constructor(
+    config: ConfigService<Env, true>,
+    private readonly logger: PinoLogger,
+    transporter?: Transporter,
+  ) {
+    const port = config.get('SMTP_PORT', { infer: true });
+    this.transporter =
+      transporter ??
+      createTransport({
+        host: config.get('SMTP_HOST', { infer: true }),
+        port,
+        // 465 is implicit TLS; anything else (587) negotiates STARTTLS.
+        secure: port === 465,
+        auth: {
+          user: config.get('SMTP_USER', { infer: true }),
+          pass: config.get('SMTP_PASS', { infer: true }),
+        },
+      });
+    this.from = config.get('MAIL_FROM', { infer: true });
+    this.logger.setContext(SmtpTransport.name);
+  }
+
+  async send(message: { to: string; subject: string; html: string }): Promise<void> {
+    /*
+     * Unlike the Resend SDK, nodemailer rejects on failure, so the plain await
+     * is the whole error path — the rejection propagates to the caller, which
+     * keeps the "a failed send is not fatal" decision where it already lives.
+     */
+    const info = await this.transporter.sendMail({
+      from: this.from,
+      to: message.to,
+      subject: message.subject,
+      html: message.html,
+    });
+    this.logger.info({ to: message.to, id: info?.messageId }, 'Email sent');
+  }
+}
+
 /**
  * Every message as a JSON file in a directory. Off unless `MAIL_OUTBOX_DIR` is
  * set, which is why it can sit in the same switch as the real transports.
@@ -142,6 +186,27 @@ export function mailTransportProvider() {
       if (outbox) {
         logger.warn({ outbox }, 'Mail: writing to an outbox directory — nothing is being sent');
         return new FileTransport(outbox, logger);
+      }
+
+      /*
+       * SMTP wins over Resend when both are configured, so pointing at a
+       * Gmail App Password does not require unsetting RESEND_API_KEY. The
+       * outbox branch above still beats both — that ordering is the whole
+       * safety property of this factory.
+       */
+      const smtpHost = config.get('SMTP_HOST', { infer: true });
+      if (smtpHost) {
+        if (
+          !config.get('SMTP_USER', { infer: true }) ||
+          !config.get('SMTP_PASS', { infer: true })
+        ) {
+          logger.warn(
+            { host: smtpHost },
+            'Mail: SMTP_HOST is set but SMTP_USER/SMTP_PASS are not — sends will be refused by the server',
+          );
+        }
+        logger.info({ host: smtpHost, from }, 'Mail: SMTP');
+        return new SmtpTransport(config, logger);
       }
 
       if (!config.get('RESEND_API_KEY', { infer: true })) {
