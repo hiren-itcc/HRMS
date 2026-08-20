@@ -304,7 +304,7 @@ payroll module already follows (PF, ESI, PT, ₹, Indian holidays).
 | ~~**Exit / offboarding**~~ ✅ built, ~~FNF~~ ✅ **too** — encashment, notice recovery, gratuity · **settlement tax still entered by hand** | ⚠️ | ✅ all four |
 | ~~**Helpdesk / ticketing**~~ ✅ built — tickets, a two-sided thread with internal notes, a queue and per-desk routing · **no attachments, SLAs, ticket numbers or email-in** | ⚠️ | ✅ Zoho, Darwinbox |
 | ~~**Projects & timesheets**~~ ✅ built — a project register, staffing with allocation and membership windows, a weekly grid, manager approval, and utilisation · **no cost or billing rates, no client, no tasks or board, no capacity forecasting, and no reconciliation against attendance** | ⚠️ | ✅ Keka, Zoho |
-| **Engagement / surveys** | ❌ | ✅ Darwinbox, Keka |
+| **Engagement / surveys** | ❌ — **out of scope by decision (2026-08-20)**, not a gap | ✅ Darwinbox, Keka |
 | ~~**Org chart**~~ | ✅ | ✅ all four |
 | **Mobile app** | ❌ — and **not planned**; dropped from the roadmap rather than deferred | ✅ all four |
 | ~~**Notifications**~~ ✅ built — in-app **and** email, three transports, per-user preference · **no digests, batching or domain events** | ⚠️ | ✅ all four |
@@ -663,7 +663,8 @@ which other documents were citing.
     entity, tasks or a board, capacity forecasting, and any reconciliation
     against attendance — the last deliberately, since a week rejected because
     somebody forgot to clock out is worse than the gap.
-26. Engagement surveys
+26. ~~Engagement surveys~~ — **out of scope by decision (2026-08-20)**, like
+    LMS/Learning and AI features
 27. Multi-tenant self-signup (`11:66` — `organizationId` scoping is already there)
 
 ---
