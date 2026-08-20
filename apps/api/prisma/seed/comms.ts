@@ -138,7 +138,6 @@ export async function seedComms(
       fileKey: `seed/${orgId}/${person.code}-${n}-${d.name.replace(/\s+/g, '-').toLowerCase()}`,
       mimeType: 'application/pdf',
       sizeBytes: random.int(60_000, 400_000),
-      visibility: 'PRIVATE' as const,
       uploadedById: hrUser,
     }));
   });
