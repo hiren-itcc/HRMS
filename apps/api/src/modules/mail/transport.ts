@@ -102,6 +102,16 @@ export class SmtpTransport implements MailTransport {
           user: config.get('SMTP_USER', { infer: true }),
           pass: config.get('SMTP_PASS', { infer: true }),
         },
+        /*
+         * Nodemailer's default connection timeout is two minutes, and the send
+         * happens inside the request — measured on Render's free plan, whose
+         * firewall silently drops outbound SMTP, a forgot-password request
+         * hung for 125 seconds before failing. A host that cannot be reached
+         * in ten seconds is not going to be reached; fail there and let the
+         * caller's not-fatal handling do its job.
+         */
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
       });
     this.from = config.get('MAIL_FROM', { infer: true });
     this.logger.setContext(SmtpTransport.name);

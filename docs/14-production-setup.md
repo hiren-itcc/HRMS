@@ -460,10 +460,22 @@ The remaining constraint is the sender. `MAIL_FROM` defaults to
 address that owns the Resend account**. An invite to anyone else is refused by
 Resend with a 403 — nothing arrives.
 
-**As of 2026-08-20 there is a second way out: SMTP.** `transport.ts` now
-carries an `SmtpTransport` (nodemailer), selected whenever `SMTP_HOST` is set —
-it wins over Resend, so switching does not require unsetting `RESEND_API_KEY`.
-For Gmail:
+**As of 2026-08-20 there is a second way out: SMTP — but not on this
+deployment.** `transport.ts` carries an `SmtpTransport` (nodemailer), selected
+whenever `SMTP_HOST` is set — it wins over Resend, so switching does not
+require unsetting `RESEND_API_KEY`.
+
+**Measured the same day: Render's free instances silently drop outbound SMTP.**
+The exact Gmail credentials that sent a real mail from a developer machine
+produced `ETIMEDOUT` on `CONN` from the live service, after nodemailer's full
+two-minute connection timeout — during which the forgot-password request that
+triggered the send hung for 125 seconds. The transport now caps the connection
+wait at ten seconds, but the conclusion stands: **on Render's free plan the
+SMTP transport cannot work, whatever the provider or credentials.** It works on
+a paid instance or any host with SMTP egress. On the free plan, email goes over
+HTTPS — which is what the Resend transport is.
+
+For Gmail, where SMTP egress exists:
 
 | Var | Value |
 |---|---|
