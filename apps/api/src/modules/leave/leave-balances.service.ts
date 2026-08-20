@@ -9,16 +9,6 @@ import { EMPLOYED_AND_LIVE } from '../employees/employee-scopes';
 import { SettingsService } from '../settings/settings.service';
 import { mapBalance } from './leave.mapper';
 
-/**
- * Leave year for today under the default calendar-year policy. Kept for
- * callers with no organization in hand; anything org-aware should use
- * `LeaveBalancesService.currentYear(orgId)`, which honours the configured
- * start month (April for an Indian financial year).
- */
-export function currentLeaveYear(): number {
-  return new Date().getUTCFullYear();
-}
-
 @Injectable()
 export class LeaveBalancesService {
   constructor(

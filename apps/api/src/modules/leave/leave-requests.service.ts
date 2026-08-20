@@ -27,7 +27,7 @@ import {
   canEmployeeCancel,
   round1,
 } from './leave.util';
-import { currentLeaveYear, LeaveBalancesService } from './leave-balances.service';
+import { LeaveBalancesService } from './leave-balances.service';
 
 /*
  * Deliberately unchanged by the notification work, and it is worth saying why:
@@ -538,5 +538,3 @@ export class LeaveRequestsService {
       : { employee: { organizationId: claims.orgId, managerId: claims.employeeId ?? '__none__' } };
   }
 }
-
-export { currentLeaveYear };

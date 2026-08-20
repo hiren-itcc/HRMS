@@ -58,11 +58,6 @@ export function transitionError(status: RunStatus, action: RunAction): string {
   return `Cannot ${action} a payroll that is ${status} — it must be ${allowed}`;
 }
 
-/** Everything except payment is frozen from LOCKED onward. */
-export function isRunEditable(status: RunStatus): boolean {
-  return status === 'DRAFT' || status === 'IN_REVIEW';
-}
-
 /**
  * Employees see a payslip only once the run is published. Before that the
  * numbers are still moving, and a payslip seen once cannot be unseen.

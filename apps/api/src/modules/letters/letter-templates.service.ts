@@ -3,7 +3,6 @@ import type { AccessTokenClaims } from '@hrms/types';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
 import { PrismaService } from '../../database/prisma.service';
-import { usedVariables } from '../mail/template-renderer';
 
 export interface LetterTemplateView {
   key: string;
@@ -107,13 +106,5 @@ export class LetterTemplatesService {
       key,
     );
     return (await this.list(claims)).find((t) => t.key === key);
-  }
-
-  /** Placeholders used but not declared — a warning in the editor, not an error. */
-  unknownVariables(key: string, title: string, bodyHtml: string): string[] {
-    const declared = new Set(letterTemplateDefault(key)?.variables ?? []);
-    return [...new Set([...usedVariables(title), ...usedVariables(bodyHtml)])].filter(
-      (name) => !declared.has(name),
-    );
   }
 }

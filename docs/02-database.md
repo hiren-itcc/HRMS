@@ -591,7 +591,6 @@ model Document {
   fileKey        String                  // storage key (S3/MinIO) — never a raw URL
   mimeType       String
   sizeBytes      Int
-  visibility     DocVisibility @default(PRIVATE)
   /// Nullable: a CV arriving through the public careers page is uploaded by
   /// somebody with no account, no employee record and no session. Same call
   /// `AuditLog.actorId` makes for the lifecycle tick.
@@ -605,10 +604,10 @@ model Document {
   @@index([organizationId, employeeId])
 }
 
-enum DocVisibility { PRIVATE ORG }      // PRIVATE = employee + HR/Admin; ORG = everyone
-// NOT YET WIRED: nothing reads `visibility`, and a company-wide document
-// (employeeId = null) cannot be uploaded or listed. "Own + org-visible" on
-// screen 30 is therefore half-built — a gap, not a decision.
+// `DocVisibility` and `Document.visibility` were dropped 2026-08-20: nothing
+// ever read or filtered the column, and the company-wide documents feature it
+// anticipated never grew code. When that feature lands it brings its own
+// schema.
 
 // ─── Letters ──────────────────────────────────────────────────────────
 

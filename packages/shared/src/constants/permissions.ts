@@ -93,7 +93,6 @@ export const PERMISSIONS = [
   'attendance.approve.team',
   'attendance.read',
   'attendance.approve',
-  'attendance.manage',
 
   'leave.read.own',
   'leave.request.own',
@@ -455,7 +454,6 @@ const HR_PERMS: Permission[] = [
   'offboarding.clearance',
   'attendance.read',
   'attendance.approve',
-  'attendance.manage',
   'leave.read',
   'leave.approve',
   'leave.manage',

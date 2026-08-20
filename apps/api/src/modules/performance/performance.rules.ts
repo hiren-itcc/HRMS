@@ -292,14 +292,9 @@ export function nextStatus(
 const allows = (status: ReviewStatusCode, action: ReviewAction) =>
   nextStatus(status, action) !== null;
 
-export const canSaveSelf = (s: ReviewStatusCode) => allows(s, 'saveSelf');
-export const canSubmitSelf = (s: ReviewStatusCode) => allows(s, 'submitSelf');
-export const canSkipSelf = (s: ReviewStatusCode) => allows(s, 'skipSelf');
-export const canSaveManager = (s: ReviewStatusCode) => allows(s, 'saveManager');
 export const canShare = (s: ReviewStatusCode) => allows(s, 'share');
 export const canAcknowledge = (s: ReviewStatusCode) => allows(s, 'acknowledge');
 export const canReopen = (s: ReviewStatusCode) => allows(s, 'reopen');
-export const canCancelReview = (s: ReviewStatusCode) => allows(s, 'cancel');
 
 const ACTION_NAMES: Record<ReviewAction, string> = {
   saveSelf: 'edit this self-assessment',

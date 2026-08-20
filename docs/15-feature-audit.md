@@ -94,7 +94,7 @@ the identifier appears nowhere outside generated Prisma output.
 | ~~**Org chart**~~ | `03:36`, `05:72` | ✅ **Built.** `GET /organization/chart` plus screen 16. Somebody whose manager has left becomes a root rather than vanishing from the tree. |
 | `GET /employees/:id/reports` | `03:47` | Found nothing. Manager scoping exists via the list filter; the named endpoint does not. |
 | **Company-wide documents** and `Document.visibility` | `02:500-514` | **Verified absent.** The enum is dead. Doc 02 self-declares this at `:512-514`. |
-| **Employee list saved views and CSV export** | `05:60` | Found nothing. Reports export; the employee list does not. |
+| **Employee list saved views and CSV export** | `05:60` | Export ✅ **wired 2026-08-20** — an Export button on the list downloads the current filter behind `employee.read` + `report.export`. Saved views remain unbuilt. |
 | **Integration and E2E layers** — Testcontainers, Supertest | `08:80-84` | `supertest` is installed and imported by no spec. |
 | **Coverage gate ≥ 80%, Lighthouse job, `pnpm audit`, Dependabot** | `08:86`, `10:59-63`, `10:84` | **Verified absent** from `ci.yml`, which runs lint → typecheck → build → test → migration drift. |
 | `useCan(perm)` hook and `<Can perm="…">` | `07:52`, `09:50` | **Verified absent** under those names. The working equivalent is `can()` from `useSession()`. |
@@ -144,7 +144,8 @@ EMI *schedule* and the reimbursement approval flow, not the payslip line.
 | ~~One employee's attendance month~~ | `attendance.controller.ts:85` | ✅ **Wired** as a card on the employee record — the tab `05:62` specifies. Read-only: there is no admin attendance editor and no endpoint for one. |
 | ~~Announcement permalink~~ | `announcements.controller.ts:88` | ✅ **Wired.** `/announcements/[id]`, linked from each card title. |
 | ~~"Deactivate it instead"~~ | `structures/page.tsx:169` | ✅ **One click now.** This audit said no deactivate control existed anywhere. That was **overstated** — the structure editor has always had an active switch. What was missing was a control where the advice is given, so acting on it meant opening the editor to hunt for a toggle. |
-| `unknownVariables()` ×2, `isRunEditable()`, `editBlockedReason()`, `currentLeaveYear()` | letters, settings, payroll, rbac, leave | **Open.** Implemented, zero callers outside their own specs. |
+| ~~`unknownVariables()` ×2, `isRunEditable()`, `currentLeaveYear()`~~ | letters, settings, payroll, leave | ✅ **Deleted 2026-08-20** — still zero callers when removed. |
+| ~~`editBlockedReason()`~~ | payroll, rbac | ✅ **Alive**, and was when this row was written: `pay-components.service.ts:96` and `rbac.service.ts:191` both call their variant. Verified by grep before the sweep deleted anything. |
 
 ### Dead permissions
 
@@ -154,7 +155,7 @@ as though it describes enforcement, when for these three rows it does not.
 | Permission | Granted to | Reality |
 |---|---|---|
 | ~~`employee.offboard`~~ | Admin, HR | ✅ Now enforced on `POST /employees/:id/offboard`. |
-| `attendance.manage` | Admin, HR | Shifts CRUD lives under `organization/shifts` and is gated by `org.manage`. |
+| ~~`attendance.manage`~~ | Admin, HR | ✅ **Removed 2026-08-20** — shifts stay under `org.manage`, and nothing else ever claimed the code. |
 | `employee.update.own` | everyone | `PATCH /me/profile` has no `@RequirePermissions` and never checks it; self-scoping comes from the JWT subject. |
 
 ### Dead schema
@@ -163,10 +164,10 @@ as though it describes enforcement, when for these three rows it does not.
 |---|---|---|
 | ~~`Notification`~~ | `schema.prisma:643` | ✅ **Alive.** Written by `NotificationsService`, read by the header bell. |
 | ~~`EmergencyContact`~~ | `:318` | ✅ **Alive.** Editable on `/profile` as a replace-all array and shown on the employee record. It was written by the seed and read by nothing — not even in `DETAIL_INCLUDE`, so the seeded rows were unreachable. |
-| `Document.visibility`, `enum DocVisibility` | `:550`, `:564` | Seed writes the literal `'PRIVATE'`; no API code reads or filters it. |
-| `Department.headId` | `:146` | Read by the department report, **never written** — no create/update schema accepts it. In any non-seeded tenant the report's "Head" column is permanently `—`. |
-| `LocationVerification.OUTSIDE` / `.NOT_APPLICABLE` | `:441`, `:445` | Never produced. `NOT_APPLICABLE` is still the column default, so the default writes a value nothing generates. |
-| `AttendanceSource.MOBILE` / `.IMPORT` | `:356-357` | Never written. |
+| ~~`Document.visibility`, `enum DocVisibility`~~ | `:550`, `:564` | ✅ **Dropped 2026-08-20** (`20260820104500_cleanup_dead_schema`). |
+| `Department.headId` | `:146` | Read by the department report, **never written by the API** — no create/update schema accepts it; only the seed sets heads. The sweep of 2026-08-20 dropped it on a misreading of this row and restored it the same hour (`20260820110000_restore_department_head`) when the typecheck caught the report's `head` select. The real gap stands: a screen to set a department head. |
+| `LocationVerification.OUTSIDE` / `.NOT_APPLICABLE` | `:441`, `:445` | ~~`OUTSIDE`~~ ✅ **dropped 2026-08-20**. `NOT_APPLICABLE` stays: it is the column default on `AttendanceSession`, so removing it is a behaviour change, not a cleanup. |
+| ~~`AttendanceSource.MOBILE` / `.IMPORT`~~ | `:356-357` | ✅ **Dropped 2026-08-20** — never written by any path or the seed. |
 | ~~`EmployeeStatus.ON_NOTICE`~~ | `:242` | ✅ Now set by offboarding. It still behaves like `ACTIVE` in every filter, and that is correct — somebody serving notice is still an employee. `exitDate` is what changes behaviour. |
 
 ---
@@ -538,10 +539,11 @@ which other documents were citing.
     - **One approval stage**, not manager-then-finance. Leave, WFH and
       resignation are all single-stage; a second would be two more states and
       two more checks for no asked-for gain.
-    - **`isRunEditable()` finally has a caller.** It is listed above under
-      "implemented, zero callers outside their own specs" — approving a claim
-      into a locked month is what now reaches it, through
-      `PayrollAdjustmentsService`.
+    - **`isRunEditable()` never got its caller.** An earlier revision of this
+      row said approving a claim into a locked month reaches it through
+      `PayrollAdjustmentsService`; grep said otherwise — the adjustments
+      service carries its own locked-month check. The function was deleted in
+      the 2026-08-20 sweep.
 
     **Not built**: mileage rates, per-diems, corporate-card feeds, multi-currency,
     and any advance-against-expenses flow.

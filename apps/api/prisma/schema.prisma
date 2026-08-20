@@ -507,9 +507,7 @@ enum AttendanceStatus {
 
 enum AttendanceSource {
   WEB
-  MOBILE
   ADMIN
-  IMPORT
 }
 
 /// One row per employee per day — the unit payroll and reports aggregate on.
@@ -592,8 +590,6 @@ enum WorkMode {
 enum LocationVerification {
   /// Inside an office geofence.
   VERIFIED
-  /// A usable fix that lands outside every office.
-  OUTSIDE
   /// No position, or one too vague to conclude anything from.
   UNVERIFIED
   /// Remote or client site — there is nothing to check against.
@@ -744,11 +740,6 @@ model DocumentCategory {
   @@unique([organizationId, name])
 }
 
-enum DocVisibility {
-  PRIVATE
-  ORG
-}
-
 model Document {
   id             String        @id @default(cuid())
   organizationId String
@@ -758,7 +749,6 @@ model Document {
   fileKey        String
   mimeType       String
   sizeBytes      Int
-  visibility     DocVisibility @default(PRIVATE)
   /// Nullable because some uploads genuinely have no user behind them: a CV
   /// arriving through the public careers page is posted by somebody with no
   /// account, no employee record and no session. `AuditLog.actorId` is

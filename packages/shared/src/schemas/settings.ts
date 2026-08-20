@@ -357,7 +357,6 @@ export const modulesSchema = z.object({
   reports: z.boolean().default(true),
   payroll: z.boolean().default(true),
   assets: z.boolean().default(true),
-  wfh: z.boolean().default(true),
   expenses: z.boolean().default(true),
   performance: z.boolean().default(true),
   helpdesk: z.boolean().default(true),

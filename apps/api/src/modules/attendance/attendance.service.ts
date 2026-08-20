@@ -66,7 +66,7 @@ const MAX_SESSIONS_PER_DAY = 20;
 const DERIVED_STATUSES = new Set(['PRESENT', 'HALF_DAY', 'WFH']);
 
 /** How a time got recorded — mirrors the `AttendanceSource` enum. */
-export type AttendanceSourceValue = 'WEB' | 'MOBILE' | 'ADMIN' | 'IMPORT';
+export type AttendanceSourceValue = 'WEB' | 'ADMIN';
 
 export interface AttendanceContext {
   employeeId: string;

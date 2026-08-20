@@ -21,7 +21,7 @@ export type DerivedStatus =
   | 'FUTURE';
 
 export type WorkMode = 'OFFICE' | 'REMOTE' | 'CLIENT_SITE';
-export type LocationVerification = 'VERIFIED' | 'OUTSIDE' | 'UNVERIFIED' | 'NOT_APPLICABLE';
+export type LocationVerification = 'VERIFIED' | 'UNVERIFIED' | 'NOT_APPLICABLE';
 
 export const WORK_MODE_LABEL: Record<WorkMode, string> = {
   OFFICE: 'Office',

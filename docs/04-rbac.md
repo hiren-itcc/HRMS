@@ -57,7 +57,7 @@ org.manage rather than any attendance permission.
 
 attendance.read.own    attendance.mark.own      attendance.request.own
 attendance.read.team   attendance.approve.team
-attendance.read        attendance.approve       attendance.manage   (unused — see below)
+attendance.read        attendance.approve
 
 leave.read.own         leave.request.own
 leave.read.team        leave.approve.team
@@ -140,7 +140,6 @@ settings.manage        role.manage              audit.read
 | `attendance.mark.own` / `read.own` / `request.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `attendance.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
 | `attendance.read` (all) / `approve` (all) | ✅ | ✅ | — | — | — |
-| `attendance.manage` (shifts, corrections) | ✅ | ✅ | — | — | — |
 | `leave.request.own` / `read.own` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `leave.read.team` / `approve.team` | ✅ | ✅ | — | ✅ | — |
 | `leave.read` (all) / `approve` (all) | ✅ | ✅ | — | — | — |
@@ -204,21 +203,16 @@ Request → JwtAuthGuard (identity) → PermissionsGuard (matrix) → Service (s
 3. **Service-level scoping** is the part guards can't do: `.team` queries add `WHERE employee.managerId = callerEmployeeId`; `.own` routes derive the employee from the JWT and ignore any client-sent id. **Rule: scope is never taken from request params.**
 4. **UI mirrors, never replaces:** the web app hides what `GET /auth/me` says you can't do — cosmetic only; the API is the boundary.
 
-### Three codes in the table are seeded but never checked
+### Codes that were seeded but never checked
 
-The matrix above lists what a role is *granted*. For most rows that is also what
-is *enforced*, but three are granted to somebody and read by nothing:
+The matrix above lists what a role is *granted*. For most rows that is also
+what is *enforced*; three were once granted and read by nothing:
 
-| Code | Why it is inert |
+| Code | Where it landed |
 |---|---|
 | ~~`employee.offboard`~~ | ✅ Now enforced on `POST /employees/:id/offboard`. |
-| `attendance.manage` | Shifts turned out to belong to company setup, not attendance: they live at `organization/shifts` behind `org.manage`. Nothing else claimed the code. |
-| `employee.update.own` | `PATCH /me/profile` carries no `@RequirePermissions`. Self-scope comes from the JWT subject, which is stronger — there is no id to tamper with. |
-
-Revoking any of the three changes nothing, which is the problem: the table reads
-as though it describes enforcement. They are listed in
-[15-feature-audit.md](./15-feature-audit.md) with the endpoints that would give
-them meaning.
+| ~~`attendance.manage`~~ | **Removed 2026-08-20.** Shifts turned out to belong to company setup, not attendance: they live at `organization/shifts` behind `org.manage`, and nothing else ever claimed the code. |
+| `employee.update.own` | Still granted, still unchecked — `PATCH /me/profile` carries no `@RequirePermissions`. Self-scope comes from the JWT subject, which is stronger — there is no id to tamper with. |
 
 ## Beyond the guard: content as a second gate
 

@@ -993,9 +993,11 @@ never rewrites another: `workingWeek` (`weekOffDays`, `weekStartsOn`), `leave`
 basis, and the PF / ESI / professional-tax rules), `lifecycle`, `exitChecklist`,
 `settlement`, `wfh` and `modules`.
 
-`modules` has twelve keys — `attendance`, `leave`, `documents`, `announcements`,
-`reports`, `payroll`, `assets`, `wfh`, `expenses`, `performance`, `helpdesk`,
-`projects` — and is **presentation only, never authorization**: turning a module
+`modules` has eleven keys — `attendance`, `leave`, `documents`, `announcements`,
+`reports`, `payroll`, `assets`, `expenses`, `performance`, `helpdesk`,
+`projects` — (`wfh` was removed 2026-08-20: its screens live under the
+attendance route, so the sidebar keyed WFH on `attendance` and the toggle
+switched nothing) and is **presentation only, never authorization**: turning a module
 off hides its navigation entry and leaves its API reachable by anyone holding
 the permissions.
 

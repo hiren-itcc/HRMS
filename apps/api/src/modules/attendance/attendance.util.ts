@@ -112,7 +112,7 @@ export function workedMinutesBetween(checkIn: Date, checkOut: Date): number {
 // ── where someone worked ──────────────────────────────────────────────
 
 export type WorkModeValue = 'OFFICE' | 'REMOTE' | 'CLIENT_SITE';
-export type VerificationValue = 'VERIFIED' | 'OUTSIDE' | 'UNVERIFIED' | 'NOT_APPLICABLE';
+export type VerificationValue = 'VERIFIED' | 'UNVERIFIED' | 'NOT_APPLICABLE';
 
 export interface Coords {
   latitude: number;

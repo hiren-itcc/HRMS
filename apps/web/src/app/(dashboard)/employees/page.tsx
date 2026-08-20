@@ -12,6 +12,7 @@ import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import { toast } from 'sonner';
 import { CrudShell } from '@/components/crud/crud-shell';
 import { DataTable } from '@/components/data-table';
 import { EmployeeAvatar } from '@/components/employee-avatar';
@@ -52,6 +53,24 @@ function EmployeesView() {
     locationId,
     status,
   });
+  const exportCsv = async () => {
+    try {
+      const blob = await employeesApi.exportFile({
+        search: params.search,
+        sort: params.sort,
+        order: params.order,
+        departmentId,
+        locationId,
+        status,
+      });
+      const href = URL.createObjectURL(blob);
+      Object.assign(document.createElement('a'), { href, download: 'employees.csv' }).click();
+      URL.revokeObjectURL(href);
+    } catch {
+      toast.error('Could not export the list');
+    }
+  };
+
   const canReadOrg = { enabled: can('org.read') };
   const departments = useOptions(
     'org-departments',
@@ -95,6 +114,14 @@ function EmployeesView() {
             {can('employee.import') && (
               <Button variant="ghost" size="sm" render={<Link href="/employees/import" />}>
                 Import
+              </Button>
+            )}
+            {/* Same pair of codes the endpoint demands: org-wide read, plus
+                report.export because a file leaves the building. Downloads the
+                list as currently filtered, not the whole company regardless. */}
+            {can('employee.read') && can('report.export') && (
+              <Button variant="ghost" size="sm" onClick={exportCsv}>
+                Export
               </Button>
             )}
             <Select

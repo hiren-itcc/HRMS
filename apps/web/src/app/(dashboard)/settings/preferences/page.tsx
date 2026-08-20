@@ -81,7 +81,6 @@ const MONTHS = [
 const MODULE_LABELS: { key: keyof OrgSettings['modules']; label: string; hint: string }[] = [
   { key: 'attendance', label: 'Attendance', hint: 'Clock in/out, calendar, corrections' },
   { key: 'leave', label: 'Leave', hint: 'Requests, balances, approvals' },
-  { key: 'wfh', label: 'Remote work', hint: 'Working-from-home requests and the weekly cap' },
   { key: 'documents', label: 'Documents', hint: 'Folders and employee documents' },
   { key: 'payroll', label: 'Payroll', hint: 'Runs, payslips and salary structures' },
   { key: 'expenses', label: 'Expenses', hint: 'Claims, approvals and reimbursement categories' },

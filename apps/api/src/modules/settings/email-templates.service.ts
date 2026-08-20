@@ -3,7 +3,6 @@ import type { AccessTokenClaims } from '@hrms/types';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { auditMutation } from '../../common/utils/audit';
 import { PrismaService } from '../../database/prisma.service';
-import { usedVariables } from '../mail/template-renderer';
 
 export interface EmailTemplateView {
   key: string;
@@ -104,13 +103,5 @@ export class EmailTemplatesService {
     );
     const list = await this.list(claims);
     return list.find((t) => t.key === key);
-  }
-
-  /** Placeholders used but not declared — surfaced as a warning, not an error. */
-  unknownVariables(key: string, subject: string, bodyHtml: string): string[] {
-    const declared = new Set(emailTemplateDefault(key)?.variables ?? []);
-    return [...new Set([...usedVariables(subject), ...usedVariables(bodyHtml)])].filter(
-      (name) => !declared.has(name),
-    );
   }
 }

@@ -10,12 +10,14 @@ import type {
   SelfProfileUpdateInput,
 } from '@hrms/shared';
 import type { Paginated } from '@hrms/types';
-import { api } from '@/lib/api-client';
+import { api, fetchBlob } from '@/lib/api-client';
 import { type ListRequest, qs } from '@/lib/crud';
 import type { BankDetail, EmployeeDetail, EmployeeListItem, EmployeeOption } from './types';
 
 export const employeesApi = {
   list: (params: ListRequest) => api<Paginated<EmployeeListItem>>(`/employees${qs(params)}`),
+  /** The current list as a file — same filters, same columns import accepts. */
+  exportFile: (params: ListRequest) => fetchBlob(`/employees/export${qs(params)}`),
   detail: (id: string) => api<EmployeeDetail>(`/employees/${id}`),
   options: () => api<EmployeeOption[]>('/employees/options'),
 

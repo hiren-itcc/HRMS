@@ -3,7 +3,6 @@ import {
   canTransition,
   canTransitionPayment,
   isPayslipVisibleToEmployee,
-  isRunEditable,
   nextStatus,
   type PaymentStatus,
   RUN_ACTION_PERMISSION,
@@ -89,14 +88,6 @@ describe('separation of duties', () => {
 });
 
 describe('editability and visibility', () => {
-  it('is editable only in draft and review', () => {
-    expect(isRunEditable('DRAFT')).toBe(true);
-    expect(isRunEditable('IN_REVIEW')).toBe(true);
-    for (const status of ['APPROVED', 'LOCKED', 'PUBLISHED', 'CANCELLED'] as RunStatus[]) {
-      expect(isRunEditable(status)).toBe(false);
-    }
-  });
-
   it('shows payslips to employees only once published', () => {
     for (const status of ALL_STATUSES) {
       expect(isPayslipVisibleToEmployee(status)).toBe(status === 'PUBLISHED');
