@@ -17,7 +17,7 @@ export default function PayrollLayout({ children }: { children: React.ReactNode 
     <div className="space-y-6">
       <PageHeader
         title="Payroll"
-        description="Salary structures, monthly runs, payslips and statutory reports"
+        description="Salary structures, monthly runs, payslips and reports"
         className="print:hidden"
       />
 
@@ -39,12 +39,6 @@ export default function PayrollLayout({ children }: { children: React.ReactNode 
           },
           { href: '/payroll/settlements', label: 'Settlements', show: can('payroll.read') },
           { href: '/payroll/reports', label: 'Reports', show: can('payroll.read') },
-          {
-            href: '/payroll/filings',
-            label: 'Returns',
-            show: can('payroll.read'),
-            match: 'prefix',
-          },
           {
             href: '/payroll/tax',
             label: 'Income tax',

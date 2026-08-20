@@ -271,9 +271,6 @@ export default function PreferencesPage() {
           <TabsTab value="payroll" className="max-sm:data-[orientation=vertical]:w-auto">
             {tabLabel('payroll', 'Payroll rates')}
           </TabsTab>
-          <TabsTab value="statutory" className="max-sm:data-[orientation=vertical]:w-auto">
-            {tabLabel('statutory', 'Statutory')}
-          </TabsTab>
           <TabsTab value="modules" className="max-sm:data-[orientation=vertical]:w-auto">
             {tabLabel('modules', 'Modules')}
           </TabsTab>
@@ -1160,52 +1157,6 @@ export default function PreferencesPage() {
             {/* One save covers all four sections above — they are one
                 settings group (`payroll`) and save as a single PATCH. */}
             {saveBar('payroll', 'Save rates')}
-          </FadeInItem>
-        </TabsPanel>
-
-        {/* ── Statutory ────────────────────────────────────────────────── */}
-        <TabsPanel value="statutory">
-          <FadeInItem>
-            {/*
-             * Statutory identity. Not decoration: an ECR file cannot be written
-             * without the establishment code, and the filings screen refuses before
-             * a month can be chosen rather than at download time.
-             */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Statutory</CardTitle>
-                <CardDescription>
-                  Who this company is to the EPFO, ESIC and the tax department. A return cannot be
-                  generated until the code it is filed under is here.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                {(
-                  [
-                    ['pfEstablishmentCode', 'PF establishment code', 'Required for an ECR file'],
-                    ['esiEmployerCode', 'ESIC employer code', 'Required for a contribution return'],
-                    ['tan', 'TAN', 'Tax deduction account number'],
-                    ['pan', 'PAN', 'The company’s own PAN'],
-                    ['signatoryName', 'Signatory', 'Named on a return as responsible for it'],
-                    ['signatoryDesignation', 'Signatory designation', ''],
-                  ] as const
-                ).map(([key, label, hint]) => (
-                  <Field key={key} label={label} hint={hint || undefined}>
-                    {(a11y) => (
-                      <Input
-                        {...a11y}
-                        value={draft.statutory[key]}
-                        disabled={!canManage}
-                        onChange={(e) => set('statutory', { [key]: e.target.value })}
-                      />
-                    )}
-                  </Field>
-                ))}
-                <div className="sm:col-span-2">
-                  {saveBar('statutory', 'Save statutory details')}
-                </div>
-              </CardContent>
-            </Card>
           </FadeInItem>
         </TabsPanel>
 
