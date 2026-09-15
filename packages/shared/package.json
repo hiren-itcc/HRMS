@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@hrms/types": "workspace:*",
-    "zod": "^4.1.0"
+    "zod": "^4.6.3"
   },
   "devDependencies": {
     "@hrms/config": "workspace:*",
